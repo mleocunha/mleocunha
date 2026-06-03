@@ -146,4 +146,22 @@ class EVote_Json_Payloads {
 		}
 		return true;
 	}
+
+	/**
+	 * Validate encrypted ballot JSON.
+	 *
+	 * @param array<string, mixed> $data Decoded JSON.
+	 * @return true|WP_Error
+	 */
+	public static function validate_encrypted_ballot( $data ) {
+		if ( ! is_array( $data ) || ( $data['schema'] ?? '' ) !== self::SCHEMA_BALLOT ) {
+			return new WP_Error( 'evote_invalid_schema', __( 'Invalid encrypted ballot schema.', 'decentralized-evoting' ) );
+		}
+		foreach ( array( 'c1', 'c2' ) as $field ) {
+			if ( empty( $data[ $field ] ) || ! is_string( $data[ $field ] ) ) {
+				return new WP_Error( 'evote_missing_field', sprintf( __( 'Missing field: %s', 'decentralized-evoting' ), $field ) );
+			}
+		}
+		return true;
+	}
 }

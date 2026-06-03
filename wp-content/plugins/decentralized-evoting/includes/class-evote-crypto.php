@@ -300,6 +300,102 @@ class EVote_Crypto {
 	}
 
 	/**
+	 * Resolve ElGamal parameters from public key JSON or default group.
+	 *
+	 * @param array<string, mixed>|null $public_key Optional public key export.
+	 * @return EVote_Elgamal|WP_Error
+	 */
+	public static function elgamal_for_operations( $public_key = null ) {
+		if ( null !== $public_key && array() !== $public_key ) {
+			return self::elgamal_from_public_key( $public_key );
+		}
+		return EVote_Elgamal::from_rfc3526_group14();
+	}
+
+	/**
+	 * Encrypt a vote integer for export / testing (Node 3 helper, mirrors future client flow).
+	 *
+	 * @param array<string, mixed> $public_key Decoded public key JSON.
+	 * @param int                  $vote       Positive vote encoding (e.g. candidate id).
+	 * @return array<string, mixed>|WP_Error
+	 */
+	public static function encrypt_vote( array $public_key, $vote ) {
+		$elgamal = self::elgamal_from_public_key( $public_key );
+		if ( is_wp_error( $elgamal ) ) {
+			return $elgamal;
+		}
+
+		$y = EVote_Elgamal::from_hex( $public_key['y'] );
+		$m = $elgamal->encode_vote_integer( $vote );
+		if ( is_wp_error( $m ) ) {
+			return $m;
+		}
+
+		$ct = $elgamal->encrypt( $m, $y );
+		if ( is_wp_error( $ct ) ) {
+			return $ct;
+		}
+
+		return array(
+			'ballot' => array(
+				'schema'            => EVote_Json_Payloads::SCHEMA_BALLOT,
+				'version'           => EVote_Json_Payloads::VERSION,
+				'key_id'            => $public_key['key_id'] ?? null,
+				'message_encoding'  => 'vote-integer',
+				'message'           => (string) absint( $vote ),
+				'c1'                => EVote_Elgamal::to_hex( $ct['c1'] ),
+				'c2'                => EVote_Elgamal::to_hex( $ct['c2'] ),
+			),
+		);
+	}
+
+	/**
+	 * Decrypt an encrypted ballot with a reconstructed private key.
+	 *
+	 * @param string               $private_hex Private key (hex).
+	 * @param array<string, mixed> $ballot      Decoded ballot JSON.
+	 * @param array<string, mixed> $public_key  Optional public key for group parameters.
+	 * @return array<string, mixed>|WP_Error
+	 */
+	public static function decrypt_ballot( $private_hex, array $ballot, $public_key = null ) {
+		$valid = EVote_Json_Payloads::validate_encrypted_ballot( $ballot );
+		if ( is_wp_error( $valid ) ) {
+			return $valid;
+		}
+
+		$public_key = is_array( $public_key ) ? $public_key : null;
+		$elgamal    = self::elgamal_for_operations( $public_key );
+		if ( is_wp_error( $elgamal ) ) {
+			return $elgamal;
+		}
+
+		$params = $elgamal->get_parameters();
+		$x      = EVote_Elgamal::from_hex( $private_hex )->mod( $params['q'] );
+		$c1     = EVote_Elgamal::from_hex( $ballot['c1'] );
+		$c2     = EVote_Elgamal::from_hex( $ballot['c2'] );
+
+		$plain = $elgamal->decrypt( $c1, $c2, $x );
+		if ( is_wp_error( $plain ) ) {
+			return $plain;
+		}
+
+		$decoded_vote = null;
+		if ( ! empty( $ballot['message_encoding'] ) && 'vote-integer' === $ballot['message_encoding'] && isset( $ballot['message'] ) ) {
+			$expected = new BigInteger( (string) absint( $ballot['message'] ) );
+			$decoded_vote = $plain->equals( $expected ) ? (string) absint( $ballot['message'] ) : null;
+		}
+		if ( null === $decoded_vote && $plain->compare( new BigInteger( '1000000' ) ) < 0 ) {
+			$decoded_vote = (string) $plain;
+		}
+
+		return array(
+			'plaintext_hex' => EVote_Elgamal::to_hex( $plain ),
+			'vote_integer'  => $decoded_vote,
+			'key_id'        => $ballot['key_id'] ?? null,
+		);
+	}
+
+	/**
 	 * @return string
 	 */
 	public static function generate_key_id() {

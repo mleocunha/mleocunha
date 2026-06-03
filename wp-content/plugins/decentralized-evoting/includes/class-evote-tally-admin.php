@@ -1,6 +1,6 @@
 <?php
 /**
- * Node 3 (tally) admin — key ceremony and reconstruction.
+ * Node 3 (tally) admin — key ceremony, encrypt/decrypt helpers.
  *
  * @package DecentralizedEvoting
  */
@@ -10,15 +10,22 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /**
- * Tally board: SSS reconstruction (ballot import in Phase 3).
+ * Tally board: reconstruction, ballot crypto helpers, future import.
  */
 class EVote_Tally_Admin {
+
+	const TRANSIENT_RECONSTRUCT = 'evote_reconstruct_';
+	const TRANSIENT_ENCRYPT     = 'evote_tally_encrypt_';
+	const TRANSIENT_DECRYPT     = 'evote_tally_decrypt_';
+	const TRANSIENT_TTL         = 300;
 
 	/**
 	 * Register hooks.
 	 */
 	public static function register_hooks() {
 		add_action( 'admin_post_evote_reconstruct_key', array( __CLASS__, 'handle_reconstruct' ) );
+		add_action( 'admin_post_evote_tally_encrypt', array( __CLASS__, 'handle_encrypt' ) );
+		add_action( 'admin_post_evote_tally_decrypt', array( __CLASS__, 'handle_decrypt' ) );
 	}
 
 	/**
@@ -29,32 +36,91 @@ class EVote_Tally_Admin {
 			return;
 		}
 
-		$result = get_transient( self::result_transient_key() );
+		$reconstruct     = get_transient( self::transient_key( self::TRANSIENT_RECONSTRUCT ) );
+		$encrypt_out     = get_transient( self::transient_key( self::TRANSIENT_ENCRYPT ) );
+		$decrypt_out     = get_transient( self::transient_key( self::TRANSIENT_DECRYPT ) );
+		$private_prefill = is_array( $reconstruct ) && ! empty( $reconstruct['private'] ) ? $reconstruct['private'] : '';
+		$error           = isset( $_GET['evote_error'] ) ? sanitize_text_field( wp_unslash( $_GET['evote_error'] ) ) : '';
 		?>
 		<div class="wrap">
 			<h1><?php esc_html_e( 'Tally Board', 'decentralized-evoting' ); ?></h1>
-			<p><?php esc_html_e( 'Paste trustee share JSON files (at least t shares) to reconstruct the ElGamal private key. The reconstructed key is shown once and not stored.', 'decentralized-evoting' ); ?></p>
+			<?php if ( $error ) : ?>
+				<div class="notice notice-error"><p><?php echo esc_html( $error ); ?></p></div>
+			<?php endif; ?>
+			<p><?php esc_html_e( 'Reconstruct the election private key from trustee shares, then use the encrypt/decrypt helpers to verify ballots before full tally import (Phase 3).', 'decentralized-evoting' ); ?></p>
 
 			<h2><?php esc_html_e( 'Key ceremony', 'decentralized-evoting' ); ?></h2>
 			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
 				<?php wp_nonce_field( 'evote_reconstruct_key' ); ?>
 				<input type="hidden" name="action" value="evote_reconstruct_key" />
 				<p>
-					<label for="evote_shares_json"><strong><?php esc_html_e( 'Share JSON (one array or one object per line)', 'decentralized-evoting' ); ?></strong></label>
-					<textarea name="evote_shares_json" id="evote_shares_json" class="large-text code" rows="12" placeholder='[{"schema":"evote-sss-share",...}, ...]'></textarea>
+					<label for="evote_shares_json"><strong><?php esc_html_e( 'Share JSON', 'decentralized-evoting' ); ?></strong></label>
+					<textarea name="evote_shares_json" id="evote_shares_json" class="large-text code" rows="10" placeholder='[{"schema":"evote-sss-share",...}, ...]'></textarea>
 				</p>
 				<?php submit_button( __( 'Reconstruct private key', 'decentralized-evoting' ) ); ?>
 			</form>
 
-			<?php if ( is_array( $result ) ) : ?>
-				<div class="notice notice-success">
-					<p><?php esc_html_e( 'Reconstruction succeeded. Copy the private key now — it will not be shown again after you leave this page.', 'decentralized-evoting' ); ?></p>
-				</div>
-				<pre class="code" style="background:#f6f7f7;padding:1em;"><?php echo esc_html( wp_json_encode( $result, JSON_PRETTY_PRINT ) ); ?></pre>
+			<?php if ( is_array( $reconstruct ) ) : ?>
+				<div class="notice notice-success inline"><p><?php esc_html_e( 'Private key reconstructed (shown below for copy/paste into decrypt helper). Not stored permanently.', 'decentralized-evoting' ); ?></p></div>
+				<pre class="code" style="background:#f6f7f7;padding:1em;max-height:200px;overflow:auto;"><?php echo esc_html( wp_json_encode( $reconstruct, JSON_PRETTY_PRINT ) ); ?></pre>
 			<?php endif; ?>
 
 			<hr />
-			<h2><?php esc_html_e( 'Ballot import (Phase 3)', 'decentralized-evoting' ); ?></h2>
+
+			<h2><?php esc_html_e( 'Encrypt helper (test ballot)', 'decentralized-evoting' ); ?></h2>
+			<p class="description"><?php esc_html_e( 'Build an encrypted ballot JSON from the election public key and a vote integer (e.g. candidate ID). Use this to test decryption before processing a real ballot box.', 'decentralized-evoting' ); ?></p>
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+				<?php wp_nonce_field( 'evote_tally_encrypt' ); ?>
+				<input type="hidden" name="action" value="evote_tally_encrypt" />
+				<p>
+					<label for="evote_encrypt_pubkey"><strong><?php esc_html_e( 'Public key JSON', 'decentralized-evoting' ); ?></strong></label>
+					<textarea name="evote_public_key_json" id="evote_encrypt_pubkey" class="large-text code" rows="8" placeholder='{"schema":"evote-public-key",...}'></textarea>
+				</p>
+				<p>
+					<label for="evote_vote_integer"><strong><?php esc_html_e( 'Vote integer', 'decentralized-evoting' ); ?></strong></label>
+					<input type="number" name="evote_vote_integer" id="evote_vote_integer" min="1" value="1" class="small-text" />
+					<span class="description"><?php esc_html_e( 'Encoded as the ElGamal message (same as future client-side encryption).', 'decentralized-evoting' ); ?></span>
+				</p>
+				<?php submit_button( __( 'Encrypt', 'decentralized-evoting' ), 'secondary' ); ?>
+			</form>
+
+			<?php if ( is_array( $encrypt_out ) ) : ?>
+				<h3><?php esc_html_e( 'Ciphertext output', 'decentralized-evoting' ); ?></h3>
+				<pre class="code" style="background:#f6f7f7;padding:1em;max-height:320px;overflow:auto;"><?php echo esc_html( wp_json_encode( $encrypt_out, JSON_PRETTY_PRINT ) ); ?></pre>
+			<?php endif; ?>
+
+			<hr />
+
+			<h2><?php esc_html_e( 'Decrypt helper', 'decentralized-evoting' ); ?></h2>
+			<p class="description"><?php esc_html_e( 'Decrypt a single encrypted ballot with the reconstructed private key. Public key JSON is optional (defaults to RFC 3526 Group 14).', 'decentralized-evoting' ); ?></p>
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+				<?php wp_nonce_field( 'evote_tally_decrypt' ); ?>
+				<input type="hidden" name="action" value="evote_tally_decrypt" />
+				<p>
+					<label for="evote_decrypt_private"><strong><?php esc_html_e( 'Private key (hex)', 'decentralized-evoting' ); ?></strong></label>
+					<textarea name="evote_private_hex" id="evote_decrypt_private" class="large-text code" rows="3" placeholder="<?php esc_attr_e( 'From reconstruction above', 'decentralized-evoting' ); ?>"><?php echo esc_textarea( $private_prefill ); ?></textarea>
+				</p>
+				<p>
+					<label for="evote_decrypt_pubkey"><strong><?php esc_html_e( 'Public key JSON (optional)', 'decentralized-evoting' ); ?></strong></label>
+					<textarea name="evote_public_key_json" id="evote_decrypt_pubkey" class="large-text code" rows="6" placeholder="<?php esc_attr_e( 'Leave empty if using RFC 3526 Group 14', 'decentralized-evoting' ); ?>"></textarea>
+				</p>
+				<p>
+					<label for="evote_ballot_json"><strong><?php esc_html_e( 'Encrypted ballot JSON', 'decentralized-evoting' ); ?></strong></label>
+					<textarea name="evote_ballot_json" id="evote_ballot_json" class="large-text code" rows="8" placeholder='{"schema":"evote-encrypted-ballot","c1":"...","c2":"..."}'></textarea>
+				</p>
+				<?php submit_button( __( 'Decrypt', 'decentralized-evoting' ), 'secondary' ); ?>
+			</form>
+
+			<?php if ( is_array( $decrypt_out ) ) : ?>
+				<h3><?php esc_html_e( 'Plaintext output', 'decentralized-evoting' ); ?></h3>
+				<pre class="code" style="background:#f6f7f7;padding:1em;"><?php echo esc_html( wp_json_encode( $decrypt_out, JSON_PRETTY_PRINT ) ); ?></pre>
+				<?php if ( ! empty( $decrypt_out['vote_integer'] ) ) : ?>
+					<p><strong><?php esc_html_e( 'Decoded vote:', 'decentralized-evoting' ); ?></strong> <code><?php echo esc_html( (string) $decrypt_out['vote_integer'] ); ?></code></p>
+				<?php endif; ?>
+			<?php endif; ?>
+
+			<hr />
+			<h2><?php esc_html_e( 'Ballot box import (Phase 3)', 'decentralized-evoting' ); ?></h2>
 			<pre class="code" style="background:#f6f7f7;padding:1em;"><?php echo esc_html( wp_json_encode( EVote_Json_Payloads::ballot_export_skeleton(), JSON_PRETTY_PRINT ) ); ?></pre>
 		</div>
 		<?php
@@ -69,20 +135,128 @@ class EVote_Tally_Admin {
 		}
 		check_admin_referer( 'evote_reconstruct_key' );
 
-		$raw = isset( $_POST['evote_shares_json'] ) ? wp_unslash( $_POST['evote_shares_json'] ) : '';
+		$raw    = isset( $_POST['evote_shares_json'] ) ? wp_unslash( $_POST['evote_shares_json'] ) : '';
 		$shares = self::parse_shares_input( $raw );
 		if ( is_wp_error( $shares ) ) {
-			wp_die( esc_html( $shares->get_error_message() ) );
+			self::redirect_with_error( $shares->get_error_message() );
 		}
 
 		$result = EVote_Crypto::reconstruct_private_key( $shares );
 		if ( is_wp_error( $result ) ) {
-			wp_die( esc_html( $result->get_error_message() ) );
+			self::redirect_with_error( $result->get_error_message() );
 		}
 
-		set_transient( self::result_transient_key(), $result, 120 );
+		set_transient( self::transient_key( self::TRANSIENT_RECONSTRUCT ), $result, self::TRANSIENT_TTL );
 		wp_safe_redirect( admin_url( 'admin.php?page=evote-tally' ) );
 		exit;
+	}
+
+	/**
+	 * Encrypt helper handler.
+	 */
+	public static function handle_encrypt() {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( esc_html__( 'Unauthorized.', 'decentralized-evoting' ) );
+		}
+		check_admin_referer( 'evote_tally_encrypt' );
+
+		$public_key = self::parse_json_field( 'evote_public_key_json' );
+		if ( is_wp_error( $public_key ) ) {
+			self::redirect_with_error( $public_key->get_error_message() );
+		}
+
+		$vote = isset( $_POST['evote_vote_integer'] ) ? absint( $_POST['evote_vote_integer'] ) : 0;
+		if ( $vote < 1 ) {
+			self::redirect_with_error( __( 'Vote integer must be at least 1.', 'decentralized-evoting' ) );
+		}
+
+		$result = EVote_Crypto::encrypt_vote( $public_key, $vote );
+		if ( is_wp_error( $result ) ) {
+			self::redirect_with_error( $result->get_error_message() );
+		}
+
+		set_transient( self::transient_key( self::TRANSIENT_ENCRYPT ), $result, self::TRANSIENT_TTL );
+		wp_safe_redirect( admin_url( 'admin.php?page=evote-tally' ) );
+		exit;
+	}
+
+	/**
+	 * Decrypt helper handler.
+	 */
+	public static function handle_decrypt() {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( esc_html__( 'Unauthorized.', 'decentralized-evoting' ) );
+		}
+		check_admin_referer( 'evote_tally_decrypt' );
+
+		$private = isset( $_POST['evote_private_hex'] ) ? sanitize_text_field( wp_unslash( $_POST['evote_private_hex'] ) ) : '';
+		$private = preg_replace( '/\s+/', '', $private );
+		if ( '' === $private ) {
+			self::redirect_with_error( __( 'Private key hex is required.', 'decentralized-evoting' ) );
+		}
+
+		$ballot = self::parse_json_field( 'evote_ballot_json' );
+		if ( is_wp_error( $ballot ) ) {
+			self::redirect_with_error( $ballot->get_error_message() );
+		}
+
+		$public_key = null;
+		$pub_raw    = isset( $_POST['evote_public_key_json'] ) ? trim( wp_unslash( $_POST['evote_public_key_json'] ) ) : '';
+		if ( '' !== $pub_raw ) {
+			$public_key = json_decode( $pub_raw, true );
+			if ( JSON_ERROR_NONE !== json_last_error() || ! is_array( $public_key ) ) {
+				self::redirect_with_error( __( 'Invalid public key JSON.', 'decentralized-evoting' ) );
+			}
+		}
+
+		$result = EVote_Crypto::decrypt_ballot( $private, $ballot, $public_key );
+		if ( is_wp_error( $result ) ) {
+			self::redirect_with_error( $result->get_error_message() );
+		}
+
+		set_transient( self::transient_key( self::TRANSIENT_DECRYPT ), $result, self::TRANSIENT_TTL );
+		wp_safe_redirect( admin_url( 'admin.php?page=evote-tally' ) );
+		exit;
+	}
+
+	/**
+	 * @param string $prefix Transient prefix.
+	 * @return string
+	 */
+	private static function transient_key( $prefix ) {
+		return $prefix . get_current_user_id();
+	}
+
+	/**
+	 * @param string $message Error text.
+	 */
+	private static function redirect_with_error( $message ) {
+		wp_safe_redirect(
+			add_query_arg(
+				array(
+					'page'        => 'evote-tally',
+					'evote_error' => rawurlencode( $message ),
+				),
+				admin_url( 'admin.php' )
+			)
+		);
+		exit;
+	}
+
+	/**
+	 * @param string $field POST field name.
+	 * @return array<string, mixed>|WP_Error
+	 */
+	private static function parse_json_field( $field ) {
+		$raw = isset( $_POST[ $field ] ) ? trim( wp_unslash( $_POST[ $field ] ) ) : '';
+		if ( '' === $raw ) {
+			return new WP_Error( 'evote_empty', __( 'JSON input is required.', 'decentralized-evoting' ) );
+		}
+		$decoded = json_decode( $raw, true );
+		if ( JSON_ERROR_NONE !== json_last_error() || ! is_array( $decoded ) ) {
+			return new WP_Error( 'evote_json', __( 'Invalid JSON.', 'decentralized-evoting' ) );
+		}
+		return $decoded;
 	}
 
 	/**
@@ -108,12 +282,5 @@ class EVote_Tally_Admin {
 		}
 
 		return new WP_Error( 'evote_json_format', __( 'Provide a JSON array of shares or a single share object.', 'decentralized-evoting' ) );
-	}
-
-	/**
-	 * @return string
-	 */
-	private static function result_transient_key() {
-		return 'evote_reconstruct_' . get_current_user_id();
 	}
 }

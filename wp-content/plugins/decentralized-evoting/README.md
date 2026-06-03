@@ -21,7 +21,7 @@ Bundled **phpseclib 3** (and paragonie dependencies) ship under `vendor/` — no
 - **Group:** RFC 3526 MODP Group 14 (2048-bit), scheme `modular-elgamal`
 - **SSS:** Configurable **t-of-n** from **2-of-3** up to **t-of-n** with n ≤ 99 (default **3-of-5**)
 - **Node 1:** Admin → E-Voting → Key Generation — generate and download public key + share JSON files
-- **Node 3:** Tally → paste share JSON to reconstruct private key (one-time display, not stored)
+- **Node 3:** Tally → paste share JSON to reconstruct private key; **encrypt/decrypt helpers** to verify ballots (outputs expire after 5 minutes, not stored)
 - **Classes:** `EVote_Elgamal`, `EVote_Shamir`, `EVote_Crypto`
 
 CLI check (optional): `php bin/crypto-self-test.php` from the plugin directory.
