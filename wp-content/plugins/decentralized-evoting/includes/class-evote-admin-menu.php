@@ -38,11 +38,11 @@ class EVote_Admin_Menu {
 		if ( EVote_Node::is( EVote_Node::TYPE_POLLING ) ) {
 			add_submenu_page(
 				'evote-dashboard',
-				__( 'JSON Export', 'decentralized-evoting' ),
-				__( 'Export Ballots', 'decentralized-evoting' ),
+				__( 'Polling Tools', 'decentralized-evoting' ),
+				__( 'Polling Tools', 'decentralized-evoting' ),
 				'manage_options',
 				'evote-export',
-				array( __CLASS__, 'render_export_placeholder' )
+				array( 'EVote_Polling_Admin', 'render_export_page' )
 			);
 		}
 
@@ -122,19 +122,4 @@ class EVote_Admin_Menu {
 		<?php
 	}
 
-	/**
-	 * Placeholder until export module (Phase 3).
-	 */
-	public static function render_export_placeholder() {
-		if ( ! current_user_can( 'manage_options' ) ) {
-			return;
-		}
-		?>
-		<div class="wrap">
-			<h1><?php esc_html_e( 'Export Encrypted Ballots', 'decentralized-evoting' ); ?></h1>
-			<p><?php esc_html_e( 'JSON export for Node 3 will be implemented in the import/export phase. Schema: evote-ballot-export v1.', 'decentralized-evoting' ); ?></p>
-			<pre class="code" style="background:#f6f7f7;padding:1em;"><?php echo esc_html( wp_json_encode( EVote_Json_Payloads::ballot_export_skeleton(), JSON_PRETTY_PRINT ) ); ?></pre>
-		</div>
-		<?php
-	}
 }

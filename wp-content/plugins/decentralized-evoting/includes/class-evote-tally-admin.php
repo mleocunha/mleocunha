@@ -10,13 +10,15 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /**
- * Tally board: reconstruction, ballot crypto helpers, future import.
+ * Tally board: reconstruction, import, tally, crypto helpers.
  */
 class EVote_Tally_Admin {
 
 	const TRANSIENT_RECONSTRUCT = 'evote_reconstruct_';
 	const TRANSIENT_ENCRYPT     = 'evote_tally_encrypt_';
 	const TRANSIENT_DECRYPT     = 'evote_tally_decrypt_';
+	const TRANSIENT_TALLY       = 'evote_tally_result_';
+	const TRANSIENT_IMPORT      = 'evote_tally_import_';
 	const TRANSIENT_TTL         = 300;
 
 	/**
@@ -26,6 +28,7 @@ class EVote_Tally_Admin {
 		add_action( 'admin_post_evote_reconstruct_key', array( __CLASS__, 'handle_reconstruct' ) );
 		add_action( 'admin_post_evote_tally_encrypt', array( __CLASS__, 'handle_encrypt' ) );
 		add_action( 'admin_post_evote_tally_decrypt', array( __CLASS__, 'handle_decrypt' ) );
+		add_action( 'admin_post_evote_tally_ballot_box', array( __CLASS__, 'handle_tally_ballot_box' ) );
 	}
 
 	/**
@@ -39,6 +42,8 @@ class EVote_Tally_Admin {
 		$reconstruct     = get_transient( self::transient_key( self::TRANSIENT_RECONSTRUCT ) );
 		$encrypt_out     = get_transient( self::transient_key( self::TRANSIENT_ENCRYPT ) );
 		$decrypt_out     = get_transient( self::transient_key( self::TRANSIENT_DECRYPT ) );
+		$tally_result    = get_transient( self::transient_key( self::TRANSIENT_TALLY ) );
+		$import_meta     = get_transient( self::transient_key( self::TRANSIENT_IMPORT ) );
 		$private_prefill = is_array( $reconstruct ) && ! empty( $reconstruct['private'] ) ? $reconstruct['private'] : '';
 		$error           = isset( $_GET['evote_error'] ) ? sanitize_text_field( wp_unslash( $_GET['evote_error'] ) ) : '';
 		?>
@@ -47,7 +52,41 @@ class EVote_Tally_Admin {
 			<?php if ( $error ) : ?>
 				<div class="notice notice-error"><p><?php echo esc_html( $error ); ?></p></div>
 			<?php endif; ?>
-			<p><?php esc_html_e( 'Reconstruct the election private key from trustee shares, then use the encrypt/decrypt helpers to verify ballots before full tally import (Phase 3).', 'decentralized-evoting' ); ?></p>
+			<p><?php esc_html_e( 'Import the ballot box from the polling station, reconstruct the private key, and run the tally.', 'decentralized-evoting' ); ?></p>
+
+			<h2><?php esc_html_e( 'Import ballot box & tally', 'decentralized-evoting' ); ?></h2>
+			<?php if ( is_array( $import_meta ) ) : ?>
+				<p class="description">
+					<?php
+					printf(
+						/* translators: 1: running title, 2: ballot count */
+						esc_html__( 'Loaded export: %1$s — %2$d ballots (checksum verified).', 'decentralized-evoting' ),
+						esc_html( $import_meta['title'] ?? '' ),
+						(int) ( $import_meta['ballot_count'] ?? 0 )
+					);
+					?>
+				</p>
+			<?php endif; ?>
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+				<?php wp_nonce_field( 'evote_tally_ballot_box' ); ?>
+				<input type="hidden" name="action" value="evote_tally_ballot_box" />
+				<p>
+					<label for="evote_ballot_export"><strong><?php esc_html_e( 'Ballot export JSON (from Node 2)', 'decentralized-evoting' ); ?></strong></label>
+					<textarea name="evote_ballot_export" id="evote_ballot_export" class="large-text code" rows="12"></textarea>
+				</p>
+				<p>
+					<label for="evote_tally_private"><strong><?php esc_html_e( 'Private key (hex)', 'decentralized-evoting' ); ?></strong></label>
+					<textarea name="evote_private_hex" id="evote_tally_private" class="large-text code" rows="3"><?php echo esc_textarea( $private_prefill ); ?></textarea>
+				</p>
+				<?php submit_button( __( 'Verify import & run tally', 'decentralized-evoting' ), 'primary' ); ?>
+			</form>
+
+			<?php if ( is_array( $tally_result ) ) : ?>
+				<h3><?php esc_html_e( 'Tally results', 'decentralized-evoting' ); ?></h3>
+				<pre class="code" style="background:#f6f7f7;padding:1em;max-height:400px;overflow:auto;"><?php echo esc_html( wp_json_encode( $tally_result, JSON_PRETTY_PRINT ) ); ?></pre>
+			<?php endif; ?>
+
+			<hr />
 
 			<h2><?php esc_html_e( 'Key ceremony', 'decentralized-evoting' ); ?></h2>
 			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
@@ -119,9 +158,6 @@ class EVote_Tally_Admin {
 				<?php endif; ?>
 			<?php endif; ?>
 
-			<hr />
-			<h2><?php esc_html_e( 'Ballot box import (Phase 3)', 'decentralized-evoting' ); ?></h2>
-			<pre class="code" style="background:#f6f7f7;padding:1em;"><?php echo esc_html( wp_json_encode( EVote_Json_Payloads::ballot_export_skeleton(), JSON_PRETTY_PRINT ) ); ?></pre>
 		</div>
 		<?php
 	}
@@ -215,6 +251,48 @@ class EVote_Tally_Admin {
 		}
 
 		set_transient( self::transient_key( self::TRANSIENT_DECRYPT ), $result, self::TRANSIENT_TTL );
+		wp_safe_redirect( admin_url( 'admin.php?page=evote-tally' ) );
+		exit;
+	}
+
+	/**
+	 * Import ballot export and run tally.
+	 */
+	public static function handle_tally_ballot_box() {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( esc_html__( 'Unauthorized.', 'decentralized-evoting' ) );
+		}
+		check_admin_referer( 'evote_tally_ballot_box' );
+
+		$raw = isset( $_POST['evote_ballot_export'] ) ? wp_unslash( $_POST['evote_ballot_export'] ) : '';
+		$data = EVote_Json_Import::parse( $raw );
+		if ( is_wp_error( $data ) ) {
+			self::redirect_with_error( $data->get_error_message() );
+		}
+
+		$export = EVote_Json_Import::ballot_box( $data );
+		if ( is_wp_error( $export ) ) {
+			self::redirect_with_error( $export->get_error_message() );
+		}
+
+		$private = isset( $_POST['evote_private_hex'] ) ? sanitize_text_field( wp_unslash( $_POST['evote_private_hex'] ) ) : '';
+		$private = preg_replace( '/\s+/', '', $private );
+
+		$tally = EVote_Tally_Engine::tally_export( $export, $private );
+		if ( is_wp_error( $tally ) ) {
+			self::redirect_with_error( $tally->get_error_message() );
+		}
+
+		set_transient(
+			self::transient_key( self::TRANSIENT_IMPORT ),
+			array(
+				'title'        => $export['running']['title'] ?? '',
+				'ballot_count' => count( $export['ballots'] ?? array() ),
+			),
+			self::TRANSIENT_TTL
+		);
+		set_transient( self::transient_key( self::TRANSIENT_TALLY ), $tally, self::TRANSIENT_TTL );
+
 		wp_safe_redirect( admin_url( 'admin.php?page=evote-tally' ) );
 		exit;
 	}

@@ -14,49 +14,46 @@ define( 'EVOTE_NODE_TYPE', 'tally' );     // decryption + tally board
 2. Activate **Decentralized E-Voting System**.
 3. Set `EVOTE_NODE_TYPE` for the role of that site.
 
-Bundled **phpseclib 3** (and paragonie dependencies) ship under `vendor/` — no Composer required on the server.
+Bundled **phpseclib 3** ships under `vendor/` — no Composer required on the server.
 
-## Phase 2: Modular ElGamal + Shamir (Node 1 & 3)
+## End-to-end workflow
 
-- **Group:** RFC 3526 MODP Group 14 (2048-bit), scheme `modular-elgamal`
-- **SSS:** Configurable **t-of-n** from **2-of-3** up to **t-of-n** with n ≤ 99 (default **3-of-5**)
-- **Node 1:** Admin → E-Voting → Key Generation — generate and download public key + share JSON files
-- **Node 3:** Tally → paste share JSON to reconstruct private key; **encrypt/decrypt helpers** to verify ballots (outputs expire after 5 minutes, not stored)
-- **Classes:** `EVote_Elgamal`, `EVote_Shamir`, `EVote_Crypto`
+| Step | Node | Action |
+|------|------|--------|
+| 1 | **generator** | Generate keys (default 3-of-5), download public key + share JSON files |
+| 2 | **polling** | Create running, paste public key JSON, import elector tokens, set status **Open** |
+| 3 | **polling** | Publish page with `[evote_poll id="RUNNING_ID"]` — voters encrypt in browser |
+| 4 | **polling** | **Polling Tools** → download ballot export JSON (checksum included) |
+| 5 | **tally** | Reconstruct private key from t shares |
+| 6 | **tally** | Paste ballot export + private key → **Verify import & run tally** |
 
-CLI check (optional): `php bin/crypto-self-test.php` from the plugin directory.
+## Phase 3 — Import / export / voting / tally
 
-## Phase 1: Polling station data model
+### Polling station (Node 2)
 
-| Layer | Implementation |
-|--------|----------------|
-| `evote_running` | Election event (schedule, public key JSON, modality, ballot candidates) |
-| `evote_candidate` | Candidates |
-| `evote_modality` | Reusable modality templates |
-| `evote_party`, `evote_slate` | Taxonomies on candidates |
-| `{prefix}evote_electors` | Token hashes (no plaintext tokens stored) |
-| `{prefix}evote_ballots` | Encrypted ballot ledger |
+- **Polling Tools:** import elector tokens (hashed), export `evote-ballot-export` JSON
+- **Shortcode:** `[evote_poll id="123"]` — client-side modular ElGamal (`assets/js/evote-crypto-client.js`)
+- Ballots stored encrypted in `{prefix}evote_ballots`; tokens in `{prefix}evote_electors`
 
-JSON schemas for cross-node payloads are defined in `includes/class-evote-json-payloads.php`.
+### Tally board (Node 3)
 
-## Roadmap
+- Import ballot box with **SHA-256 checksum** verification
+- Batch decrypt and produce `evote-tally-result` JSON
+- Encrypt/decrypt helpers retained for spot checks
 
-| Phase | Focus |
-|-------|--------|
-| **1** | CPTs, custom tables, meta boxes, node switching ✅ |
-| **2** | Modular ElGamal + Shamir (Node 1 + Node 3) ✅ |
-| **3** | JSON import/export, client-side encryption, tally engine |
+### Phase 2 — Crypto (summary)
+
+- Modular ElGamal, RFC 3526 Group 14, Shamir t-of-n (2-of-3 … n≤99, default 3-of-5)
+
+## Roadmap / limits
+
+- **Ranked voting** modality is configured but not yet tallied differently from single/multiple.
+- **Homomorphic tally** (sum without per-ballot decrypt) is not implemented — decrypt-and-count model.
+- Run generator and tally on isolated networks; never deploy private keys or shares on the polling node.
 
 ## Development
 
-Regenerate vendor (optional) with Composer from the plugin directory:
-
 ```bash
-composer install --no-dev
+composer install --no-dev   # optional, vendor is committed
+php bin/crypto-self-test.php
 ```
-
-## Security notes
-
-- Run Node 1 and Node 3 on isolated networks.
-- Never store private keys or SSS shares on the polling node.
-- Plaintext votes should only be encrypted in the browser before submission (Phase 3).

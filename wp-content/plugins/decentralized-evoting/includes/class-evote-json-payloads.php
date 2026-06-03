@@ -18,6 +18,7 @@ class EVote_Json_Payloads {
 	const SCHEMA_SSS_SHARE     = 'evote-sss-share';
 	const SCHEMA_BALLOT        = 'evote-encrypted-ballot';
 	const SCHEMA_BALLOT_EXPORT = 'evote-ballot-export';
+	const SCHEMA_TALLY_RESULT  = 'evote-tally-result';
 	const VERSION              = '1';
 
 	/**
@@ -163,5 +164,53 @@ class EVote_Json_Payloads {
 			}
 		}
 		return true;
+	}
+
+	/**
+	 * Validate ballot box export structure (checksum verified separately).
+	 *
+	 * @param array<string, mixed> $data Decoded export.
+	 * @return true|WP_Error
+	 */
+	public static function validate_ballot_export( $data ) {
+		if ( ! is_array( $data ) || ( $data['schema'] ?? '' ) !== self::SCHEMA_BALLOT_EXPORT ) {
+			return new WP_Error( 'evote_invalid_schema', __( 'Invalid ballot export schema.', 'decentralized-evoting' ) );
+		}
+		if ( empty( $data['checksum'] ) || ! is_string( $data['checksum'] ) ) {
+			return new WP_Error( 'evote_missing_checksum', __( 'Export missing checksum.', 'decentralized-evoting' ) );
+		}
+		if ( ! is_array( $data['public_key'] ?? null ) ) {
+			return new WP_Error( 'evote_missing_pubkey', __( 'Export missing public_key.', 'decentralized-evoting' ) );
+		}
+		$pk = self::validate_public_key( $data['public_key'] );
+		if ( is_wp_error( $pk ) ) {
+			return $pk;
+		}
+		if ( ! is_array( $data['ballots'] ?? null ) ) {
+			return new WP_Error( 'evote_missing_ballots', __( 'Export missing ballots array.', 'decentralized-evoting' ) );
+		}
+		return true;
+	}
+
+	/**
+	 * Canonical JSON encoding for checksums.
+	 *
+	 * @param array<string, mixed> $data Data without checksum field.
+	 * @return string
+	 */
+	public static function canonical_encode( $data ) {
+		return wp_json_encode( $data, JSON_UNESCAPED_SLASHES );
+	}
+
+	/**
+	 * SHA-256 checksum of canonical payload (excluding checksum key).
+	 *
+	 * @param array<string, mixed> $data Export payload without checksum.
+	 * @return string Hex digest.
+	 */
+	public static function compute_checksum( $data ) {
+		$copy = $data;
+		unset( $copy['checksum'] );
+		return hash( 'sha256', self::canonical_encode( $copy ) );
 	}
 }
