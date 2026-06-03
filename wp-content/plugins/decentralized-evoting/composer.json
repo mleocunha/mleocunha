@@ -1,0 +1,18 @@
+{
+    "name": "mleocunha/decentralized-evoting",
+    "description": "WordPress decentralized e-voting plugin",
+    "type": "wordpress-plugin",
+    "license": "GPL-2.0-or-later",
+    "require": {
+        "php": ">=7.4",
+        "phpseclib/phpseclib": "^3.0"
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "scripts": {
+        "post-install-cmd": [
+            "@php -r \"echo 'Run from plugin dir; vendor/ is committed for distribution.\\n';\""
+        ]
+    }
+}
