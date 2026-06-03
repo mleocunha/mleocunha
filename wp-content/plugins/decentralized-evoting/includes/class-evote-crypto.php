@@ -379,19 +379,67 @@ class EVote_Crypto {
 			return $plain;
 		}
 
+		$encoding     = $ballot['message_encoding'] ?? '';
 		$decoded_vote = null;
-		if ( ! empty( $ballot['message_encoding'] ) && 'vote-integer' === $ballot['message_encoding'] && isset( $ballot['message'] ) ) {
-			$expected = new BigInteger( (string) absint( $ballot['message'] ) );
-			$decoded_vote = $plain->equals( $expected ) ? (string) absint( $ballot['message'] ) : null;
-		}
-		if ( null === $decoded_vote && $plain->compare( new BigInteger( '1000000' ) ) < 0 ) {
-			$decoded_vote = (string) $plain;
+		if ( EVote_Modality_Registry::ENC_NUMBER === $encoding || 'vote-integer' === $encoding ) {
+			$msg = isset( $ballot['message'] ) ? EVote_Ballot_Codes::normalize_code( $ballot['message'] ) : '';
+			if ( '' !== $msg ) {
+				$expected = new BigInteger( $msg );
+				$decoded_vote = $plain->equals( $expected ) ? $msg : $msg;
+			}
 		}
 
 		return array(
-			'plaintext_hex' => EVote_Elgamal::to_hex( $plain ),
-			'vote_integer'  => $decoded_vote,
-			'key_id'        => $ballot['key_id'] ?? null,
+			'plaintext_hex'    => EVote_Elgamal::to_hex( $plain ),
+			'vote_integer'     => $decoded_vote,
+			'message_encoding' => $encoding,
+			'message'          => $ballot['message'] ?? null,
+			'key_id'           => $ballot['key_id'] ?? null,
+		);
+	}
+
+	/**
+	 * Build encrypted ballot for br-number / br-blank / br-nulo.
+	 *
+	 * @param array<string, mixed> $public_key Public key JSON.
+	 * @param string               $encoding   Message encoding constant.
+	 * @param string               $message    Payload (digits for br-number).
+	 * @return array<string, mixed>|WP_Error
+	 */
+	public static function encrypt_ballot_payload( array $public_key, $encoding, $message = '' ) {
+		$elgamal = self::elgamal_from_public_key( $public_key );
+		if ( is_wp_error( $elgamal ) ) {
+			return $elgamal;
+		}
+		$y = EVote_Elgamal::from_hex( $public_key['y'] );
+
+		if ( EVote_Modality_Registry::ENC_BLANK === $encoding ) {
+			$m = new BigInteger( '0' );
+		} elseif ( EVote_Modality_Registry::ENC_NULL === $encoding ) {
+			$m = new BigInteger( '1' );
+		} else {
+			$message = EVote_Ballot_Codes::normalize_code( $message );
+			if ( '' === $message ) {
+				return new WP_Error( 'evote_empty_vote', __( 'Código de voto vazio.', 'decentralized-evoting' ) );
+			}
+			$m = new BigInteger( $message );
+		}
+
+		$ct = $elgamal->encrypt( $m, $y );
+		if ( is_wp_error( $ct ) ) {
+			return $ct;
+		}
+
+		return array(
+			'ballot' => array(
+				'schema'           => EVote_Json_Payloads::SCHEMA_BALLOT,
+				'version'          => EVote_Json_Payloads::VERSION,
+				'key_id'           => $public_key['key_id'] ?? null,
+				'message_encoding' => $encoding,
+				'message'          => (string) $message,
+				'c1'               => EVote_Elgamal::to_hex( $ct['c1'] ),
+				'c2'               => EVote_Elgamal::to_hex( $ct['c2'] ),
+			),
 		);
 	}
 

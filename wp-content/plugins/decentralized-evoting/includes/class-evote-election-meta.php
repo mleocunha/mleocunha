@@ -19,7 +19,9 @@ class EVote_Election_Meta {
 	 */
 	public static function register_hooks() {
 		add_action( 'add_meta_boxes', array( __CLASS__, 'add_meta_boxes' ) );
+		add_action( 'add_meta_boxes', array( 'EVote_Running_Rules_Meta', 'register' ) );
 		add_action( 'save_post_evote_running', array( __CLASS__, 'save_running_meta' ), 10, 2 );
+		add_action( 'save_post_evote_running', array( 'EVote_Running_Rules_Meta', 'save' ), 11, 1 );
 		add_action( 'add_meta_boxes', array( __CLASS__, 'add_modality_meta_boxes' ) );
 		add_action( 'save_post_evote_modality', array( __CLASS__, 'save_modality_meta' ), 10, 2 );
 	}
@@ -124,27 +126,7 @@ class EVote_Election_Meta {
 			<label for="evote_public_key_json"><strong><?php esc_html_e( 'ElGamal public key (JSON from Node 1)', 'decentralized-evoting' ); ?></strong></label>
 			<textarea id="evote_public_key_json" name="evote_public_key_json" class="large-text code" rows="8" placeholder='{"schema":"evote-public-key","scheme":"modular-elgamal",...}'><?php echo esc_textarea( $public_key_json ); ?></textarea>
 		</p>
-		<p>
-			<label for="evote_modality_type"><strong><?php esc_html_e( 'Voting modality', 'decentralized-evoting' ); ?></strong></label><br />
-			<select id="evote_modality_type" name="evote_modality_type">
-				<?php foreach ( self::modality_type_options() as $value => $label ) : ?>
-					<option value="<?php echo esc_attr( $value ); ?>" <?php selected( $modality_type, $value ); ?>><?php echo esc_html( $label ); ?></option>
-				<?php endforeach; ?>
-			</select>
-		</p>
-		<p>
-			<label for="evote_modality_id"><strong><?php esc_html_e( 'Linked modality template (optional)', 'decentralized-evoting' ); ?></strong></label><br />
-			<select id="evote_modality_id" name="evote_modality_id" class="widefat">
-				<option value="0"><?php esc_html_e( '— None —', 'decentralized-evoting' ); ?></option>
-				<?php foreach ( $modalities as $modality ) : ?>
-					<option value="<?php echo esc_attr( (string) $modality->ID ); ?>" <?php selected( $modality_id, $modality->ID ); ?>><?php echo esc_html( $modality->post_title ); ?></option>
-				<?php endforeach; ?>
-			</select>
-		</p>
-		<p>
-			<label for="evote_max_choices"><strong><?php esc_html_e( 'Maximum choices', 'decentralized-evoting' ); ?></strong></label><br />
-			<input type="number" id="evote_max_choices" name="evote_max_choices" min="1" value="<?php echo esc_attr( (string) $max_choices ); ?>" />
-		</p>
+		<p class="description"><?php esc_html_e( 'Sistema, cargo e regras: veja o meta box “Regras eleitorais (Brasil)”.', 'decentralized-evoting' ); ?></p>
 		<?php
 	}
 
@@ -260,18 +242,6 @@ class EVote_Election_Meta {
 			}
 			update_post_meta( $post_id, '_evote_public_key_json', wp_json_encode( $decoded ) );
 		}
-
-		$modality_type = isset( $_POST['evote_modality_type'] ) ? sanitize_key( wp_unslash( $_POST['evote_modality_type'] ) ) : 'single';
-		if ( ! array_key_exists( $modality_type, self::modality_type_options() ) ) {
-			$modality_type = 'single';
-		}
-		update_post_meta( $post_id, '_evote_modality_type', $modality_type );
-
-		$modality_id = isset( $_POST['evote_modality_id'] ) ? absint( $_POST['evote_modality_id'] ) : 0;
-		update_post_meta( $post_id, '_evote_modality_id', $modality_id );
-
-		$max_choices = isset( $_POST['evote_max_choices'] ) ? max( 1, absint( $_POST['evote_max_choices'] ) ) : 1;
-		update_post_meta( $post_id, '_evote_max_choices', $max_choices );
 
 		$candidate_ids = array();
 		if ( isset( $_POST['evote_candidate_ids'] ) && is_array( $_POST['evote_candidate_ids'] ) ) {

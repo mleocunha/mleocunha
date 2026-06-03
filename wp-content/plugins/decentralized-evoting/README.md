@@ -27,6 +27,14 @@ Bundled **phpseclib 3** ships under `vendor/` — no Composer required on the se
 | 5 | **tally** | Reconstruct private key from t shares |
 | 6 | **tally** | Paste ballot export + private key → **Verify import & run tally** |
 
+## Phase 4 — Brazil 2026 modalities (v0.3)
+
+- **Numeric ballot** (2–5 digits by office): keypad, confirm with photo + party logo, Limpar / Branco / Nulo
+- **Modalities:** FPTP (default for mayors), ballotage R1/R2, open-list PR (Brazilian quota + médias)
+- **Admin:** cargo, vagas, % ballotage, qualified codes for R2, PR formula, blank/null/timeout toggles
+- **Tally engines:** `fptp`, `ballotage`, `pr_brazilian` (D’Hondt/Sainte-Laguë/Hare stubbed for later)
+- Decrypt-then-count now; homomorphic STV/PR can follow without changing ballot JSON shape
+
 ## Phase 3 — Import / export / voting / tally
 
 ### Polling station (Node 2)

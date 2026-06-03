@@ -1,29 +1,100 @@
 .evote-poll {
-	max-width: 36rem;
-	margin: 1.5rem 0;
+	max-width: 28rem;
+	margin: 1.5rem auto;
 	padding: 1.25rem;
 	border: 1px solid #c3c4c7;
-	border-radius: 4px;
+	border-radius: 8px;
 	background: #fff;
+	font-family: system-ui, sans-serif;
 }
 
 .evote-poll__title {
-	margin-top: 0;
+	margin: 0 0 1rem;
+	text-align: center;
 }
 
-.evote-poll__choice {
-	display: block;
+.evote-poll__code {
+	font-size: 2rem;
+	letter-spacing: 0.2em;
+	text-align: center;
+	width: 100%;
+	padding: 0.5rem;
+	border: 2px solid #2271b1;
+	border-radius: 4px;
+}
+
+.evote-poll__keypad {
+	display: grid;
+	grid-template-columns: repeat(3, 1fr);
+	gap: 0.5rem;
+	margin: 1rem 0;
+}
+
+.evote-key {
+	font-size: 1.25rem;
+	padding: 0.75rem;
+	cursor: pointer;
+	border: 1px solid #c3c4c7;
+	border-radius: 4px;
+	background: #f6f7f7;
+}
+
+.evote-key:hover {
+	background: #e8e8e8;
+}
+
+.evote-poll__actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+	justify-content: center;
+	margin-top: 0.75rem;
+}
+
+.evote-poll__screen--hidden {
+	display: none;
+}
+
+.evote-poll__confirm-card {
+	text-align: center;
+	margin: 1rem 0;
+}
+
+.evote-poll__photo {
+	max-width: 120px;
+	max-height: 160px;
+	border-radius: 4px;
+}
+
+.evote-poll__party-logo {
+	max-height: 48px;
+	margin-bottom: 0.5rem;
+}
+
+.evote-poll__confirm-name {
+	font-size: 1.25rem;
+	font-weight: 600;
 	margin: 0.5rem 0;
+}
+
+.evote-poll__warn {
+	color: #b45309;
+	font-weight: 600;
+}
+
+.evote-poll__warn--hidden {
+	display: none;
 }
 
 .evote-poll__token {
 	width: 100%;
-	max-width: 24rem;
+	margin-top: 1rem;
 }
 
 .evote-poll__status {
-	margin: 0.75rem 0;
 	min-height: 1.25rem;
+	text-align: center;
+	margin-bottom: 0.5rem;
 }
 
 .evote-poll__status--error {
@@ -35,8 +106,9 @@
 }
 
 .evote-poll__note {
-	font-size: 0.875rem;
+	font-size: 0.85rem;
 	color: #50575e;
+	text-align: center;
 }
 
 .evote-error {

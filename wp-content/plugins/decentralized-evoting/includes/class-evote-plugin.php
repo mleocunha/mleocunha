@@ -46,6 +46,8 @@ class EVote_Plugin {
 		if ( EVote_Node::is( EVote_Node::TYPE_POLLING ) ) {
 			EVote_Post_Types::register_hooks();
 			EVote_Election_Meta::register_hooks();
+			EVote_Party_Meta::register_hooks();
+			EVote_Candidate_Meta::register_hooks();
 			EVote_Polling_Admin::register_hooks();
 			EVote_Voting::register_hooks();
 		}

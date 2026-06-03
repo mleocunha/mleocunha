@@ -36,12 +36,7 @@ class EVote_Json_Export {
 			'schema'      => EVote_Json_Payloads::SCHEMA_BALLOT_EXPORT,
 			'version'     => EVote_Json_Payloads::VERSION,
 			'exported_at' => gmdate( 'c' ),
-			'running'     => array(
-				'id'            => $config['id'],
-				'title'         => $config['title'],
-				'modality_type' => $config['modality_type'],
-				'max_choices'   => $config['max_choices'],
-			),
+			'running'     => self::export_running_meta( $config ),
 			'stats'       => $stats,
 			'public_key'  => $config['public_key'],
 			'candidates'  => $config['candidates'],
@@ -51,5 +46,26 @@ class EVote_Json_Export {
 		$payload['checksum'] = EVote_Json_Payloads::compute_checksum( $payload );
 
 		return $payload;
+	}
+
+	/**
+	 * @param array<string, mixed> $config Full config.
+	 * @return array<string, mixed>
+	 */
+	private static function export_running_meta( $config ) {
+		$keys = array(
+			'id', 'title', 'modality_type', 'office_type', 'code_length', 'seat_count',
+			'allow_blank', 'allow_null', 'blank_timeout_seconds',
+			'ballotage_threshold_pct', 'ballotage_advance_count', 'reuse_electors_r2', 'parent_running_id',
+			'pr_formula', 'pr_threshold_pct', 'pr_overhang', 'pr_tse_party_pct', 'pr_tse_candidate_pct',
+			'qualified_ballot_codes',
+		);
+		$out = array();
+		foreach ( $keys as $key ) {
+			if ( array_key_exists( $key, $config ) ) {
+				$out[ $key ] = $config[ $key ];
+			}
+		}
+		return $out;
 	}
 }
