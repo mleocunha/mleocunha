@@ -16,7 +16,17 @@ define( 'EVOTE_NODE_TYPE', 'tally' );     // decryption + tally board
 
 Bundled **phpseclib 3** (and paragonie dependencies) ship under `vendor/` — no Composer required on the server.
 
-## Phase 1 (current): Polling station data model
+## Phase 2: Modular ElGamal + Shamir (Node 1 & 3)
+
+- **Group:** RFC 3526 MODP Group 14 (2048-bit), scheme `modular-elgamal`
+- **SSS:** Configurable **t-of-n** from **2-of-3** up to **t-of-n** with n ≤ 99 (default **3-of-5**)
+- **Node 1:** Admin → E-Voting → Key Generation — generate and download public key + share JSON files
+- **Node 3:** Tally → paste share JSON to reconstruct private key (one-time display, not stored)
+- **Classes:** `EVote_Elgamal`, `EVote_Shamir`, `EVote_Crypto`
+
+CLI check (optional): `php bin/crypto-self-test.php` from the plugin directory.
+
+## Phase 1: Polling station data model
 
 | Layer | Implementation |
 |--------|----------------|
@@ -34,7 +44,7 @@ JSON schemas for cross-node payloads are defined in `includes/class-evote-json-p
 | Phase | Focus |
 |-------|--------|
 | **1** | CPTs, custom tables, meta boxes, node switching ✅ |
-| **2** | ElGamal + Shamir via `EVote_Crypto` / phpseclib (Node 1 + Node 3) |
+| **2** | Modular ElGamal + Shamir (Node 1 + Node 3) ✅ |
 | **3** | JSON import/export, client-side encryption, tally engine |
 
 ## Development

@@ -122,7 +122,7 @@ class EVote_Election_Meta {
 		?>
 		<p>
 			<label for="evote_public_key_json"><strong><?php esc_html_e( 'ElGamal public key (JSON from Node 1)', 'decentralized-evoting' ); ?></strong></label>
-			<textarea id="evote_public_key_json" name="evote_public_key_json" class="large-text code" rows="8" placeholder='{"schema":"evote-public-key","version":"1",...}'><?php echo esc_textarea( $public_key_json ); ?></textarea>
+			<textarea id="evote_public_key_json" name="evote_public_key_json" class="large-text code" rows="8" placeholder='{"schema":"evote-public-key","scheme":"modular-elgamal",...}'><?php echo esc_textarea( $public_key_json ); ?></textarea>
 		</p>
 		<p>
 			<label for="evote_modality_type"><strong><?php esc_html_e( 'Voting modality', 'decentralized-evoting' ); ?></strong></label><br />
@@ -252,6 +252,10 @@ class EVote_Election_Meta {
 		} else {
 			$decoded = json_decode( $public_key_raw, true );
 			if ( JSON_ERROR_NONE !== json_last_error() || ! is_array( $decoded ) ) {
+				return;
+			}
+			$valid = EVote_Json_Payloads::validate_public_key( $decoded );
+			if ( is_wp_error( $valid ) ) {
 				return;
 			}
 			update_post_meta( $post_id, '_evote_public_key_json', wp_json_encode( $decoded ) );

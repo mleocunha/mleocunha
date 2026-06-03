@@ -10,15 +10,15 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /**
- * Documented schemas for cross-node transfer (validation in later phases).
+ * Documented schemas for cross-node transfer.
  */
 class EVote_Json_Payloads {
 
-	const SCHEMA_PUBLIC_KEY   = 'evote-public-key';
-	const SCHEMA_SSS_SHARE    = 'evote-sss-share';
-	const SCHEMA_BALLOT       = 'evote-encrypted-ballot';
+	const SCHEMA_PUBLIC_KEY    = 'evote-public-key';
+	const SCHEMA_SSS_SHARE     = 'evote-sss-share';
+	const SCHEMA_BALLOT        = 'evote-encrypted-ballot';
 	const SCHEMA_BALLOT_EXPORT = 'evote-ballot-export';
-	const VERSION             = '1';
+	const VERSION              = '1';
 
 	/**
 	 * Skeleton for public key export (Node 1 → Node 2).
@@ -29,12 +29,14 @@ class EVote_Json_Payloads {
 		return array(
 			'schema'     => self::SCHEMA_PUBLIC_KEY,
 			'version'    => self::VERSION,
+			'scheme'     => EVote_Elgamal::SCHEME,
+			'group'      => 'rfc3526-group14',
 			'created_at' => gmdate( 'c' ),
-			'curve'      => 'P-256',
+			'key_id'     => '<uuid>',
 			'p'          => '<prime hex>',
+			'q'          => '<subgroup order hex>',
 			'g'          => '<generator hex>',
 			'y'          => '<public key y hex>',
-			'key_id'     => '<uuid>',
 			'meta'       => array(
 				'threshold' => 3,
 				'shares'    => 5,
@@ -49,14 +51,16 @@ class EVote_Json_Payloads {
 	 */
 	public static function sss_share_skeleton() {
 		return array(
-			'schema'     => self::SCHEMA_SSS_SHARE,
-			'version'    => self::VERSION,
-			'key_id'     => '<uuid>',
-			'share_index' => 1,
-			'threshold'  => 3,
+			'schema'       => self::SCHEMA_SSS_SHARE,
+			'version'      => self::VERSION,
+			'scheme'       => EVote_Elgamal::SCHEME,
+			'key_id'       => '<uuid>',
+			'share_index'  => 1,
+			'threshold'    => 3,
 			'total_shares' => 5,
-			'x'          => '<evaluation point hex>',
-			'value'      => '<share value hex>',
+			'x'            => '<evaluation point hex>',
+			'value'        => '<share value hex>',
+			'field_prime'  => '<q hex>',
 		);
 	}
 
@@ -86,8 +90,8 @@ class EVote_Json_Payloads {
 			'version'     => self::VERSION,
 			'exported_at' => gmdate( 'c' ),
 			'running'     => array(
-				'id'    => 0,
-				'title' => '',
+				'id'            => 0,
+				'title'         => '',
 				'modality_type' => 'single',
 			),
 			'public_key'  => self::public_key_skeleton(),
@@ -99,7 +103,7 @@ class EVote_Json_Payloads {
 	}
 
 	/**
-	 * Validate public key JSON structure (basic, Phase 1).
+	 * Validate public key JSON structure.
 	 *
 	 * @param array<string, mixed> $data Decoded JSON.
 	 * @return true|WP_Error
@@ -108,8 +112,35 @@ class EVote_Json_Payloads {
 		if ( ! is_array( $data ) || ( $data['schema'] ?? '' ) !== self::SCHEMA_PUBLIC_KEY ) {
 			return new WP_Error( 'evote_invalid_schema', __( 'Invalid public key schema.', 'decentralized-evoting' ) );
 		}
-		foreach ( array( 'p', 'g', 'y', 'key_id' ) as $field ) {
+		if ( ( $data['scheme'] ?? '' ) !== EVote_Elgamal::SCHEME ) {
+			return new WP_Error( 'evote_invalid_scheme', __( 'Unsupported public key scheme.', 'decentralized-evoting' ) );
+		}
+		foreach ( array( 'p', 'q', 'g', 'y', 'key_id' ) as $field ) {
 			if ( empty( $data[ $field ] ) || ! is_string( $data[ $field ] ) ) {
+				return new WP_Error( 'evote_missing_field', sprintf( __( 'Missing field: %s', 'decentralized-evoting' ), $field ) );
+			}
+		}
+		if ( empty( $data['meta']['threshold'] ) || empty( $data['meta']['shares'] ) ) {
+			return new WP_Error( 'evote_missing_meta', __( 'Public key meta must include threshold and shares.', 'decentralized-evoting' ) );
+		}
+		return true;
+	}
+
+	/**
+	 * Validate one SSS share JSON object.
+	 *
+	 * @param array<string, mixed> $data Decoded JSON.
+	 * @return true|WP_Error
+	 */
+	public static function validate_sss_share( $data ) {
+		if ( ! is_array( $data ) || ( $data['schema'] ?? '' ) !== self::SCHEMA_SSS_SHARE ) {
+			return new WP_Error( 'evote_invalid_schema', __( 'Invalid SSS share schema.', 'decentralized-evoting' ) );
+		}
+		if ( ( $data['scheme'] ?? '' ) !== EVote_Elgamal::SCHEME ) {
+			return new WP_Error( 'evote_invalid_scheme', __( 'Unsupported share scheme.', 'decentralized-evoting' ) );
+		}
+		foreach ( array( 'key_id', 'x', 'value', 'field_prime', 'threshold' ) as $field ) {
+			if ( ! isset( $data[ $field ] ) || ( is_string( $data[ $field ] ) && '' === $data[ $field ] ) ) {
 				return new WP_Error( 'evote_missing_field', sprintf( __( 'Missing field: %s', 'decentralized-evoting' ), $field ) );
 			}
 		}
