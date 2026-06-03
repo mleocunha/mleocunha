@@ -1,0 +1,44 @@
+.evote-poll {
+	max-width: 36rem;
+	margin: 1.5rem 0;
+	padding: 1.25rem;
+	border: 1px solid #c3c4c7;
+	border-radius: 4px;
+	background: #fff;
+}
+
+.evote-poll__title {
+	margin-top: 0;
+}
+
+.evote-poll__choice {
+	display: block;
+	margin: 0.5rem 0;
+}
+
+.evote-poll__token {
+	width: 100%;
+	max-width: 24rem;
+}
+
+.evote-poll__status {
+	margin: 0.75rem 0;
+	min-height: 1.25rem;
+}
+
+.evote-poll__status--error {
+	color: #b91c1c;
+}
+
+.evote-poll__status--ok {
+	color: #15803d;
+}
+
+.evote-poll__note {
+	font-size: 0.875rem;
+	color: #50575e;
+}
+
+.evote-error {
+	color: #b91c1c;
+}
