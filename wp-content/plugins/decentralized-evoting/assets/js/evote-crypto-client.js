@@ -7,6 +7,8 @@
 	const ENC_NUMBER = 'br-number';
 	const ENC_BLANK = 'br-blank';
 	const ENC_NULL = 'br-nulo';
+	const ENC_EXP_ONE_HOT = 'br-exp-one-hot';
+	const ENC_EXP_BIT = 'br-exp-bit';
 
 	function hexToBigInt(hex) {
 		hex = String(hex).replace(/^0x/i, '').replace(/\s+/g, '');
@@ -87,11 +89,72 @@
 		return encryptPayload(publicKey, ENC_NUMBER, String(voteInteger));
 	}
 
+	function encryptExponentialBit(publicKey, bit) {
+		const p = hexToBigInt(publicKey.p);
+		const q = hexToBigInt(publicKey.q);
+		const g = normalizeGenerator(hexToBigInt(publicKey.g), p);
+		const y = hexToBigInt(publicKey.y);
+		const m = bit ? 1n : 0n;
+		const gm = modPow(g, m, p);
+		const k = randomBigIntBelow(q);
+		const c1 = modPow(g, k, p);
+		const c2 = (gm * modPow(y, k, p)) % p;
+		return {
+			c1: bigIntToHex(c1),
+			c2: bigIntToHex(c2),
+		};
+	}
+
+	function buildOneHotBallot(publicKey, candidates, chosenCode) {
+		chosenCode = String(chosenCode || '').replace(/\D/g, '');
+		const slots = [];
+		candidates.forEach(function (c) {
+			const code = String(c.ballot_number || '').replace(/\D/g, '');
+			if (!code) {
+				return;
+			}
+			const bit = code === chosenCode && chosenCode !== '' ? 1 : 0;
+			const ct = encryptExponentialBit(publicKey, bit);
+			slots.push({
+				code: code,
+				bit: bit,
+				c1: ct.c1,
+				c2: ct.c2,
+			});
+		});
+		return {
+			schema: 'evote-encrypted-ballot',
+			version: '2',
+			key_id: publicKey.key_id || null,
+			message_encoding: ENC_EXP_ONE_HOT,
+			selected_code: chosenCode,
+			slots: slots,
+		};
+	}
+
+	function encryptReferendumBit(publicKey, yes) {
+		const ct = encryptExponentialBit(publicKey, yes ? 1 : 0);
+		return {
+			schema: 'evote-encrypted-ballot',
+			version: '2',
+			key_id: publicKey.key_id || null,
+			message_encoding: ENC_EXP_BIT,
+			message: yes ? '1' : '0',
+			c1: ct.c1,
+			c2: ct.c2,
+		};
+	}
+
 	global.EVoteCryptoClient = {
 		ENC_NUMBER: ENC_NUMBER,
 		ENC_BLANK: ENC_BLANK,
 		ENC_NULL: ENC_NULL,
+		ENC_EXP_ONE_HOT: ENC_EXP_ONE_HOT,
+		ENC_EXP_BIT: ENC_EXP_BIT,
 		encryptPayload: encryptPayload,
 		encryptVote: encryptVote,
+		encryptExponentialBit: encryptExponentialBit,
+		buildOneHotBallot: buildOneHotBallot,
+		encryptReferendumBit: encryptReferendumBit,
 	};
 })(typeof window !== 'undefined' ? window : globalThis);

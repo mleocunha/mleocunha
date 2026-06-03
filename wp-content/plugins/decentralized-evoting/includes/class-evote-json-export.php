@@ -58,7 +58,7 @@ class EVote_Json_Export {
 			'allow_blank', 'allow_null', 'blank_timeout_seconds',
 			'ballotage_threshold_pct', 'ballotage_advance_count', 'reuse_electors_r2', 'parent_running_id',
 			'pr_formula', 'pr_threshold_pct', 'pr_overhang', 'pr_tse_party_pct', 'pr_tse_candidate_pct',
-			'qualified_ballot_codes',
+			'qualified_ballot_codes', 'homomorphic_mode',
 		);
 		$out = array();
 		foreach ( $keys as $key ) {

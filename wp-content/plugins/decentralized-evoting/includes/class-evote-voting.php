@@ -170,7 +170,18 @@ class EVote_Voting {
 
 		$ballots = array( $ballots[0] );
 		$enc     = $ballots[0]['message_encoding'] ?? '';
-		if ( EVote_Modality_Registry::ENC_NUMBER === $enc ) {
+		if ( EVote_Homomorphic::ENC_EXP_ONE_HOT === $enc ) {
+			if ( EVote_Homomorphic::MODE_EXP_ONE_HOT !== ( $config['homomorphic_mode'] ?? '' ) ) {
+				wp_send_json_error( array( 'message' => __( 'Cédula homomórfica não habilitada nesta eleição.', 'decentralized-evoting' ) ), 400 );
+			}
+			$code = EVote_Ballot_Codes::normalize_code( $ballots[0]['selected_code'] ?? '' );
+			if ( '' !== $code && ! EVote_Ballot_Codes::is_code_allowed( $code, $config ) ) {
+				wp_send_json_error( array( 'message' => __( 'Número não permitido nesta eleição.', 'decentralized-evoting' ) ), 400 );
+			}
+		} elseif ( EVote_Modality_Registry::ENC_NUMBER === $enc ) {
+			if ( EVote_Homomorphic::MODE_EXP_ONE_HOT === ( $config['homomorphic_mode'] ?? '' ) ) {
+				wp_send_json_error( array( 'message' => __( 'Use a urna com apuração homomórfica ativa (recarregue a página).', 'decentralized-evoting' ) ), 400 );
+			}
 			$code = EVote_Ballot_Codes::normalize_code( $ballots[0]['message'] ?? '' );
 			if ( ! EVote_Ballot_Codes::is_code_allowed( $code, $config ) ) {
 				wp_send_json_error( array( 'message' => __( 'Número não permitido nesta eleição.', 'decentralized-evoting' ) ), 400 );

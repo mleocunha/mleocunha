@@ -121,6 +121,73 @@ class EVote_Elgamal {
 	}
 
 	/**
+	 * Exponential ElGamal encrypt: plaintext m → g^m (additive homomorphism under ciphertext multiply).
+	 *
+	 * @param int        $m Small non-negative exponent.
+	 * @param BigInteger $y Public key.
+	 * @return array{c1: BigInteger, c2: BigInteger}|WP_Error
+	 */
+	public function encrypt_exponential( $m, BigInteger $y ) {
+		$m = max( 0, (int) $m );
+		$gm = $this->g->modPow( new BigInteger( (string) $m ), $this->p );
+		$k  = self::random_range( $this->q );
+		$c1 = $this->g->modPow( $k, $this->p );
+		$c2 = $gm->multiply( $y->modPow( $k, $this->p ) )->mod( $this->p );
+		return array(
+			'c1' => $c1,
+			'c2' => $c2,
+		);
+	}
+
+	/**
+	 * Decrypt exponential ciphertext to g^m.
+	 *
+	 * @param BigInteger $c1 Component 1.
+	 * @param BigInteger $c2 Component 2.
+	 * @param BigInteger $x  Private key.
+	 * @return BigInteger g^m
+	 */
+	public function decrypt_exponential( BigInteger $c1, BigInteger $c2, BigInteger $x ) {
+		return $this->decrypt( $c1, $c2, $x );
+	}
+
+	/**
+	 * Multiply ciphertexts (homomorphic combine).
+	 *
+	 * @param array<int, array{c1: BigInteger, c2: BigInteger}> $parts Components.
+	 * @return array{c1: BigInteger, c2: BigInteger}
+	 */
+	public function multiply_ciphertexts( array $parts ) {
+		$one = new BigInteger( '1' );
+		$c1  = $one;
+		$c2  = $one;
+		foreach ( $parts as $part ) {
+			$c1 = $c1->multiply( $part['c1'] )->mod( $this->p );
+			$c2 = $c2->multiply( $part['c2'] )->mod( $this->p );
+		}
+		return array( 'c1' => $c1, 'c2' => $c2 );
+	}
+
+	/**
+	 * Discrete log of h = g^x for small x (brute force).
+	 *
+	 * @param BigInteger $h   Target.
+	 * @param int        $max Maximum exponent.
+	 * @return int|null
+	 */
+	public function discrete_log_small( BigInteger $h, $max = 500000 ) {
+		$one = new BigInteger( '1' );
+		$cur = $one;
+		for ( $i = 0; $i <= $max; $i++ ) {
+			if ( $cur->equals( $h ) ) {
+				return $i;
+			}
+			$cur = $cur->multiply( $this->g )->mod( $this->p );
+		}
+		return null;
+	}
+
+	/**
 	 * Map small integer vote payload into Z_p* (for tests / future tally).
 	 *
 	 * @param int $value Vote encoding.

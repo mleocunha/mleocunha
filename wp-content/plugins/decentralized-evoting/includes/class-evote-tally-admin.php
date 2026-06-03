@@ -83,6 +83,15 @@ class EVote_Tally_Admin {
 
 			<?php if ( is_array( $tally_result ) ) : ?>
 				<h3><?php esc_html_e( 'Tally results', 'decentralized-evoting' ); ?></h3>
+				<?php if ( isset( $tally_result['verify_match'] ) ) : ?>
+					<p class="description">
+						<?php
+						echo $tally_result['verify_match']
+							? esc_html__( 'Verificação homomórfica: contagens batem com decrypt-then-count nos slots.', 'decentralized-evoting' )
+							: esc_html__( 'Verificação homomórfica: divergência — revise o export ou a chave privada.', 'decentralized-evoting' );
+						?>
+					</p>
+				<?php endif; ?>
 				<pre class="code" style="background:#f6f7f7;padding:1em;max-height:400px;overflow:auto;"><?php echo esc_html( wp_json_encode( $tally_result, JSON_PRETTY_PRINT ) ); ?></pre>
 			<?php endif; ?>
 

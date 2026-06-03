@@ -52,6 +52,7 @@ class EVote_Running_Rules_Meta {
 		if ( ! is_array( $qualified ) ) {
 			$qualified = array();
 		}
+		$homo_mode = get_post_meta( $post->ID, '_evote_homomorphic_mode', true ) ?: EVote_Homomorphic::MODE_OFF;
 		$runnings = get_posts( array( 'post_type' => 'evote_running', 'posts_per_page' => -1, 'post_status' => 'any', 'exclude' => array( $post->ID ) ) );
 		?>
 		<table class="form-table" role="presentation">
@@ -134,6 +135,25 @@ class EVote_Running_Rules_Meta {
 				</td>
 			</tr>
 			<tr>
+				<th><label for="evote_homomorphic_mode"><?php esc_html_e( 'Apuração homomórfica (protótipo)', 'decentralized-evoting' ); ?></label></th>
+				<td>
+					<select name="evote_homomorphic_mode" id="evote_homomorphic_mode">
+						<?php foreach ( EVote_Modality_Registry::homomorphic_mode_options() as $val => $label ) : ?>
+							<option value="<?php echo esc_attr( $val ); ?>" <?php selected( $homo_mode, $val ); ?>><?php echo esc_html( $label ); ?></option>
+						<?php endforeach; ?>
+					</select>
+					<p class="description">
+						<?php
+						printf(
+							/* translators: %d: max candidates */
+							esc_html__( 'One-hot exponencial: até %d candidatos com número na urna; a apuração multiplica cifras e faz um discrete log por candidato. PR continua decrypt-then-count.', 'decentralized-evoting' ),
+							(int) EVote_Homomorphic::MAX_ONE_HOT_SLOTS
+						);
+						?>
+					</p>
+				</td>
+			</tr>
+			<tr>
 				<th><?php esc_html_e( 'Vacâncias (v1)', 'decentralized-evoting' ); ?></th>
 				<td><p class="description"><?php esc_html_e( 'Documentação e metadados apenas nesta versão.', 'decentralized-evoting' ); ?></p></td>
 			</tr>
@@ -183,5 +203,11 @@ class EVote_Running_Rules_Meta {
 		update_post_meta( $post_id, '_evote_pr_overhang', ! empty( $_POST['evote_pr_overhang'] ) ? 1 : 0 );
 		update_post_meta( $post_id, '_evote_pr_tse_party_pct', (float) ( $_POST['evote_pr_tse_party_pct'] ?? 80 ) );
 		update_post_meta( $post_id, '_evote_pr_tse_candidate_pct', (float) ( $_POST['evote_pr_tse_candidate_pct'] ?? 20 ) );
+
+		$homo = isset( $_POST['evote_homomorphic_mode'] ) ? sanitize_key( wp_unslash( $_POST['evote_homomorphic_mode'] ) ) : EVote_Homomorphic::MODE_OFF;
+		if ( ! array_key_exists( $homo, EVote_Modality_Registry::homomorphic_mode_options() ) ) {
+			$homo = EVote_Homomorphic::MODE_OFF;
+		}
+		update_post_meta( $post_id, '_evote_homomorphic_mode', $homo );
 	}
 }

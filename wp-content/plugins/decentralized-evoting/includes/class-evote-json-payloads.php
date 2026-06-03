@@ -158,10 +158,53 @@ class EVote_Json_Payloads {
 		if ( ! is_array( $data ) || ( $data['schema'] ?? '' ) !== self::SCHEMA_BALLOT ) {
 			return new WP_Error( 'evote_invalid_schema', __( 'Invalid encrypted ballot schema.', 'decentralized-evoting' ) );
 		}
+		$encoding = $data['message_encoding'] ?? '';
+		if ( EVote_Homomorphic::ENC_EXP_ONE_HOT === $encoding ) {
+			return self::validate_exp_one_hot_ballot( $data );
+		}
+		if ( EVote_Homomorphic::ENC_EXP_BIT === $encoding ) {
+			foreach ( array( 'c1', 'c2' ) as $field ) {
+				if ( empty( $data[ $field ] ) || ! is_string( $data[ $field ] ) ) {
+					return new WP_Error( 'evote_missing_field', sprintf( __( 'Missing field: %s', 'decentralized-evoting' ), $field ) );
+				}
+			}
+			return true;
+		}
 		foreach ( array( 'c1', 'c2' ) as $field ) {
 			if ( empty( $data[ $field ] ) || ! is_string( $data[ $field ] ) ) {
 				return new WP_Error( 'evote_missing_field', sprintf( __( 'Missing field: %s', 'decentralized-evoting' ), $field ) );
 			}
+		}
+		return true;
+	}
+
+	/**
+	 * @param array<string, mixed> $data Ballot JSON.
+	 * @return true|WP_Error
+	 */
+	public static function validate_exp_one_hot_ballot( $data ) {
+		if ( empty( $data['slots'] ) || ! is_array( $data['slots'] ) ) {
+			return new WP_Error( 'evote_homo_slots', __( 'Cédula one-hot sem slots.', 'decentralized-evoting' ) );
+		}
+		if ( count( $data['slots'] ) > EVote_Homomorphic::MAX_ONE_HOT_SLOTS ) {
+			return new WP_Error( 'evote_homo_slots_max', __( 'Cédula one-hot excede o limite de slots.', 'decentralized-evoting' ) );
+		}
+		$ones = 0;
+		foreach ( $data['slots'] as $slot ) {
+			if ( ! is_array( $slot ) ) {
+				return new WP_Error( 'evote_homo_slot', __( 'Slot inválido na cédula one-hot.', 'decentralized-evoting' ) );
+			}
+			foreach ( array( 'c1', 'c2', 'code' ) as $field ) {
+				if ( empty( $slot[ $field ] ) || ! is_string( $slot[ $field ] ) ) {
+					return new WP_Error( 'evote_missing_field', sprintf( __( 'Missing field: %s', 'decentralized-evoting' ), 'slots.' . $field ) );
+				}
+			}
+			if ( ! empty( $slot['bit'] ) ) {
+				++$ones;
+			}
+		}
+		if ( $ones > 1 ) {
+			return new WP_Error( 'evote_homo_multi_one', __( 'Cédula one-hot com mais de um bit ativo.', 'decentralized-evoting' ) );
 		}
 		return true;
 	}

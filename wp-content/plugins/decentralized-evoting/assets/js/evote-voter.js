@@ -158,6 +158,10 @@
 			});
 	}
 
+	function usesHomomorphicOneHot() {
+		return evoteConfig.homomorphicMode === 'exp_one_hot';
+	}
+
 	function submitBallot(encoding, message) {
 		if (timeoutId) clearTimeout(timeoutId);
 		const token = tokenInput ? tokenInput.value.trim() : '';
@@ -167,7 +171,19 @@
 		}
 		let ballot;
 		try {
-			ballot = EVoteCryptoClient.encryptPayload(evoteConfig.publicKey, encoding, message);
+			if (usesHomomorphicOneHot()) {
+				let code = '';
+				if (encoding === EVoteCryptoClient.ENC_NUMBER) {
+					code = message;
+				}
+				ballot = EVoteCryptoClient.buildOneHotBallot(
+					evoteConfig.publicKey,
+					evoteConfig.candidates || [],
+					code
+				);
+			} else {
+				ballot = EVoteCryptoClient.encryptPayload(evoteConfig.publicKey, encoding, message);
+			}
 		} catch (e) {
 			setStatus('Falha na criptografia.', true);
 			return;

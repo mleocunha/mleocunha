@@ -109,8 +109,53 @@ class EVote_Running_Service {
 				'public_key'              => $public_key,
 				'candidates'              => $candidates,
 				'max_choices'             => 1,
+				'homomorphic_mode'        => self::sanitize_homomorphic_mode(
+					get_post_meta( $running_id, '_evote_homomorphic_mode', true )
+				),
 			)
 		);
+	}
+
+	/**
+	 * @param mixed $mode Stored meta.
+	 * @return string
+	 */
+	public static function sanitize_homomorphic_mode( $mode ) {
+		$mode = is_string( $mode ) ? $mode : EVote_Homomorphic::MODE_OFF;
+		if ( ! array_key_exists( $mode, EVote_Modality_Registry::homomorphic_mode_options() ) ) {
+			return EVote_Homomorphic::MODE_OFF;
+		}
+		return $mode;
+	}
+
+	/**
+	 * @param array<string, mixed> $config Running config.
+	 * @return true|WP_Error
+	 */
+	public static function assert_homomorphic_ready( $config ) {
+		if ( EVote_Homomorphic::MODE_EXP_ONE_HOT !== ( $config['homomorphic_mode'] ?? '' ) ) {
+			return true;
+		}
+		$with_code = 0;
+		foreach ( $config['candidates'] as $c ) {
+			if ( ! empty( $c['ballot_number'] ) ) {
+				++$with_code;
+			}
+		}
+		if ( $with_code < 1 ) {
+			return new WP_Error( 'evote_homo_no_codes', __( 'Modo homomórfico exige candidatos com número na urna.', 'decentralized-evoting' ) );
+		}
+		if ( $with_code > EVote_Homomorphic::MAX_ONE_HOT_SLOTS ) {
+			return new WP_Error(
+				'evote_homo_too_many',
+				sprintf(
+					/* translators: %d: max slots */
+					__( 'Modo one-hot suporta no máximo %d candidatos numerados.', 'decentralized-evoting' ),
+					(int) EVote_Homomorphic::MAX_ONE_HOT_SLOTS
+				)
+			);
+		}
+		return true;
 	}
 
 	/**
@@ -126,6 +171,10 @@ class EVote_Running_Service {
 		}
 		if ( empty( $config['public_key'] ) ) {
 			return new WP_Error( 'evote_no_pubkey', __( 'Chave pública não configurada.', 'decentralized-evoting' ) );
+		}
+		$homo_ready = self::assert_homomorphic_ready( $config );
+		if ( is_wp_error( $homo_ready ) ) {
+			return $homo_ready;
 		}
 		if ( empty( $config['candidates'] ) && EVote_Modality_Registry::PR_BRAZILIAN !== ( $config['modality_type'] ?? '' ) ) {
 			return new WP_Error( 'evote_no_candidates', __( 'Nenhum candidato na urna.', 'decentralized-evoting' ) );
@@ -165,9 +214,23 @@ class EVote_Running_Service {
 			}
 		}
 
+		$candidates = array();
+		foreach ( $config['candidates'] as $c ) {
+			if ( empty( $c['ballot_number'] ) ) {
+				continue;
+			}
+			$candidates[] = array(
+				'id'            => $c['id'],
+				'title'         => $c['title'],
+				'ballot_number' => $c['ballot_number'],
+			);
+		}
+
 		return array(
 			'runningId'            => $config['id'],
 			'title'                => $config['title'],
+			'homomorphicMode'      => $config['homomorphic_mode'] ?? EVote_Homomorphic::MODE_OFF,
+			'candidates'           => $candidates,
 			'modalityType'         => $config['modality_type'],
 			'officeType'           => $config['office_type'],
 			'codeLength'           => $config['code_length'],

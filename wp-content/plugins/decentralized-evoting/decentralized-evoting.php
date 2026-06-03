@@ -3,7 +3,7 @@
  * Plugin Name:       Decentralized E-Voting System
  * Plugin URI:        https://github.com/mleocunha/decentralized-evoting
  * Description:       Segregated-node e-voting: key generation, polling station, and tally board. Set EVOTE_NODE_TYPE in wp-config.php.
- * Version:           0.3.0
+ * Version:           0.3.1
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            mleocunha
@@ -18,7 +18,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'EVOTE_VERSION', '0.3.0' );
+define( 'EVOTE_VERSION', '0.3.1' );
 define( 'EVOTE_PLUGIN_FILE', __FILE__ );
 define( 'EVOTE_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'EVOTE_PLUGIN_URL', plugin_dir_url( __FILE__ ) );

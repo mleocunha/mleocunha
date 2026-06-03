@@ -33,7 +33,17 @@ Bundled **phpseclib 3** ships under `vendor/` — no Composer required on the se
 - **Modalities:** FPTP (default for mayors), ballotage R1/R2, open-list PR (Brazilian quota + médias)
 - **Admin:** cargo, vagas, % ballotage, qualified codes for R2, PR formula, blank/null/timeout toggles
 - **Tally engines:** `fptp`, `ballotage`, `pr_brazilian` (D’Hondt/Sainte-Laguë/Hare stubbed for later)
-- Decrypt-then-count now; homomorphic STV/PR can follow without changing ballot JSON shape
+- Decrypt-then-count by default; optional homomorphic prototype (v0.3.1) for FPTP/ballotage
+
+## Homomorphic prototype (v0.3.1)
+
+Exponential ElGamal one-hot ballots (`br-exp-one-hot`): each voter encrypts one bit per candidate slot; tally multiplies ciphertexts per slot and runs a small discrete log once per candidate (no per-ballot decrypt for counts).
+
+1. On the running, set **Apuração homomórfica** → *one-hot exponencial* (max **12** numbered candidates).
+2. Voters use the same numeric UI; the browser builds one-hot ciphertexts (`version` 2).
+3. Tally import uses the export’s `homomorphic_mode`; results include `verify_match` against decrypt-then-count on slot bits.
+
+Referendum mode (`br-exp-bit`) is available for yes/no experiments. PR tally still uses decrypt-then-count.
 
 ## Phase 3 — Import / export / voting / tally
 
@@ -56,7 +66,7 @@ Bundled **phpseclib 3** ships under `vendor/` — no Composer required on the se
 ## Roadmap / limits
 
 - **Ranked voting** modality is configured but not yet tallied differently from single/multiple.
-- **Homomorphic tally** (sum without per-ballot decrypt) is not implemented — decrypt-and-count model.
+- **Homomorphic PR/STV** and Paillier-style additive tallies are not implemented — one-hot prototype only for FPTP/ballotage.
 - Run generator and tally on isolated networks; never deploy private keys or shares on the polling node.
 
 ## Development

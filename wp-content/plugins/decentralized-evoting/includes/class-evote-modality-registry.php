@@ -117,6 +117,18 @@ class EVote_Modality_Registry {
 			'pr_tse_candidate_pct'       => 20,
 			'vacancy_meta_only'          => 1,
 			'tie_break'                  => 'manual',
+			'homomorphic_mode'           => EVote_Homomorphic::MODE_OFF,
+		);
+	}
+
+	/**
+	 * @return array<string, string>
+	 */
+	public static function homomorphic_mode_options() {
+		return array(
+			EVote_Homomorphic::MODE_OFF            => __( 'Desligado (decrypt-then-count)', 'decentralized-evoting' ),
+			EVote_Homomorphic::MODE_EXP_ONE_HOT    => __( 'Protótipo: one-hot exponencial (FPTP/ballotage)', 'decentralized-evoting' ),
+			EVote_Homomorphic::MODE_EXP_REFERENDUM => __( 'Protótipo: referendo (bit exponencial)', 'decentralized-evoting' ),
 		);
 	}
 

@@ -20,7 +20,17 @@ class EVote_Tally_Engine {
 	 * @return array<string, mixed>|WP_Error
 	 */
 	public static function tally_export( array $export, $private_hex ) {
+		$homo = $export['running']['homomorphic_mode'] ?? EVote_Homomorphic::MODE_OFF;
 		$modality = $export['running']['modality_type'] ?? EVote_Modality_Registry::FPTP;
+
+		if ( EVote_Homomorphic::MODE_EXP_ONE_HOT === $homo ) {
+			if ( in_array( $modality, array( EVote_Modality_Registry::FPTP, EVote_Modality_Registry::BALLOTAGE_R1, EVote_Modality_Registry::BALLOTAGE_R2 ), true ) ) {
+				return EVote_Homomorphic::tally_one_hot( $export, $private_hex );
+			}
+		}
+		if ( EVote_Homomorphic::MODE_EXP_REFERENDUM === $homo ) {
+			return EVote_Homomorphic::tally_referendum( $export, $private_hex );
+		}
 
 		switch ( $modality ) {
 			case EVote_Modality_Registry::PR_BRAZILIAN:
