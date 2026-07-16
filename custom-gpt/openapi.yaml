@@ -1,0 +1,325 @@
+openapi: 3.1.0
+info:
+  title: RelataSoft OpenClaw Control API
+  version: 0.1.0
+  description: |
+    Private Action Gateway for a ChatGPT Plus custom GPT to query a local OpenClaw
+    instance via an outbound Mac Bridge. Phase 1 is read-only.
+  contact:
+    name: RelataSoft
+    url: https://relatasoft.com.br
+servers:
+  - url: https://openclaw-api.relatasoft.com.br
+security:
+  - bearerAuth: []
+tags:
+  - name: health
+  - name: openclaw
+paths:
+  /health:
+    get:
+      operationId: getHealth
+      tags: [health]
+      summary: Health check
+      security: []
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+  /v1/openclaw/status:
+    get:
+      operationId: getOpenClawStatus
+      tags: [openclaw]
+      summary: Obtém o estado atual do OpenClaw local
+      responses:
+        "200":
+          description: Estado atual
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenClawStatusResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "503":
+          $ref: "#/components/responses/BridgeOffline"
+  /v1/openclaw/channels:
+    get:
+      operationId: listOpenClawChannels
+      tags: [openclaw]
+      summary: Lista os canais disponíveis
+      responses:
+        "200":
+          description: Lista de canais
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChannelListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "503":
+          $ref: "#/components/responses/BridgeOffline"
+  /v1/openclaw/sessions:
+    get:
+      operationId: listOpenClawSessions
+      tags: [openclaw]
+      summary: Lista sessões locais
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+        - name: cursor
+          in: query
+          schema:
+            type: string
+            maxLength: 256
+        - name: channel
+          in: query
+          schema:
+            type: string
+            maxLength: 64
+        - name: status
+          in: query
+          schema:
+            type: string
+            maxLength: 64
+      responses:
+        "200":
+          description: Lista de sessões
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "503":
+          $ref: "#/components/responses/BridgeOffline"
+  /v1/openclaw/ask-readonly:
+    post:
+      operationId: askOpenClawReadonly
+      tags: [openclaw]
+      summary: Executa consulta somente leitura
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: false
+          schema:
+            type: string
+            minLength: 8
+            maxLength: 128
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AskReadonlyRequest"
+      responses:
+        "200":
+          description: Resultado da consulta
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AskReadonlyResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/BridgeOffline"
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: opaque
+      description: GPT Action bearer token (256-bit random). Never log or echo this value.
+  responses:
+    Unauthorized:
+      description: Missing or invalid bearer token
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiError"
+    Forbidden:
+      description: Policy denied the request
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiError"
+    BadRequest:
+      description: Validation failed
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiError"
+    Conflict:
+      description: Idempotency or replay conflict
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiError"
+    BridgeOffline:
+      description: Mac Bridge or OpenClaw unavailable
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiError"
+  schemas:
+    HealthResponse:
+      type: object
+      additionalProperties: false
+      required: [status, service, version]
+      properties:
+        status:
+          type: string
+          const: ok
+        service:
+          type: string
+          const: relatasoft-openclaw-action-gateway
+        version:
+          type: string
+    OpenClawStatusResponse:
+      type: object
+      additionalProperties: false
+      required: [online, gatewayReachable, activeModel, bridgeConnected, timestamp, auditId, requestId]
+      properties:
+        online:
+          type: boolean
+        gatewayReachable:
+          type: boolean
+        activeModel:
+          type: string
+          examples: [qwen]
+        bridgeConnected:
+          type: boolean
+        timestamp:
+          type: string
+          format: date-time
+        auditId:
+          type: string
+        requestId:
+          type: string
+    Channel:
+      type: object
+      additionalProperties: false
+      required: [id, name, type, connected]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        type:
+          type: string
+        connected:
+          type: boolean
+        status:
+          type: string
+    ChannelListResponse:
+      type: object
+      additionalProperties: false
+      required: [channels, auditId, requestId]
+      properties:
+        channels:
+          type: array
+          items:
+            $ref: "#/components/schemas/Channel"
+        auditId:
+          type: string
+        requestId:
+          type: string
+    Session:
+      type: object
+      additionalProperties: false
+      required: [id, channel, status]
+      properties:
+        id:
+          type: string
+        channel:
+          type: string
+        status:
+          type: string
+        title:
+          type: string
+        updatedAt:
+          type: string
+          format: date-time
+    SessionListResponse:
+      type: object
+      additionalProperties: false
+      required: [sessions, auditId, requestId]
+      properties:
+        sessions:
+          type: array
+          items:
+            $ref: "#/components/schemas/Session"
+        nextCursor:
+          type:
+            - string
+            - "null"
+        auditId:
+          type: string
+        requestId:
+          type: string
+    AskReadonlyRequest:
+      type: object
+      additionalProperties: false
+      required: [prompt]
+      properties:
+        prompt:
+          type: string
+          minLength: 1
+          maxLength: 12000
+        session_id:
+          type:
+            - string
+            - "null"
+        timeout_seconds:
+          type: integer
+          minimum: 1
+          maximum: 120
+    AskReadonlyResponse:
+      type: object
+      additionalProperties: false
+      required: [answer, model, auditId, requestId]
+      properties:
+        answer:
+          type: string
+        model:
+          type: string
+        sessionId:
+          type:
+            - string
+            - "null"
+        truncated:
+          type: boolean
+        auditId:
+          type: string
+        requestId:
+          type: string
+    ApiError:
+      type: object
+      additionalProperties: false
+      required: [error]
+      properties:
+        error:
+          type: object
+          additionalProperties: false
+          required: [code, message]
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            requestId:
+              type: string
+            auditId:
+              type: string

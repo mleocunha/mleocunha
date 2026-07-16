@@ -1,0 +1,28 @@
+[Unit]
+Description=RelataSoft OpenClaw Action Gateway
+After=network.target
+
+[Service]
+Type=simple
+User=relatasoft-openclaw
+Group=relatasoft-openclaw
+WorkingDirectory=/opt/relatasoft-openclaw
+EnvironmentFile=/etc/relatasoft-openclaw/gateway.env
+ExecStart=/usr/bin/node /opt/relatasoft-openclaw/apps/action-gateway/dist/server.js
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+ReadWritePaths=/var/lib/relatasoft-openclaw /var/log/relatasoft-openclaw
+CapabilityBoundingSet=
+AmbientCapabilities=
+LockPersonality=true
+MemoryDenyWriteExecute=true
+RestrictRealtime=true
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=multi-user.target
