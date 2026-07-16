@@ -8,10 +8,13 @@
 namespace RelataSoft\SecureElectionSuite\Bootstrap;
 
 use RelataSoft\SecureElectionSuite\Admin\AdminMenu;
+use RelataSoft\SecureElectionSuite\Admin\ModeSetupPage;
 use RelataSoft\SecureElectionSuite\Admin\Notices;
+use RelataSoft\SecureElectionSuite\Admin\SettingsPage;
 use RelataSoft\SecureElectionSuite\Ajax\AjaxRouter;
 use RelataSoft\SecureElectionSuite\Database\Migration;
 use RelataSoft\SecureElectionSuite\KeyAuthority\KeyAuthorityController;
+use RelataSoft\SecureElectionSuite\Tallying\CertificationService;
 use RelataSoft\SecureElectionSuite\Tallying\OfficialShareSubmissionController;
 use RelataSoft\SecureElectionSuite\Tallying\TallyImportController;
 use RelataSoft\SecureElectionSuite\Voting\BallotController;
@@ -51,17 +54,21 @@ class Plugin {
 		add_action( 'init', array( $this, 'rses_init' ) );
 		add_action( 'admin_init', array( Migration::class, 'rses_maybe_migrate' ) );
 
-		if ( is_admin() ) {
-			Notices::register();
-			AdminMenu::register();
-		}
-
+		// Admin-post handlers must register on every request (including admin-post.php).
+		ModeSetupPage::register();
+		SettingsPage::register();
+		CertificationService::register();
 		AjaxRouter::register();
 		KeyAuthorityController::register();
 		ElectionController::register();
 		BallotController::register();
 		TallyImportController::register();
 		OfficialShareSubmissionController::register();
+
+		if ( is_admin() ) {
+			Notices::register();
+			AdminMenu::register();
+		}
 
 		add_shortcode( 'rses_voting_booth', array( $this, 'rses_render_voting_booth_shortcode' ) );
 		add_shortcode( 'rses_voter_receipt', array( $this, 'rses_render_voter_receipt_shortcode' ) );

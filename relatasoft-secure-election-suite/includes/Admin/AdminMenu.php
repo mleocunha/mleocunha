@@ -50,7 +50,8 @@ class AdminMenu {
 			30
 		);
 
-		if ( ! ModeLock::rses_has_mode() ) {
+		// Always available so admins can lock mode or perform destructive reset.
+		if ( Capability::rses_can_manage_election() ) {
 			add_submenu_page(
 				'rses-dashboard',
 				__( 'Mode Setup', 'relatasoft-secure-election-suite' ),
@@ -59,10 +60,13 @@ class AdminMenu {
 				'rses-mode-setup',
 				array( ModeSetupPage::class, 'rses_render' )
 			);
+		}
+
+		if ( ! ModeLock::rses_has_mode() ) {
 			return;
 		}
 
-		if ( ModeLock::rses_is_mode( 'key_authority' ) ) {
+		if ( ModeLock::rses_is_mode( ModeLock::RSES_MODE_KEY_AUTHORITY ) ) {
 			add_submenu_page(
 				'rses-dashboard',
 				__( 'Key Authority', 'relatasoft-secure-election-suite' ),
@@ -73,7 +77,16 @@ class AdminMenu {
 			);
 		}
 
-		if ( ModeLock::rses_is_mode( 'voting' ) ) {
+		if ( ModeLock::rses_is_mode( ModeLock::RSES_MODE_VOTING ) ) {
+			add_submenu_page(
+				'rses-dashboard',
+				__( 'Public Keys', 'relatasoft-secure-election-suite' ),
+				__( 'Public Keys', 'relatasoft-secure-election-suite' ),
+				'manage_options',
+				'rses-public-keys',
+				array( VotingViews::class, 'rses_render_public_keys_page' )
+			);
+
 			add_submenu_page(
 				'rses-dashboard',
 				__( 'Elections', 'relatasoft-secure-election-suite' ),
@@ -93,7 +106,7 @@ class AdminMenu {
 			);
 		}
 
-		if ( ModeLock::rses_is_mode( 'tallying' ) ) {
+		if ( ModeLock::rses_is_mode( ModeLock::RSES_MODE_TALLYING ) ) {
 			add_submenu_page(
 				'rses-dashboard',
 				__( 'Tally Import', 'relatasoft-secure-election-suite' ),
@@ -153,7 +166,7 @@ class AdminMenu {
 	}
 
 	/**
-	 * Render main dashboard.
+	 * Render main dashboard with mode-specific actions.
 	 */
 	public static function rses_render_dashboard(): void {
 		if ( ! ModeLock::rses_has_mode() ) {
@@ -165,13 +178,103 @@ class AdminMenu {
 		?>
 		<div class="wrap rses-wrap">
 			<h1><?php esc_html_e( 'RelataSoft Secure Election Suite', 'relatasoft-secure-election-suite' ); ?></h1>
+
+			<?php if ( ! empty( $_GET['rses_mode_set'] ) ) : // phpcs:ignore WordPress.Security.NonceVerification.Recommended ?>
+				<div class="notice notice-success is-dismissible">
+					<p><?php esc_html_e( 'Mode locked successfully. Use the actions below to continue.', 'relatasoft-secure-election-suite' ); ?></p>
+				</div>
+			<?php endif; ?>
+
 			<div class="rses-notice rses-notice-info">
 				<p>
 					<strong><?php esc_html_e( 'Active Mode:', 'relatasoft-secure-election-suite' ); ?></strong>
 					<?php echo esc_html( ModeLock::rses_get_mode_label( $rses_mode ) ); ?>
+					— <?php esc_html_e( 'Locked', 'relatasoft-secure-election-suite' ); ?>
 				</p>
 			</div>
-			<p><?php esc_html_e( 'Use the submenu to manage elections, keys, or tallying operations.', 'relatasoft-secure-election-suite' ); ?></p>
+
+			<div class="rses-dashboard-grid">
+				<?php if ( ModeLock::rses_is_mode( ModeLock::RSES_MODE_KEY_AUTHORITY ) ) : ?>
+					<div class="rses-dashboard-card">
+						<h2><?php esc_html_e( 'Key Authority', 'relatasoft-secure-election-suite' ); ?></h2>
+						<p><?php esc_html_e( 'Generate ElGamal keys, split private exponents with Shamir Secret Sharing, and export public keys / shares.', 'relatasoft-secure-election-suite' ); ?></p>
+						<p>
+							<a class="button button-primary" href="<?php echo esc_url( admin_url( 'admin.php?page=rses-key-authority' ) ); ?>">
+								<?php esc_html_e( 'Open Key Authority', 'relatasoft-secure-election-suite' ); ?>
+							</a>
+						</p>
+					</div>
+				<?php elseif ( ModeLock::rses_is_mode( ModeLock::RSES_MODE_VOTING ) ) : ?>
+					<div class="rses-dashboard-card">
+						<h2><?php esc_html_e( '1. Import Public Key', 'relatasoft-secure-election-suite' ); ?></h2>
+						<p><?php esc_html_e( 'Import the public key package exported from the Key Authority site.', 'relatasoft-secure-election-suite' ); ?></p>
+						<p>
+							<a class="button button-primary" href="<?php echo esc_url( admin_url( 'admin.php?page=rses-public-keys' ) ); ?>">
+								<?php esc_html_e( 'Manage Public Keys', 'relatasoft-secure-election-suite' ); ?>
+							</a>
+						</p>
+					</div>
+					<div class="rses-dashboard-card">
+						<h2><?php esc_html_e( '2. Create Election & Ballot', 'relatasoft-secure-election-suite' ); ?></h2>
+						<p><?php esc_html_e( 'Create elections, attach a public key, build ballot questions, then open voting.', 'relatasoft-secure-election-suite' ); ?></p>
+						<p>
+							<a class="button button-primary" href="<?php echo esc_url( admin_url( 'admin.php?page=rses-elections' ) ); ?>">
+								<?php esc_html_e( 'Manage Elections', 'relatasoft-secure-election-suite' ); ?>
+							</a>
+						</p>
+					</div>
+					<div class="rses-dashboard-card">
+						<h2><?php esc_html_e( '3. Export Encrypted Tallies', 'relatasoft-secure-election-suite' ); ?></h2>
+						<p><?php esc_html_e( 'After closing an election, export ZIP/JSON packages for the Tallying platform.', 'relatasoft-secure-election-suite' ); ?></p>
+						<p>
+							<a class="button" href="<?php echo esc_url( admin_url( 'admin.php?page=rses-voting-export' ) ); ?>">
+								<?php esc_html_e( 'Voting Export', 'relatasoft-secure-election-suite' ); ?>
+							</a>
+						</p>
+					</div>
+				<?php elseif ( ModeLock::rses_is_mode( ModeLock::RSES_MODE_TALLYING ) ) : ?>
+					<div class="rses-dashboard-card">
+						<h2><?php esc_html_e( '1. Import Voting Package', 'relatasoft-secure-election-suite' ); ?></h2>
+						<p><?php esc_html_e( 'Upload ZIP or JSON exports from voting servers and validate checksums.', 'relatasoft-secure-election-suite' ); ?></p>
+						<p>
+							<a class="button button-primary" href="<?php echo esc_url( admin_url( 'admin.php?page=rses-tally-import' ) ); ?>">
+								<?php esc_html_e( 'Tally Import', 'relatasoft-secure-election-suite' ); ?>
+							</a>
+						</p>
+					</div>
+					<div class="rses-dashboard-card">
+						<h2><?php esc_html_e( '2. Collect Official Shares', 'relatasoft-secure-election-suite' ); ?></h2>
+						<p><?php esc_html_e( 'Officials submit Shamir Secret Sharing shares until the threshold is met.', 'relatasoft-secure-election-suite' ); ?></p>
+						<p>
+							<a class="button button-primary" href="<?php echo esc_url( admin_url( 'admin.php?page=rses-share-submission' ) ); ?>">
+								<?php esc_html_e( 'Share Submission', 'relatasoft-secure-election-suite' ); ?>
+							</a>
+						</p>
+					</div>
+					<div class="rses-dashboard-card">
+						<h2><?php esc_html_e( '3. Decrypt & Certify', 'relatasoft-secure-election-suite' ); ?></h2>
+						<p><?php esc_html_e( 'Reconstruct the private exponent in memory, decrypt tallies, and export certification reports.', 'relatasoft-secure-election-suite' ); ?></p>
+						<p>
+							<a class="button" href="<?php echo esc_url( admin_url( 'admin.php?page=rses-certification' ) ); ?>">
+								<?php esc_html_e( 'Certification', 'relatasoft-secure-election-suite' ); ?>
+							</a>
+						</p>
+					</div>
+				<?php endif; ?>
+
+				<?php if ( Capability::rses_can_manage_election() ) : ?>
+					<div class="rses-dashboard-card">
+						<h2><?php esc_html_e( 'Crypto Self Test', 'relatasoft-secure-election-suite' ); ?></h2>
+						<p><?php esc_html_e( 'Verify ElGamal, homomorphic aggregation, and Shamir Secret Sharing on this server.', 'relatasoft-secure-election-suite' ); ?></p>
+						<p>
+							<a class="button" href="<?php echo esc_url( admin_url( 'admin.php?page=rses-crypto-self-test' ) ); ?>">
+								<?php esc_html_e( 'Run Self Tests', 'relatasoft-secure-election-suite' ); ?>
+							</a>
+						</p>
+					</div>
+				<?php endif; ?>
+			</div>
+
 			<p class="rses-production-warning">
 				<?php esc_html_e( 'This plugin is engineered toward production-grade use, but cryptography has not been independently reviewed for binding public elections.', 'relatasoft-secure-election-suite' ); ?>
 			</p>
@@ -186,7 +289,7 @@ class AdminMenu {
 		Capability::rses_require_admin();
 
 		$rses_results = array();
-		if ( isset( $_GET['rses_ran'] ) && '1' === $_GET['rses_ran'] ) {
+		if ( isset( $_GET['rses_ran'] ) && '1' === $_GET['rses_ran'] ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 			$rses_results = CryptoSelfTest::runAll();
 		}
 		?>

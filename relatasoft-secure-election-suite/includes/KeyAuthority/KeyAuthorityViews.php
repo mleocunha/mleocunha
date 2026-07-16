@@ -22,18 +22,43 @@ class KeyAuthorityViews {
 	 * Render Key Authority dashboard.
 	 */
 	public static function rses_render_dashboard(): void {
-		Capability::rses_require_admin();
+		Capability::rses_require_official();
+
+		if ( ! Capability::rses_can_manage_election() ) {
+			self::rses_render_official_shares();
+			return;
+		}
 
 		$rses_keys      = KeyRepository::rses_list_active();
-		$rses_officials = get_users( array( 'role' => 'editor' ) );
+		$rses_officials = get_users( array( 'role__in' => array( 'editor', 'administrator' ) ) );
 		$rses_settings  = get_option( 'rses_settings', array() );
 		?>
 		<div class="wrap rses-wrap">
 			<h1><?php esc_html_e( 'Key Authority / ElGamal Key Manager', 'relatasoft-secure-election-suite' ); ?></h1>
 
+			<?php if ( ! empty( $_GET['rses_mode_set'] ) || ! empty( $_GET['rses_key_created'] ) ) : // phpcs:ignore WordPress.Security.NonceVerification.Recommended ?>
+				<div class="notice notice-success is-dismissible">
+					<p>
+						<?php
+						if ( ! empty( $_GET['rses_key_created'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+							esc_html_e( 'Key generated and Shamir shares assigned (when officials were selected).', 'relatasoft-secure-election-suite' );
+						} else {
+							esc_html_e( 'Mode locked. Generate an ElGamal key below.', 'relatasoft-secure-election-suite' );
+						}
+						?>
+					</p>
+				</div>
+			<?php endif; ?>
+
 			<div class="rses-notice rses-notice-warning">
 				<p><?php esc_html_e( 'Private keys are split into Shamir Secret Sharing shares immediately. Full private keys are not persisted by default.', 'relatasoft-secure-election-suite' ); ?></p>
 			</div>
+
+			<?php if ( empty( $rses_officials ) ) : ?>
+				<div class="rses-notice rses-notice-warning">
+					<p><?php esc_html_e( 'No editor accounts found. Create WordPress users with the Editor role before assigning Shamir shares.', 'relatasoft-secure-election-suite' ); ?></p>
+				</div>
+			<?php endif; ?>
 
 			<h2><?php esc_html_e( 'Generate New Key', 'relatasoft-secure-election-suite' ); ?></h2>
 			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="rses-form">
@@ -59,21 +84,24 @@ class KeyAuthorityViews {
 					</tr>
 					<tr>
 						<th><label for="rses_threshold_t"><?php esc_html_e( 'Shamir Threshold (t)', 'relatasoft-secure-election-suite' ); ?></label></th>
-						<td><input type="number" name="rses_threshold_t" id="rses_threshold_t" value="3" min="2" /></td>
-					</tr>
-					<tr>
-						<th><label for="rses_total_n"><?php esc_html_e( 'Total Shares (n)', 'relatasoft-secure-election-suite' ); ?></label></th>
-						<td><input type="number" name="rses_total_n" id="rses_total_n" value="5" min="2" /></td>
-					</tr>
-					<tr>
-						<th><?php esc_html_e( 'Assign Officials (Editors)', 'relatasoft-secure-election-suite' ); ?></th>
 						<td>
-							<?php foreach ( $rses_officials as $rses_user ) : ?>
-								<label>
-									<input type="checkbox" name="rses_officials[]" value="<?php echo esc_attr( (string) $rses_user->ID ); ?>" />
-									<?php echo esc_html( $rses_user->display_name ); ?>
-								</label><br />
-							<?php endforeach; ?>
+							<input type="number" name="rses_threshold_t" id="rses_threshold_t" value="3" min="2" />
+							<p class="description"><?php esc_html_e( 'Total shares (n) is set automatically from the number of officials you select.', 'relatasoft-secure-election-suite' ); ?></p>
+						</td>
+					</tr>
+					<tr>
+						<th><?php esc_html_e( 'Assign Officials', 'relatasoft-secure-election-suite' ); ?></th>
+						<td>
+							<?php if ( empty( $rses_officials ) ) : ?>
+								<em><?php esc_html_e( 'No officials available.', 'relatasoft-secure-election-suite' ); ?></em>
+							<?php else : ?>
+								<?php foreach ( $rses_officials as $rses_user ) : ?>
+									<label>
+										<input type="checkbox" name="rses_officials[]" value="<?php echo esc_attr( (string) $rses_user->ID ); ?>" />
+										<?php echo esc_html( $rses_user->display_name . ' (' . $rses_user->user_login . ')' ); ?>
+									</label><br />
+								<?php endforeach; ?>
+							<?php endif; ?>
 						</td>
 					</tr>
 					<tr>
@@ -82,12 +110,7 @@ class KeyAuthorityViews {
 					</tr>
 					<tr>
 						<th><label for="rses_attachment_id"><?php esc_html_e( 'Media Attachment ID', 'relatasoft-secure-election-suite' ); ?></label></th>
-						<td>
-							<input type="number" name="rses_attachment_id" id="rses_attachment_id" min="0" />
-							<?php
-							// Attachment URL rendered only when ID is set on key cards.
-							?>
-						</td>
+						<td><input type="number" name="rses_attachment_id" id="rses_attachment_id" min="0" /></td>
 					</tr>
 				</table>
 
@@ -104,7 +127,7 @@ class KeyAuthorityViews {
 				</p>
 				<p>
 					<label for="rses_import_json"><?php esc_html_e( 'Public Key JSON', 'relatasoft-secure-election-suite' ); ?></label><br />
-					<textarea name="rses_import_json" id="rses_import_json" rows="6" class="large-text code"></textarea>
+					<textarea name="rses_import_json" id="rses_import_json" rows="6" class="large-text code" required></textarea>
 				</p>
 				<?php submit_button( __( 'Import Key', 'relatasoft-secure-election-suite' ), 'secondary' ); ?>
 			</form>
@@ -117,6 +140,57 @@ class KeyAuthorityViews {
 					<?php self::rses_render_key_card( $rses_key, $rses_settings ); ?>
 				<?php endforeach; ?>
 			<?php endif; ?>
+		</div>
+		<?php
+	}
+
+	/**
+	 * Official-only view: export own Shamir share.
+	 */
+	private static function rses_render_official_shares(): void {
+		$rses_user_id = get_current_user_id();
+		$rses_keys    = KeyRepository::rses_list_active();
+		?>
+		<div class="wrap rses-wrap">
+			<h1><?php esc_html_e( 'My Shamir Shares', 'relatasoft-secure-election-suite' ); ?></h1>
+			<p><?php esc_html_e( 'Export only your assigned Shamir Secret Sharing share. Share values must be stored offline securely.', 'relatasoft-secure-election-suite' ); ?></p>
+
+			<?php
+			$rses_found = false;
+			foreach ( $rses_keys as $rses_key ) {
+				$rses_share = KeyRepository::rses_get_share_for_user( (int) $rses_key->id, $rses_user_id );
+				if ( ! $rses_share ) {
+					continue;
+				}
+				$rses_found = true;
+				?>
+				<div class="rses-key-card">
+					<h3><?php echo esc_html( $rses_key->key_label ); ?> <small>#<?php echo esc_html( (string) $rses_key->id ); ?></small></h3>
+					<p>
+						<?php
+						printf(
+							/* translators: %d: share index */
+							esc_html__( 'Your share index: %d', 'relatasoft-secure-election-suite' ),
+							(int) $rses_share->share_index
+						);
+						?>
+					</p>
+					<p>
+						<a class="button button-primary" href="<?php echo esc_url( Nonce::rses_url( admin_url( 'admin-post.php?action=rses_export_key&key_id=' . $rses_key->id . '&format=zip&own_share=1' ), Nonce::RSES_ACTION_KEY_EXPORT ) ); ?>">
+							<?php esc_html_e( 'Export My Share (ZIP)', 'relatasoft-secure-election-suite' ); ?>
+						</a>
+						<a class="button" href="<?php echo esc_url( Nonce::rses_url( admin_url( 'admin-post.php?action=rses_export_key&key_id=' . $rses_key->id . '&format=json' ), Nonce::RSES_ACTION_KEY_EXPORT ) ); ?>">
+							<?php esc_html_e( 'Export Public Key JSON', 'relatasoft-secure-election-suite' ); ?>
+						</a>
+					</p>
+				</div>
+				<?php
+			}
+
+			if ( ! $rses_found ) {
+				echo '<p>' . esc_html__( 'No Shamir shares are assigned to your account yet.', 'relatasoft-secure-election-suite' ) . '</p>';
+			}
+			?>
 		</div>
 		<?php
 	}
@@ -180,6 +254,14 @@ class KeyAuthorityViews {
 				<a class="button" href="<?php echo esc_url( Nonce::rses_url( admin_url( 'admin-post.php?action=rses_export_key&key_id=' . $key->id . '&format=json' ), Nonce::RSES_ACTION_KEY_EXPORT ) ); ?>">
 					<?php esc_html_e( 'Export Public JSON', 'relatasoft-secure-election-suite' ); ?>
 				</a>
+				<?php
+				$rses_own = KeyRepository::rses_get_share_for_user( (int) $key->id, get_current_user_id() );
+				if ( $rses_own ) :
+					?>
+					<a class="button" href="<?php echo esc_url( Nonce::rses_url( admin_url( 'admin-post.php?action=rses_export_key&key_id=' . $key->id . '&format=zip&own_share=1' ), Nonce::RSES_ACTION_KEY_EXPORT ) ); ?>">
+						<?php esc_html_e( 'Export My Share', 'relatasoft-secure-election-suite' ); ?>
+					</a>
+				<?php endif; ?>
 				<?php if ( ! empty( $settings['allow_full_private_export'] ) ) : ?>
 					<a class="button button-warning" href="<?php echo esc_url( Nonce::rses_url( admin_url( 'admin-post.php?action=rses_export_key&key_id=' . $key->id . '&format=zip&full=1&rses_confirm_full=1' ), Nonce::RSES_ACTION_KEY_EXPORT ) ); ?>"
 						onclick="return confirm('<?php echo esc_js( __( 'WARNING: This exports the full private key. Continue?', 'relatasoft-secure-election-suite' ) ); ?>');">

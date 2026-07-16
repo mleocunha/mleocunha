@@ -79,5 +79,3 @@ class SettingsPage {
 		exit;
 	}
 }
-
-SettingsPage::register();

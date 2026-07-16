@@ -42,6 +42,14 @@ class ElectionController {
 		$rses_desc    = Sanitizer::rses_textarea( $_POST['rses_election_description'] ?? '' );
 		$rses_key_id  = Sanitizer::rses_post_id( 'rses_key_id' );
 
+		if ( '' === $rses_title ) {
+			wp_die( esc_html__( 'Election title is required.', 'relatasoft-secure-election-suite' ) );
+		}
+
+		if ( $rses_key_id < 1 || ! \RelataSoft\SecureElectionSuite\KeyAuthority\KeyRepository::rses_get( $rses_key_id ) ) {
+			wp_die( esc_html__( 'A valid imported public key is required.', 'relatasoft-secure-election-suite' ) );
+		}
+
 		$rses_election_id = ElectionRepository::rses_create(
 			array(
 				'title'         => $rses_title,

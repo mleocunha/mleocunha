@@ -25,15 +25,34 @@ class VotingViews {
 		Capability::rses_require_admin();
 
 		$rses_elections = ElectionRepository::rses_list();
-		$rses_edit_id   = isset( $_GET['rses_edit'] ) ? absint( $_GET['rses_edit'] ) : 0;
-		$rses_round_id  = isset( $_GET['round'] ) ? absint( $_GET['round'] ) : 0;
+		$rses_keys      = KeyRepository::rses_list_active();
+		$rses_edit_id   = isset( $_GET['rses_edit'] ) ? absint( $_GET['rses_edit'] ) : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		$rses_round_id  = isset( $_GET['round'] ) ? absint( $_GET['round'] ) : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 		?>
 		<div class="wrap rses-wrap">
 			<h1><?php esc_html_e( 'Election Management', 'relatasoft-secure-election-suite' ); ?></h1>
 
+			<?php if ( ! empty( $_GET['rses_mode_set'] ) ) : // phpcs:ignore WordPress.Security.NonceVerification.Recommended ?>
+				<div class="notice notice-success is-dismissible">
+					<p><?php esc_html_e( 'Voting mode locked. Import a public key first, then create an election.', 'relatasoft-secure-election-suite' ); ?></p>
+				</div>
+			<?php endif; ?>
+
 			<?php if ( $rses_edit_id ) : ?>
 				<?php self::rses_render_election_editor( $rses_edit_id, $rses_round_id ); ?>
 			<?php else : ?>
+				<?php if ( empty( $rses_keys ) ) : ?>
+					<div class="rses-notice rses-notice-warning">
+						<p>
+							<?php esc_html_e( 'No public keys imported yet.', 'relatasoft-secure-election-suite' ); ?>
+							<a href="<?php echo esc_url( admin_url( 'admin.php?page=rses-public-keys' ) ); ?>">
+								<?php esc_html_e( 'Import a public key', 'relatasoft-secure-election-suite' ); ?>
+							</a>
+							<?php esc_html_e( 'before creating an election.', 'relatasoft-secure-election-suite' ); ?>
+						</p>
+					</div>
+				<?php endif; ?>
+
 				<h2><?php esc_html_e( 'Create Election', 'relatasoft-secure-election-suite' ); ?></h2>
 				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
 					<?php Nonce::rses_field( Nonce::RSES_ACTION_ELECTION_SAVE ); ?>
@@ -44,41 +63,142 @@ class VotingViews {
 							<td><input type="text" name="rses_election_title" id="rses_election_title" class="regular-text" required /></td>
 						</tr>
 						<tr>
+							<th><label for="rses_election_description"><?php esc_html_e( 'Description', 'relatasoft-secure-election-suite' ); ?></label></th>
+							<td><textarea name="rses_election_description" id="rses_election_description" class="large-text" rows="3"></textarea></td>
+						</tr>
+						<tr>
 							<th><label for="rses_voting_method"><?php esc_html_e( 'Voting Method', 'relatasoft-secure-election-suite' ); ?></label></th>
 							<td>
 								<select name="rses_voting_method" id="rses_voting_method">
 									<?php
-									$rses_methods = array( 'yes_no', 'single_choice', 'multiple_choice', 'ranked_choice', 'numeric', 'fptp', 'list_voting', 'single_candidate', 'custom' );
-									foreach ( $rses_methods as $rses_m ) :
+									$rses_methods = array(
+										'yes_no'           => __( 'Yes / No', 'relatasoft-secure-election-suite' ),
+										'single_choice'    => __( 'Single Choice', 'relatasoft-secure-election-suite' ),
+										'multiple_choice'  => __( 'Multiple Choice', 'relatasoft-secure-election-suite' ),
+										'ranked_choice'    => __( 'Ranked Choice', 'relatasoft-secure-election-suite' ),
+										'numeric'          => __( 'Numeric', 'relatasoft-secure-election-suite' ),
+										'fptp'             => __( 'First Past the Post', 'relatasoft-secure-election-suite' ),
+										'list_voting'      => __( 'List Voting', 'relatasoft-secure-election-suite' ),
+										'single_candidate' => __( 'Single Candidate', 'relatasoft-secure-election-suite' ),
+										'custom'           => __( 'Custom', 'relatasoft-secure-election-suite' ),
+									);
+									foreach ( $rses_methods as $rses_slug => $rses_label ) :
 										?>
-										<option value="<?php echo esc_attr( $rses_m ); ?>"><?php echo esc_html( $rses_m ); ?></option>
+										<option value="<?php echo esc_attr( $rses_slug ); ?>"><?php echo esc_html( $rses_label ); ?></option>
 									<?php endforeach; ?>
 								</select>
 							</td>
 						</tr>
 						<tr>
-							<th><label for="rses_key_id"><?php esc_html_e( 'Public Key ID', 'relatasoft-secure-election-suite' ); ?></label></th>
-							<td><input type="number" name="rses_key_id" id="rses_key_id" min="0" /></td>
+							<th><label for="rses_key_id"><?php esc_html_e( 'Public Key', 'relatasoft-secure-election-suite' ); ?></label></th>
+							<td>
+								<select name="rses_key_id" id="rses_key_id" required <?php disabled( empty( $rses_keys ) ); ?>>
+									<option value=""><?php esc_html_e( 'Select imported public key…', 'relatasoft-secure-election-suite' ); ?></option>
+									<?php foreach ( $rses_keys as $rses_key ) : ?>
+										<option value="<?php echo esc_attr( (string) $rses_key->id ); ?>">
+											<?php echo esc_html( sprintf( '#%d — %s (%d bits)', (int) $rses_key->id, $rses_key->key_label, (int) $rses_key->key_size ) ); ?>
+										</option>
+									<?php endforeach; ?>
+								</select>
+							</td>
 						</tr>
 					</table>
-					<?php submit_button( __( 'Create Election', 'relatasoft-secure-election-suite' ) ); ?>
+					<?php submit_button( __( 'Create Election', 'relatasoft-secure-election-suite' ), 'primary', 'submit', true, empty( $rses_keys ) ? array( 'disabled' => 'disabled' ) : array() ); ?>
 				</form>
 
 				<h2><?php esc_html_e( 'Elections', 'relatasoft-secure-election-suite' ); ?></h2>
 				<table class="widefat striped">
-					<thead><tr><th>ID</th><th><?php esc_html_e( 'Title', 'relatasoft-secure-election-suite' ); ?></th><th><?php esc_html_e( 'Status', 'relatasoft-secure-election-suite' ); ?></th><th><?php esc_html_e( 'Actions', 'relatasoft-secure-election-suite' ); ?></th></tr></thead>
+					<thead>
+						<tr>
+							<th>ID</th>
+							<th><?php esc_html_e( 'Title', 'relatasoft-secure-election-suite' ); ?></th>
+							<th><?php esc_html_e( 'Status', 'relatasoft-secure-election-suite' ); ?></th>
+							<th><?php esc_html_e( 'Actions', 'relatasoft-secure-election-suite' ); ?></th>
+						</tr>
+					</thead>
 					<tbody>
-						<?php foreach ( $rses_elections as $rses_e ) : ?>
-							<tr>
-								<td><?php echo esc_html( (string) $rses_e->id ); ?></td>
-								<td><?php echo esc_html( $rses_e->title ); ?></td>
-								<td><?php echo esc_html( $rses_e->status ); ?></td>
-								<td><a href="<?php echo esc_url( admin_url( 'admin.php?page=rses-elections&rses_edit=' . $rses_e->id ) ); ?>"><?php esc_html_e( 'Edit', 'relatasoft-secure-election-suite' ); ?></a></td>
-							</tr>
-						<?php endforeach; ?>
+						<?php if ( empty( $rses_elections ) ) : ?>
+							<tr><td colspan="4"><?php esc_html_e( 'No elections yet.', 'relatasoft-secure-election-suite' ); ?></td></tr>
+						<?php else : ?>
+							<?php foreach ( $rses_elections as $rses_e ) : ?>
+								<tr>
+									<td><?php echo esc_html( (string) $rses_e->id ); ?></td>
+									<td><?php echo esc_html( $rses_e->title ); ?></td>
+									<td><?php echo esc_html( $rses_e->status ); ?></td>
+									<td><a href="<?php echo esc_url( admin_url( 'admin.php?page=rses-elections&rses_edit=' . $rses_e->id ) ); ?>"><?php esc_html_e( 'Edit', 'relatasoft-secure-election-suite' ); ?></a></td>
+								</tr>
+							<?php endforeach; ?>
+						<?php endif; ?>
 					</tbody>
 				</table>
 			<?php endif; ?>
+		</div>
+		<?php
+	}
+
+	/**
+	 * Render public key import page for Voting mode.
+	 */
+	public static function rses_render_public_keys_page(): void {
+		Capability::rses_require_admin();
+
+		$rses_keys = KeyRepository::rses_list_active();
+		?>
+		<div class="wrap rses-wrap">
+			<h1><?php esc_html_e( 'Public Keys', 'relatasoft-secure-election-suite' ); ?></h1>
+			<p><?php esc_html_e( 'Import the public key JSON exported from the Key Authority site. Only public components (p, q, g, y) are stored here.', 'relatasoft-secure-election-suite' ); ?></p>
+
+			<?php if ( ! empty( $_GET['rses_key_imported'] ) ) : // phpcs:ignore WordPress.Security.NonceVerification.Recommended ?>
+				<div class="notice notice-success is-dismissible">
+					<p><?php esc_html_e( 'Public key imported successfully.', 'relatasoft-secure-election-suite' ); ?></p>
+				</div>
+			<?php endif; ?>
+
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+				<?php Nonce::rses_field( Nonce::RSES_ACTION_KEY_IMPORT ); ?>
+				<input type="hidden" name="action" value="rses_import_key" />
+				<table class="form-table">
+					<tr>
+						<th><label for="rses_import_label"><?php esc_html_e( 'Label', 'relatasoft-secure-election-suite' ); ?></label></th>
+						<td><input type="text" name="rses_import_label" id="rses_import_label" class="regular-text" required /></td>
+					</tr>
+					<tr>
+						<th><label for="rses_import_json"><?php esc_html_e( 'Public Key JSON', 'relatasoft-secure-election-suite' ); ?></label></th>
+						<td>
+							<textarea name="rses_import_json" id="rses_import_json" rows="10" class="large-text code" required placeholder='{"p":"...","q":"...","g":"...","y":"...","keySizeBits":2048}'></textarea>
+						</td>
+					</tr>
+				</table>
+				<?php submit_button( __( 'Import Public Key', 'relatasoft-secure-election-suite' ) ); ?>
+			</form>
+
+			<h2><?php esc_html_e( 'Imported Keys', 'relatasoft-secure-election-suite' ); ?></h2>
+			<table class="widefat striped">
+				<thead>
+					<tr>
+						<th>ID</th>
+						<th><?php esc_html_e( 'Label', 'relatasoft-secure-election-suite' ); ?></th>
+						<th><?php esc_html_e( 'Size', 'relatasoft-secure-election-suite' ); ?></th>
+						<th>y</th>
+						<th><?php esc_html_e( 'Created', 'relatasoft-secure-election-suite' ); ?></th>
+					</tr>
+				</thead>
+				<tbody>
+					<?php if ( empty( $rses_keys ) ) : ?>
+						<tr><td colspan="5"><?php esc_html_e( 'No public keys imported.', 'relatasoft-secure-election-suite' ); ?></td></tr>
+					<?php else : ?>
+						<?php foreach ( $rses_keys as $rses_key ) : ?>
+							<tr>
+								<td><?php echo esc_html( (string) $rses_key->id ); ?></td>
+								<td><?php echo esc_html( $rses_key->key_label ); ?></td>
+								<td><?php echo esc_html( (string) $rses_key->key_size ); ?> bits</td>
+								<td><code class="rses-bigint"><?php echo esc_html( substr( $rses_key->public_y, 0, 40 ) . '…' ); ?></code></td>
+								<td><?php echo esc_html( $rses_key->created_at ); ?></td>
+							</tr>
+						<?php endforeach; ?>
+					<?php endif; ?>
+				</tbody>
+			</table>
 		</div>
 		<?php
 	}
@@ -103,6 +223,24 @@ class VotingViews {
 		?>
 		<h2><?php echo esc_html( $rses_election->title ); ?></h2>
 		<p><?php esc_html_e( 'Status:', 'relatasoft-secure-election-suite' ); ?> <strong><?php echo esc_html( $rses_election->status ); ?></strong></p>
+
+		<?php if ( $rses_round ) : ?>
+			<div class="rses-notice rses-notice-info">
+				<p>
+					<strong><?php esc_html_e( 'Voting booth shortcode:', 'relatasoft-secure-election-suite' ); ?></strong>
+					<code>[rses_voting_booth election_id="<?php echo esc_attr( (string) $election_id ); ?>" round_id="<?php echo esc_attr( (string) $rses_round_id ); ?>"]</code>
+				</p>
+				<p>
+					<?php
+					printf(
+						/* translators: %s: public key id */
+						esc_html__( 'Public key ID: %s', 'relatasoft-secure-election-suite' ),
+						esc_html( (string) ( $rses_round->key_id ?: '—' ) )
+					);
+					?>
+				</p>
+			</div>
+		<?php endif; ?>
 
 		<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:inline;">
 			<?php Nonce::rses_field( Nonce::RSES_ACTION_ELECTION_SAVE ); ?>

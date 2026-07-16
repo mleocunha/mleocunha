@@ -129,5 +129,3 @@ class CertificationService {
 		CertificationReportService::rses_export_zip( $rses_report, $rses_import_id );
 	}
 }
-
-CertificationService::register();

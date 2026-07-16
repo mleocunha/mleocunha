@@ -102,7 +102,19 @@ class ModeSetupPage {
 			wp_die( esc_html__( 'Failed to set mode.', 'relatasoft-secure-election-suite' ) );
 		}
 
-		wp_safe_redirect( admin_url( 'admin.php?page=rses-dashboard&rses_mode_set=1' ) );
+		$rses_landing = array(
+			ModeLock::RSES_MODE_KEY_AUTHORITY => 'rses-key-authority',
+			ModeLock::RSES_MODE_VOTING        => 'rses-elections',
+			ModeLock::RSES_MODE_TALLYING      => 'rses-tally-import',
+		);
+
+		$rses_page = $rses_landing[ $rses_mode ] ?? 'rses-dashboard';
+
+		wp_safe_redirect(
+			admin_url(
+				'admin.php?page=' . rawurlencode( $rses_page ) . '&rses_mode_set=1'
+			)
+		);
 		exit;
 	}
 
@@ -125,5 +137,3 @@ class ModeSetupPage {
 		exit;
 	}
 }
-
-ModeSetupPage::register();

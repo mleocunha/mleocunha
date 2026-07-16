@@ -51,13 +51,24 @@ class KeyAuthorityController {
 		$rses_threshold  = Sanitizer::rses_id( $_POST['rses_threshold_t'] ?? 3 );
 		$rses_total      = Sanitizer::rses_id( $_POST['rses_total_n'] ?? 5 );
 		$rses_officials  = isset( $_POST['rses_officials'] ) && is_array( $_POST['rses_officials'] )
-			? array_map( 'absint', wp_unslash( $_POST['rses_officials'] ) )
+			? array_values( array_unique( array_filter( array_map( 'absint', wp_unslash( $_POST['rses_officials'] ) ) ) ) )
 			: array();
 		$rses_round_id   = Sanitizer::rses_post_id( 'rses_election_round_id' );
 		$rses_attachment = Sanitizer::rses_post_id( 'rses_attachment_id' );
 
 		if ( $rses_bits < 512 ) {
 			$rses_bits = 512;
+		}
+
+		// Align total shares with selected officials when officials are chosen.
+		if ( ! empty( $rses_officials ) ) {
+			$rses_total = count( $rses_officials );
+			if ( $rses_threshold > $rses_total ) {
+				$rses_threshold = $rses_total;
+			}
+			if ( $rses_threshold < 2 && $rses_total >= 2 ) {
+				$rses_threshold = 2;
+			}
 		}
 
 		try {
@@ -105,27 +116,42 @@ class KeyAuthorityController {
 	}
 
 	/**
-	 * Handle key import.
+	 * Handle key import (Key Authority or Voting public-key import).
 	 */
 	public static function rses_handle_import_key(): void {
 		Capability::rses_require_admin();
 		Nonce::rses_verify_or_die( Nonce::RSES_ACTION_KEY_IMPORT );
-		ModeLock::rses_require_mode( ModeLock::RSES_MODE_KEY_AUTHORITY );
+
+		$rses_mode = ModeLock::rses_get_mode();
+		if ( ! in_array( $rses_mode, array( ModeLock::RSES_MODE_KEY_AUTHORITY, ModeLock::RSES_MODE_VOTING ), true ) ) {
+			wp_die( esc_html__( 'This action is not available in the current plugin mode.', 'relatasoft-secure-election-suite' ) );
+		}
 
 		$rses_label = Sanitizer::rses_post_text( 'rses_import_label' );
 		$rses_json  = isset( $_POST['rses_import_json'] )
 			? wp_unslash( $_POST['rses_import_json'] )
 			: '';
 
+		// Allow wrapping from public-key.json export that may include keySizeBits only.
 		$rses_data = Sanitizer::rses_json( $rses_json );
 
 		if ( null === $rses_data ) {
 			wp_die( esc_html__( 'Invalid JSON import data.', 'relatasoft-secure-election-suite' ) );
 		}
 
+		// Accept nested public_key object from fuller export packages.
+		if ( isset( $rses_data['public_key'] ) && is_array( $rses_data['public_key'] ) ) {
+			$rses_data = $rses_data['public_key'];
+		}
+
 		try {
-			$rses_key_id = KeyImportService::rses_import_public_key( $rses_data, $rses_label );
-			wp_safe_redirect( admin_url( 'admin.php?page=rses-key-authority&rses_key_imported=' . $rses_key_id ) );
+			$rses_key_id = KeyImportService::rses_import_public_key( $rses_data, $rses_label ?: __( 'Imported Public Key', 'relatasoft-secure-election-suite' ) );
+
+			$rses_redirect = ModeLock::rses_is_mode( ModeLock::RSES_MODE_VOTING )
+				? 'admin.php?page=rses-public-keys&rses_key_imported=' . $rses_key_id
+				: 'admin.php?page=rses-key-authority&rses_key_imported=' . $rses_key_id;
+
+			wp_safe_redirect( admin_url( $rses_redirect ) );
 			exit;
 		} catch ( CryptoException $rses_e ) {
 			wp_die( esc_html( $rses_e->getMessage() ) );
@@ -154,7 +180,8 @@ class KeyAuthorityController {
 		} elseif ( $rses_own_share ) {
 			Capability::rses_require_official();
 		} else {
-			Capability::rses_require_admin();
+			// Public key export: admin or official.
+			Capability::rses_require_official();
 		}
 
 		ModeLock::rses_require_mode( ModeLock::RSES_MODE_KEY_AUTHORITY );

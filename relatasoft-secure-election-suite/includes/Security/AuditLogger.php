@@ -33,7 +33,7 @@ class AuditLogger {
 	);
 
 	/**
-	 * Log an audit event.
+	 * Soft-fail audit logging so privileged actions still complete.
 	 *
 	 * @param string              $action      Action name.
 	 * @param string              $object_type Object type.
@@ -47,29 +47,31 @@ class AuditLogger {
 		?int $object_id = null,
 		array $payload = array()
 	): int {
-		global $wpdb;
+		try {
+			$rses_payload = self::rses_sanitize_payload( $payload );
+			$rses_previous_hash = self::rses_get_last_hash();
 
-		$rses_payload = self::rses_sanitize_payload( $payload );
-		$rses_previous_hash = self::rses_get_last_hash();
+			$rses_entry = array(
+				'actor_user_id' => get_current_user_id() ?: null,
+				'action'        => Sanitizer::rses_text( $action ),
+				'object_type'   => Sanitizer::rses_text( $object_type ),
+				'object_id'     => $object_id,
+				'previous_hash' => $rses_previous_hash,
+				'payload_json'  => wp_json_encode( $rses_payload ),
+				'created_at'    => current_time( 'mysql', true ),
+			);
 
-		$rses_entry = array(
-			'actor_user_id' => get_current_user_id() ?: null,
-			'action'        => Sanitizer::rses_text( $action ),
-			'object_type'   => Sanitizer::rses_text( $object_type ),
-			'object_id'     => $object_id,
-			'previous_hash' => $rses_previous_hash,
-			'payload_json'  => wp_json_encode( $rses_payload ),
-			'created_at'    => current_time( 'mysql', true ),
-		);
+			$rses_current_hash = HashService::rses_hash_audit_entry( $rses_entry );
+			$rses_entry['current_hash'] = $rses_current_hash;
 
-		$rses_current_hash = HashService::rses_hash_audit_entry( $rses_entry );
-		$rses_entry['current_hash'] = $rses_current_hash;
-
-		return Repository::rses_insert(
-			'rses_audit_log',
-			$rses_entry,
-			array( '%d', '%s', '%s', '%d', '%s', '%s', '%s', '%s' )
-		);
+			return Repository::rses_insert(
+				'rses_audit_log',
+				$rses_entry,
+				array( '%d', '%s', '%s', '%d', '%s', '%s', '%s', '%s' )
+			);
+		} catch ( \Throwable $rses_e ) {
+			return 0;
+		}
 	}
 
 	/**
