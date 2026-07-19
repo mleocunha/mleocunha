@@ -37,13 +37,15 @@ class Nonce {
 	public const RSES_ACTION_BALLOT_SAVE        = 'rses_ballot_save';
 
 	/**
-	 * Create a nonce field.
+	 * Output a nonce field for forms.
+	 *
+	 * Echoes the hidden inputs (WordPress default). Call sites use
+	 * `<?php Nonce::rses_field( ... ); ?>` and must not need echo.
 	 *
 	 * @param string $action Nonce action.
-	 * @return string
 	 */
-	public static function rses_field( string $action ): string {
-		return wp_nonce_field( $action, '_rses_nonce', true, false );
+	public static function rses_field( string $action ): void {
+		wp_nonce_field( $action, '_rses_nonce', true, true );
 	}
 
 	/**
