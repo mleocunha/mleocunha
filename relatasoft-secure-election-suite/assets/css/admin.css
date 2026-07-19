@@ -19,6 +19,62 @@
 	font-size: 1.1em;
 }
 
+.rses-shortcode-election-card {
+	background: #fff;
+	border: 1px solid #c3c4c7;
+	border-radius: 4px;
+	padding: 16px 18px;
+	margin: 16px 0 24px;
+}
+
+.rses-shortcode-election-card h3 {
+	margin-top: 0;
+}
+
+.rses-shortcode-election-card h3 small,
+.rses-shortcode-round h4 small {
+	color: #646970;
+	font-weight: 400;
+}
+
+.rses-shortcode-round {
+	border-top: 1px solid #dcdcde;
+	padding-top: 12px;
+	margin-top: 12px;
+}
+
+.rses-shortcode-focus {
+	box-shadow: 0 0 0 2px #2271b1;
+}
+
+.rses-shortcode-row {
+	margin: 10px 0;
+}
+
+.rses-shortcode-row label {
+	display: block;
+	font-weight: 600;
+	margin-bottom: 4px;
+}
+
+.rses-shortcode-copy-wrap {
+	display: flex;
+	gap: 8px;
+	align-items: center;
+}
+
+.rses-shortcode-input {
+	font-family: Consolas, Monaco, monospace;
+}
+
+.rses-shortcode-actions {
+	margin-top: 12px;
+}
+
+.rses-shortcode-actions .button {
+	margin-right: 8px;
+}
+
 
 .rses-notice {
 	padding: 12px 16px;

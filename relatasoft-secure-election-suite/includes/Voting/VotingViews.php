@@ -228,7 +228,15 @@ class VotingViews {
 			<div class="rses-notice rses-notice-info">
 				<p>
 					<strong><?php esc_html_e( 'Voting booth shortcode:', 'relatasoft-secure-election-suite' ); ?></strong>
-					<code>[rses_voting_booth election_id="<?php echo esc_attr( (string) $election_id ); ?>" round_id="<?php echo esc_attr( (string) $rses_round_id ); ?>"]</code>
+					<code class="rses-shortcode-text">[rses_voting_booth election_id="<?php echo esc_attr( (string) $election_id ); ?>" round_id="<?php echo esc_attr( (string) $rses_round_id ); ?>"]</code>
+					<button type="button" class="button button-small rses-copy-shortcode" data-rses-copy="[rses_voting_booth election_id=&quot;<?php echo esc_attr( (string) $election_id ); ?>&quot; round_id=&quot;<?php echo esc_attr( (string) $rses_round_id ); ?>&quot;]">
+						<?php esc_html_e( 'Copy', 'relatasoft-secure-election-suite' ); ?>
+					</button>
+				</p>
+				<p>
+					<a href="<?php echo esc_url( admin_url( 'admin.php?page=rses-shortcodes&election_id=' . $election_id . '&round_id=' . $rses_round_id ) ); ?>">
+						<?php esc_html_e( 'Open Shortcode Generator →', 'relatasoft-secure-election-suite' ); ?>
+					</a>
 				</p>
 				<p>
 					<?php

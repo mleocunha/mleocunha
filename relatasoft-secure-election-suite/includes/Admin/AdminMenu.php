@@ -98,6 +98,15 @@ class AdminMenu {
 
 			add_submenu_page(
 				'rses-dashboard',
+				__( 'Shortcodes', 'relatasoft-secure-election-suite' ),
+				__( 'Shortcodes', 'relatasoft-secure-election-suite' ),
+				'manage_options',
+				'rses-shortcodes',
+				array( VotingViews::class, 'rses_render_shortcodes_page' )
+			);
+
+			add_submenu_page(
+				'rses-dashboard',
 				__( 'Voting Export', 'relatasoft-secure-election-suite' ),
 				__( 'Voting Export', 'relatasoft-secure-election-suite' ),
 				'manage_options',
@@ -224,7 +233,16 @@ class AdminMenu {
 						</p>
 					</div>
 					<div class="rses-dashboard-card">
-						<h2><?php esc_html_e( '3. Export Encrypted Tallies', 'relatasoft-secure-election-suite' ); ?></h2>
+						<h2><?php esc_html_e( '3. Publish Voting Shortcodes', 'relatasoft-secure-election-suite' ); ?></h2>
+						<p><?php esc_html_e( 'Copy shortcodes into any WordPress page or post so logged-in voters can cast encrypted ballots.', 'relatasoft-secure-election-suite' ); ?></p>
+						<p>
+							<a class="button button-primary" href="<?php echo esc_url( admin_url( 'admin.php?page=rses-shortcodes' ) ); ?>">
+								<?php esc_html_e( 'Shortcode Generator', 'relatasoft-secure-election-suite' ); ?>
+							</a>
+						</p>
+					</div>
+					<div class="rses-dashboard-card">
+						<h2><?php esc_html_e( '4. Export Encrypted Tallies', 'relatasoft-secure-election-suite' ); ?></h2>
 						<p><?php esc_html_e( 'After closing an election, export ZIP/JSON packages for the Tallying platform.', 'relatasoft-secure-election-suite' ); ?></p>
 						<p>
 							<a class="button" href="<?php echo esc_url( admin_url( 'admin.php?page=rses-voting-export' ) ); ?>">
