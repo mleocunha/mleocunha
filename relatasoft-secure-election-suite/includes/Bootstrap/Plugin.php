@@ -8,6 +8,7 @@
 namespace RelataSoft\SecureElectionSuite\Bootstrap;
 
 use RelataSoft\SecureElectionSuite\Admin\AdminMenu;
+use RelataSoft\SecureElectionSuite\Admin\AuditLogPage;
 use RelataSoft\SecureElectionSuite\Admin\ModeSetupPage;
 use RelataSoft\SecureElectionSuite\Admin\Notices;
 use RelataSoft\SecureElectionSuite\Admin\SettingsPage;
@@ -57,6 +58,7 @@ class Plugin {
 		// Admin-post handlers must register on every request (including admin-post.php).
 		ModeSetupPage::register();
 		SettingsPage::register();
+		AuditLogPage::register();
 		CertificationService::register();
 		AjaxRouter::register();
 		KeyAuthorityController::register();
