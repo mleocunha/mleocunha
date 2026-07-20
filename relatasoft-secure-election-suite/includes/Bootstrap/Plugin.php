@@ -165,6 +165,22 @@ class Plugin {
 				RSES_VERSION,
 				true
 			);
+			wp_localize_script(
+				'rses-key-authority',
+				'rsesKeygen',
+				array(
+					'ajaxUrl' => admin_url( 'admin-ajax.php' ),
+					'nonce'   => wp_create_nonce( 'rses_keygen' ),
+					'doneUrl' => admin_url( 'admin.php?page=rses-key-authority' ),
+					'i18n'    => array(
+						'starting'  => __( 'Starting chunked key generation…', 'relatasoft-secure-election-suite' ),
+						'error'     => __( 'Key generation request failed.', 'relatasoft-secure-election-suite' ),
+						'cancelled' => __( 'Key generation cancelled.', 'relatasoft-secure-election-suite' ),
+						'attempts'  => __( '%d candidates tested', 'relatasoft-secure-election-suite' ),
+						'slowHint'  => __( 'Key generation at %d bits uses chunked AJAX (≤25s per step) and may take several minutes.', 'relatasoft-secure-election-suite' ),
+					),
+				)
+			);
 		} elseif ( 'tallying' === $mode ) {
 			wp_enqueue_script(
 				'rses-tallying',

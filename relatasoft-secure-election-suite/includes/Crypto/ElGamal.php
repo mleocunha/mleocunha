@@ -29,16 +29,36 @@ class ElGamal {
 		list( $rses_p, $rses_q ) = PrimeGenerator::generateSafePrime( $bits );
 		$rses_g = PrimeGenerator::findGeneratorForSafePrime( $rses_p, $rses_q );
 
-		$rses_two = \gmp_init( 2 );
-		$rses_x   = CryptoRandom::randomIntegerBetween( $rses_two, \gmp_sub( $rses_q, $rses_two ) );
-		$rses_y   = BigInt::modPow( $rses_g, $rses_x, $rses_p );
+		return self::generateKeyPairFromParams( $rses_p, $rses_q, $rses_g, $bits );
+	}
 
-		self::rses_validate_key_pair( $rses_p, $rses_q, $rses_g, $rses_x, $rses_y );
+	/**
+	 * Finish key-pair generation from already-chosen safe-prime parameters.
+	 *
+	 * Used by chunked key generation after the safe-prime / generator stages.
+	 *
+	 * @param \GMP $p    Safe prime.
+	 * @param \GMP $q    Subgroup order.
+	 * @param \GMP $g    Generator.
+	 * @param int  $bits Key size bits.
+	 * @return ElGamalKeyPair
+	 * @throws CryptoException If generation or validation fails.
+	 */
+	public static function generateKeyPairFromParams( \GMP $p, \GMP $q, \GMP $g, int $bits ): ElGamalKeyPair {
+		if ( $bits < 512 ) {
+			throw new CryptoException( __( 'ElGamal key size must be at least 512 bits.', 'relatasoft-secure-election-suite' ) );
+		}
+
+		$rses_two = \gmp_init( 2 );
+		$rses_x   = CryptoRandom::randomIntegerBetween( $rses_two, \gmp_sub( $q, $rses_two ) );
+		$rses_y   = BigInt::modPow( $g, $rses_x, $p );
+
+		self::rses_validate_key_pair( $p, $q, $g, $rses_x, $rses_y );
 
 		return new ElGamalKeyPair(
-			BigInt::toDecimalString( $rses_p ),
-			BigInt::toDecimalString( $rses_q ),
-			BigInt::toDecimalString( $rses_g ),
+			BigInt::toDecimalString( $p ),
+			BigInt::toDecimalString( $q ),
+			BigInt::toDecimalString( $g ),
 			BigInt::toDecimalString( $rses_x ),
 			BigInt::toDecimalString( $rses_y ),
 			$bits,

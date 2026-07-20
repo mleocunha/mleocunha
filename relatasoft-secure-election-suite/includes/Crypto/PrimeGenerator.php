@@ -89,6 +89,36 @@ class PrimeGenerator {
 	}
 
 	/**
+	 * Try one Sophie-Germain candidate q for a safe prime p = 2q + 1.
+	 *
+	 * Used by checkpointed key generation so the same attempt can be resumed.
+	 *
+	 * @param \GMP $q_candidate Odd candidate for q (bit length bits-1).
+	 * @param int  $bits        Desired bit length of p.
+	 * @return array{0:\GMP,1:\GMP}|null [p, q] or null if rejected.
+	 */
+	public static function trySafePrimeFromQ( \GMP $q_candidate, int $bits ): ?array {
+		if ( $bits < 3 ) {
+			return null;
+		}
+
+		if ( ! self::isProbablePrime( $q_candidate ) ) {
+			return null;
+		}
+
+		$rses_p = \gmp_add( \gmp_mul( \gmp_init( 2 ), $q_candidate ), \gmp_init( 1 ) );
+		if ( BigInt::bitLength( $rses_p ) !== $bits ) {
+			return null;
+		}
+
+		if ( ! self::isProbablePrime( $rses_p ) ) {
+			return null;
+		}
+
+		return array( $rses_p, $q_candidate );
+	}
+
+	/**
 	 * Find generator g of subgroup of order q for safe prime p = 2q + 1.
 	 *
 	 * @param \GMP $p Safe prime.

@@ -71,8 +71,21 @@
 	margin-top: 12px;
 }
 
-.rses-shortcode-actions .button {
-	margin-right: 8px;
+.rses-keygen-progress {
+	margin: 16px 0 20px;
+}
+
+.rses-keygen-bar {
+	margin: 10px 0;
+	height: 12px;
+}
+
+#rses-keygen-bar-fill {
+	transition: width 0.25s ease;
+}
+
+#rses-keygen-form[aria-busy="true"] {
+	opacity: 0.7;
 }
 
 

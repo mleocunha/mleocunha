@@ -61,7 +61,25 @@ class KeyAuthorityViews {
 			<?php endif; ?>
 
 			<h2><?php esc_html_e( 'Generate New Key', 'relatasoft-secure-election-suite' ); ?></h2>
-			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="rses-form">
+
+			<div id="rses-keygen-progress" class="rses-keygen-progress" hidden>
+				<div class="rses-notice rses-notice-info">
+					<p id="rses-keygen-message"><?php esc_html_e( 'Preparing…', 'relatasoft-secure-election-suite' ); ?></p>
+					<div class="rses-progress-bar rses-keygen-bar">
+						<div id="rses-keygen-bar-fill" class="rses-progress-fill" style="width:0%"></div>
+					</div>
+					<p>
+						<span id="rses-keygen-percent">0%</span>
+						— <span id="rses-keygen-stage"></span>
+						— <span id="rses-keygen-attempts"></span>
+					</p>
+					<p>
+						<button type="button" class="button" id="rses-keygen-cancel"><?php esc_html_e( 'Cancel', 'relatasoft-secure-election-suite' ); ?></button>
+					</p>
+				</div>
+			</div>
+
+			<form method="post" action="#" id="rses-keygen-form" class="rses-form">
 				<?php Nonce::rses_field( Nonce::RSES_ACTION_KEY_GENERATE ); ?>
 				<input type="hidden" name="action" value="rses_generate_key" />
 
@@ -77,9 +95,10 @@ class KeyAuthorityViews {
 								<option value="512"><?php esc_html_e( '512 (local testing only)', 'relatasoft-secure-election-suite' ); ?></option>
 								<option value="1024"><?php esc_html_e( '1024 (development)', 'relatasoft-secure-election-suite' ); ?></option>
 								<option value="2048" selected><?php esc_html_e( '2048 (recommended minimum)', 'relatasoft-secure-election-suite' ); ?></option>
-								<option value="3072"><?php esc_html_e( '3072 (stronger)', 'relatasoft-secure-election-suite' ); ?></option>
-								<option value="4096"><?php esc_html_e( '4096 (strongest, may be slow)', 'relatasoft-secure-election-suite' ); ?></option>
+								<option value="3072"><?php esc_html_e( '3072 (stronger — chunked)', 'relatasoft-secure-election-suite' ); ?></option>
+								<option value="4096"><?php esc_html_e( '4096 (strongest — chunked)', 'relatasoft-secure-election-suite' ); ?></option>
 							</select>
+							<p class="description"><?php esc_html_e( 'Generation runs in ≤25s AJAX chunks with a live progress bar so PHP time limits are not exceeded.', 'relatasoft-secure-election-suite' ); ?></p>
 						</td>
 					</tr>
 					<tr>
@@ -114,7 +133,7 @@ class KeyAuthorityViews {
 					</tr>
 				</table>
 
-				<?php submit_button( __( 'Generate Key & Assign Shares', 'relatasoft-secure-election-suite' ) ); ?>
+				<?php submit_button( __( 'Generate Key & Assign Shares', 'relatasoft-secure-election-suite' ), 'primary', 'rses_keygen_submit', false ); ?>
 			</form>
 
 			<h2><?php esc_html_e( 'Import Public Key', 'relatasoft-secure-election-suite' ); ?></h2>
