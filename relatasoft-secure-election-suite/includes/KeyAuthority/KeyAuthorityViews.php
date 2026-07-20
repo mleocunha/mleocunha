@@ -64,8 +64,8 @@ class KeyAuthorityViews {
 			<h2><?php esc_html_e( 'Generate New Key', 'relatasoft-secure-election-suite' ); ?></h2>
 
 			<?php
-			// Failsafe enqueue if admin_enqueue_scripts missed this screen.
-			wp_enqueue_script( 'rses-key-authority' );
+			// Failsafe: register/enqueue during render if admin_enqueue_scripts missed this screen.
+			Plugin::rses_enqueue_key_authority_script();
 			?>
 
 			<div id="rses-keygen-progress" class="rses-keygen-progress is-idle" hidden>
