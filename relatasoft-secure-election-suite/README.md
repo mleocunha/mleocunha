@@ -30,12 +30,14 @@ This plugin supports three mutually exclusive modes (one per WordPress installat
 
 | WordPress Role | Election Role |
 |----------------|---------------|
-| Administrator  | Election administrator |
-| Editor         | Election official / Shamir share holder |
+| Administrator  | Election administrator (tally import, decrypt, certify) |
+| Editor         | Election official / Shamir share holder (submit shares only) |
 | Contributor    | Candidate |
 | Subscriber     | Voter (required to cast a ballot) |
 
 **Voting eligibility:** a user may cast a ballot only if their account includes the **Subscriber** role. Capability inheritance is not used (`read` alone is insufficient). An Administrator or Editor cannot vote unless the same account also has the Subscriber role.
+
+**Tally / certification:** only users with the **Administrator** role may import voting packages, run threshold decryption, or certify results. Editors submit Shamir shares but cannot decrypt or certify.
 
 ## Shortcodes
 

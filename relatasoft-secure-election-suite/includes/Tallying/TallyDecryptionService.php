@@ -13,6 +13,8 @@ use RelataSoft\SecureElectionSuite\Crypto\ElGamalCiphertext;
 use RelataSoft\SecureElectionSuite\Crypto\HomomorphicTally;
 use RelataSoft\SecureElectionSuite\Crypto\ShamirSecretSharing;
 use RelataSoft\SecureElectionSuite\KeyAuthority\ShareEncryptionService;
+use RelataSoft\SecureElectionSuite\Security\AuditLogger;
+use RelataSoft\SecureElectionSuite\Security\Capability;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -28,6 +30,19 @@ class TallyDecryptionService {
 	 * @return array{success:bool,message:string,results?:array<string,mixed>}
 	 */
 	public static function rses_decrypt_import( int $import_id ): array {
+		if ( ! Capability::rses_can_tally_and_certify() ) {
+			AuditLogger::rses_log(
+				'tally_decrypt_denied',
+				'tally_import',
+				$import_id,
+				array( 'user_id' => get_current_user_id() )
+			);
+			return array(
+				'success' => false,
+				'message' => __( 'Only users with the Administrator role may decrypt tallies.', 'relatasoft-secure-election-suite' ),
+			);
+		}
+
 		$rses_import = TallyImportRepository::rses_get( $import_id );
 
 		if ( ! $rses_import || 'verified' !== $rses_import->status ) {
