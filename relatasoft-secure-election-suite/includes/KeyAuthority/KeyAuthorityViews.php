@@ -7,6 +7,7 @@
 
 namespace RelataSoft\SecureElectionSuite\KeyAuthority;
 
+use RelataSoft\SecureElectionSuite\Bootstrap\Plugin;
 use RelataSoft\SecureElectionSuite\Security\Capability;
 use RelataSoft\SecureElectionSuite\Security\Escaper;
 use RelataSoft\SecureElectionSuite\Security\Nonce;
@@ -62,7 +63,12 @@ class KeyAuthorityViews {
 
 			<h2><?php esc_html_e( 'Generate New Key', 'relatasoft-secure-election-suite' ); ?></h2>
 
-			<div id="rses-keygen-progress" class="rses-keygen-progress" hidden>
+			<?php
+			// Failsafe enqueue if admin_enqueue_scripts missed this screen.
+			wp_enqueue_script( 'rses-key-authority' );
+			?>
+
+			<div id="rses-keygen-progress" class="rses-keygen-progress is-idle" hidden>
 				<div class="rses-notice rses-notice-info">
 					<p id="rses-keygen-message"><?php esc_html_e( 'Preparing…', 'relatasoft-secure-election-suite' ); ?></p>
 					<div class="rses-progress-bar rses-keygen-bar">
@@ -79,9 +85,17 @@ class KeyAuthorityViews {
 				</div>
 			</div>
 
-			<form method="post" action="#" id="rses-keygen-form" class="rses-form">
+			<form
+				method="post"
+				action="<?php echo esc_url( admin_url( 'admin-ajax.php' ) ); ?>"
+				id="rses-keygen-form"
+				class="rses-form"
+				data-rses-ajax-url="<?php echo esc_url( admin_url( 'admin-ajax.php' ) ); ?>"
+				data-rses-nonce="<?php echo esc_attr( wp_create_nonce( 'rses_keygen' ) ); ?>"
+				data-rses-done-url="<?php echo esc_url( admin_url( 'admin.php?page=rses-key-authority' ) ); ?>"
+			>
 				<?php Nonce::rses_field( Nonce::RSES_ACTION_KEY_GENERATE ); ?>
-				<input type="hidden" name="action" value="rses_generate_key" />
+				<input type="hidden" name="action" value="rses_keygen_start" />
 
 				<table class="form-table">
 					<tr>
@@ -98,7 +112,7 @@ class KeyAuthorityViews {
 								<option value="3072"><?php esc_html_e( '3072 (stronger — chunked)', 'relatasoft-secure-election-suite' ); ?></option>
 								<option value="4096"><?php esc_html_e( '4096 (strongest — chunked)', 'relatasoft-secure-election-suite' ); ?></option>
 							</select>
-							<p class="description"><?php esc_html_e( 'Generation runs in ≤25s AJAX chunks with a live progress bar so PHP time limits are not exceeded.', 'relatasoft-secure-election-suite' ); ?></p>
+							<p class="description"><?php esc_html_e( 'After you click Generate, a progress bar appears above this form. Work runs in short AJAX steps so PHP does not time out.', 'relatasoft-secure-election-suite' ); ?></p>
 						</td>
 					</tr>
 					<tr>

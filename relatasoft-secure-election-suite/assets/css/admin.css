@@ -75,6 +75,15 @@
 	margin: 16px 0 20px;
 }
 
+.rses-keygen-progress.is-idle,
+.rses-keygen-progress[hidden] {
+	display: none !important;
+}
+
+.rses-keygen-progress.is-active {
+	display: block !important;
+}
+
 .rses-keygen-bar {
 	margin: 10px 0;
 	height: 12px;

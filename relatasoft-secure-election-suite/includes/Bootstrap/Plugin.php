@@ -137,7 +137,15 @@ class Plugin {
 	 * @param string $hook_suffix Current admin page hook suffix.
 	 */
 	public function rses_enqueue_admin_assets( string $hook_suffix ): void {
-		if ( strpos( $hook_suffix, 'rses-' ) === false && strpos( $hook_suffix, 'relatasoft-secure-election' ) === false ) {
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only admin page id.
+		$rses_page = isset( $_GET['page'] ) ? sanitize_key( wp_unslash( $_GET['page'] ) ) : '';
+
+		// Prefer ?page= over hook_suffix: translated menu titles can rewrite the hook string.
+		$rses_is_plugin_screen = ( 0 === strpos( $rses_page, 'rses-' ) )
+			|| false !== strpos( $hook_suffix, 'rses-' )
+			|| false !== strpos( $hook_suffix, 'relatasoft-secure-election' );
+
+		if ( ! $rses_is_plugin_screen ) {
 			return;
 		}
 
@@ -157,31 +165,13 @@ class Plugin {
 		);
 
 		$mode = ModeLock::rses_get_mode();
-		if ( 'key_authority' === $mode ) {
-			wp_enqueue_script(
-				'rses-key-authority',
-				RSES_PLUGIN_URL . 'assets/js/key-authority.js',
-				array( 'jquery', 'rses-admin' ),
-				RSES_VERSION,
-				true
-			);
-			wp_localize_script(
-				'rses-key-authority',
-				'rsesKeygen',
-				array(
-					'ajaxUrl' => admin_url( 'admin-ajax.php' ),
-					'nonce'   => wp_create_nonce( 'rses_keygen' ),
-					'doneUrl' => admin_url( 'admin.php?page=rses-key-authority' ),
-					'i18n'    => array(
-						'starting'  => __( 'Starting chunked key generation…', 'relatasoft-secure-election-suite' ),
-						'error'     => __( 'Key generation request failed.', 'relatasoft-secure-election-suite' ),
-						'cancelled' => __( 'Key generation cancelled.', 'relatasoft-secure-election-suite' ),
-						'attempts'  => __( '%d candidates tested', 'relatasoft-secure-election-suite' ),
-						'slowHint'  => __( 'Key generation at %d bits uses chunked AJAX (≤25s per step) and may take several minutes.', 'relatasoft-secure-election-suite' ),
-					),
-				)
-			);
-		} elseif ( 'tallying' === $mode ) {
+
+		// Key Authority screen: force the chunked keygen script onto the page.
+		if ( 'rses-key-authority' === $rses_page || 'key_authority' === $mode ) {
+			self::rses_enqueue_key_authority_script();
+		}
+
+		if ( 'tallying' === $mode ) {
 			wp_enqueue_script(
 				'rses-tallying',
 				RSES_PLUGIN_URL . 'assets/js/tallying.js',
@@ -190,6 +180,39 @@ class Plugin {
 				true
 			);
 		}
+	}
+
+	/**
+	 * Register, localize, and enqueue Key Authority keygen script.
+	 *
+	 * Safe to call from admin_enqueue_scripts or during page render.
+	 */
+	public static function rses_enqueue_key_authority_script(): void {
+		wp_register_script(
+			'rses-key-authority',
+			RSES_PLUGIN_URL . 'assets/js/key-authority.js',
+			array( 'jquery' ),
+			RSES_VERSION,
+			true
+		);
+		wp_localize_script(
+			'rses-key-authority',
+			'rsesKeygen',
+			array(
+				'ajaxUrl' => admin_url( 'admin-ajax.php' ),
+				'nonce'   => wp_create_nonce( 'rses_keygen' ),
+				'doneUrl' => admin_url( 'admin.php?page=rses-key-authority' ),
+				'i18n'    => array(
+					'starting'  => __( 'Starting chunked key generation…', 'relatasoft-secure-election-suite' ),
+					'error'     => __( 'Key generation request failed.', 'relatasoft-secure-election-suite' ),
+					'cancelled' => __( 'Key generation cancelled.', 'relatasoft-secure-election-suite' ),
+					'attempts'  => __( '%d candidates tested', 'relatasoft-secure-election-suite' ),
+					'slowHint'  => __( 'Key generation at %d bits uses chunked AJAX (≤25s per step) and may take several minutes.', 'relatasoft-secure-election-suite' ),
+					'noJs'      => __( 'JavaScript failed to start key generation. Hard-refresh this page (Ctrl/Cmd+Shift+R) and try again.', 'relatasoft-secure-election-suite' ),
+				),
+			)
+		);
+		wp_enqueue_script( 'rses-key-authority' );
 	}
 
 	/**
