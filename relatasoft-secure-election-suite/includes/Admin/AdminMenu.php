@@ -116,15 +116,17 @@ class AdminMenu {
 		}
 
 		if ( ModeLock::rses_is_mode( ModeLock::RSES_MODE_TALLYING ) ) {
+			// Import / certify: Administrator only (not editors).
 			add_submenu_page(
 				'rses-dashboard',
 				__( 'Tally Import', 'relatasoft-secure-election-suite' ),
 				__( 'Tally Import', 'relatasoft-secure-election-suite' ),
-				$rses_cap,
+				'manage_options',
 				'rses-tally-import',
 				array( TallyingViews::class, 'rses_render_import_page' )
 			);
 
+			// Officials submit shares; admins may also open this screen.
 			add_submenu_page(
 				'rses-dashboard',
 				__( 'Share Submission', 'relatasoft-secure-election-suite' ),

@@ -35,7 +35,7 @@ class CertificationService {
 	 * Handle certification.
 	 */
 	public static function rses_handle_certify(): void {
-		Capability::rses_require_admin();
+		Capability::rses_require_tally_admin();
 		Nonce::rses_verify_or_die( Nonce::RSES_ACTION_CERTIFICATION );
 
 		$rses_import_id = absint( $_POST['tally_import_id'] ?? 0 );
@@ -110,7 +110,7 @@ class CertificationService {
 	 * Export certification package.
 	 */
 	public static function rses_handle_export(): void {
-		Capability::rses_require_admin();
+		Capability::rses_require_tally_admin();
 		Nonce::rses_verify_or_die( Nonce::RSES_ACTION_CERTIFICATION );
 
 		$rses_import_id = absint( $_GET['import_id'] ?? 0 );

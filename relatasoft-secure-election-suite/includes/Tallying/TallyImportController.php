@@ -33,7 +33,7 @@ class TallyImportController {
 	 * Handle tally import upload.
 	 */
 	public static function rses_handle_import(): void {
-		Capability::rses_require_admin();
+		Capability::rses_require_tally_admin();
 		Nonce::rses_verify_or_die( Nonce::RSES_ACTION_TALLY_IMPORT );
 		ModeLock::rses_require_mode( ModeLock::RSES_MODE_TALLYING );
 

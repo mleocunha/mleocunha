@@ -110,7 +110,7 @@ class OfficialShareSubmissionController {
 	 * Handle decryption when threshold met.
 	 */
 	public static function rses_handle_decryption(): void {
-		Capability::rses_require_admin();
+		Capability::rses_require_tally_admin();
 		Nonce::rses_verify_or_die( Nonce::RSES_ACTION_DECRYPTION );
 		ModeLock::rses_require_mode( ModeLock::RSES_MODE_TALLYING );
 

@@ -21,7 +21,7 @@ class TallyingViews {
 	 * Render tally import page.
 	 */
 	public static function rses_render_import_page(): void {
-		Capability::rses_require_admin();
+		Capability::rses_require_tally_admin();
 
 		$rses_imports = TallyImportRepository::rses_list();
 		?>
@@ -106,13 +106,15 @@ class TallyingViews {
 						<?php submit_button( __( 'Submit Share', 'relatasoft-secure-election-suite' ) ); ?>
 					</form>
 
-					<?php if ( $rses_submitted >= $rses_threshold && Capability::rses_can_manage_election() ) : ?>
+					<?php if ( $rses_submitted >= $rses_threshold && Capability::rses_can_tally_and_certify() ) : ?>
 						<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
 							<?php Nonce::rses_field( Nonce::RSES_ACTION_DECRYPTION ); ?>
 							<input type="hidden" name="action" value="rses_run_decryption" />
 							<input type="hidden" name="tally_import_id" value="<?php echo esc_attr( (string) $rses_imp->id ); ?>" />
 							<?php submit_button( __( 'Decrypt Tally (Threshold Met)', 'relatasoft-secure-election-suite' ), 'primary' ); ?>
 						</form>
+					<?php elseif ( $rses_submitted >= $rses_threshold ) : ?>
+						<p class="description"><?php esc_html_e( 'Threshold met. An Administrator must run tally decryption and certification.', 'relatasoft-secure-election-suite' ); ?></p>
 					<?php endif; ?>
 				</div>
 			<?php endforeach; ?>
@@ -124,7 +126,7 @@ class TallyingViews {
 	 * Render certification page.
 	 */
 	public static function rses_render_certification_page(): void {
-		Capability::rses_require_admin();
+		Capability::rses_require_tally_admin();
 
 		$rses_imports = TallyImportRepository::rses_list();
 		?>
