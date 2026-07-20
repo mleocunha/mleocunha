@@ -248,7 +248,9 @@ class KeyAuthorityController {
 
 		ModeLock::rses_require_mode( ModeLock::RSES_MODE_KEY_AUTHORITY );
 
-		if ( 'json' === $rses_format ) {
+		if ( $rses_own_share && 'json' === $rses_format ) {
+			KeyExportService::rses_export_own_share_json( $rses_key_id );
+		} elseif ( 'json' === $rses_format ) {
 			KeyExportService::rses_export_public_json( $rses_key_id );
 		} else {
 			KeyExportService::rses_export_zip( $rses_key_id, $rses_full, $rses_own_share );

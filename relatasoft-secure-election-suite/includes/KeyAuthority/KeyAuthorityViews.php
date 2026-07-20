@@ -178,7 +178,7 @@ class KeyAuthorityViews {
 	}
 
 	/**
-	 * Official-only view: export own Shamir share.
+	 * Official-only view: see, copy, and download own Shamir share.
 	 */
 	private static function rses_render_official_shares(): void {
 		$rses_user_id = get_current_user_id();
@@ -186,7 +186,9 @@ class KeyAuthorityViews {
 		?>
 		<div class="wrap rses-wrap">
 			<h1><?php esc_html_e( 'My Shamir Shares', 'relatasoft-secure-election-suite' ); ?></h1>
-			<p><?php esc_html_e( 'Export only your assigned Shamir Secret Sharing share. Share values must be stored offline securely.', 'relatasoft-secure-election-suite' ); ?></p>
+			<div class="rses-notice rses-notice-warning">
+				<p><?php esc_html_e( 'Store your share offline and keep it confidential. You will paste this same JSON on the Tallying site when submitting your share. Never share it with other officials.', 'relatasoft-secure-election-suite' ); ?></p>
+			</div>
 
 			<?php
 			$rses_found = false;
@@ -195,9 +197,14 @@ class KeyAuthorityViews {
 				if ( ! $rses_share ) {
 					continue;
 				}
-				$rses_found = true;
+				$rses_found   = true;
+				$rses_payload = KeyExportService::rses_get_own_share_payload( (int) $rses_key->id );
+				$rses_json    = $rses_payload
+					? (string) wp_json_encode( $rses_payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES )
+					: '';
+				$rses_ta_id   = 'rses-own-share-' . (int) $rses_key->id;
 				?>
-				<div class="rses-key-card">
+				<div class="rses-key-card rses-official-share-card">
 					<h3><?php echo esc_html( $rses_key->key_label ); ?> <small>#<?php echo esc_html( (string) $rses_key->id ); ?></small></h3>
 					<p>
 						<?php
@@ -208,20 +215,43 @@ class KeyAuthorityViews {
 						);
 						?>
 					</p>
-					<p>
-						<a class="button button-primary" href="<?php echo esc_url( Nonce::rses_url( admin_url( 'admin-post.php?action=rses_export_key&key_id=' . $rses_key->id . '&format=zip&own_share=1' ), Nonce::RSES_ACTION_KEY_EXPORT ) ); ?>">
-							<?php esc_html_e( 'Export My Share (ZIP)', 'relatasoft-secure-election-suite' ); ?>
-						</a>
-						<a class="button" href="<?php echo esc_url( Nonce::rses_url( admin_url( 'admin-post.php?action=rses_export_key&key_id=' . $rses_key->id . '&format=json' ), Nonce::RSES_ACTION_KEY_EXPORT ) ); ?>">
-							<?php esc_html_e( 'Export Public Key JSON', 'relatasoft-secure-election-suite' ); ?>
-						</a>
-					</p>
+
+					<?php if ( '' !== $rses_json ) : ?>
+						<p><label for="<?php echo esc_attr( $rses_ta_id ); ?>"><strong><?php esc_html_e( 'Your share JSON (view / copy)', 'relatasoft-secure-election-suite' ); ?></strong></label></p>
+						<textarea
+							id="<?php echo esc_attr( $rses_ta_id ); ?>"
+							class="large-text code rses-share-json-view"
+							rows="12"
+							readonly
+						><?php echo esc_textarea( $rses_json ); ?></textarea>
+						<p class="rses-share-actions">
+							<button
+								type="button"
+								class="button button-primary rses-copy-share"
+								data-rses-target="<?php echo esc_attr( $rses_ta_id ); ?>"
+								data-copied-label="<?php echo esc_attr__( 'Copied!', 'relatasoft-secure-election-suite' ); ?>"
+							>
+								<?php esc_html_e( 'Copy Share JSON', 'relatasoft-secure-election-suite' ); ?>
+							</button>
+							<a class="button" href="<?php echo esc_url( Nonce::rses_url( admin_url( 'admin-post.php?action=rses_export_key&key_id=' . $rses_key->id . '&format=json&own_share=1' ), Nonce::RSES_ACTION_KEY_EXPORT ) ); ?>">
+								<?php esc_html_e( 'Download Share JSON', 'relatasoft-secure-election-suite' ); ?>
+							</a>
+							<a class="button" href="<?php echo esc_url( Nonce::rses_url( admin_url( 'admin-post.php?action=rses_export_key&key_id=' . $rses_key->id . '&format=zip&own_share=1' ), Nonce::RSES_ACTION_KEY_EXPORT ) ); ?>">
+								<?php esc_html_e( 'Download Share ZIP', 'relatasoft-secure-election-suite' ); ?>
+							</a>
+							<a class="button" href="<?php echo esc_url( Nonce::rses_url( admin_url( 'admin-post.php?action=rses_export_key&key_id=' . $rses_key->id . '&format=json' ), Nonce::RSES_ACTION_KEY_EXPORT ) ); ?>">
+								<?php esc_html_e( 'Download Public Key JSON', 'relatasoft-secure-election-suite' ); ?>
+							</a>
+						</p>
+					<?php else : ?>
+						<p><?php esc_html_e( 'Unable to decrypt your stored share for display. Try downloading the ZIP export, or contact the election administrator.', 'relatasoft-secure-election-suite' ); ?></p>
+					<?php endif; ?>
 				</div>
 				<?php
 			}
 
 			if ( ! $rses_found ) {
-				echo '<p>' . esc_html__( 'No Shamir shares are assigned to your account yet.', 'relatasoft-secure-election-suite' ) . '</p>';
+				echo '<p>' . esc_html__( 'No Shamir shares are assigned to your account yet. Ask the election administrator to generate a key and assign you as an official.', 'relatasoft-secure-election-suite' ) . '</p>';
 			}
 			?>
 		</div>

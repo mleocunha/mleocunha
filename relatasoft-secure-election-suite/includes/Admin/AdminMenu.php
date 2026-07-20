@@ -38,12 +38,14 @@ class AdminMenu {
 			return;
 		}
 
-		$rses_cap = Capability::rses_can_manage_election() ? 'manage_options' : 'edit_posts';
+		// edit_posts so Editors always see Election Suite; admin-only pages use manage_options.
+		$rses_official_cap = 'edit_posts';
+		$rses_admin_cap    = 'manage_options';
 
 		add_menu_page(
 			__( 'Secure Election Suite', 'relatasoft-secure-election-suite' ),
 			__( 'Election Suite', 'relatasoft-secure-election-suite' ),
-			$rses_cap,
+			$rses_official_cap,
 			'rses-dashboard',
 			array( self::class, 'rses_render_dashboard' ),
 			'dashicons-privacy',
@@ -56,7 +58,7 @@ class AdminMenu {
 				'rses-dashboard',
 				__( 'Mode Setup', 'relatasoft-secure-election-suite' ),
 				__( 'Mode Setup', 'relatasoft-secure-election-suite' ),
-				'manage_options',
+				$rses_admin_cap,
 				'rses-mode-setup',
 				array( ModeSetupPage::class, 'rses_render' )
 			);
@@ -70,8 +72,10 @@ class AdminMenu {
 			add_submenu_page(
 				'rses-dashboard',
 				__( 'Key Authority', 'relatasoft-secure-election-suite' ),
-				__( 'Key Authority', 'relatasoft-secure-election-suite' ),
-				$rses_cap,
+				Capability::rses_can_manage_election()
+					? __( 'Key Authority', 'relatasoft-secure-election-suite' )
+					: __( 'My Shamir Shares', 'relatasoft-secure-election-suite' ),
+				$rses_official_cap,
 				'rses-key-authority',
 				array( KeyAuthorityViews::class, 'rses_render_dashboard' )
 			);
@@ -82,7 +86,7 @@ class AdminMenu {
 				'rses-dashboard',
 				__( 'Public Keys', 'relatasoft-secure-election-suite' ),
 				__( 'Public Keys', 'relatasoft-secure-election-suite' ),
-				'manage_options',
+				$rses_admin_cap,
 				'rses-public-keys',
 				array( VotingViews::class, 'rses_render_public_keys_page' )
 			);
@@ -91,7 +95,7 @@ class AdminMenu {
 				'rses-dashboard',
 				__( 'Elections', 'relatasoft-secure-election-suite' ),
 				__( 'Elections', 'relatasoft-secure-election-suite' ),
-				'manage_options',
+				$rses_admin_cap,
 				'rses-elections',
 				array( VotingViews::class, 'rses_render_elections_list' )
 			);
@@ -100,7 +104,7 @@ class AdminMenu {
 				'rses-dashboard',
 				__( 'Shortcodes', 'relatasoft-secure-election-suite' ),
 				__( 'Shortcodes', 'relatasoft-secure-election-suite' ),
-				'manage_options',
+				$rses_admin_cap,
 				'rses-shortcodes',
 				array( VotingViews::class, 'rses_render_shortcodes_page' )
 			);
@@ -109,41 +113,44 @@ class AdminMenu {
 				'rses-dashboard',
 				__( 'Voting Export', 'relatasoft-secure-election-suite' ),
 				__( 'Voting Export', 'relatasoft-secure-election-suite' ),
-				'manage_options',
+				$rses_admin_cap,
 				'rses-voting-export',
 				array( VotingViews::class, 'rses_render_export_page' )
 			);
 		}
 
 		if ( ModeLock::rses_is_mode( ModeLock::RSES_MODE_TALLYING ) ) {
-			// Import / certify: Administrator only (not editors).
-			add_submenu_page(
-				'rses-dashboard',
-				__( 'Tally Import', 'relatasoft-secure-election-suite' ),
-				__( 'Tally Import', 'relatasoft-secure-election-suite' ),
-				'manage_options',
-				'rses-tally-import',
-				array( TallyingViews::class, 'rses_render_import_page' )
-			);
+			if ( Capability::rses_can_manage_election() ) {
+				add_submenu_page(
+					'rses-dashboard',
+					__( 'Tally Import', 'relatasoft-secure-election-suite' ),
+					__( 'Tally Import', 'relatasoft-secure-election-suite' ),
+					$rses_admin_cap,
+					'rses-tally-import',
+					array( TallyingViews::class, 'rses_render_import_page' )
+				);
+			}
 
-			// Officials submit shares; admins may also open this screen.
+			// Every Editor must be able to submit their Shamir share.
 			add_submenu_page(
 				'rses-dashboard',
 				__( 'Share Submission', 'relatasoft-secure-election-suite' ),
 				__( 'Share Submission', 'relatasoft-secure-election-suite' ),
-				$rses_cap,
+				$rses_official_cap,
 				'rses-share-submission',
 				array( TallyingViews::class, 'rses_render_share_submission_page' )
 			);
 
-			add_submenu_page(
-				'rses-dashboard',
-				__( 'Certification', 'relatasoft-secure-election-suite' ),
-				__( 'Certification', 'relatasoft-secure-election-suite' ),
-				'manage_options',
-				'rses-certification',
-				array( TallyingViews::class, 'rses_render_certification_page' )
-			);
+			if ( Capability::rses_can_manage_election() ) {
+				add_submenu_page(
+					'rses-dashboard',
+					__( 'Certification', 'relatasoft-secure-election-suite' ),
+					__( 'Certification', 'relatasoft-secure-election-suite' ),
+					$rses_admin_cap,
+					'rses-certification',
+					array( TallyingViews::class, 'rses_render_certification_page' )
+				);
+			}
 		}
 
 		if ( Capability::rses_can_manage_election() ) {
@@ -151,7 +158,7 @@ class AdminMenu {
 				'rses-dashboard',
 				__( 'Settings', 'relatasoft-secure-election-suite' ),
 				__( 'Settings', 'relatasoft-secure-election-suite' ),
-				'manage_options',
+				$rses_admin_cap,
 				'rses-settings',
 				array( SettingsPage::class, 'rses_render' )
 			);
@@ -160,7 +167,7 @@ class AdminMenu {
 				'rses-dashboard',
 				__( 'Audit Log', 'relatasoft-secure-election-suite' ),
 				__( 'Audit Log', 'relatasoft-secure-election-suite' ),
-				'manage_options',
+				$rses_admin_cap,
 				'rses-audit-log',
 				array( AuditLogPage::class, 'rses_render' )
 			);
@@ -169,7 +176,7 @@ class AdminMenu {
 				'rses-dashboard',
 				__( 'Crypto Self Test', 'relatasoft-secure-election-suite' ),
 				__( 'Crypto Self Test', 'relatasoft-secure-election-suite' ),
-				'manage_options',
+				$rses_admin_cap,
 				'rses-crypto-self-test',
 				array( self::class, 'rses_render_crypto_self_test' )
 			);
@@ -207,13 +214,23 @@ class AdminMenu {
 			<div class="rses-dashboard-grid">
 				<?php if ( ModeLock::rses_is_mode( ModeLock::RSES_MODE_KEY_AUTHORITY ) ) : ?>
 					<div class="rses-dashboard-card">
-						<h2><?php esc_html_e( 'Key Authority', 'relatasoft-secure-election-suite' ); ?></h2>
-						<p><?php esc_html_e( 'Generate ElGamal keys, split private exponents with Shamir Secret Sharing, and export public keys / shares.', 'relatasoft-secure-election-suite' ); ?></p>
-						<p>
-							<a class="button button-primary" href="<?php echo esc_url( admin_url( 'admin.php?page=rses-key-authority' ) ); ?>">
-								<?php esc_html_e( 'Open Key Authority', 'relatasoft-secure-election-suite' ); ?>
-							</a>
-						</p>
+						<?php if ( Capability::rses_can_manage_election() ) : ?>
+							<h2><?php esc_html_e( 'Key Authority', 'relatasoft-secure-election-suite' ); ?></h2>
+							<p><?php esc_html_e( 'Generate ElGamal keys, split private exponents with Shamir Secret Sharing, and export public keys / shares.', 'relatasoft-secure-election-suite' ); ?></p>
+							<p>
+								<a class="button button-primary" href="<?php echo esc_url( admin_url( 'admin.php?page=rses-key-authority' ) ); ?>">
+									<?php esc_html_e( 'Open Key Authority', 'relatasoft-secure-election-suite' ); ?>
+								</a>
+							</p>
+						<?php else : ?>
+							<h2><?php esc_html_e( 'My Shamir Shares', 'relatasoft-secure-election-suite' ); ?></h2>
+							<p><?php esc_html_e( 'View, copy, and download the Shamir share assigned to your Editor account. Keep it offline and confidential.', 'relatasoft-secure-election-suite' ); ?></p>
+							<p>
+								<a class="button button-primary" href="<?php echo esc_url( admin_url( 'admin.php?page=rses-key-authority' ) ); ?>">
+									<?php esc_html_e( 'Open My Shares', 'relatasoft-secure-election-suite' ); ?>
+								</a>
+							</p>
+						<?php endif; ?>
 					</div>
 				<?php elseif ( ModeLock::rses_is_mode( ModeLock::RSES_MODE_VOTING ) ) : ?>
 					<div class="rses-dashboard-card">
@@ -253,33 +270,37 @@ class AdminMenu {
 						</p>
 					</div>
 				<?php elseif ( ModeLock::rses_is_mode( ModeLock::RSES_MODE_TALLYING ) ) : ?>
+					<?php if ( Capability::rses_can_manage_election() ) : ?>
+						<div class="rses-dashboard-card">
+							<h2><?php esc_html_e( '1. Import Voting Package', 'relatasoft-secure-election-suite' ); ?></h2>
+							<p><?php esc_html_e( 'Upload ZIP or JSON exports from voting servers and validate checksums.', 'relatasoft-secure-election-suite' ); ?></p>
+							<p>
+								<a class="button button-primary" href="<?php echo esc_url( admin_url( 'admin.php?page=rses-tally-import' ) ); ?>">
+									<?php esc_html_e( 'Tally Import', 'relatasoft-secure-election-suite' ); ?>
+								</a>
+							</p>
+						</div>
+					<?php endif; ?>
 					<div class="rses-dashboard-card">
-						<h2><?php esc_html_e( '1. Import Voting Package', 'relatasoft-secure-election-suite' ); ?></h2>
-						<p><?php esc_html_e( 'Upload ZIP or JSON exports from voting servers and validate checksums.', 'relatasoft-secure-election-suite' ); ?></p>
-						<p>
-							<a class="button button-primary" href="<?php echo esc_url( admin_url( 'admin.php?page=rses-tally-import' ) ); ?>">
-								<?php esc_html_e( 'Tally Import', 'relatasoft-secure-election-suite' ); ?>
-							</a>
-						</p>
-					</div>
-					<div class="rses-dashboard-card">
-						<h2><?php esc_html_e( '2. Collect Official Shares', 'relatasoft-secure-election-suite' ); ?></h2>
-						<p><?php esc_html_e( 'Officials submit Shamir Secret Sharing shares until the threshold is met.', 'relatasoft-secure-election-suite' ); ?></p>
+						<h2><?php echo Capability::rses_can_manage_election() ? esc_html__( '2. Collect Official Shares', 'relatasoft-secure-election-suite' ) : esc_html__( 'Submit Your Shamir Share', 'relatasoft-secure-election-suite' ); ?></h2>
+						<p><?php esc_html_e( 'Each Editor pastes their offline Shamir share JSON here until the threshold is met.', 'relatasoft-secure-election-suite' ); ?></p>
 						<p>
 							<a class="button button-primary" href="<?php echo esc_url( admin_url( 'admin.php?page=rses-share-submission' ) ); ?>">
 								<?php esc_html_e( 'Share Submission', 'relatasoft-secure-election-suite' ); ?>
 							</a>
 						</p>
 					</div>
-					<div class="rses-dashboard-card">
-						<h2><?php esc_html_e( '3. Decrypt & Certify', 'relatasoft-secure-election-suite' ); ?></h2>
-						<p><?php esc_html_e( 'Reconstruct the private exponent in memory, decrypt tallies, and export certification reports.', 'relatasoft-secure-election-suite' ); ?></p>
-						<p>
-							<a class="button" href="<?php echo esc_url( admin_url( 'admin.php?page=rses-certification' ) ); ?>">
-								<?php esc_html_e( 'Certification', 'relatasoft-secure-election-suite' ); ?>
-							</a>
-						</p>
-					</div>
+					<?php if ( Capability::rses_can_manage_election() ) : ?>
+						<div class="rses-dashboard-card">
+							<h2><?php esc_html_e( '3. Decrypt & Certify', 'relatasoft-secure-election-suite' ); ?></h2>
+							<p><?php esc_html_e( 'Reconstruct the private exponent in memory, decrypt tallies, and export certification reports.', 'relatasoft-secure-election-suite' ); ?></p>
+							<p>
+								<a class="button" href="<?php echo esc_url( admin_url( 'admin.php?page=rses-certification' ) ); ?>">
+									<?php esc_html_e( 'Certification', 'relatasoft-secure-election-suite' ); ?>
+								</a>
+							</p>
+						</div>
+					<?php endif; ?>
 				<?php endif; ?>
 
 				<?php if ( Capability::rses_can_manage_election() ) : ?>

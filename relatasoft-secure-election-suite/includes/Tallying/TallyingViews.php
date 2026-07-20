@@ -74,7 +74,12 @@ class TallyingViews {
 		?>
 		<div class="wrap rses-wrap">
 			<h1><?php esc_html_e( 'Official Share Submission', 'relatasoft-secure-election-suite' ); ?></h1>
-			<p><?php esc_html_e( 'Submit your Shamir Secret Sharing share for tally decryption. Each official submits independently.', 'relatasoft-secure-election-suite' ); ?></p>
+			<?php if ( ! empty( $_GET['rses_submitted'] ) ) : // phpcs:ignore WordPress.Security.NonceVerification.Recommended ?>
+				<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Your Shamir share was submitted successfully.', 'relatasoft-secure-election-suite' ); ?></p></div>
+			<?php endif; ?>
+			<div class="rses-notice rses-notice-info">
+				<p><?php esc_html_e( 'Paste the share JSON you copied or downloaded from Key Authority (My Shamir Shares). Each Editor submits independently. Only an Administrator can decrypt after the threshold is met.', 'relatasoft-secure-election-suite' ); ?></p>
+			</div>
 
 			<?php foreach ( $rses_imports as $rses_imp ) : ?>
 				<?php if ( 'verified' !== $rses_imp->status ) { continue; } ?>

@@ -59,6 +59,46 @@ class Capability {
 	}
 
 	/**
+	 * WordPress role for election officials / Shamir share holders.
+	 *
+	 * Intentionally a role slug (not edit_posts): Authors also have edit_posts.
+	 * Administrators may also hold shares when selected during key generation.
+	 */
+	public const RSES_OFFICIAL_ROLE = 'editor';
+
+	/**
+	 * Whether a user is an election official eligible for Shamir share custody.
+	 *
+	 * True when the account has the Editor role, or the Administrator role
+	 * (admins may be assigned shares). Authors/contributors do not qualify.
+	 *
+	 * @param int|null $user_id User ID, or null for the current user.
+	 * @return bool
+	 */
+	public static function rses_user_has_official_role( ?int $user_id = null ): bool {
+		if ( null === $user_id ) {
+			if ( ! is_user_logged_in() ) {
+				return false;
+			}
+			$user_id = get_current_user_id();
+		}
+
+		$user_id = absint( $user_id );
+		if ( $user_id < 1 ) {
+			return false;
+		}
+
+		$user = get_userdata( $user_id );
+		if ( ! $user || ! $user->exists() ) {
+			return false;
+		}
+
+		$roles = array_map( 'strval', (array) $user->roles );
+		return in_array( self::RSES_OFFICIAL_ROLE, $roles, true )
+			|| in_array( self::RSES_ADMIN_ROLE, $roles, true );
+	}
+
+	/**
 	 * Election administrator: must hold the Administrator role.
 	 *
 	 * Used for tally import, decryption, certification, settings, and mode lock.
@@ -79,12 +119,12 @@ class Capability {
 	}
 
 	/**
-	 * Election official / Shamir share holder (editor).
+	 * Election official / Shamir share holder (Editor role, or Administrator).
 	 *
 	 * @return bool
 	 */
 	public static function rses_is_election_official(): bool {
-		return current_user_can( 'edit_posts' );
+		return self::rses_user_has_official_role( null );
 	}
 
 	/**
@@ -186,12 +226,12 @@ class Capability {
 	}
 
 	/**
-	 * Require official capability or die.
+	 * Require Editor (or Administrator) role for official share actions or die.
 	 */
 	public static function rses_require_official(): void {
 		if ( ! self::rses_is_election_official() ) {
 			wp_die(
-				esc_html__( 'You do not have permission to perform this action.', 'relatasoft-secure-election-suite' ),
+				esc_html__( 'Only users with the Editor role (election officials) may receive or submit Shamir shares. Administrators who were assigned a share may also access their own share.', 'relatasoft-secure-election-suite' ),
 				esc_html__( 'Permission Denied', 'relatasoft-secure-election-suite' ),
 				array( 'response' => 403 )
 			);
