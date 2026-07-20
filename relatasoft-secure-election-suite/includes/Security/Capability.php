@@ -15,6 +15,14 @@ defined( 'ABSPATH' ) || exit;
 class Capability {
 
 	/**
+	 * WordPress role required to cast a ballot.
+	 *
+	 * Intentionally a role slug, not a capability: administrators and editors
+	 * inherit `read`, so capability checks would incorrectly allow them to vote.
+	 */
+	public const RSES_VOTER_ROLE = 'subscriber';
+
+	/**
 	 * Election administrator (manage_options).
 	 *
 	 * @return bool
@@ -42,12 +50,43 @@ class Capability {
 	}
 
 	/**
-	 * Voter (subscriber, logged in).
+	 * Whether a user is enrolled as a voter (has the subscriber role).
+	 *
+	 * Dual-role accounts (e.g. editor + subscriber) may vote. Admin-only or
+	 * editor-only accounts may not. Do not replace this with current_user_can('read').
+	 *
+	 * @param int|null $user_id User ID, or null for the current user.
+	 * @return bool
+	 */
+	public static function rses_user_has_voter_role( ?int $user_id = null ): bool {
+		if ( null === $user_id ) {
+			if ( ! is_user_logged_in() ) {
+				return false;
+			}
+			$user_id = get_current_user_id();
+		}
+
+		$user_id = absint( $user_id );
+		if ( $user_id < 1 ) {
+			return false;
+		}
+
+		$user = get_userdata( $user_id );
+		if ( ! $user || ! $user->exists() ) {
+			return false;
+		}
+
+		$roles = array_map( 'strval', (array) $user->roles );
+		return in_array( self::RSES_VOTER_ROLE, $roles, true );
+	}
+
+	/**
+	 * Voter eligibility: logged in and enrolled with the subscriber role.
 	 *
 	 * @return bool
 	 */
 	public static function rses_can_vote(): bool {
-		return is_user_logged_in() && current_user_can( 'read' );
+		return self::rses_user_has_voter_role( null );
 	}
 
 	/**
@@ -100,12 +139,12 @@ class Capability {
 	}
 
 	/**
-	 * Require voter capability or die.
+	 * Require enrolled voter (subscriber role) or die.
 	 */
 	public static function rses_require_voter(): void {
 		if ( ! self::rses_can_vote() ) {
 			wp_die(
-				esc_html__( 'You must be logged in as a voter to perform this action.', 'relatasoft-secure-election-suite' ),
+				esc_html__( 'Only users enrolled with the Subscriber role may cast a ballot. Administrator and Editor accounts cannot vote unless they also have the Subscriber role.', 'relatasoft-secure-election-suite' ),
 				esc_html__( 'Permission Denied', 'relatasoft-secure-election-suite' ),
 				array( 'response' => 403 )
 			);

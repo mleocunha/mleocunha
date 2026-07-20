@@ -15,6 +15,7 @@ use RelataSoft\SecureElectionSuite\Crypto\HomomorphicTally;
 use RelataSoft\SecureElectionSuite\Exports\HashService;
 use RelataSoft\SecureElectionSuite\KeyAuthority\KeyRepository;
 use RelataSoft\SecureElectionSuite\Security\AuditLogger;
+use RelataSoft\SecureElectionSuite\Security\Capability;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -39,6 +40,27 @@ class VoteEncryptionService {
 		int $voter_id,
 		array $ballot_data
 	): string {
+		// Defense in depth: never rely solely on UI/controller capability checks.
+		$voter_id = absint( $voter_id );
+		if ( $voter_id < 1 || get_current_user_id() !== $voter_id ) {
+			throw new CryptoException( __( 'Vote casting identity mismatch.', 'relatasoft-secure-election-suite' ) );
+		}
+
+		if ( ! Capability::rses_user_has_voter_role( $voter_id ) ) {
+			AuditLogger::rses_log(
+				'vote_denied_not_subscriber',
+				'round',
+				$round_id,
+				array(
+					'election_id' => $election_id,
+					'voter_id'    => $voter_id,
+				)
+			);
+			throw new CryptoException(
+				__( 'Only users enrolled with the Subscriber role may cast a ballot.', 'relatasoft-secure-election-suite' )
+			);
+		}
+
 		$rses_round = ElectionRepository::rses_get_round( $round_id );
 
 		if ( ! $rses_round || (int) $rses_round->election_id !== $election_id ) {

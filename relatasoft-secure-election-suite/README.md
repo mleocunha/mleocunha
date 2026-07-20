@@ -33,11 +33,13 @@ This plugin supports three mutually exclusive modes (one per WordPress installat
 | Administrator  | Election administrator |
 | Editor         | Election official / Shamir share holder |
 | Contributor    | Candidate |
-| Subscriber     | Voter |
+| Subscriber     | Voter (required to cast a ballot) |
+
+**Voting eligibility:** a user may cast a ballot only if their account includes the **Subscriber** role. Capability inheritance is not used (`read` alone is insufficient). An Administrator or Editor cannot vote unless the same account also has the Subscriber role.
 
 ## Shortcodes
 
-- `[rses_voting_booth election_id="1" round_id="1"]` — Voting booth for logged-in voters
+- `[rses_voting_booth election_id="1" round_id="1"]` — Voting booth for enrolled Subscriber voters
 - `[rses_voter_receipt election_id="1" round_id="1"]` — Display vote receipt hash
 - `[rses_election_status election_id="1"]` — Election status display
 

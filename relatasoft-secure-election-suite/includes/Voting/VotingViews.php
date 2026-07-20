@@ -327,7 +327,7 @@ class VotingViews {
 			<h1><?php esc_html_e( 'Shortcode Generator', 'relatasoft-secure-election-suite' ); ?></h1>
 
 			<div class="rses-notice rses-notice-info">
-				<p><?php esc_html_e( 'Copy a shortcode below and paste it into any WordPress page or post (block editor → Shortcode block, or classic editor). Voters must be logged in as subscribers.', 'relatasoft-secure-election-suite' ); ?></p>
+				<p><?php esc_html_e( 'Copy a shortcode below and paste it into any WordPress page or post (block editor → Shortcode block, or classic editor). Only WordPress users enrolled with the Subscriber role may cast a ballot (Administrator/Editor alone cannot; dual-role Subscriber+Editor may).', 'relatasoft-secure-election-suite' ); ?></p>
 				<ol>
 					<li><?php esc_html_e( 'Create and open an election under Elections.', 'relatasoft-secure-election-suite' ); ?></li>
 					<li><?php esc_html_e( 'Copy the voting booth shortcode for that round.', 'relatasoft-secure-election-suite' ); ?></li>
@@ -500,7 +500,7 @@ class VotingViews {
 		}
 
 		if ( ! Capability::rses_can_vote() ) {
-			echo '<p>' . esc_html__( 'Your account does not have voting permissions.', 'relatasoft-secure-election-suite' ) . '</p>';
+			echo '<p class="rses-vote-denied">' . esc_html__( 'Only users enrolled with the Subscriber role may cast a ballot. Sign in with a Subscriber account (Administrator and Editor accounts are not eligible unless they also have the Subscriber role).', 'relatasoft-secure-election-suite' ) . '</p>';
 			return;
 		}
 

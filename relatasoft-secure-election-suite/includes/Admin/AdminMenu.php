@@ -234,7 +234,7 @@ class AdminMenu {
 					</div>
 					<div class="rses-dashboard-card">
 						<h2><?php esc_html_e( '3. Publish Voting Shortcodes', 'relatasoft-secure-election-suite' ); ?></h2>
-						<p><?php esc_html_e( 'Copy shortcodes into any WordPress page or post so logged-in voters can cast encrypted ballots.', 'relatasoft-secure-election-suite' ); ?></p>
+						<p><?php esc_html_e( 'Copy shortcodes into any WordPress page or post so Subscriber-role voters can cast encrypted ballots.', 'relatasoft-secure-election-suite' ); ?></p>
 						<p>
 							<a class="button button-primary" href="<?php echo esc_url( admin_url( 'admin.php?page=rses-shortcodes' ) ); ?>">
 								<?php esc_html_e( 'Shortcode Generator', 'relatasoft-secure-election-suite' ); ?>

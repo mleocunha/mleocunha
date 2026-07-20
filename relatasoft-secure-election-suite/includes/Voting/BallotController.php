@@ -122,7 +122,12 @@ class BallotController {
 		check_ajax_referer( 'rses_vote_cast', 'nonce' );
 
 		if ( ! Capability::rses_can_vote() ) {
-			wp_send_json_error( array( 'message' => __( 'Login required.', 'relatasoft-secure-election-suite' ) ) );
+			wp_send_json_error(
+				array(
+					'message' => __( 'Only users enrolled with the Subscriber role may cast a ballot. Administrator and Editor accounts cannot vote unless they also have the Subscriber role.', 'relatasoft-secure-election-suite' ),
+				),
+				403
+			);
 		}
 
 		ModeLock::rses_require_mode( ModeLock::RSES_MODE_VOTING );
