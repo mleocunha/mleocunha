@@ -1,7 +1,7 @@
 # RelataSoft Secure Election Suite — Success Status
 
 **Status:** End-to-end flow verified successful (as of 2026-07-28)  
-**Plugin version:** `1.0.5`  
+**Plugin version:** `1.0.6`  
 **Branch:** `cursor/secure-election-suite-2eb1`  
 **PR:** https://github.com/mleocunha/mleocunha/pull/6  
 **Slug / namespace / prefix:** `relatasoft-secure-election-suite` / `RelataSoft\SecureElectionSuite` / `rses_`  
@@ -103,6 +103,7 @@ Constants in `Capability.php`: `RSES_VOTER_ROLE`, `RSES_OFFICIAL_ROLE`, `RSES_AD
 - Official assignment checkboxes (Editors + Administrators)
 - Admin key cards + exports
 - Editor **My Shamir Shares** (view / copy / download)
+- Generate / Import / Export / My Shares restyled (v1.0.6) to match voting booth tokens (Source Serif/Sans, teal `#0c7c9c`, official choice cards) — **logic unchanged**
 
 ### Voting
 
@@ -122,7 +123,7 @@ Constants in `Capability.php`: `RSES_VOTER_ROLE`, `RSES_OFFICIAL_ROLE`, `RSES_AD
 - Handlers registered from `Plugin::run()` (admin-post works)
 - Nonce fields actually echoed
 - Audit hash chain canonicalization + repair action
-- Asset version `1.0.4` for cache busting
+- Asset version `1.0.6` for cache busting
 
 ---
 
@@ -137,6 +138,8 @@ relatasoft-secure-election-suite/
   includes/Voting/                              # elections, cast, export
   includes/Tallying/                            # import, shares, decrypt, certify
   includes/Admin/AdminMenu.php                  # menus by mode/role
+  assets/css/admin.css                          # Key Authority / admin RelataSoft UI
+  assets/css/voting-front.css                   # booth + receipt frontend UI
   assets/js/key-authority.js                    # keygen AJAX UI
   assets/js/admin.js                            # copy share / shortcode helpers
   tests/crypto-acceptance.php
@@ -170,7 +173,7 @@ Use this list only as optional backlog after context reset; none of these block 
 - Independent crypto review / threat model documentation
 - Stronger share–submitter binding across Key Authority → Tallying sites
 - Rate limiting / lockout around cast and share submit
-- UI polish (i18n completeness, accessibility)
+- UI polish for Tallying / Mode Setup / remaining admin screens; i18n completeness; accessibility
 - Automated WordPress integration tests (role matrix)
 - Production hardening checklist (HTTPS, salts, backup of share custody procedure)
 

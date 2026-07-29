@@ -179,7 +179,18 @@
 		return false;
 	}
 
+	function rsesSyncOfficialChoice($input) {
+		$input.closest('.rses-official-choice').toggleClass('is-checked', $input.is(':checked'));
+	}
+
 	$(function () {
+		$('.rses-official-choice input').each(function () {
+			rsesSyncOfficialChoice($(this));
+		});
+		$(document).on('change', '.rses-official-choice input', function () {
+			rsesSyncOfficialChoice($(this));
+		});
+
 		var $form = $('#rses-keygen-form');
 		if (!$form.length) {
 			return;
