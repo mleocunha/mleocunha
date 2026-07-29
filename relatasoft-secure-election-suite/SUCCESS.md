@@ -1,7 +1,7 @@
 # RelataSoft Secure Election Suite — Success Status
 
 **Status:** End-to-end flow verified successful (as of 2026-07-28)  
-**Plugin version:** `1.0.6`  
+**Plugin version:** `1.0.7`  
 **Branch:** `cursor/secure-election-suite-2eb1`  
 **PR:** https://github.com/mleocunha/mleocunha/pull/6  
 **Slug / namespace / prefix:** `relatasoft-secure-election-suite` / `RelataSoft\SecureElectionSuite` / `rses_`  
@@ -111,19 +111,21 @@ Constants in `Capability.php`: `RSES_VOTER_ROLE`, `RSES_OFFICIAL_ROLE`, `RSES_AD
 - Shortcodes: `[rses_voting_booth]`, `[rses_voter_receipt]`, `[rses_election_status]`
 - Successful cast returns a **receipt hash** (plaintext choices never stored)
 - Frontend booth + receipt restyled (v1.0.5) with TotalPoll-inspired choice cards / check selectors / receipt card — **logic unchanged**
+- Election / Public Keys / Shortcodes / Export admin restyled (v1.0.7) to match RelataSoft shell — **logic unchanged**
 
 ### Tallying
 
 - Admin: Tally Import, Certification
 - Editor: Share Submission
 - Dashboard cards hide import/certify from non-admins
+- Import / Share Submission / Certification restyled (v1.0.7) with hero, cards, threshold progress — **logic unchanged**
 
 ### Cross-cutting fixes already shipped
 
 - Handlers registered from `Plugin::run()` (admin-post works)
 - Nonce fields actually echoed
 - Audit hash chain canonicalization + repair action
-- Asset version `1.0.6` for cache busting
+- Asset version `1.0.7` for cache busting
 
 ---
 
@@ -173,7 +175,7 @@ Use this list only as optional backlog after context reset; none of these block 
 - Independent crypto review / threat model documentation
 - Stronger share–submitter binding across Key Authority → Tallying sites
 - Rate limiting / lockout around cast and share submit
-- UI polish for Tallying / Mode Setup / remaining admin screens; i18n completeness; accessibility
+- UI polish for Mode Setup / dashboard cards; i18n completeness; accessibility
 - Automated WordPress integration tests (role matrix)
 - Production hardening checklist (HTTPS, salts, backup of share custody procedure)
 

@@ -19,6 +19,16 @@ defined( 'ABSPATH' ) || exit;
 class VotingViews {
 
 	/**
+	 * Status pill markup.
+	 *
+	 * @param string $status Status slug.
+	 */
+	private static function rses_status_pill( string $status ): string {
+		$rses_slug = sanitize_html_class( strtolower( $status ) );
+		return '<span class="rses-status-pill rses-status-pill--' . esc_attr( $rses_slug ) . '">' . esc_html( $status ) . '</span>';
+	}
+
+	/**
 	 * Render elections list / editor.
 	 */
 	public static function rses_render_elections_list(): void {
@@ -29,20 +39,24 @@ class VotingViews {
 		$rses_edit_id   = isset( $_GET['rses_edit'] ) ? absint( $_GET['rses_edit'] ) : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 		$rses_round_id  = isset( $_GET['round'] ) ? absint( $_GET['round'] ) : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 		?>
-		<div class="wrap rses-wrap">
-			<h1><?php esc_html_e( 'Election Management', 'relatasoft-secure-election-suite' ); ?></h1>
-
-			<?php if ( ! empty( $_GET['rses_mode_set'] ) ) : // phpcs:ignore WordPress.Security.NonceVerification.Recommended ?>
-				<div class="notice notice-success is-dismissible">
-					<p><?php esc_html_e( 'Voting mode locked. Import a public key first, then create an election.', 'relatasoft-secure-election-suite' ); ?></p>
-				</div>
-			<?php endif; ?>
-
+		<div class="wrap rses-wrap rses-screen">
 			<?php if ( $rses_edit_id ) : ?>
 				<?php self::rses_render_election_editor( $rses_edit_id, $rses_round_id ); ?>
 			<?php else : ?>
+				<header class="rses-hero">
+					<p class="rses-hero-kicker"><?php esc_html_e( 'Voting Platform', 'relatasoft-secure-election-suite' ); ?></p>
+					<h1 class="rses-hero-title"><?php esc_html_e( 'Election Management', 'relatasoft-secure-election-suite' ); ?></h1>
+					<p class="rses-hero-lead"><?php esc_html_e( 'Create elections, build ballots, open voting, and prepare exports for the Tallying site.', 'relatasoft-secure-election-suite' ); ?></p>
+				</header>
+
+				<?php if ( ! empty( $_GET['rses_mode_set'] ) ) : // phpcs:ignore WordPress.Security.NonceVerification.Recommended ?>
+					<div class="rses-panel rses-panel-success">
+						<p><?php esc_html_e( 'Voting mode locked. Import a public key first, then create an election.', 'relatasoft-secure-election-suite' ); ?></p>
+					</div>
+				<?php endif; ?>
+
 				<?php if ( empty( $rses_keys ) ) : ?>
-					<div class="rses-notice rses-notice-warning">
+					<div class="rses-panel rses-panel-warning">
 						<p>
 							<?php esc_html_e( 'No public keys imported yet.', 'relatasoft-secure-election-suite' ); ?>
 							<a href="<?php echo esc_url( admin_url( 'admin.php?page=rses-public-keys' ) ); ?>">
@@ -53,22 +67,27 @@ class VotingViews {
 					</div>
 				<?php endif; ?>
 
-				<h2><?php esc_html_e( 'Create Election', 'relatasoft-secure-election-suite' ); ?></h2>
-				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
-					<?php Nonce::rses_field( Nonce::RSES_ACTION_ELECTION_SAVE ); ?>
-					<input type="hidden" name="action" value="rses_save_election" />
-					<table class="form-table">
-						<tr>
-							<th><label for="rses_election_title"><?php esc_html_e( 'Title', 'relatasoft-secure-election-suite' ); ?></label></th>
-							<td><input type="text" name="rses_election_title" id="rses_election_title" class="regular-text" required /></td>
-						</tr>
-						<tr>
-							<th><label for="rses_election_description"><?php esc_html_e( 'Description', 'relatasoft-secure-election-suite' ); ?></label></th>
-							<td><textarea name="rses_election_description" id="rses_election_description" class="large-text" rows="3"></textarea></td>
-						</tr>
-						<tr>
-							<th><label for="rses_voting_method"><?php esc_html_e( 'Voting Method', 'relatasoft-secure-election-suite' ); ?></label></th>
-							<td>
+				<section class="rses-panel rses-panel-card" id="rses-create-election">
+					<header class="rses-panel-header">
+						<p class="rses-panel-kicker"><?php esc_html_e( 'Create', 'relatasoft-secure-election-suite' ); ?></p>
+						<h2 class="rses-panel-title"><?php esc_html_e( 'New election', 'relatasoft-secure-election-suite' ); ?></h2>
+						<p class="rses-panel-desc"><?php esc_html_e( 'Choose a voting method and bind the election to an imported ElGamal public key.', 'relatasoft-secure-election-suite' ); ?></p>
+					</header>
+
+					<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="rses-form">
+						<?php Nonce::rses_field( Nonce::RSES_ACTION_ELECTION_SAVE ); ?>
+						<input type="hidden" name="action" value="rses_save_election" />
+						<div class="rses-field-grid">
+							<div class="rses-field rses-field-full">
+								<label for="rses_election_title"><?php esc_html_e( 'Title', 'relatasoft-secure-election-suite' ); ?></label>
+								<input type="text" name="rses_election_title" id="rses_election_title" class="regular-text" required />
+							</div>
+							<div class="rses-field rses-field-full">
+								<label for="rses_election_description"><?php esc_html_e( 'Description', 'relatasoft-secure-election-suite' ); ?></label>
+								<textarea name="rses_election_description" id="rses_election_description" rows="3"></textarea>
+							</div>
+							<div class="rses-field">
+								<label for="rses_voting_method"><?php esc_html_e( 'Voting Method', 'relatasoft-secure-election-suite' ); ?></label>
 								<select name="rses_voting_method" id="rses_voting_method">
 									<?php
 									$rses_methods = array(
@@ -87,11 +106,9 @@ class VotingViews {
 										<option value="<?php echo esc_attr( $rses_slug ); ?>"><?php echo esc_html( $rses_label ); ?></option>
 									<?php endforeach; ?>
 								</select>
-							</td>
-						</tr>
-						<tr>
-							<th><label for="rses_key_id"><?php esc_html_e( 'Public Key', 'relatasoft-secure-election-suite' ); ?></label></th>
-							<td>
+							</div>
+							<div class="rses-field">
+								<label for="rses_key_id"><?php esc_html_e( 'Public Key', 'relatasoft-secure-election-suite' ); ?></label>
 								<select name="rses_key_id" id="rses_key_id" required <?php disabled( empty( $rses_keys ) ); ?>>
 									<option value=""><?php esc_html_e( 'Select imported public key…', 'relatasoft-secure-election-suite' ); ?></option>
 									<?php foreach ( $rses_keys as $rses_key ) : ?>
@@ -100,37 +117,62 @@ class VotingViews {
 										</option>
 									<?php endforeach; ?>
 								</select>
-							</td>
-						</tr>
-					</table>
-					<?php submit_button( __( 'Create Election', 'relatasoft-secure-election-suite' ), 'primary', 'submit', true, empty( $rses_keys ) ? array( 'disabled' => 'disabled' ) : array() ); ?>
-				</form>
+							</div>
+						</div>
+						<p class="rses-form-actions">
+							<?php
+							submit_button(
+								__( 'Create Election', 'relatasoft-secure-election-suite' ),
+								'primary rses-btn-primary',
+								'submit',
+								false,
+								empty( $rses_keys ) ? array( 'disabled' => 'disabled' ) : array()
+							);
+							?>
+						</p>
+					</form>
+				</section>
 
-				<h2><?php esc_html_e( 'Elections', 'relatasoft-secure-election-suite' ); ?></h2>
-				<table class="widefat striped">
-					<thead>
-						<tr>
-							<th>ID</th>
-							<th><?php esc_html_e( 'Title', 'relatasoft-secure-election-suite' ); ?></th>
-							<th><?php esc_html_e( 'Status', 'relatasoft-secure-election-suite' ); ?></th>
-							<th><?php esc_html_e( 'Actions', 'relatasoft-secure-election-suite' ); ?></th>
-						</tr>
-					</thead>
-					<tbody>
-						<?php if ( empty( $rses_elections ) ) : ?>
-							<tr><td colspan="4"><?php esc_html_e( 'No elections yet.', 'relatasoft-secure-election-suite' ); ?></td></tr>
-						<?php else : ?>
-							<?php foreach ( $rses_elections as $rses_e ) : ?>
-								<tr>
-									<td><?php echo esc_html( (string) $rses_e->id ); ?></td>
-									<td><?php echo esc_html( $rses_e->title ); ?></td>
-									<td><?php echo esc_html( $rses_e->status ); ?></td>
-									<td><a href="<?php echo esc_url( admin_url( 'admin.php?page=rses-elections&rses_edit=' . $rses_e->id ) ); ?>"><?php esc_html_e( 'Edit', 'relatasoft-secure-election-suite' ); ?></a></td>
-								</tr>
-							<?php endforeach; ?>
-						<?php endif; ?>
-					</tbody>
-				</table>
+				<section class="rses-panel rses-panel-card" id="rses-elections-list">
+					<header class="rses-panel-header">
+						<p class="rses-panel-kicker"><?php esc_html_e( 'Library', 'relatasoft-secure-election-suite' ); ?></p>
+						<h2 class="rses-panel-title"><?php esc_html_e( 'Elections', 'relatasoft-secure-election-suite' ); ?></h2>
+						<p class="rses-panel-desc"><?php esc_html_e( 'Open an election to build its ballot, publish shortcodes, and control voting windows.', 'relatasoft-secure-election-suite' ); ?></p>
+					</header>
+
+					<?php if ( empty( $rses_elections ) ) : ?>
+						<div class="rses-panel-body">
+							<p class="rses-empty"><?php esc_html_e( 'No elections yet.', 'relatasoft-secure-election-suite' ); ?></p>
+						</div>
+					<?php else : ?>
+						<div class="rses-table-wrap">
+							<table class="rses-table">
+								<thead>
+									<tr>
+										<th>ID</th>
+										<th><?php esc_html_e( 'Title', 'relatasoft-secure-election-suite' ); ?></th>
+										<th><?php esc_html_e( 'Status', 'relatasoft-secure-election-suite' ); ?></th>
+										<th><?php esc_html_e( 'Actions', 'relatasoft-secure-election-suite' ); ?></th>
+									</tr>
+								</thead>
+								<tbody>
+									<?php foreach ( $rses_elections as $rses_e ) : ?>
+										<tr>
+											<td><?php echo esc_html( (string) $rses_e->id ); ?></td>
+											<td><?php echo esc_html( $rses_e->title ); ?></td>
+											<td><?php echo self::rses_status_pill( (string) $rses_e->status ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></td>
+											<td>
+												<a class="rses-table-link" href="<?php echo esc_url( admin_url( 'admin.php?page=rses-elections&rses_edit=' . $rses_e->id ) ); ?>">
+													<?php esc_html_e( 'Edit', 'relatasoft-secure-election-suite' ); ?>
+												</a>
+											</td>
+										</tr>
+									<?php endforeach; ?>
+								</tbody>
+							</table>
+						</div>
+					<?php endif; ?>
+				</section>
 			<?php endif; ?>
 		</div>
 		<?php
@@ -144,61 +186,83 @@ class VotingViews {
 
 		$rses_keys = KeyRepository::rses_list_active();
 		?>
-		<div class="wrap rses-wrap">
-			<h1><?php esc_html_e( 'Public Keys', 'relatasoft-secure-election-suite' ); ?></h1>
-			<p><?php esc_html_e( 'Import the public key JSON exported from the Key Authority site. Only public components (p, q, g, y) are stored here.', 'relatasoft-secure-election-suite' ); ?></p>
+		<div class="wrap rses-wrap rses-screen">
+			<header class="rses-hero">
+				<p class="rses-hero-kicker"><?php esc_html_e( 'Voting Platform', 'relatasoft-secure-election-suite' ); ?></p>
+				<h1 class="rses-hero-title"><?php esc_html_e( 'Public Keys', 'relatasoft-secure-election-suite' ); ?></h1>
+				<p class="rses-hero-lead"><?php esc_html_e( 'Import the public key JSON exported from the Key Authority site. Only public components (p, q, g, y) are stored here.', 'relatasoft-secure-election-suite' ); ?></p>
+			</header>
 
 			<?php if ( ! empty( $_GET['rses_key_imported'] ) ) : // phpcs:ignore WordPress.Security.NonceVerification.Recommended ?>
-				<div class="notice notice-success is-dismissible">
+				<div class="rses-panel rses-panel-success">
 					<p><?php esc_html_e( 'Public key imported successfully.', 'relatasoft-secure-election-suite' ); ?></p>
 				</div>
 			<?php endif; ?>
 
-			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
-				<?php Nonce::rses_field( Nonce::RSES_ACTION_KEY_IMPORT ); ?>
-				<input type="hidden" name="action" value="rses_import_key" />
-				<table class="form-table">
-					<tr>
-						<th><label for="rses_import_label"><?php esc_html_e( 'Label', 'relatasoft-secure-election-suite' ); ?></label></th>
-						<td><input type="text" name="rses_import_label" id="rses_import_label" class="regular-text" required /></td>
-					</tr>
-					<tr>
-						<th><label for="rses_import_json"><?php esc_html_e( 'Public Key JSON', 'relatasoft-secure-election-suite' ); ?></label></th>
-						<td>
-							<textarea name="rses_import_json" id="rses_import_json" rows="10" class="large-text code" required placeholder='{"p":"...","q":"...","g":"...","y":"...","keySizeBits":2048}'></textarea>
-						</td>
-					</tr>
-				</table>
-				<?php submit_button( __( 'Import Public Key', 'relatasoft-secure-election-suite' ) ); ?>
-			</form>
+			<section class="rses-panel rses-panel-card">
+				<header class="rses-panel-header">
+					<p class="rses-panel-kicker"><?php esc_html_e( 'Import', 'relatasoft-secure-election-suite' ); ?></p>
+					<h2 class="rses-panel-title"><?php esc_html_e( 'Add public key', 'relatasoft-secure-election-suite' ); ?></h2>
+					<p class="rses-panel-desc"><?php esc_html_e( 'Paste a public-key.json export or a package that includes a public_key object.', 'relatasoft-secure-election-suite' ); ?></p>
+				</header>
 
-			<h2><?php esc_html_e( 'Imported Keys', 'relatasoft-secure-election-suite' ); ?></h2>
-			<table class="widefat striped">
-				<thead>
-					<tr>
-						<th>ID</th>
-						<th><?php esc_html_e( 'Label', 'relatasoft-secure-election-suite' ); ?></th>
-						<th><?php esc_html_e( 'Size', 'relatasoft-secure-election-suite' ); ?></th>
-						<th>y</th>
-						<th><?php esc_html_e( 'Created', 'relatasoft-secure-election-suite' ); ?></th>
-					</tr>
-				</thead>
-				<tbody>
-					<?php if ( empty( $rses_keys ) ) : ?>
-						<tr><td colspan="5"><?php esc_html_e( 'No public keys imported.', 'relatasoft-secure-election-suite' ); ?></td></tr>
-					<?php else : ?>
-						<?php foreach ( $rses_keys as $rses_key ) : ?>
-							<tr>
-								<td><?php echo esc_html( (string) $rses_key->id ); ?></td>
-								<td><?php echo esc_html( $rses_key->key_label ); ?></td>
-								<td><?php echo esc_html( (string) $rses_key->key_size ); ?> bits</td>
-								<td><code class="rses-bigint"><?php echo esc_html( substr( $rses_key->public_y, 0, 40 ) . '…' ); ?></code></td>
-								<td><?php echo esc_html( $rses_key->created_at ); ?></td>
-							</tr>
-						<?php endforeach; ?>
-					<?php endif; ?>
-				</tbody>
-			</table>
+				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="rses-form">
+					<?php Nonce::rses_field( Nonce::RSES_ACTION_KEY_IMPORT ); ?>
+					<input type="hidden" name="action" value="rses_import_key" />
+					<div class="rses-field-grid">
+						<div class="rses-field">
+							<label for="rses_import_label"><?php esc_html_e( 'Label', 'relatasoft-secure-election-suite' ); ?></label>
+							<input type="text" name="rses_import_label" id="rses_import_label" class="regular-text" required />
+						</div>
+						<div class="rses-field rses-field-full">
+							<label for="rses_import_json"><?php esc_html_e( 'Public Key JSON', 'relatasoft-secure-election-suite' ); ?></label>
+							<textarea name="rses_import_json" id="rses_import_json" rows="10" class="rses-code-area" required placeholder='{"p":"...","q":"...","g":"...","y":"...","keySizeBits":2048}'></textarea>
+						</div>
+					</div>
+					<p class="rses-form-actions">
+						<?php submit_button( __( 'Import Public Key', 'relatasoft-secure-election-suite' ), 'primary rses-btn-primary', 'submit', false ); ?>
+					</p>
+				</form>
+			</section>
+
+			<section class="rses-panel rses-panel-card">
+				<header class="rses-panel-header">
+					<p class="rses-panel-kicker"><?php esc_html_e( 'Library', 'relatasoft-secure-election-suite' ); ?></p>
+					<h2 class="rses-panel-title"><?php esc_html_e( 'Imported keys', 'relatasoft-secure-election-suite' ); ?></h2>
+					<p class="rses-panel-desc"><?php esc_html_e( 'These keys are available when creating elections.', 'relatasoft-secure-election-suite' ); ?></p>
+				</header>
+
+				<?php if ( empty( $rses_keys ) ) : ?>
+					<div class="rses-panel-body">
+						<p class="rses-empty"><?php esc_html_e( 'No public keys imported.', 'relatasoft-secure-election-suite' ); ?></p>
+					</div>
+				<?php else : ?>
+					<div class="rses-table-wrap">
+						<table class="rses-table">
+							<thead>
+								<tr>
+									<th>ID</th>
+									<th><?php esc_html_e( 'Label', 'relatasoft-secure-election-suite' ); ?></th>
+									<th><?php esc_html_e( 'Size', 'relatasoft-secure-election-suite' ); ?></th>
+									<th>y</th>
+									<th><?php esc_html_e( 'Created', 'relatasoft-secure-election-suite' ); ?></th>
+								</tr>
+							</thead>
+							<tbody>
+								<?php foreach ( $rses_keys as $rses_key ) : ?>
+									<tr>
+										<td><?php echo esc_html( (string) $rses_key->id ); ?></td>
+										<td><?php echo esc_html( $rses_key->key_label ); ?></td>
+										<td><?php echo esc_html( (string) $rses_key->key_size ); ?> bits</td>
+										<td><code class="rses-bigint"><?php echo esc_html( substr( $rses_key->public_y, 0, 40 ) . '…' ); ?></code></td>
+										<td><?php echo esc_html( $rses_key->created_at ); ?></td>
+									</tr>
+								<?php endforeach; ?>
+							</tbody>
+						</table>
+					</div>
+				<?php endif; ?>
+			</section>
 		</div>
 		<?php
 	}
@@ -214,102 +278,160 @@ class VotingViews {
 		$rses_round    = $round_id ? ElectionRepository::rses_get_round( $round_id ) : null;
 
 		if ( ! $rses_round ) {
-			$rses_rounds = ElectionRepository::rses_get_rounds( $election_id );
-			$rses_round  = $rses_rounds[0] ?? null;
+			$rses_rounds   = ElectionRepository::rses_get_rounds( $election_id );
+			$rses_round    = $rses_rounds[0] ?? null;
 			$rses_round_id = $rses_round ? (int) $rses_round->id : 0;
 		} else {
 			$rses_round_id = $round_id;
 		}
+
+		$rses_booth_sc = sprintf(
+			'[rses_voting_booth election_id="%d" round_id="%d"]',
+			$election_id,
+			$rses_round_id
+		);
 		?>
-		<h2><?php echo esc_html( $rses_election->title ); ?></h2>
-		<p><?php esc_html_e( 'Status:', 'relatasoft-secure-election-suite' ); ?> <strong><?php echo esc_html( $rses_election->status ); ?></strong></p>
+		<header class="rses-hero">
+			<p class="rses-hero-kicker"><?php esc_html_e( 'Election editor', 'relatasoft-secure-election-suite' ); ?></p>
+			<h1 class="rses-hero-title"><?php echo esc_html( $rses_election->title ); ?></h1>
+			<p class="rses-hero-lead">
+				<?php esc_html_e( 'Status:', 'relatasoft-secure-election-suite' ); ?>
+				<?php echo self::rses_status_pill( (string) $rses_election->status ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+			</p>
+		</header>
+
+		<p><a class="rses-back-link" href="<?php echo esc_url( admin_url( 'admin.php?page=rses-elections' ) ); ?>">&larr; <?php esc_html_e( 'Back to elections', 'relatasoft-secure-election-suite' ); ?></a></p>
 
 		<?php if ( $rses_round ) : ?>
-			<div class="rses-notice rses-notice-info">
-				<p>
-					<strong><?php esc_html_e( 'Voting booth shortcode:', 'relatasoft-secure-election-suite' ); ?></strong>
-					<code class="rses-shortcode-text">[rses_voting_booth election_id="<?php echo esc_attr( (string) $election_id ); ?>" round_id="<?php echo esc_attr( (string) $rses_round_id ); ?>"]</code>
-					<button type="button" class="button button-small rses-copy-shortcode" data-rses-copy="[rses_voting_booth election_id=&quot;<?php echo esc_attr( (string) $election_id ); ?>&quot; round_id=&quot;<?php echo esc_attr( (string) $rses_round_id ); ?>&quot;]">
-						<?php esc_html_e( 'Copy', 'relatasoft-secure-election-suite' ); ?>
-					</button>
-				</p>
-				<p>
-					<a href="<?php echo esc_url( admin_url( 'admin.php?page=rses-shortcodes&election_id=' . $election_id . '&round_id=' . $rses_round_id ) ); ?>">
-						<?php esc_html_e( 'Open Shortcode Generator →', 'relatasoft-secure-election-suite' ); ?>
-					</a>
-				</p>
-				<p>
-					<?php
-					printf(
-						/* translators: %s: public key id */
-						esc_html__( 'Public key ID: %s', 'relatasoft-secure-election-suite' ),
-						esc_html( (string) ( $rses_round->key_id ?: '—' ) )
-					);
-					?>
-				</p>
-			</div>
+			<section class="rses-panel rses-panel-card">
+				<header class="rses-panel-header">
+					<p class="rses-panel-kicker"><?php esc_html_e( 'Publish', 'relatasoft-secure-election-suite' ); ?></p>
+					<h2 class="rses-panel-title"><?php esc_html_e( 'Voting booth shortcode', 'relatasoft-secure-election-suite' ); ?></h2>
+					<p class="rses-panel-desc">
+						<?php
+						printf(
+							/* translators: %s: public key id */
+							esc_html__( 'Public key ID: %s — paste the booth shortcode on a WordPress page once voting is open.', 'relatasoft-secure-election-suite' ),
+							esc_html( (string) ( $rses_round->key_id ?: '—' ) )
+						);
+						?>
+					</p>
+				</header>
+				<div class="rses-panel-body">
+					<div class="rses-shortcode-box">
+						<code class="rses-shortcode-text"><?php echo esc_html( $rses_booth_sc ); ?></code>
+						<button type="button" class="button rses-btn-secondary rses-copy-shortcode" data-rses-copy="<?php echo esc_attr( $rses_booth_sc ); ?>">
+							<?php esc_html_e( 'Copy', 'relatasoft-secure-election-suite' ); ?>
+						</button>
+					</div>
+					<p class="rses-inline-actions">
+						<a class="button rses-btn-secondary" href="<?php echo esc_url( admin_url( 'admin.php?page=rses-shortcodes&election_id=' . $election_id . '&round_id=' . $rses_round_id ) ); ?>">
+							<?php esc_html_e( 'Open Shortcode Generator', 'relatasoft-secure-election-suite' ); ?>
+						</a>
+					</p>
+				</div>
+			</section>
 		<?php endif; ?>
 
-		<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:inline;">
-			<?php Nonce::rses_field( Nonce::RSES_ACTION_ELECTION_SAVE ); ?>
-			<input type="hidden" name="action" value="rses_election_action" />
-			<input type="hidden" name="election_id" value="<?php echo esc_attr( (string) $election_id ); ?>" />
-			<input type="hidden" name="round_id" value="<?php echo esc_attr( (string) $rses_round_id ); ?>" />
-			<input type="hidden" name="rses_action" value="open" />
-			<?php submit_button( __( 'Open Voting', 'relatasoft-secure-election-suite' ), 'primary', 'submit', false ); ?>
-		</form>
-		<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:inline;">
-			<?php Nonce::rses_field( Nonce::RSES_ACTION_ELECTION_SAVE ); ?>
-			<input type="hidden" name="action" value="rses_election_action" />
-			<input type="hidden" name="election_id" value="<?php echo esc_attr( (string) $election_id ); ?>" />
-			<input type="hidden" name="round_id" value="<?php echo esc_attr( (string) $rses_round_id ); ?>" />
-			<input type="hidden" name="rses_action" value="close" />
-			<?php submit_button( __( 'Close & Tally', 'relatasoft-secure-election-suite' ), 'secondary', 'submit', false ); ?>
-		</form>
-
-		<h3><?php esc_html_e( 'Ballot Builder', 'relatasoft-secure-election-suite' ); ?></h3>
-		<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
-			<?php Nonce::rses_field( Nonce::RSES_ACTION_BALLOT_SAVE ); ?>
-			<input type="hidden" name="action" value="rses_save_ballot" />
-			<input type="hidden" name="election_id" value="<?php echo esc_attr( (string) $election_id ); ?>" />
-			<input type="hidden" name="round_id" value="<?php echo esc_attr( (string) $rses_round_id ); ?>" />
-			<p>
-				<label><?php esc_html_e( 'Question Title', 'relatasoft-secure-election-suite' ); ?></label>
-				<input type="text" name="rses_question_title" class="regular-text" required />
-			</p>
-			<p>
-				<label><?php esc_html_e( 'Question Type', 'relatasoft-secure-election-suite' ); ?></label>
-				<select name="rses_question_type">
-					<option value="yes_no">yes_no</option>
-					<option value="single_choice" selected>single_choice</option>
-					<option value="multiple_choice">multiple_choice</option>
-					<option value="numeric">numeric</option>
-					<option value="ranked_choice">ranked_choice</option>
-				</select>
-			</p>
-			<p><?php esc_html_e( 'Options (one per line in fields below)', 'relatasoft-secure-election-suite' ); ?></p>
-			<?php for ( $rses_i = 0; $rses_i < 5; ++$rses_i ) : ?>
-				<input type="text" name="rses_options[]" placeholder="<?php esc_attr_e( 'Option label', 'relatasoft-secure-election-suite' ); ?>" class="regular-text" /><br />
-			<?php endfor; ?>
-			<?php submit_button( __( 'Add Question', 'relatasoft-secure-election-suite' ), 'secondary' ); ?>
-		</form>
-
-		<h3><?php esc_html_e( 'Current Ballot', 'relatasoft-secure-election-suite' ); ?></h3>
-		<?php
-		$rses_questions = ElectionRepository::rses_get_questions( $rses_round_id );
-		foreach ( $rses_questions as $rses_q ) :
-			?>
-			<div class="rses-ballot-question-preview">
-				<strong><?php echo esc_html( $rses_q->question_title ); ?></strong> (<?php echo esc_html( $rses_q->question_type ); ?>)
-				<ul>
-					<?php foreach ( ElectionRepository::rses_get_options( (int) $rses_q->id ) as $rses_o ) : ?>
-						<li><?php echo esc_html( $rses_o->option_label ); ?></li>
-					<?php endforeach; ?>
-				</ul>
+		<section class="rses-panel rses-panel-card">
+			<header class="rses-panel-header">
+				<p class="rses-panel-kicker"><?php esc_html_e( 'Control', 'relatasoft-secure-election-suite' ); ?></p>
+				<h2 class="rses-panel-title"><?php esc_html_e( 'Voting window', 'relatasoft-secure-election-suite' ); ?></h2>
+				<p class="rses-panel-desc"><?php esc_html_e( 'Open voting when the ballot is ready. Close & tally seals the round for export.', 'relatasoft-secure-election-suite' ); ?></p>
+			</header>
+			<div class="rses-panel-body">
+				<div class="rses-inline-actions">
+					<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+						<?php Nonce::rses_field( Nonce::RSES_ACTION_ELECTION_SAVE ); ?>
+						<input type="hidden" name="action" value="rses_election_action" />
+						<input type="hidden" name="election_id" value="<?php echo esc_attr( (string) $election_id ); ?>" />
+						<input type="hidden" name="round_id" value="<?php echo esc_attr( (string) $rses_round_id ); ?>" />
+						<input type="hidden" name="rses_action" value="open" />
+						<?php submit_button( __( 'Open Voting', 'relatasoft-secure-election-suite' ), 'primary rses-btn-primary', 'submit', false ); ?>
+					</form>
+					<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+						<?php Nonce::rses_field( Nonce::RSES_ACTION_ELECTION_SAVE ); ?>
+						<input type="hidden" name="action" value="rses_election_action" />
+						<input type="hidden" name="election_id" value="<?php echo esc_attr( (string) $election_id ); ?>" />
+						<input type="hidden" name="round_id" value="<?php echo esc_attr( (string) $rses_round_id ); ?>" />
+						<input type="hidden" name="rses_action" value="close" />
+						<?php submit_button( __( 'Close & Tally', 'relatasoft-secure-election-suite' ), 'secondary rses-btn-secondary', 'submit', false ); ?>
+					</form>
+				</div>
 			</div>
-		<?php endforeach; ?>
+		</section>
 
-		<p><a href="<?php echo esc_url( admin_url( 'admin.php?page=rses-elections' ) ); ?>">&larr; <?php esc_html_e( 'Back to list', 'relatasoft-secure-election-suite' ); ?></a></p>
+		<section class="rses-panel rses-panel-card">
+			<header class="rses-panel-header">
+				<p class="rses-panel-kicker"><?php esc_html_e( 'Ballot', 'relatasoft-secure-election-suite' ); ?></p>
+				<h2 class="rses-panel-title"><?php esc_html_e( 'Ballot builder', 'relatasoft-secure-election-suite' ); ?></h2>
+				<p class="rses-panel-desc"><?php esc_html_e( 'Add questions and options. Voters will see these as choice cards on the booth.', 'relatasoft-secure-election-suite' ); ?></p>
+			</header>
+
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="rses-form">
+				<?php Nonce::rses_field( Nonce::RSES_ACTION_BALLOT_SAVE ); ?>
+				<input type="hidden" name="action" value="rses_save_ballot" />
+				<input type="hidden" name="election_id" value="<?php echo esc_attr( (string) $election_id ); ?>" />
+				<input type="hidden" name="round_id" value="<?php echo esc_attr( (string) $rses_round_id ); ?>" />
+				<div class="rses-field-grid">
+					<div class="rses-field rses-field-full">
+						<label for="rses_question_title"><?php esc_html_e( 'Question Title', 'relatasoft-secure-election-suite' ); ?></label>
+						<input type="text" name="rses_question_title" id="rses_question_title" required />
+					</div>
+					<div class="rses-field">
+						<label for="rses_question_type"><?php esc_html_e( 'Question Type', 'relatasoft-secure-election-suite' ); ?></label>
+						<select name="rses_question_type" id="rses_question_type">
+							<option value="yes_no">yes_no</option>
+							<option value="single_choice" selected>single_choice</option>
+							<option value="multiple_choice">multiple_choice</option>
+							<option value="numeric">numeric</option>
+							<option value="ranked_choice">ranked_choice</option>
+						</select>
+					</div>
+					<div class="rses-field rses-field-full">
+						<span class="rses-field-label"><?php esc_html_e( 'Options', 'relatasoft-secure-election-suite' ); ?></span>
+						<div class="rses-ballot-options">
+							<?php for ( $rses_i = 0; $rses_i < 5; ++$rses_i ) : ?>
+								<input type="text" name="rses_options[]" placeholder="<?php esc_attr_e( 'Option label', 'relatasoft-secure-election-suite' ); ?>" />
+							<?php endfor; ?>
+						</div>
+					</div>
+				</div>
+				<p class="rses-form-actions">
+					<?php submit_button( __( 'Add Question', 'relatasoft-secure-election-suite' ), 'secondary rses-btn-secondary', 'submit', false ); ?>
+				</p>
+			</form>
+		</section>
+
+		<section class="rses-panel rses-panel-card">
+			<header class="rses-panel-header">
+				<p class="rses-panel-kicker"><?php esc_html_e( 'Preview', 'relatasoft-secure-election-suite' ); ?></p>
+				<h2 class="rses-panel-title"><?php esc_html_e( 'Current ballot', 'relatasoft-secure-election-suite' ); ?></h2>
+				<p class="rses-panel-desc"><?php esc_html_e( 'Questions already attached to this round.', 'relatasoft-secure-election-suite' ); ?></p>
+			</header>
+			<div class="rses-panel-body">
+				<?php
+				$rses_questions = ElectionRepository::rses_get_questions( $rses_round_id );
+				if ( empty( $rses_questions ) ) :
+					?>
+					<p class="rses-empty"><?php esc_html_e( 'No questions yet. Add one above.', 'relatasoft-secure-election-suite' ); ?></p>
+				<?php else : ?>
+					<div class="rses-ballot-list">
+						<?php foreach ( $rses_questions as $rses_q ) : ?>
+							<div class="rses-ballot-question-preview">
+								<strong><?php echo esc_html( $rses_q->question_title ); ?></strong>
+								<span class="rses-q-type"><?php echo esc_html( $rses_q->question_type ); ?></span>
+								<ul>
+									<?php foreach ( ElectionRepository::rses_get_options( (int) $rses_q->id ) as $rses_o ) : ?>
+										<li><?php echo esc_html( $rses_o->option_label ); ?></li>
+									<?php endforeach; ?>
+								</ul>
+							</div>
+						<?php endforeach; ?>
+					</div>
+				<?php endif; ?>
+			</div>
+		</section>
 		<?php
 	}
 
@@ -319,15 +441,19 @@ class VotingViews {
 	public static function rses_render_shortcodes_page(): void {
 		Capability::rses_require_admin();
 
-		$rses_elections   = ElectionRepository::rses_list();
-		$rses_focus_eid   = isset( $_GET['election_id'] ) ? absint( $_GET['election_id'] ) : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-		$rses_focus_rid   = isset( $_GET['round_id'] ) ? absint( $_GET['round_id'] ) : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		$rses_elections = ElectionRepository::rses_list();
+		$rses_focus_eid = isset( $_GET['election_id'] ) ? absint( $_GET['election_id'] ) : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		$rses_focus_rid = isset( $_GET['round_id'] ) ? absint( $_GET['round_id'] ) : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 		?>
-		<div class="wrap rses-wrap">
-			<h1><?php esc_html_e( 'Shortcode Generator', 'relatasoft-secure-election-suite' ); ?></h1>
+		<div class="wrap rses-wrap rses-screen">
+			<header class="rses-hero">
+				<p class="rses-hero-kicker"><?php esc_html_e( 'Voting Platform', 'relatasoft-secure-election-suite' ); ?></p>
+				<h1 class="rses-hero-title"><?php esc_html_e( 'Shortcode Generator', 'relatasoft-secure-election-suite' ); ?></h1>
+				<p class="rses-hero-lead"><?php esc_html_e( 'Copy a shortcode and paste it into any WordPress page or post. Only Subscriber-role voters may cast a ballot.', 'relatasoft-secure-election-suite' ); ?></p>
+			</header>
 
-			<div class="rses-notice rses-notice-info">
-				<p><?php esc_html_e( 'Copy a shortcode below and paste it into any WordPress page or post (block editor → Shortcode block, or classic editor). Only WordPress users enrolled with the Subscriber role may cast a ballot (Administrator/Editor alone cannot; dual-role Subscriber+Editor may).', 'relatasoft-secure-election-suite' ); ?></p>
+			<div class="rses-panel rses-panel-info">
+				<p><?php esc_html_e( 'Create and open an election, copy the booth shortcode, publish a page, then share the URL with voters.', 'relatasoft-secure-election-suite' ); ?></p>
 				<ol>
 					<li><?php esc_html_e( 'Create and open an election under Elections.', 'relatasoft-secure-election-suite' ); ?></li>
 					<li><?php esc_html_e( 'Copy the voting booth shortcode for that round.', 'relatasoft-secure-election-suite' ); ?></li>
@@ -336,100 +462,117 @@ class VotingViews {
 				</ol>
 			</div>
 
-			<h2><?php esc_html_e( 'Available shortcodes', 'relatasoft-secure-election-suite' ); ?></h2>
-			<table class="widefat striped">
-				<thead>
-					<tr>
-						<th><?php esc_html_e( 'Shortcode', 'relatasoft-secure-election-suite' ); ?></th>
-						<th><?php esc_html_e( 'Purpose', 'relatasoft-secure-election-suite' ); ?></th>
-					</tr>
-				</thead>
-				<tbody>
-					<tr>
-						<td><code>[rses_voting_booth]</code></td>
-						<td><?php esc_html_e( 'Full encrypted ballot for logged-in voters. Requires election_id and round_id.', 'relatasoft-secure-election-suite' ); ?></td>
-					</tr>
-					<tr>
-						<td><code>[rses_voter_receipt]</code></td>
-						<td><?php esc_html_e( 'Shows the voter’s receipt hash after casting (no plaintext choices).', 'relatasoft-secure-election-suite' ); ?></td>
-					</tr>
-					<tr>
-						<td><code>[rses_election_status]</code></td>
-						<td><?php esc_html_e( 'Displays election title and status (draft / open / closed).', 'relatasoft-secure-election-suite' ); ?></td>
-					</tr>
-				</tbody>
-			</table>
+			<section class="rses-panel rses-panel-card">
+				<header class="rses-panel-header">
+					<p class="rses-panel-kicker"><?php esc_html_e( 'Reference', 'relatasoft-secure-election-suite' ); ?></p>
+					<h2 class="rses-panel-title"><?php esc_html_e( 'Available shortcodes', 'relatasoft-secure-election-suite' ); ?></h2>
+					<p class="rses-panel-desc"><?php esc_html_e( 'Each shortcode accepts election_id / round_id attributes as shown below.', 'relatasoft-secure-election-suite' ); ?></p>
+				</header>
+				<div class="rses-table-wrap">
+					<table class="rses-table">
+						<thead>
+							<tr>
+								<th><?php esc_html_e( 'Shortcode', 'relatasoft-secure-election-suite' ); ?></th>
+								<th><?php esc_html_e( 'Purpose', 'relatasoft-secure-election-suite' ); ?></th>
+							</tr>
+						</thead>
+						<tbody>
+							<tr>
+								<td><code>[rses_voting_booth]</code></td>
+								<td><?php esc_html_e( 'Full encrypted ballot for logged-in voters. Requires election_id and round_id.', 'relatasoft-secure-election-suite' ); ?></td>
+							</tr>
+							<tr>
+								<td><code>[rses_voter_receipt]</code></td>
+								<td><?php esc_html_e( 'Shows the voter’s receipt hash after casting (no plaintext choices).', 'relatasoft-secure-election-suite' ); ?></td>
+							</tr>
+							<tr>
+								<td><code>[rses_election_status]</code></td>
+								<td><?php esc_html_e( 'Displays election title and status (draft / open / closed).', 'relatasoft-secure-election-suite' ); ?></td>
+							</tr>
+						</tbody>
+					</table>
+				</div>
+			</section>
 
-			<h2><?php esc_html_e( 'Generated shortcodes by election', 'relatasoft-secure-election-suite' ); ?></h2>
+			<section class="rses-panel rses-panel-card">
+				<header class="rses-panel-header">
+					<p class="rses-panel-kicker"><?php esc_html_e( 'Generate', 'relatasoft-secure-election-suite' ); ?></p>
+					<h2 class="rses-panel-title"><?php esc_html_e( 'Shortcodes by election', 'relatasoft-secure-election-suite' ); ?></h2>
+					<p class="rses-panel-desc"><?php esc_html_e( 'Ready-to-copy shortcodes for every round.', 'relatasoft-secure-election-suite' ); ?></p>
+				</header>
 
-			<?php if ( empty( $rses_elections ) ) : ?>
-				<p>
-					<?php esc_html_e( 'No elections yet.', 'relatasoft-secure-election-suite' ); ?>
-					<a href="<?php echo esc_url( admin_url( 'admin.php?page=rses-elections' ) ); ?>">
-						<?php esc_html_e( 'Create an election first.', 'relatasoft-secure-election-suite' ); ?>
-					</a>
-				</p>
-			<?php else : ?>
-				<?php foreach ( $rses_elections as $rses_election ) : ?>
-					<?php
-					$rses_rounds = ElectionRepository::rses_get_rounds( (int) $rses_election->id );
-					if ( empty( $rses_rounds ) ) {
-						continue;
-					}
-					?>
-					<div class="rses-shortcode-election-card<?php echo ( $rses_focus_eid === (int) $rses_election->id ) ? ' rses-shortcode-focus' : ''; ?>">
-						<h3>
-							<?php echo esc_html( $rses_election->title ); ?>
-							<small>#<?php echo esc_html( (string) $rses_election->id ); ?> — <?php echo esc_html( $rses_election->status ); ?></small>
-						</h3>
-
-						<?php foreach ( $rses_rounds as $rses_round ) : ?>
-							<?php
-							$rses_eid = (int) $rses_election->id;
-							$rses_rid = (int) $rses_round->id;
-
-							$rses_booth    = sprintf( '[rses_voting_booth election_id="%d" round_id="%d"]', $rses_eid, $rses_rid );
-							$rses_receipt  = sprintf( '[rses_voter_receipt election_id="%d" round_id="%d"]', $rses_eid, $rses_rid );
-							$rses_status   = sprintf( '[rses_election_status election_id="%d"]', $rses_eid );
-							$rses_is_focus = ( $rses_focus_eid === $rses_eid && ( 0 === $rses_focus_rid || $rses_focus_rid === $rses_rid ) );
-							?>
-							<div class="rses-shortcode-round<?php echo $rses_is_focus ? ' rses-shortcode-focus' : ''; ?>">
-								<h4>
-									<?php echo esc_html( $rses_round->title ); ?>
-									<small>
-										#<?php echo esc_html( (string) $rses_rid ); ?> —
-										<?php echo esc_html( $rses_round->status ); ?>
-									</small>
-								</h4>
-
+				<div class="rses-panel-body">
+					<?php if ( empty( $rses_elections ) ) : ?>
+						<p class="rses-empty">
+							<?php esc_html_e( 'No elections yet.', 'relatasoft-secure-election-suite' ); ?>
+							<a href="<?php echo esc_url( admin_url( 'admin.php?page=rses-elections' ) ); ?>">
+								<?php esc_html_e( 'Create an election first.', 'relatasoft-secure-election-suite' ); ?>
+							</a>
+						</p>
+					<?php else : ?>
+						<div class="rses-shortcode-list">
+							<?php foreach ( $rses_elections as $rses_election ) : ?>
 								<?php
-								self::rses_render_shortcode_row(
-									__( 'Voting booth (place on a public page)', 'relatasoft-secure-election-suite' ),
-									$rses_booth
-								);
-								self::rses_render_shortcode_row(
-									__( 'Voter receipt', 'relatasoft-secure-election-suite' ),
-									$rses_receipt
-								);
-								self::rses_render_shortcode_row(
-									__( 'Election status', 'relatasoft-secure-election-suite' ),
-									$rses_status
-								);
+								$rses_rounds = ElectionRepository::rses_get_rounds( (int) $rses_election->id );
+								if ( empty( $rses_rounds ) ) {
+									continue;
+								}
 								?>
+								<div class="rses-shortcode-election-card<?php echo ( $rses_focus_eid === (int) $rses_election->id ) ? ' rses-shortcode-focus' : ''; ?>">
+									<h3>
+										<?php echo esc_html( $rses_election->title ); ?>
+										<small>#<?php echo esc_html( (string) $rses_election->id ); ?> — <?php echo esc_html( $rses_election->status ); ?></small>
+									</h3>
 
-								<p class="rses-shortcode-actions">
-									<a class="button" href="<?php echo esc_url( admin_url( 'admin.php?page=rses-elections&rses_edit=' . $rses_eid . '&round=' . $rses_rid ) ); ?>">
-										<?php esc_html_e( 'Edit election', 'relatasoft-secure-election-suite' ); ?>
-									</a>
-									<a class="button" href="<?php echo esc_url( admin_url( 'post-new.php?post_type=page' ) ); ?>" target="_blank" rel="noopener noreferrer">
-										<?php esc_html_e( 'Create new page', 'relatasoft-secure-election-suite' ); ?>
-									</a>
-								</p>
-							</div>
-						<?php endforeach; ?>
-					</div>
-				<?php endforeach; ?>
-			<?php endif; ?>
+									<?php foreach ( $rses_rounds as $rses_round ) : ?>
+										<?php
+										$rses_eid      = (int) $rses_election->id;
+										$rses_rid      = (int) $rses_round->id;
+										$rses_booth    = sprintf( '[rses_voting_booth election_id="%d" round_id="%d"]', $rses_eid, $rses_rid );
+										$rses_receipt  = sprintf( '[rses_voter_receipt election_id="%d" round_id="%d"]', $rses_eid, $rses_rid );
+										$rses_status   = sprintf( '[rses_election_status election_id="%d"]', $rses_eid );
+										$rses_is_focus = ( $rses_focus_eid === $rses_eid && ( 0 === $rses_focus_rid || $rses_focus_rid === $rses_rid ) );
+										?>
+										<div class="rses-shortcode-round<?php echo $rses_is_focus ? ' rses-shortcode-focus' : ''; ?>">
+											<h4>
+												<?php echo esc_html( $rses_round->title ); ?>
+												<small>
+													#<?php echo esc_html( (string) $rses_rid ); ?> —
+													<?php echo esc_html( $rses_round->status ); ?>
+												</small>
+											</h4>
+
+											<?php
+											self::rses_render_shortcode_row(
+												__( 'Voting booth (place on a public page)', 'relatasoft-secure-election-suite' ),
+												$rses_booth
+											);
+											self::rses_render_shortcode_row(
+												__( 'Voter receipt', 'relatasoft-secure-election-suite' ),
+												$rses_receipt
+											);
+											self::rses_render_shortcode_row(
+												__( 'Election status', 'relatasoft-secure-election-suite' ),
+												$rses_status
+											);
+											?>
+
+											<p class="rses-shortcode-actions">
+												<a class="button rses-btn-secondary" href="<?php echo esc_url( admin_url( 'admin.php?page=rses-elections&rses_edit=' . $rses_eid . '&round=' . $rses_rid ) ); ?>">
+													<?php esc_html_e( 'Edit election', 'relatasoft-secure-election-suite' ); ?>
+												</a>
+												<a class="button rses-btn-secondary" href="<?php echo esc_url( admin_url( 'post-new.php?post_type=page' ) ); ?>" target="_blank" rel="noopener noreferrer">
+													<?php esc_html_e( 'Create new page', 'relatasoft-secure-election-suite' ); ?>
+												</a>
+											</p>
+										</div>
+									<?php endforeach; ?>
+								</div>
+							<?php endforeach; ?>
+						</div>
+					<?php endif; ?>
+				</div>
+			</section>
 		</div>
 		<?php
 	}
@@ -446,7 +589,7 @@ class VotingViews {
 			<label><?php echo esc_html( $label ); ?></label>
 			<div class="rses-shortcode-copy-wrap">
 				<input type="text" class="rses-shortcode-input large-text code" readonly value="<?php echo esc_attr( $shortcode ); ?>" />
-				<button type="button" class="button rses-copy-shortcode" data-rses-copy="<?php echo esc_attr( $shortcode ); ?>">
+				<button type="button" class="button rses-btn-secondary rses-copy-shortcode" data-rses-copy="<?php echo esc_attr( $shortcode ); ?>">
 					<?php esc_html_e( 'Copy', 'relatasoft-secure-election-suite' ); ?>
 				</button>
 			</div>
@@ -462,27 +605,55 @@ class VotingViews {
 
 		$rses_elections = ElectionRepository::rses_list();
 		?>
-		<div class="wrap rses-wrap">
-			<h1><?php esc_html_e( 'Voting Export', 'relatasoft-secure-election-suite' ); ?></h1>
-			<table class="widefat striped">
-				<thead><tr><th><?php esc_html_e( 'Election', 'relatasoft-secure-election-suite' ); ?></th><th><?php esc_html_e( 'Export', 'relatasoft-secure-election-suite' ); ?></th></tr></thead>
-				<tbody>
-					<?php foreach ( $rses_elections as $rses_e ) : ?>
-						<?php
-						$rses_rounds = ElectionRepository::rses_get_rounds( (int) $rses_e->id );
-						foreach ( $rses_rounds as $rses_r ) :
-							?>
-							<tr>
-								<td><?php echo esc_html( $rses_e->title . ' - ' . $rses_r->title ); ?></td>
-								<td>
-									<a class="button" href="<?php echo esc_url( Nonce::rses_url( admin_url( 'admin-post.php?action=rses_export_voting&election_id=' . $rses_e->id . '&round_id=' . $rses_r->id . '&format=zip' ), Nonce::RSES_ACTION_VOTING_EXPORT ) ); ?>">ZIP</a>
-									<a class="button" href="<?php echo esc_url( Nonce::rses_url( admin_url( 'admin-post.php?action=rses_export_voting&election_id=' . $rses_e->id . '&round_id=' . $rses_r->id . '&format=json' ), Nonce::RSES_ACTION_VOTING_EXPORT ) ); ?>">JSON</a>
-								</td>
-							</tr>
-						<?php endforeach; ?>
-					<?php endforeach; ?>
-				</tbody>
-			</table>
+		<div class="wrap rses-wrap rses-screen">
+			<header class="rses-hero">
+				<p class="rses-hero-kicker"><?php esc_html_e( 'Voting Platform', 'relatasoft-secure-election-suite' ); ?></p>
+				<h1 class="rses-hero-title"><?php esc_html_e( 'Voting Export', 'relatasoft-secure-election-suite' ); ?></h1>
+				<p class="rses-hero-lead"><?php esc_html_e( 'Download sealed ballot packages for import on the Tallying site.', 'relatasoft-secure-election-suite' ); ?></p>
+			</header>
+
+			<section class="rses-panel rses-panel-card">
+				<header class="rses-panel-header">
+					<p class="rses-panel-kicker"><?php esc_html_e( 'Packages', 'relatasoft-secure-election-suite' ); ?></p>
+					<h2 class="rses-panel-title"><?php esc_html_e( 'Exports by round', 'relatasoft-secure-election-suite' ); ?></h2>
+					<p class="rses-panel-desc"><?php esc_html_e( 'ZIP includes ciphertext ballots and public parameters; JSON is a single-file alternative.', 'relatasoft-secure-election-suite' ); ?></p>
+				</header>
+
+				<?php if ( empty( $rses_elections ) ) : ?>
+					<div class="rses-panel-body">
+						<p class="rses-empty"><?php esc_html_e( 'No elections to export yet.', 'relatasoft-secure-election-suite' ); ?></p>
+					</div>
+				<?php else : ?>
+					<div class="rses-table-wrap">
+						<table class="rses-table">
+							<thead>
+								<tr>
+									<th><?php esc_html_e( 'Election', 'relatasoft-secure-election-suite' ); ?></th>
+									<th><?php esc_html_e( 'Export', 'relatasoft-secure-election-suite' ); ?></th>
+								</tr>
+							</thead>
+							<tbody>
+								<?php foreach ( $rses_elections as $rses_e ) : ?>
+									<?php
+									$rses_rounds = ElectionRepository::rses_get_rounds( (int) $rses_e->id );
+									foreach ( $rses_rounds as $rses_r ) :
+										?>
+										<tr>
+											<td><?php echo esc_html( $rses_e->title . ' — ' . $rses_r->title ); ?></td>
+											<td>
+												<div class="rses-inline-actions">
+													<a class="button rses-btn-primary" href="<?php echo esc_url( Nonce::rses_url( admin_url( 'admin-post.php?action=rses_export_voting&election_id=' . $rses_e->id . '&round_id=' . $rses_r->id . '&format=zip' ), Nonce::RSES_ACTION_VOTING_EXPORT ) ); ?>">ZIP</a>
+													<a class="button rses-btn-secondary" href="<?php echo esc_url( Nonce::rses_url( admin_url( 'admin-post.php?action=rses_export_voting&election_id=' . $rses_e->id . '&round_id=' . $rses_r->id . '&format=json' ), Nonce::RSES_ACTION_VOTING_EXPORT ) ); ?>">JSON</a>
+												</div>
+											</td>
+										</tr>
+									<?php endforeach; ?>
+								<?php endforeach; ?>
+							</tbody>
+						</table>
+					</div>
+				<?php endif; ?>
+			</section>
 		</div>
 		<?php
 	}
