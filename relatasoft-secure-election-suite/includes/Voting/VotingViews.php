@@ -10,6 +10,7 @@ namespace RelataSoft\SecureElectionSuite\Voting;
 use RelataSoft\SecureElectionSuite\KeyAuthority\KeyRepository;
 use RelataSoft\SecureElectionSuite\Security\Capability;
 use RelataSoft\SecureElectionSuite\Security\Nonce;
+use RelataSoft\SecureElectionSuite\I18n\Translator;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -39,7 +40,7 @@ class VotingViews {
 		$rses_edit_id   = isset( $_GET['rses_edit'] ) ? absint( $_GET['rses_edit'] ) : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 		$rses_round_id  = isset( $_GET['round'] ) ? absint( $_GET['round'] ) : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 		?>
-		<div class="wrap rses-wrap rses-screen">
+		<div class="wrap rses-wrap rses-screen" <?php echo Translator::rses_html_attrs(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
 			<?php if ( $rses_edit_id ) : ?>
 				<?php self::rses_render_election_editor( $rses_edit_id, $rses_round_id ); ?>
 			<?php else : ?>
@@ -186,7 +187,7 @@ class VotingViews {
 
 		$rses_keys = KeyRepository::rses_list_active();
 		?>
-		<div class="wrap rses-wrap rses-screen">
+		<div class="wrap rses-wrap rses-screen" <?php echo Translator::rses_html_attrs(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
 			<header class="rses-hero">
 				<p class="rses-hero-kicker"><?php esc_html_e( 'Voting Platform', 'relatasoft-secure-election-suite' ); ?></p>
 				<h1 class="rses-hero-title"><?php esc_html_e( 'Public Keys', 'relatasoft-secure-election-suite' ); ?></h1>
@@ -445,7 +446,7 @@ class VotingViews {
 		$rses_focus_eid = isset( $_GET['election_id'] ) ? absint( $_GET['election_id'] ) : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 		$rses_focus_rid = isset( $_GET['round_id'] ) ? absint( $_GET['round_id'] ) : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 		?>
-		<div class="wrap rses-wrap rses-screen">
+		<div class="wrap rses-wrap rses-screen" <?php echo Translator::rses_html_attrs(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
 			<header class="rses-hero">
 				<p class="rses-hero-kicker"><?php esc_html_e( 'Voting Platform', 'relatasoft-secure-election-suite' ); ?></p>
 				<h1 class="rses-hero-title"><?php esc_html_e( 'Shortcode Generator', 'relatasoft-secure-election-suite' ); ?></h1>
@@ -605,7 +606,7 @@ class VotingViews {
 
 		$rses_elections = ElectionRepository::rses_list();
 		?>
-		<div class="wrap rses-wrap rses-screen">
+		<div class="wrap rses-wrap rses-screen" <?php echo Translator::rses_html_attrs(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
 			<header class="rses-hero">
 				<p class="rses-hero-kicker"><?php esc_html_e( 'Voting Platform', 'relatasoft-secure-election-suite' ); ?></p>
 				<h1 class="rses-hero-title"><?php esc_html_e( 'Voting Export', 'relatasoft-secure-election-suite' ); ?></h1>
@@ -666,17 +667,17 @@ class VotingViews {
 	 */
 	public static function rses_render_voting_booth( int $election_id, int $round_id ): void {
 		if ( ! is_user_logged_in() ) {
-			echo '<div class="rses-booth"><div class="rses-message rses-message-warning rses-login-required">' . esc_html__( 'Please log in to vote.', 'relatasoft-secure-election-suite' ) . '</div></div>';
+			echo '<div class="rses-booth" ' . Translator::rses_html_attrs() . '><div class="rses-message rses-message-warning rses-login-required">' . esc_html__( 'Please log in to vote.', 'relatasoft-secure-election-suite' ) . '</div></div>';
 			return;
 		}
 
 		if ( ! Capability::rses_can_vote() ) {
-			echo '<div class="rses-booth"><div class="rses-message rses-message-error rses-vote-denied">' . esc_html__( 'Only users enrolled with the Subscriber role may cast a ballot. Sign in with a Subscriber account (Administrator and Editor accounts are not eligible unless they also have the Subscriber role).', 'relatasoft-secure-election-suite' ) . '</div></div>';
+			echo '<div class="rses-booth" ' . Translator::rses_html_attrs() . '><div class="rses-message rses-message-error rses-vote-denied">' . esc_html__( 'Only users enrolled with the Subscriber role may cast a ballot. Sign in with a Subscriber account (Administrator and Editor accounts are not eligible unless they also have the Subscriber role).', 'relatasoft-secure-election-suite' ) . '</div></div>';
 			return;
 		}
 
 		if ( ! $election_id || ! $round_id ) {
-			echo '<div class="rses-booth"><div class="rses-message rses-message-warning">' . esc_html__( 'Election not specified.', 'relatasoft-secure-election-suite' ) . '</div></div>';
+			echo '<div class="rses-booth" ' . Translator::rses_html_attrs() . '><div class="rses-message rses-message-warning">' . esc_html__( 'Election not specified.', 'relatasoft-secure-election-suite' ) . '</div></div>';
 			return;
 		}
 
@@ -715,14 +716,14 @@ class VotingViews {
 	 */
 	public static function rses_render_voter_receipt( int $election_id, int $round_id ): void {
 		if ( ! is_user_logged_in() ) {
-			echo '<div class="rses-booth"><div class="rses-message rses-message-warning">' . esc_html__( 'Please log in to view your receipt.', 'relatasoft-secure-election-suite' ) . '</div></div>';
+			echo '<div class="rses-booth" ' . Translator::rses_html_attrs() . '><div class="rses-message rses-message-warning">' . esc_html__( 'Please log in to view your receipt.', 'relatasoft-secure-election-suite' ) . '</div></div>';
 			return;
 		}
 
 		$rses_hash = EncryptedVoteRepository::rses_get_receipt_hash( get_current_user_id(), $round_id );
 
 		if ( ! $rses_hash ) {
-			echo '<div class="rses-booth"><div class="rses-message rses-message-info">' . esc_html__( 'No vote receipt found.', 'relatasoft-secure-election-suite' ) . '</div></div>';
+			echo '<div class="rses-booth" ' . Translator::rses_html_attrs() . '><div class="rses-message rses-message-info">' . esc_html__( 'No vote receipt found.', 'relatasoft-secure-election-suite' ) . '</div></div>';
 			return;
 		}
 
@@ -741,7 +742,7 @@ class VotingViews {
 		$rses_election = ElectionRepository::rses_get( $election_id );
 		$rses_id       = 'rses-receipt-hash-' . $round_id;
 		?>
-		<div class="rses-booth rses-booth-receipt" data-rses-booth="receipt">
+		<div class="rses-booth rses-booth-receipt" data-rses-booth="receipt" <?php echo Translator::rses_html_attrs(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
 			<header class="rses-booth-header">
 				<p class="rses-booth-kicker"><?php esc_html_e( 'Vote receipt', 'relatasoft-secure-election-suite' ); ?></p>
 				<?php if ( $rses_election ) : ?>

@@ -1478,3 +1478,49 @@
 	font-size: 13px;
 	margin: 4px 0 12px;
 }
+
+/* -------------------------------------------------------------------------
+   RTL (Arabic / Hebrew)
+   ------------------------------------------------------------------------- */
+
+.rses-rtl .rses-ka,
+.rses-rtl .rses-screen,
+body.rses-rtl .rses-ka,
+body.rses-rtl .rses-screen,
+.rses-ka[dir="rtl"],
+.rses-screen[dir="rtl"] {
+	direction: rtl;
+	text-align: right;
+}
+
+.rses-ka[dir="rtl"] .rses-field-grid,
+.rses-screen[dir="rtl"] .rses-field-grid {
+	direction: rtl;
+}
+
+.rses-ka[dir="rtl"] .rses-official-choice,
+.rses-screen[dir="rtl"] .rses-import-card-header,
+.rses-screen[dir="rtl"] .rses-cert-card-header,
+.rses-screen[dir="rtl"] .rses-threshold-meta,
+.rses-screen[dir="rtl"] .rses-shortcode-copy-wrap,
+.rses-screen[dir="rtl"] .rses-inline-actions,
+.rses-screen[dir="rtl"] .rses-form-actions,
+.rses-ka[dir="rtl"] .rses-form-actions,
+.rses-ka[dir="rtl"] .rses-key-actions {
+	direction: rtl;
+}
+
+.rses-ka[dir="rtl"] .rses-official-choice {
+	flex-direction: row-reverse;
+}
+
+.rses-screen[dir="rtl"] table.rses-table th,
+.rses-screen[dir="rtl"] table.rses-table td,
+.rses-ka[dir="rtl"] .rses-key-meta-table th,
+.rses-ka[dir="rtl"] .rses-key-meta-table td {
+	text-align: right;
+}
+
+.rses-screen[dir="rtl"] .rses-back-link {
+	flex-direction: row-reverse;
+}

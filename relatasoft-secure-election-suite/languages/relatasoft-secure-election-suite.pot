@@ -2,133 +2,1375 @@
 # This file is distributed under the GPL-2.0-or-later.
 msgid ""
 msgstr ""
-"Project-Id-Version: RelataSoft Secure Election Suite 1.0.0\n"
+"Project-Id-Version: RelataSoft Secure Election Suite 1.0.8\n"
 "Report-Msgid-Bugs-To: https://relatasoft.com\n"
-"POT-Creation-Date: 2026-07-08 00:00+0000\n"
+"POT-Creation-Date: 2026-07-29 17:16+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
-"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
-"Language-Team: LANGUAGE <LL@li.org>\n"
+"Last-Translator: RelataSoft\n"
+"Language-Team: RelataSoft\n"
 "Language: \n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
-#: includes/Bootstrap/ModeLock.php
-msgid "Key Authority / ElGamal Key Manager"
-msgstr ""
-
-#: includes/Bootstrap/ModeLock.php
-msgid "Voting Platform"
-msgstr ""
-
-#: includes/Bootstrap/ModeLock.php
-msgid "Tallying and Certification Platform"
-msgstr ""
-
-#: includes/Admin/AdminMenu.php
 msgid "Secure Election Suite"
 msgstr ""
 
-#: includes/Admin/AdminMenu.php
 msgid "Election Suite"
 msgstr ""
 
-#: includes/Admin/AdminMenu.php
-msgid "Crypto Self Test"
-msgstr ""
-
-#: includes/Admin/AdminMenu.php
-msgid "Run Self Tests"
-msgstr ""
-
-#: includes/Admin/AdminMenu.php
-msgid "PASS"
-msgstr ""
-
-#: includes/Admin/AdminMenu.php
-msgid "FAIL"
-msgstr ""
-
-#: includes/Admin/ModeSetupPage.php
 msgid "Mode Setup"
 msgstr ""
 
-#: includes/Admin/ModeSetupPage.php
-msgid "Destructive Reset"
+msgid "Key Authority"
 msgstr ""
 
-#: includes/Admin/ModeSetupPage.php
-msgid "Lock Mode"
+msgid "My Shamir Shares"
 msgstr ""
 
-#: includes/Voting/VotingViews.php
-msgid "Please log in to vote."
+msgid "Public Keys"
 msgstr ""
 
-#: includes/Voting/VotingViews.php
-msgid "Cast Encrypted Vote"
+msgid "Elections"
 msgstr ""
 
-#: includes/Voting/BallotRenderer.php
-msgid "Voting is not currently open."
+msgid "Shortcodes"
 msgstr ""
 
-#: includes/Crypto/CryptoSelfTest.php
-msgid "GMP Extension"
+msgid "Voting Export"
 msgstr ""
 
-#: includes/Crypto/CryptoSelfTest.php
-msgid "ElGamal Key Generation"
+msgid "Tally Import"
 msgstr ""
 
-#: includes/Crypto/CryptoSelfTest.php
-msgid "Encrypt/Decrypt"
+msgid "Share Submission"
 msgstr ""
 
-#: includes/Crypto/CryptoSelfTest.php
-msgid "Homomorphic Aggregation"
-msgstr ""
-
-#: includes/Crypto/CryptoSelfTest.php
-msgid "Shamir Secret Sharing"
-msgstr ""
-
-#: includes/Crypto/CryptoSelfTest.php
-msgid "Mini Election Simulation"
-msgstr ""
-
-#: includes/Security/Nonce.php
-msgid "Security check failed. Please try again."
-msgstr ""
-
-#: includes/Security/Capability.php
-msgid "You do not have permission to perform this action."
-msgstr ""
-
-#: includes/KeyAuthority/KeyAuthorityViews.php
-msgid "Generate Key & Assign Shares"
-msgstr ""
-
-#: includes/Tallying/TallyingViews.php
-msgid "Official Share Submission"
-msgstr ""
-
-#: includes/Tallying/TallyingViews.php
-msgid "Threshold progress:"
-msgstr ""
-
-#: includes/Tallying/TallyingViews.php
-msgid "Submit Share"
-msgstr ""
-
-#: includes/Tallying/TallyingViews.php
 msgid "Certification"
 msgstr ""
 
-#: includes/Tallying/TallyingViews.php
+msgid "Settings"
+msgstr ""
+
+msgid "Audit Log"
+msgstr ""
+
+msgid "Crypto Self Test"
+msgstr ""
+
+msgid "RelataSoft Secure Election Suite"
+msgstr ""
+
+msgid "Mode locked successfully. Use the actions below to continue."
+msgstr ""
+
+msgid "Active Mode:"
+msgstr ""
+
+msgid "Locked"
+msgstr ""
+
+msgid "Generate ElGamal keys, split private exponents with Shamir Secret Sharing, and export public keys / shares."
+msgstr ""
+
+msgid "Open Key Authority"
+msgstr ""
+
+msgid "View, copy, and download the Shamir share assigned to your Editor account. Keep it offline and confidential."
+msgstr ""
+
+msgid "Open My Shares"
+msgstr ""
+
+msgid "1. Import Public Key"
+msgstr ""
+
+msgid "Import the public key package exported from the Key Authority site."
+msgstr ""
+
+msgid "Manage Public Keys"
+msgstr ""
+
+msgid "2. Create Election & Ballot"
+msgstr ""
+
+msgid "Create elections, attach a public key, build ballot questions, then open voting."
+msgstr ""
+
+msgid "Manage Elections"
+msgstr ""
+
+msgid "3. Publish Voting Shortcodes"
+msgstr ""
+
+msgid "Copy shortcodes into any WordPress page or post so Subscriber-role voters can cast encrypted ballots."
+msgstr ""
+
+msgid "Shortcode Generator"
+msgstr ""
+
+msgid "4. Export Encrypted Tallies"
+msgstr ""
+
+msgid "After closing an election, export ZIP/JSON packages for the Tallying platform."
+msgstr ""
+
+msgid "1. Import Voting Package"
+msgstr ""
+
+msgid "Upload ZIP or JSON exports from voting servers and validate checksums."
+msgstr ""
+
+msgid "2. Collect Official Shares"
+msgstr ""
+
+msgid "Submit Your Shamir Share"
+msgstr ""
+
+msgid "Each Editor pastes their offline Shamir share JSON here until the threshold is met."
+msgstr ""
+
+msgid "3. Decrypt & Certify"
+msgstr ""
+
+msgid "Reconstruct the private exponent in memory, decrypt tallies, and export certification reports."
+msgstr ""
+
+msgid "Verify ElGamal, homomorphic aggregation, and Shamir Secret Sharing on this server."
+msgstr ""
+
+msgid "Run Self Tests"
+msgstr ""
+
+msgid "This plugin is engineered toward production-grade use, but cryptography has not been independently reviewed for binding public elections."
+msgstr ""
+
+msgid "Run cryptographic self-tests to verify ElGamal, homomorphic tallying, and Shamir Secret Sharing implementations."
+msgstr ""
+
+msgid "Test"
+msgstr ""
+
+msgid "Result"
+msgstr ""
+
+msgid "Message"
+msgstr ""
+
+msgid "PASS"
+msgstr ""
+
+msgid "FAIL"
+msgstr ""
+
+msgid "Audit hash chain recomputed successfully."
+msgstr ""
+
+msgid "Hash chain integrity: VALID"
+msgstr ""
+
+msgid "Hash chain integrity: INVALID"
+msgstr ""
+
+msgid "If this installation was upgraded, recompute hashes to align stored values with the canonical verifier (payloads are not modified)."
+msgstr ""
+
+msgid "Repair Hash Chain"
+msgstr ""
+
+msgid "ID"
+msgstr ""
+
+msgid "Time"
+msgstr ""
+
+msgid "Actor"
+msgstr ""
+
+msgid "Action"
+msgstr ""
+
+msgid "Object"
+msgstr ""
+
+msgid "Hash"
+msgstr ""
+
+msgid "No audit entries."
+msgstr ""
+
+msgid "Select exactly one mode for this WordPress installation. Once selected, the mode is locked. Switching requires a destructive reset that removes all election data."
+msgstr ""
+
+msgid "Current Mode:"
+msgstr ""
+
+msgid "(Locked)"
+msgstr ""
+
+msgid "Destructive Reset"
+msgstr ""
+
+msgid "To change modes, you must perform a destructive reset. This removes all keys, shares, elections, votes, tally imports, certifications, and audit logs."
+msgstr ""
+
+msgid "This will permanently delete ALL election data. Are you sure?"
+msgstr ""
+
+msgid "Select Mode"
+msgstr ""
+
+msgid "Lock Mode"
+msgstr ""
+
+msgid "Invalid mode selected."
+msgstr ""
+
+msgid "Failed to set mode."
+msgstr ""
+
+msgid "Reset confirmation required."
+msgstr ""
+
+msgid "Destructive reset failed."
+msgstr ""
+
+msgid "RelataSoft Secure Election Suite:"
+msgstr ""
+
+msgid "The GMP extension is required for cryptographic operations. Crypto actions are blocked."
+msgstr ""
+
+msgid "Settings saved."
+msgstr ""
+
+msgid "Plugin mode has been locked."
+msgstr ""
+
+msgid "Election Suite Settings"
+msgstr ""
+
+msgid "Allow Full Private Key Export"
+msgstr ""
+
+msgid "Enable admin full private key export (disabled by default, requires explicit confirmation)"
+msgstr ""
+
+msgid "Warning: Exporting full private keys is a significant security risk."
+msgstr ""
+
+msgid "Save Settings"
+msgstr ""
+
+msgid "PHP 8.1 or higher is required."
+msgstr ""
+
+msgid "The GMP extension is required for cryptographic operations."
+msgstr ""
+
+msgid "The JSON extension is required."
+msgstr ""
+
+msgid "SHA-256 hash functions are required."
+msgstr ""
+
+msgid "RelataSoft Secure Election Suite Activation Error"
+msgstr ""
+
+msgid "This action is not available in the current plugin mode."
+msgstr ""
+
+msgid "Mode Restriction"
+msgstr ""
+
+msgid "Key Authority / ElGamal Key Manager"
+msgstr ""
+
+msgid "Voting Platform"
+msgstr ""
+
+msgid "Tallying and Certification Platform"
+msgstr ""
+
+msgid "Submit your encrypted vote? This cannot be undone."
+msgstr ""
+
+msgid "Starting chunked key generation…"
+msgstr ""
+
+msgid "Key generation request failed."
+msgstr ""
+
+msgid "Key generation cancelled."
+msgstr ""
+
+msgid "%d candidates tested"
+msgstr ""
+
+msgid "Key generation at %d bits uses chunked AJAX (≤25s per step) and may take several minutes."
+msgstr ""
+
+msgid "JavaScript failed to start key generation. Hard-refresh this page (Ctrl/Cmd+Shift+R) and try again."
+msgstr ""
+
+msgid "Voting is not available on this site."
+msgstr ""
+
+msgid "Invalid decimal string for big integer."
+msgstr ""
+
+msgid "Big integer must be positive."
+msgstr ""
+
+msgid "Big integer out of allowed range."
+msgstr ""
+
+msgid "Modular inverse does not exist."
+msgstr ""
+
+msgid "Count must be non-negative."
+msgstr ""
+
+msgid "Encoded count not found within bounded range [0, %d]."
+msgstr ""
+
+msgid "Random byte length must be positive."
+msgstr ""
+
+msgid "Failed to generate secure random bytes."
+msgstr ""
+
+msgid "Invalid random range: min exceeds max."
+msgstr ""
+
+msgid "Failed to generate random integer within range."
+msgstr ""
+
+msgid "Modulus must be at least 2."
+msgstr ""
+
+msgid "Failed to generate non-zero random modulo value."
+msgstr ""
+
+msgid "GMP Extension"
+msgstr ""
+
+msgid "GMP extension is loaded."
+msgstr ""
+
+msgid "GMP extension is not available."
+msgstr ""
+
+msgid "ElGamal Key Generation"
+msgstr ""
+
+msgid "Skipped: GMP not available."
+msgstr ""
+
+msgid "g^q mod p != 1"
+msgstr ""
+
+msgid "y != g^x mod p"
+msgstr ""
+
+msgid "512-bit development key generated and validated."
+msgstr ""
+
+msgid "Encrypt/Decrypt"
+msgstr ""
+
+msgid "Decrypted value does not match original."
+msgstr ""
+
+msgid "Encrypt/decrypt round trip successful."
+msgstr ""
+
+msgid "Homomorphic Aggregation"
+msgstr ""
+
+msgid "Expected count 2, got %d."
+msgstr ""
+
+msgid "Votes [1,1,0] aggregated to count 2."
+msgstr ""
+
+msgid "Shamir Secret Sharing"
+msgstr ""
+
+msgid "Reconstructed secret does not match original."
+msgstr ""
+
+msgid "Reconstruction with 2 shares should have failed."
+msgstr ""
+
+msgid "t=3 n=5 Shamir split/reconstruct validated."
+msgstr ""
+
+msgid "Mini Election Simulation"
+msgstr ""
+
+msgid "Reconstructed x failed g^x mod p == y validation."
+msgstr ""
+
+msgid "Expected 3 yes votes, got %d."
+msgstr ""
+
+msgid "Full mini election with Shamir threshold decryption passed."
+msgstr ""
+
+msgid "Deterministic RNG seed too short."
+msgstr ""
+
+msgid "Invalid hex seed."
+msgstr ""
+
+msgid "Failed to generate deterministic random integer."
+msgstr ""
+
+msgid "Bit length must be at least 2."
+msgstr ""
+
+msgid "ElGamal key size must be at least 512 bits."
+msgstr ""
+
+msgid "Message must be in range [1, p-1]."
+msgstr ""
+
+msgid "Cannot aggregate empty ciphertext set."
+msgstr ""
+
+msgid "Invalid ciphertext in aggregation."
+msgstr ""
+
+msgid "Generator validation failed: g^q mod p != 1."
+msgstr ""
+
+msgid "Public key y must not be 1."
+msgstr ""
+
+msgid "Public key validation failed: y^q mod p != 1."
+msgstr ""
+
+msgid "Public key does not match private exponent."
+msgstr ""
+
+msgid "Safe prime relationship p = 2q + 1 failed."
+msgstr ""
+
+msgid "Prime bit length must be at least 2."
+msgstr ""
+
+msgid "Failed to generate probable prime."
+msgstr ""
+
+msgid "Safe prime bit length must be at least 3."
+msgstr ""
+
+msgid "Failed to generate safe prime."
+msgstr ""
+
+msgid "Failed to find subgroup generator."
+msgstr ""
+
+msgid "Failed to generate prime greater than secret."
+msgstr ""
+
+msgid "At least 2 shares required for reconstruction."
+msgstr ""
+
+msgid "Missing required share field: %s"
+msgstr ""
+
+msgid "Invalid Shamir share scheme."
+msgstr ""
+
+msgid "Invalid public key in share payload."
+msgstr ""
+
+msgid "Incomplete public key in share payload."
+msgstr ""
+
+msgid "Share checksum validation failed."
+msgstr ""
+
+msgid "Shamir threshold must be at least 2."
+msgstr ""
+
+msgid "Total shares must be >= threshold."
+msgstr ""
+
+msgid "Secret must be positive."
+msgstr ""
+
+msgid "Field prime must be greater than secret."
+msgstr ""
+
+msgid "Field prime must be greater than total shares."
+msgstr ""
+
+msgid "Field prime must be a probable prime."
+msgstr ""
+
+msgid "Invalid share structure."
+msgstr ""
+
+msgid "Share index must be positive."
+msgstr ""
+
+msgid "Duplicate share index detected."
+msgstr ""
+
+msgid "Insufficient shares: %1$d provided, %2$d required."
+msgstr ""
+
+msgid "Failed to create CSV."
+msgstr ""
+
+msgid "ZIP export requires the ZipArchive PHP extension."
+msgstr ""
+
+msgid "ZIP Unavailable"
+msgstr ""
+
+msgid "Failed to create temporary file."
+msgstr ""
+
+msgid "Failed to create ZIP archive."
+msgstr ""
+
+msgid "GMP extension required."
+msgstr ""
+
+msgid "A key generation job is already running. Cancel it first or wait for completion."
+msgstr ""
+
+msgid "ElGamal Key"
+msgstr ""
+
+msgid "Permission denied."
+msgstr ""
+
+msgid "Not available in this mode."
+msgstr ""
+
+msgid "Invalid JSON import data."
+msgstr ""
+
+msgid "Imported Public Key"
+msgstr ""
+
+msgid "Full private export is disabled."
+msgstr ""
+
+msgid "Full export requires explicit confirmation."
+msgstr ""
+
+msgid "ElGamal Key Manager"
+msgstr ""
+
+msgid "Generate keys, assign Shamir shares to Editors, import public parameters, and export packages for Voting / Tallying sites."
+msgstr ""
+
+msgid "Key generated and Shamir shares assigned (when officials were selected)."
+msgstr ""
+
+msgid "Mode locked. Generate an ElGamal key below."
+msgstr ""
+
+msgid "Private keys are split into Shamir Secret Sharing shares immediately. Full private keys are not persisted by default."
+msgstr ""
+
+msgid "No editor accounts found. Create WordPress users with the Editor role before assigning Shamir shares."
+msgstr ""
+
+msgid "Generate"
+msgstr ""
+
+msgid "New ElGamal key & share assignment"
+msgstr ""
+
+msgid "Chunked AJAX generation (≤25s per step) with a live progress bar so PHP time limits are not exceeded."
+msgstr ""
+
+msgid "Preparing…"
+msgstr ""
+
+msgid "Cancel"
+msgstr ""
+
+msgid "Key Label"
+msgstr ""
+
+msgid "Key Size (bits)"
+msgstr ""
+
+msgid "512 (local testing only)"
+msgstr ""
+
+msgid "1024 (development)"
+msgstr ""
+
+msgid "2048 (recommended minimum)"
+msgstr ""
+
+msgid "3072 (stronger — chunked)"
+msgstr ""
+
+msgid "4096 (strongest — chunked)"
+msgstr ""
+
+msgid "After you click Generate, a progress bar appears above this form."
+msgstr ""
+
+msgid "Shamir Threshold (t)"
+msgstr ""
+
+msgid "Total shares (n) is set automatically from the number of officials you select."
+msgstr ""
+
+msgid "Assign Officials"
+msgstr ""
+
+msgid "No officials available."
+msgstr ""
+
+msgid "Description"
+msgstr ""
+
+msgid "Media Attachment ID"
+msgstr ""
+
+msgid "Generate Key & Assign Shares"
+msgstr ""
+
+msgid "Import"
+msgstr ""
+
+msgid "Import public key"
+msgstr ""
+
+msgid "Paste a public-key.json export from another Key Authority site, or a package that includes a public_key object."
+msgstr ""
+
+msgid "Label"
+msgstr ""
+
+msgid "Public Key JSON"
+msgstr ""
+
+msgid "Import Key"
+msgstr ""
+
+msgid "Export"
+msgstr ""
+
+msgid "Key cards & exports"
+msgstr ""
+
+msgid "Export public ZIP/JSON packages for Voting sites, or your own Shamir share if one is assigned to this account."
+msgstr ""
+
+msgid "No keys generated yet."
+msgstr ""
+
+msgid "View, copy, and download the share assigned to your Editor account. Keep it offline for Tallying."
+msgstr ""
+
+msgid "Store your share offline and keep it confidential. You will paste this same JSON on the Tallying site when submitting your share. Never share it with other officials."
+msgstr ""
+
+msgid "Assigned share"
+msgstr ""
+
+msgid "Your share index: %d"
+msgstr ""
+
+msgid "Your share JSON (view / copy)"
+msgstr ""
+
+msgid "Copied!"
+msgstr ""
+
+msgid "Copy Share JSON"
+msgstr ""
+
+msgid "Download Share JSON"
+msgstr ""
+
+msgid "Download Share ZIP"
+msgstr ""
+
+msgid "Download Public Key JSON"
+msgstr ""
+
+msgid "Unable to decrypt your stored share for display. Try downloading the ZIP export, or contact the election administrator."
+msgstr ""
+
+msgid "No Shamir shares are assigned to your account yet. Ask the election administrator to generate a key and assign you as an official."
+msgstr ""
+
+msgid "%d-bit ElGamal"
+msgstr ""
+
+msgid "Private persisted"
+msgstr ""
+
+msgid "Shamir shares only"
+msgstr ""
+
+msgid "Key Size"
+msgstr ""
+
+msgid "Shamir Threshold"
+msgstr ""
+
+msgid "Assigned Officials"
+msgstr ""
+
+msgid "None"
+msgstr ""
+
+msgid "Attachments"
+msgstr ""
+
+msgid "Attachment #%d"
+msgstr ""
+
+msgid "Created"
+msgstr ""
+
+msgid "Export ZIP"
+msgstr ""
+
+msgid "Export Public JSON"
+msgstr ""
+
+msgid "Export My Share"
+msgstr ""
+
+msgid "WARNING: This exports the full private key. Continue?"
+msgstr ""
+
+msgid "Full Export (Admin)"
+msgstr ""
+
+msgid "Trash"
+msgstr ""
+
+msgid "Key not found."
+msgstr ""
+
+msgid "Only election officials may export their Shamir share."
+msgstr ""
+
+msgid "Permission Denied"
+msgstr ""
+
+msgid "No Shamir share is assigned to your account for this key."
+msgstr ""
+
+msgid "Stored share payload is invalid."
+msgstr ""
+
+msgid "RelataSoft Secure Election Suite - Key Export Package"
+msgstr ""
+
+msgid "Starting safe prime search…"
+msgstr ""
+
+msgid "Key generation job not found."
+msgstr ""
+
+msgid "Unknown key generation stage."
+msgstr ""
+
+msgid "Searching for a safe prime (attempt %d)…"
+msgstr ""
+
+msgid "Safe prime found. Selecting generator…"
+msgstr ""
+
+msgid "Generator selected. Creating key pair…"
+msgstr ""
+
+msgid "Key pair created. Saving public parameters…"
+msgstr ""
+
+msgid "Public parameters saved. Splitting trustee shares…"
+msgstr ""
+
+msgid "Key generation complete. Shamir shares assigned to officials."
+msgstr ""
+
+msgid "Key generation complete. No officials selected — public key saved without Shamir shares."
+msgstr ""
+
+msgid "Missing required field: %s"
+msgstr ""
+
+msgid "Number of officials must equal total shares."
+msgstr ""
+
+msgid "Hash mismatch at entry %d"
+msgstr ""
+
+msgid "Chain break at entry %d"
+msgstr ""
+
+msgid "Only users with the Administrator role may perform this action."
+msgstr ""
+
+msgid "Only users with the Administrator role may import tallies, decrypt results, or certify an election. Election officials may submit Shamir shares only."
+msgstr ""
+
+msgid "Only users with the Editor role (election officials) may receive or submit Shamir shares. Administrators who were assigned a share may also access their own share."
+msgstr ""
+
+msgid "Only users enrolled with the Subscriber role may cast a ballot. Administrator and Editor accounts cannot vote unless they also have the Subscriber role."
+msgstr ""
+
+msgid "Security check failed. Please try again."
+msgstr ""
+
+msgid "Invalid Nonce"
+msgstr ""
+
+msgid "RelataSoft Secure Election Suite - Certification Report"
+msgstr ""
+
+msgid "Election:"
+msgstr ""
+
+msgid "Round:"
+msgstr ""
+
+msgid "Status:"
+msgstr ""
+
+msgid "Certified at:"
+msgstr ""
+
+msgid "Public key hash:"
+msgstr ""
+
+msgid "Decrypted result hash:"
+msgstr ""
+
+msgid "Ballot count:"
+msgstr ""
+
+msgid "Threshold:"
+msgstr ""
+
+msgid "RelataSoft Secure Election Suite - Certification Export"
+msgstr ""
+
+msgid "Certification Report"
+msgstr ""
+
+msgid "No decryption results available. Run decryption first."
+msgstr ""
+
+msgid "Certification report not found."
+msgstr ""
+
+msgid "Invalid share JSON."
+msgstr ""
+
+msgid "Share index already submitted."
+msgstr ""
+
+msgid "Only users with the Administrator role may decrypt tallies."
+msgstr ""
+
+msgid "Import not found or not verified."
+msgstr ""
+
+msgid "Insufficient shares: %1$d of %2$d required."
+msgstr ""
+
+msgid "Invalid share payload."
+msgstr ""
+
+msgid "Share public key mismatch."
+msgstr ""
+
+msgid "Reconstructed key failed validation."
+msgstr ""
+
+msgid "Tally decrypted successfully."
+msgstr ""
+
+msgid "No file uploaded."
+msgstr ""
+
+msgid "Unsupported file format. Use ZIP or JSON."
+msgstr ""
+
+msgid "Failed to parse import file."
+msgstr ""
+
+msgid "ZIP import requires ZipArchive."
+msgstr ""
+
+msgid "Missing public key field: %s"
+msgstr ""
+
+msgid "No encrypted votes or tallies found."
+msgstr ""
+
+msgid "Invalid ciphertext at tally index %d"
+msgstr ""
+
+msgid "Tallying"
+msgstr ""
+
+msgid "Import sealed voting packages (ZIP or JSON) from the Voting site to begin share collection and decryption."
+msgstr ""
+
+msgid "Voting package imported successfully."
+msgstr ""
+
+msgid "Upload"
+msgstr ""
+
+msgid "Import voting export"
+msgstr ""
+
+msgid "Accepts the ZIP/JSON produced by Voting Export after a round is closed."
+msgstr ""
+
+msgid "Voting Export (ZIP or JSON)"
+msgstr ""
+
+msgid "Library"
+msgstr ""
+
+msgid "Imports"
+msgstr ""
+
+msgid "Verified packages appear on Share Submission for officials."
+msgstr ""
+
+msgid "No imports yet."
+msgstr ""
+
+msgid "Source"
+msgstr ""
+
+msgid "Status"
+msgstr ""
+
+msgid "Imported"
+msgstr ""
+
+msgid "Official Share Submission"
+msgstr ""
+
+msgid "Paste the share JSON from Key Authority. Each Editor submits independently; only an Administrator can decrypt after the threshold is met."
+msgstr ""
+
+msgid "Your Shamir share was submitted successfully."
+msgstr ""
+
+msgid "Use the same share JSON you copied or downloaded under My Shamir Shares on the Key Authority site. Never paste another official’s share."
+msgstr ""
+
+msgid "Threshold progress"
+msgstr ""
+
+msgid "Your Share JSON"
+msgstr ""
+
+msgid "Submit Share"
+msgstr ""
+
+msgid "Decrypt Tally (Threshold Met)"
+msgstr ""
+
+msgid "Threshold met. An Administrator must run tally decryption and certification."
+msgstr ""
+
+msgid "No verified imports yet. Ask an Administrator to import a voting package first."
+msgstr ""
+
+msgid "Review decrypted tallies, generate certification records, and export ZIP or PDF packages."
+msgstr ""
+
+msgid "Tally decrypted successfully. Review results below and generate certification."
+msgstr ""
+
+msgid "Decrypted Results"
+msgstr ""
+
 msgid "Generate Certification"
 msgstr ""
 
-#: includes/Admin/AdminMenu.php
-msgid "This plugin is engineered toward production-grade use, but cryptography has not been independently reviewed for binding public elections."
+msgid "Export PDF"
+msgstr ""
+
+msgid "Awaiting threshold share submissions and decryption."
+msgstr ""
+
+msgid "No verified imports yet. Import a voting package first, then collect official shares."
+msgstr ""
+
+msgid "You must be logged in to vote."
+msgstr ""
+
+msgid "Voting is not currently open."
+msgstr ""
+
+msgid "No ballot questions configured."
+msgstr ""
+
+msgid "Secure voting booth"
+msgstr ""
+
+msgid "Cast your encrypted ballot"
+msgstr ""
+
+msgid "Select your choices below. Your ballot is encrypted on the server; plaintext selections are never stored."
+msgstr ""
+
+msgid "Enter a number"
+msgstr ""
+
+msgid "Review your selections before submitting. Your vote cannot be changed after casting."
+msgstr ""
+
+msgid "Cast Encrypted Vote"
+msgstr ""
+
+msgid "Election title is required."
+msgstr ""
+
+msgid "A valid imported public key is required."
+msgstr ""
+
+msgid "Initial Round"
+msgstr ""
+
+msgid "Vote casting identity mismatch."
+msgstr ""
+
+msgid "Only users enrolled with the Subscriber role may cast a ballot."
+msgstr ""
+
+msgid "Invalid election round."
+msgstr ""
+
+msgid "Voting is not open for this round."
+msgstr ""
+
+msgid "Election public key not found."
+msgstr ""
+
+msgid "You have already voted on this ballot."
+msgstr ""
+
+msgid "Invalid number of selections."
+msgstr ""
+
+msgid "Election not found."
+msgstr ""
+
+msgid "RelataSoft Secure Election Suite - Voting Export Package"
+msgstr ""
+
+msgid "Election Management"
+msgstr ""
+
+msgid "Create elections, build ballots, open voting, and prepare exports for the Tallying site."
+msgstr ""
+
+msgid "Voting mode locked. Import a public key first, then create an election."
+msgstr ""
+
+msgid "No public keys imported yet."
+msgstr ""
+
+msgid "Import a public key"
+msgstr ""
+
+msgid "before creating an election."
+msgstr ""
+
+msgid "Create"
+msgstr ""
+
+msgid "New election"
+msgstr ""
+
+msgid "Choose a voting method and bind the election to an imported ElGamal public key."
+msgstr ""
+
+msgid "Title"
+msgstr ""
+
+msgid "Voting Method"
+msgstr ""
+
+msgid "Yes / No"
+msgstr ""
+
+msgid "Single Choice"
+msgstr ""
+
+msgid "Multiple Choice"
+msgstr ""
+
+msgid "Ranked Choice"
+msgstr ""
+
+msgid "Numeric"
+msgstr ""
+
+msgid "First Past the Post"
+msgstr ""
+
+msgid "List Voting"
+msgstr ""
+
+msgid "Single Candidate"
+msgstr ""
+
+msgid "Custom"
+msgstr ""
+
+msgid "Public Key"
+msgstr ""
+
+msgid "Select imported public key…"
+msgstr ""
+
+msgid "Create Election"
+msgstr ""
+
+msgid "Open an election to build its ballot, publish shortcodes, and control voting windows."
+msgstr ""
+
+msgid "No elections yet."
+msgstr ""
+
+msgid "Actions"
+msgstr ""
+
+msgid "Edit"
+msgstr ""
+
+msgid "Import the public key JSON exported from the Key Authority site. Only public components (p, q, g, y) are stored here."
+msgstr ""
+
+msgid "Public key imported successfully."
+msgstr ""
+
+msgid "Add public key"
+msgstr ""
+
+msgid "Paste a public-key.json export or a package that includes a public_key object."
+msgstr ""
+
+msgid "Import Public Key"
+msgstr ""
+
+msgid "Imported keys"
+msgstr ""
+
+msgid "These keys are available when creating elections."
+msgstr ""
+
+msgid "No public keys imported."
+msgstr ""
+
+msgid "Size"
+msgstr ""
+
+msgid "Election editor"
+msgstr ""
+
+msgid "Back to elections"
+msgstr ""
+
+msgid "Publish"
+msgstr ""
+
+msgid "Voting booth shortcode"
+msgstr ""
+
+msgid "Public key ID: %s — paste the booth shortcode on a WordPress page once voting is open."
+msgstr ""
+
+msgid "Copy"
+msgstr ""
+
+msgid "Open Shortcode Generator"
+msgstr ""
+
+msgid "Control"
+msgstr ""
+
+msgid "Voting window"
+msgstr ""
+
+msgid "Open voting when the ballot is ready. Close & tally seals the round for export."
+msgstr ""
+
+msgid "Open Voting"
+msgstr ""
+
+msgid "Close & Tally"
+msgstr ""
+
+msgid "Ballot"
+msgstr ""
+
+msgid "Ballot builder"
+msgstr ""
+
+msgid "Add questions and options. Voters will see these as choice cards on the booth."
+msgstr ""
+
+msgid "Question Title"
+msgstr ""
+
+msgid "Question Type"
+msgstr ""
+
+msgid "Options"
+msgstr ""
+
+msgid "Option label"
+msgstr ""
+
+msgid "Add Question"
+msgstr ""
+
+msgid "Preview"
+msgstr ""
+
+msgid "Current ballot"
+msgstr ""
+
+msgid "Questions already attached to this round."
+msgstr ""
+
+msgid "No questions yet. Add one above."
+msgstr ""
+
+msgid "Copy a shortcode and paste it into any WordPress page or post. Only Subscriber-role voters may cast a ballot."
+msgstr ""
+
+msgid "Create and open an election, copy the booth shortcode, publish a page, then share the URL with voters."
+msgstr ""
+
+msgid "Create and open an election under Elections."
+msgstr ""
+
+msgid "Copy the voting booth shortcode for that round."
+msgstr ""
+
+msgid "Create a page (e.g. “Vote”) and paste the shortcode."
+msgstr ""
+
+msgid "Publish the page and share the URL with voters."
+msgstr ""
+
+msgid "Reference"
+msgstr ""
+
+msgid "Available shortcodes"
+msgstr ""
+
+msgid "Each shortcode accepts election_id / round_id attributes as shown below."
+msgstr ""
+
+msgid "Shortcode"
+msgstr ""
+
+msgid "Purpose"
+msgstr ""
+
+msgid "Full encrypted ballot for logged-in voters. Requires election_id and round_id."
+msgstr ""
+
+msgid "Shows the voter’s receipt hash after casting (no plaintext choices)."
+msgstr ""
+
+msgid "Displays election title and status (draft / open / closed)."
+msgstr ""
+
+msgid "Shortcodes by election"
+msgstr ""
+
+msgid "Ready-to-copy shortcodes for every round."
+msgstr ""
+
+msgid "Create an election first."
+msgstr ""
+
+msgid "Voting booth (place on a public page)"
+msgstr ""
+
+msgid "Voter receipt"
+msgstr ""
+
+msgid "Election status"
+msgstr ""
+
+msgid "Edit election"
+msgstr ""
+
+msgid "Create new page"
+msgstr ""
+
+msgid "Download sealed ballot packages for import on the Tallying site."
+msgstr ""
+
+msgid "Packages"
+msgstr ""
+
+msgid "Exports by round"
+msgstr ""
+
+msgid "ZIP includes ciphertext ballots and public parameters; JSON is a single-file alternative."
+msgstr ""
+
+msgid "No elections to export yet."
+msgstr ""
+
+msgid "Election"
+msgstr ""
+
+msgid "Please log in to vote."
+msgstr ""
+
+msgid "Only users enrolled with the Subscriber role may cast a ballot. Sign in with a Subscriber account (Administrator and Editor accounts are not eligible unless they also have the Subscriber role)."
+msgstr ""
+
+msgid "Election not specified."
+msgstr ""
+
+msgid "Please log in to view your receipt."
+msgstr ""
+
+msgid "No vote receipt found."
+msgstr ""
+
+msgid "Vote receipt"
+msgstr ""
+
+msgid "Your encrypted ballot was recorded"
+msgstr ""
+
+msgid "Vote cast successfully. Keep this receipt hash for your records."
+msgstr ""
+
+msgid "Your ballot is already on file. This is your receipt hash — it does not reveal your choices."
+msgstr ""
+
+msgid "Receipt hash"
+msgstr ""
+
+msgid "Copy receipt"
 msgstr ""

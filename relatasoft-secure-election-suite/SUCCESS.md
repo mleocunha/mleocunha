@@ -1,7 +1,7 @@
 # RelataSoft Secure Election Suite — Success Status
 
 **Status:** End-to-end flow verified successful (as of 2026-07-28)  
-**Plugin version:** `1.0.7`  
+**Plugin version:** `1.0.8`  
 **Branch:** `cursor/secure-election-suite-2eb1`  
 **PR:** https://github.com/mleocunha/mleocunha/pull/6  
 **Slug / namespace / prefix:** `relatasoft-secure-election-suite` / `RelataSoft\SecureElectionSuite` / `rses_`  
@@ -125,7 +125,15 @@ Constants in `Capability.php`: `RSES_VOTER_ROLE`, `RSES_OFFICIAL_ROLE`, `RSES_AD
 - Handlers registered from `Plugin::run()` (admin-post works)
 - Nonce fields actually echoed
 - Audit hash chain canonicalization + repair action
-- Asset version `1.0.7` for cache busting
+- Asset version `1.0.8` for cache busting
+
+### Internationalization (v1.0.8)
+
+- Text domain: `relatasoft-secure-election-suite`
+- UI locales: **pt_BR, pt_PT, fr_FR, es_ES, de_DE, nl_NL, ru_RU, zh_CN, ar, he_IL, ca** (+ English source)
+- Resolution order: **browser `Accept-Language` → WordPress user locale → site/blog locale**
+- Catalogs: `languages/catalogs/*.json` via `I18n\Translator` gettext filters
+- RTL: Arabic / Hebrew (`dir="rtl"`, body class `rses-rtl`)
 
 ---
 
@@ -135,17 +143,22 @@ Constants in `Capability.php`: `RSES_VOTER_ROLE`, `RSES_OFFICIAL_ROLE`, `RSES_AD
 relatasoft-secure-election-suite/
   relatosoft-secure-election-suite.php          # bootstrap, RSES_VERSION
   includes/Bootstrap/Plugin.php                 # hooks, asset enqueue
+  includes/I18n/LocaleResolver.php              # browser → user → site locale
+  includes/I18n/Translator.php                  # JSON catalogs + gettext filters
   includes/Security/Capability.php              # role gates
   includes/KeyAuthority/                        # keys, shares, chunked keygen
   includes/Voting/                              # elections, cast, export
   includes/Tallying/                            # import, shares, decrypt, certify
   includes/Admin/AdminMenu.php                  # menus by mode/role
+  languages/catalogs/                           # UI translation JSON
+  languages/strings-en.json                     # extracted English msgids
   assets/css/admin.css                          # Key Authority / admin RelataSoft UI
   assets/css/voting-front.css                   # booth + receipt frontend UI
   assets/js/key-authority.js                    # keygen AJAX UI
   assets/js/admin.js                            # copy share / shortcode helpers
   tests/crypto-acceptance.php
   tests/keygen-checkpoint-acceptance.php
+  tests/locale-resolution-acceptance.php
   SUCCESS.md                                    # this file
 ```
 
@@ -175,7 +188,7 @@ Use this list only as optional backlog after context reset; none of these block 
 - Independent crypto review / threat model documentation
 - Stronger share–submitter binding across Key Authority → Tallying sites
 - Rate limiting / lockout around cast and share submit
-- UI polish for Mode Setup / dashboard cards; i18n completeness; accessibility
+- UI polish for Mode Setup / dashboard cards; i18n review passes; accessibility
 - Automated WordPress integration tests (role matrix)
 - Production hardening checklist (HTTPS, salts, backup of share custody procedure)
 

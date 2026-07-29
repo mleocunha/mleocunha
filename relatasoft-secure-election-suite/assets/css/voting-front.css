@@ -426,3 +426,19 @@
 		animation: none;
 	}
 }
+
+/* RTL booth */
+.rses-booth[dir="rtl"] {
+	direction: rtl;
+	text-align: right;
+}
+
+.rses-booth[dir="rtl"] .rses-choice,
+.rses-booth[dir="rtl"] .rses-choice-face {
+	flex-direction: row-reverse;
+}
+
+.rses-booth[dir="rtl"] .rses-receipt-actions,
+.rses-booth[dir="rtl"] .rses-ballot-actions {
+	justify-content: flex-start;
+}

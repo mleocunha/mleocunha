@@ -11,6 +11,7 @@ use RelataSoft\SecureElectionSuite\Bootstrap\Plugin;
 use RelataSoft\SecureElectionSuite\Security\Capability;
 use RelataSoft\SecureElectionSuite\Security\Escaper;
 use RelataSoft\SecureElectionSuite\Security\Nonce;
+use RelataSoft\SecureElectionSuite\I18n\Translator;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -34,7 +35,7 @@ class KeyAuthorityViews {
 		$rses_officials = get_users( array( 'role__in' => array( 'editor', 'administrator' ) ) );
 		$rses_settings  = get_option( 'rses_settings', array() );
 		?>
-		<div class="wrap rses-wrap rses-ka">
+		<div class="wrap rses-wrap rses-ka" <?php echo Translator::rses_html_attrs(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
 			<header class="rses-ka-hero">
 				<p class="rses-ka-kicker"><?php esc_html_e( 'Key Authority', 'relatasoft-secure-election-suite' ); ?></p>
 				<h1 class="rses-ka-title"><?php esc_html_e( 'ElGamal Key Manager', 'relatasoft-secure-election-suite' ); ?></h1>
@@ -217,7 +218,7 @@ class KeyAuthorityViews {
 		$rses_user_id = get_current_user_id();
 		$rses_keys    = KeyRepository::rses_list_active();
 		?>
-		<div class="wrap rses-wrap rses-ka">
+		<div class="wrap rses-wrap rses-ka" <?php echo Translator::rses_html_attrs(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
 			<header class="rses-ka-hero">
 				<p class="rses-ka-kicker"><?php esc_html_e( 'Key Authority', 'relatasoft-secure-election-suite' ); ?></p>
 				<h1 class="rses-ka-title"><?php esc_html_e( 'My Shamir Shares', 'relatasoft-secure-election-suite' ); ?></h1>

@@ -14,6 +14,7 @@ use RelataSoft\SecureElectionSuite\Security\Capability;
 use RelataSoft\SecureElectionSuite\Security\Nonce;
 use RelataSoft\SecureElectionSuite\Tallying\TallyingViews;
 use RelataSoft\SecureElectionSuite\Voting\VotingViews;
+use RelataSoft\SecureElectionSuite\I18n\Translator;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -194,7 +195,7 @@ class AdminMenu {
 
 		$rses_mode = ModeLock::rses_get_mode();
 		?>
-		<div class="wrap rses-wrap">
+		<div class="wrap rses-wrap" <?php echo Translator::rses_html_attrs(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
 			<h1><?php esc_html_e( 'RelataSoft Secure Election Suite', 'relatasoft-secure-election-suite' ); ?></h1>
 
 			<?php if ( ! empty( $_GET['rses_mode_set'] ) ) : // phpcs:ignore WordPress.Security.NonceVerification.Recommended ?>
@@ -334,7 +335,7 @@ class AdminMenu {
 			$rses_results = CryptoSelfTest::runAll();
 		}
 		?>
-		<div class="wrap rses-wrap">
+		<div class="wrap rses-wrap" <?php echo Translator::rses_html_attrs(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
 			<h1><?php esc_html_e( 'Crypto Self Test', 'relatasoft-secure-election-suite' ); ?></h1>
 			<p><?php esc_html_e( 'Run cryptographic self-tests to verify ElGamal, homomorphic tallying, and Shamir Secret Sharing implementations.', 'relatasoft-secure-election-suite' ); ?></p>
 

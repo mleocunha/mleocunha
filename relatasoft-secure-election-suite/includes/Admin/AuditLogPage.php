@@ -10,6 +10,7 @@ namespace RelataSoft\SecureElectionSuite\Admin;
 use RelataSoft\SecureElectionSuite\Security\AuditLogger;
 use RelataSoft\SecureElectionSuite\Security\Capability;
 use RelataSoft\SecureElectionSuite\Security\Nonce;
+use RelataSoft\SecureElectionSuite\I18n\Translator;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -34,7 +35,7 @@ class AuditLogPage {
 		$rses_entries = AuditLogger::rses_get_entries( 200 );
 		$rses_chain   = AuditLogger::rses_verify_chain();
 		?>
-		<div class="wrap rses-wrap">
+		<div class="wrap rses-wrap" <?php echo Translator::rses_html_attrs(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
 			<h1><?php esc_html_e( 'Audit Log', 'relatasoft-secure-election-suite' ); ?></h1>
 
 			<?php if ( ! empty( $_GET['rses_repaired'] ) ) : // phpcs:ignore WordPress.Security.NonceVerification.Recommended ?>

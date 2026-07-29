@@ -8,6 +8,7 @@
 namespace RelataSoft\SecureElectionSuite\Voting;
 
 use RelataSoft\SecureElectionSuite\Security\Nonce;
+use RelataSoft\SecureElectionSuite\I18n\Translator;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -27,19 +28,19 @@ class BallotRenderer {
 		$rses_round = ElectionRepository::rses_get_round( $round_id );
 
 		if ( ! $rses_round || 'open' !== $rses_round->status ) {
-			return '<div class="rses-booth"><div class="rses-message rses-message-warning">' . esc_html__( 'Voting is not currently open.', 'relatasoft-secure-election-suite' ) . '</div></div>';
+			return '<div class="rses-booth" ' . Translator::rses_html_attrs() . '><div class="rses-message rses-message-warning">' . esc_html__( 'Voting is not currently open.', 'relatasoft-secure-election-suite' ) . '</div></div>';
 		}
 
 		$rses_election  = ElectionRepository::rses_get( $election_id );
 		$rses_questions = ElectionRepository::rses_get_questions( $round_id );
 
 		if ( empty( $rses_questions ) ) {
-			return '<div class="rses-booth"><div class="rses-message rses-message-warning">' . esc_html__( 'No ballot questions configured.', 'relatasoft-secure-election-suite' ) . '</div></div>';
+			return '<div class="rses-booth" ' . Translator::rses_html_attrs() . '><div class="rses-message rses-message-warning">' . esc_html__( 'No ballot questions configured.', 'relatasoft-secure-election-suite' ) . '</div></div>';
 		}
 
 		ob_start();
 		?>
-		<div class="rses-booth rses-booth-ballot" data-rses-booth="ballot">
+		<div class="rses-booth rses-booth-ballot" data-rses-booth="ballot" <?php echo Translator::rses_html_attrs(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
 			<header class="rses-booth-header">
 				<p class="rses-booth-kicker"><?php esc_html_e( 'Secure voting booth', 'relatasoft-secure-election-suite' ); ?></p>
 				<?php if ( $rses_election ) : ?>

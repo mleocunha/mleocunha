@@ -12,6 +12,7 @@ use RelataSoft\SecureElectionSuite\Security\Capability;
 use RelataSoft\SecureElectionSuite\Security\Escaper;
 use RelataSoft\SecureElectionSuite\Security\Nonce;
 use RelataSoft\SecureElectionSuite\Security\Sanitizer;
+use RelataSoft\SecureElectionSuite\I18n\Translator;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -37,7 +38,7 @@ class ModeSetupPage {
 		$rses_locked = ModeLock::rses_is_locked();
 		$rses_mode   = ModeLock::rses_get_mode();
 		?>
-		<div class="wrap rses-wrap">
+		<div class="wrap rses-wrap" <?php echo Translator::rses_html_attrs(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
 			<h1><?php esc_html_e( 'Mode Setup', 'relatasoft-secure-election-suite' ); ?></h1>
 
 			<div class="rses-notice rses-notice-warning">

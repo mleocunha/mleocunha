@@ -14,6 +14,8 @@ use RelataSoft\SecureElectionSuite\Admin\Notices;
 use RelataSoft\SecureElectionSuite\Admin\SettingsPage;
 use RelataSoft\SecureElectionSuite\Ajax\AjaxRouter;
 use RelataSoft\SecureElectionSuite\Database\Migration;
+use RelataSoft\SecureElectionSuite\I18n\LocaleResolver;
+use RelataSoft\SecureElectionSuite\I18n\Translator;
 use RelataSoft\SecureElectionSuite\KeyAuthority\KeyAuthorityController;
 use RelataSoft\SecureElectionSuite\Tallying\CertificationService;
 use RelataSoft\SecureElectionSuite\Tallying\OfficialShareSubmissionController;
@@ -51,7 +53,7 @@ class Plugin {
 	 * Run the plugin.
 	 */
 	public function run(): void {
-		add_action( 'plugins_loaded', array( $this, 'rses_load_textdomain' ) );
+		Translator::rses_register();
 		add_action( 'init', array( $this, 'rses_init' ) );
 		add_action( 'admin_init', array( Migration::class, 'rses_maybe_migrate' ) );
 
@@ -78,17 +80,6 @@ class Plugin {
 
 		add_action( 'wp_enqueue_scripts', array( $this, 'rses_enqueue_frontend_assets' ) );
 		add_action( 'admin_enqueue_scripts', array( $this, 'rses_enqueue_admin_assets' ) );
-	}
-
-	/**
-	 * Load plugin text domain.
-	 */
-	public function rses_load_textdomain(): void {
-		load_plugin_textdomain(
-			'relatasoft-secure-election-suite',
-			false,
-			dirname( RSES_PLUGIN_BASENAME ) . '/languages'
-		);
 	}
 
 	/**
@@ -127,6 +118,8 @@ class Plugin {
 			array(
 				'ajaxUrl' => admin_url( 'admin-ajax.php' ),
 				'nonce'   => wp_create_nonce( 'rses_vote_cast' ),
+				'locale'  => LocaleResolver::rses_resolve(),
+				'dir'     => Translator::rses_dir_attr(),
 				'i18n'    => array(
 					'confirm' => __( 'Submit your encrypted vote? This cannot be undone.', 'relatasoft-secure-election-suite' ),
 				),
@@ -205,6 +198,8 @@ class Plugin {
 				'ajaxUrl' => admin_url( 'admin-ajax.php' ),
 				'nonce'   => wp_create_nonce( 'rses_keygen' ),
 				'doneUrl' => admin_url( 'admin.php?page=rses-key-authority' ),
+				'locale'  => LocaleResolver::rses_resolve(),
+				'dir'     => Translator::rses_dir_attr(),
 				'i18n'    => array(
 					'starting'  => __( 'Starting chunked key generation…', 'relatasoft-secure-election-suite' ),
 					'error'     => __( 'Key generation request failed.', 'relatasoft-secure-election-suite' ),

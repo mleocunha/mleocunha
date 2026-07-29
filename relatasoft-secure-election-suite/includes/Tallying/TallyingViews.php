@@ -9,6 +9,7 @@ namespace RelataSoft\SecureElectionSuite\Tallying;
 
 use RelataSoft\SecureElectionSuite\Security\Capability;
 use RelataSoft\SecureElectionSuite\Security\Nonce;
+use RelataSoft\SecureElectionSuite\I18n\Translator;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -35,7 +36,7 @@ class TallyingViews {
 
 		$rses_imports = TallyImportRepository::rses_list();
 		?>
-		<div class="wrap rses-wrap rses-screen">
+		<div class="wrap rses-wrap rses-screen" <?php echo Translator::rses_html_attrs(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
 			<header class="rses-hero">
 				<p class="rses-hero-kicker"><?php esc_html_e( 'Tallying', 'relatasoft-secure-election-suite' ); ?></p>
 				<h1 class="rses-hero-title"><?php esc_html_e( 'Tally Import', 'relatasoft-secure-election-suite' ); ?></h1>
@@ -118,7 +119,7 @@ class TallyingViews {
 
 		$rses_imports = TallyImportRepository::rses_list();
 		?>
-		<div class="wrap rses-wrap rses-screen">
+		<div class="wrap rses-wrap rses-screen" <?php echo Translator::rses_html_attrs(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
 			<header class="rses-hero">
 				<p class="rses-hero-kicker"><?php esc_html_e( 'Tallying', 'relatasoft-secure-election-suite' ); ?></p>
 				<h1 class="rses-hero-title"><?php esc_html_e( 'Official Share Submission', 'relatasoft-secure-election-suite' ); ?></h1>
@@ -211,7 +212,7 @@ class TallyingViews {
 
 		$rses_imports = TallyImportRepository::rses_list();
 		?>
-		<div class="wrap rses-wrap rses-screen">
+		<div class="wrap rses-wrap rses-screen" <?php echo Translator::rses_html_attrs(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
 			<header class="rses-hero">
 				<p class="rses-hero-kicker"><?php esc_html_e( 'Tallying', 'relatasoft-secure-election-suite' ); ?></p>
 				<h1 class="rses-hero-title"><?php esc_html_e( 'Certification', 'relatasoft-secure-election-suite' ); ?></h1>
