@@ -107,8 +107,8 @@ class Plugin {
 		}
 
 		wp_enqueue_style(
-			'rses-admin',
-			RSES_PLUGIN_URL . 'assets/css/admin.css',
+			'rses-voting-front',
+			RSES_PLUGIN_URL . 'assets/css/voting-front.css',
 			array(),
 			RSES_VERSION
 		);
@@ -127,6 +127,9 @@ class Plugin {
 			array(
 				'ajaxUrl' => admin_url( 'admin-ajax.php' ),
 				'nonce'   => wp_create_nonce( 'rses_vote_cast' ),
+				'i18n'    => array(
+					'confirm' => __( 'Submit your encrypted vote? This cannot be undone.', 'relatasoft-secure-election-suite' ),
+				),
 			)
 		);
 	}

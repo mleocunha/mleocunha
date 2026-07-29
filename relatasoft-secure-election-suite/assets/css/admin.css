@@ -164,40 +164,6 @@
 	transition: width 0.3s ease;
 }
 
-.rses-ballot-form fieldset {
-	border: 1px solid #c3c4c7;
-	padding: 16px;
-	margin-bottom: 16px;
-	border-radius: 4px;
-}
-
-.rses-ballot-form label {
-	display: block;
-	margin: 6px 0;
-}
-
-.rses-receipt-notice,
-.rses-voter-receipt {
-	background: #edfaef;
-	border: 1px solid #00a32a;
-	padding: 16px;
-	margin: 16px 0;
-	border-radius: 4px;
-}
-
-.rses-voter-receipt code {
-	display: block;
-	word-break: break-all;
-	font-size: 13px;
-	margin-top: 8px;
-}
-
-.rses-login-required {
-	padding: 16px;
-	background: #fcf9e8;
-	border-left: 4px solid #dba617;
-}
-
 .rses-decrypted-results {
 	background: #f6f7f7;
 	padding: 12px;
@@ -211,9 +177,4 @@ textarea.rses-invalid {
 
 .rses-key-actions .button {
 	margin-right: 8px;
-}
-
-.rses-ballot-review-notice {
-	font-weight: 600;
-	color: #646970;
 }

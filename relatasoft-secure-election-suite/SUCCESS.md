@@ -1,7 +1,7 @@
 # RelataSoft Secure Election Suite — Success Status
 
 **Status:** End-to-end flow verified successful (as of 2026-07-28)  
-**Plugin version:** `1.0.4`  
+**Plugin version:** `1.0.5`  
 **Branch:** `cursor/secure-election-suite-2eb1`  
 **PR:** https://github.com/mleocunha/mleocunha/pull/6  
 **Slug / namespace / prefix:** `relatasoft-secure-election-suite` / `RelataSoft\SecureElectionSuite` / `rses_`  
@@ -109,6 +109,7 @@ Constants in `Capability.php`: `RSES_VOTER_ROLE`, `RSES_OFFICIAL_ROLE`, `RSES_AD
 - Shortcode generator admin page
 - Shortcodes: `[rses_voting_booth]`, `[rses_voter_receipt]`, `[rses_election_status]`
 - Successful cast returns a **receipt hash** (plaintext choices never stored)
+- Frontend booth + receipt restyled (v1.0.5) with TotalPoll-inspired choice cards / check selectors / receipt card — **logic unchanged**
 
 ### Tallying
 

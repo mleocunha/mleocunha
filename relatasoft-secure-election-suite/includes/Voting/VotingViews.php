@@ -495,17 +495,17 @@ class VotingViews {
 	 */
 	public static function rses_render_voting_booth( int $election_id, int $round_id ): void {
 		if ( ! is_user_logged_in() ) {
-			echo '<p class="rses-login-required">' . esc_html__( 'Please log in to vote.', 'relatasoft-secure-election-suite' ) . '</p>';
+			echo '<div class="rses-booth"><div class="rses-message rses-message-warning rses-login-required">' . esc_html__( 'Please log in to vote.', 'relatasoft-secure-election-suite' ) . '</div></div>';
 			return;
 		}
 
 		if ( ! Capability::rses_can_vote() ) {
-			echo '<p class="rses-vote-denied">' . esc_html__( 'Only users enrolled with the Subscriber role may cast a ballot. Sign in with a Subscriber account (Administrator and Editor accounts are not eligible unless they also have the Subscriber role).', 'relatasoft-secure-election-suite' ) . '</p>';
+			echo '<div class="rses-booth"><div class="rses-message rses-message-error rses-vote-denied">' . esc_html__( 'Only users enrolled with the Subscriber role may cast a ballot. Sign in with a Subscriber account (Administrator and Editor accounts are not eligible unless they also have the Subscriber role).', 'relatasoft-secure-election-suite' ) . '</div></div>';
 			return;
 		}
 
 		if ( ! $election_id || ! $round_id ) {
-			echo '<p>' . esc_html__( 'Election not specified.', 'relatasoft-secure-election-suite' ) . '</p>';
+			echo '<div class="rses-booth"><div class="rses-message rses-message-warning">' . esc_html__( 'Election not specified.', 'relatasoft-secure-election-suite' ) . '</div></div>';
 			return;
 		}
 
@@ -522,10 +522,17 @@ class VotingViews {
 			return;
 		}
 
+		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- BallotRenderer returns escaped HTML.
 		echo BallotRenderer::rses_render( $election_id, $round_id );
 
-		if ( isset( $_GET['rses_receipt'] ) ) {
-			echo '<div class="rses-receipt-notice"><p><strong>' . esc_html__( 'Vote cast successfully. Receipt:', 'relatasoft-secure-election-suite' ) . '</strong> <code>' . esc_html( sanitize_text_field( wp_unslash( $_GET['rses_receipt'] ) ) ) . '</code></p></div>';
+		if ( isset( $_GET['rses_receipt'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+			$rses_flash = sanitize_text_field( wp_unslash( $_GET['rses_receipt'] ) );
+			self::rses_render_receipt_card(
+				$election_id,
+				$round_id,
+				$rses_flash,
+				true
+			);
 		}
 	}
 
@@ -537,18 +544,66 @@ class VotingViews {
 	 */
 	public static function rses_render_voter_receipt( int $election_id, int $round_id ): void {
 		if ( ! is_user_logged_in() ) {
-			echo '<p>' . esc_html__( 'Please log in to view your receipt.', 'relatasoft-secure-election-suite' ) . '</p>';
+			echo '<div class="rses-booth"><div class="rses-message rses-message-warning">' . esc_html__( 'Please log in to view your receipt.', 'relatasoft-secure-election-suite' ) . '</div></div>';
 			return;
 		}
 
 		$rses_hash = EncryptedVoteRepository::rses_get_receipt_hash( get_current_user_id(), $round_id );
 
 		if ( ! $rses_hash ) {
-			echo '<p>' . esc_html__( 'No vote receipt found.', 'relatasoft-secure-election-suite' ) . '</p>';
+			echo '<div class="rses-booth"><div class="rses-message rses-message-info">' . esc_html__( 'No vote receipt found.', 'relatasoft-secure-election-suite' ) . '</div></div>';
 			return;
 		}
 
-		echo '<div class="rses-voter-receipt"><p><strong>' . esc_html__( 'Your Vote Receipt Hash:', 'relatasoft-secure-election-suite' ) . '</strong></p><code>' . esc_html( $rses_hash ) . '</code></div>';
+		self::rses_render_receipt_card( $election_id, $round_id, $rses_hash, false );
+	}
+
+	/**
+	 * Styled receipt card (booth aesthetic).
+	 *
+	 * @param int    $election_id Election ID.
+	 * @param int    $round_id    Round ID.
+	 * @param string $hash        Receipt hash.
+	 * @param bool   $just_cast   Whether this is the post-cast flash.
+	 */
+	private static function rses_render_receipt_card( int $election_id, int $round_id, string $hash, bool $just_cast ): void {
+		$rses_election = ElectionRepository::rses_get( $election_id );
+		$rses_id       = 'rses-receipt-hash-' . $round_id;
+		?>
+		<div class="rses-booth rses-booth-receipt" data-rses-booth="receipt">
+			<header class="rses-booth-header">
+				<p class="rses-booth-kicker"><?php esc_html_e( 'Vote receipt', 'relatasoft-secure-election-suite' ); ?></p>
+				<?php if ( $rses_election ) : ?>
+					<h2 class="rses-booth-title"><?php echo esc_html( $rses_election->title ); ?></h2>
+				<?php else : ?>
+					<h2 class="rses-booth-title"><?php esc_html_e( 'Your encrypted ballot was recorded', 'relatasoft-secure-election-suite' ); ?></h2>
+				<?php endif; ?>
+			</header>
+
+			<div class="rses-message rses-message-success">
+				<?php
+				echo $just_cast
+					? esc_html__( 'Vote cast successfully. Keep this receipt hash for your records.', 'relatasoft-secure-election-suite' )
+					: esc_html__( 'Your ballot is already on file. This is your receipt hash — it does not reveal your choices.', 'relatasoft-secure-election-suite' );
+				?>
+			</div>
+
+			<div class="rses-receipt-card">
+				<p class="rses-receipt-label"><?php esc_html_e( 'Receipt hash', 'relatasoft-secure-election-suite' ); ?></p>
+				<code class="rses-receipt-hash" id="<?php echo esc_attr( $rses_id ); ?>"><?php echo esc_html( $hash ); ?></code>
+				<p class="rses-receipt-actions">
+					<button
+						type="button"
+						class="rses-copy-receipt"
+						data-rses-target="<?php echo esc_attr( $rses_id ); ?>"
+						data-copied-label="<?php echo esc_attr__( 'Copied!', 'relatasoft-secure-election-suite' ); ?>"
+					>
+						<?php esc_html_e( 'Copy receipt', 'relatasoft-secure-election-suite' ); ?>
+					</button>
+				</p>
+			</div>
+		</div>
+		<?php
 	}
 
 	/**
