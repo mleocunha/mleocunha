@@ -537,5 +537,11 @@
   "No %1$s accounts found. Create WordPress users with the %1$s role before assigning Shamir shares.": "No %1$s accounts found. Create WordPress users with the %1$s role before assigning Shamir shares.",
   "View, copy, and download the share assigned to your %s account. Keep it offline for Tallying.": "View, copy, and download the share assigned to your %s account. Keep it offline for Tallying.",
   "Paste the share JSON from Key Authority. Each %s submits independently; only an Administrator can decrypt after the threshold is met.": "Paste the share JSON from Key Authority. Each %s submits independently; only an Administrator can decrypt after the threshold is met.",
-  "Editable by administrators, authors, and %s like any WordPress page.": "Editable by administrators, authors, and %s like any WordPress page."
+  "Editable by administrators, authors, and %s like any WordPress page.": "Editable by administrators, authors, and %s like any WordPress page.",
+  "Admin branding": "Admin branding",
+  "Logo shown in the top-left of Election Suite admin heroes. When unset, the RelataSoft lockup is used. Aspect ratio is always preserved.": "Logo shown in the top-left of Election Suite admin heroes. When unset, the RelataSoft lockup is used. Aspect ratio is always preserved.",
+  "Admin logo": "Admin logo",
+  "Use default RelataSoft logo": "Use default RelataSoft logo",
+  "Choose admin logo": "Choose admin logo",
+  "Tune branding, export, and custody options for this locked-mode installation.": "Tune branding, export, and custody options for this locked-mode installation."
 }

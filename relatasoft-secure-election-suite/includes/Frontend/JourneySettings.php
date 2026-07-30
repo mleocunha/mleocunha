@@ -30,6 +30,7 @@ class JourneySettings {
 		return array(
 			'allow_full_private_export' => false,
 			'login_logo_attachment_id'  => 0,
+			'admin_logo_attachment_id'  => 0,
 			'welcome_page_id'           => 0,
 			'booth_page_id'             => 0,
 			'thank_you_page_id'         => 0,

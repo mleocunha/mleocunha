@@ -537,5 +537,11 @@
   "No %1$s accounts found. Create WordPress users with the %1$s role before assigning Shamir shares.": "Nenhuma conta de %1$s encontrada. Crie utilizadores WordPress com a função %1$s antes de atribuir compartilhamentos Shamir.",
   "View, copy, and download the share assigned to your %s account. Keep it offline for Tallying.": "Visualize, copie e baixe o compartilhamento atribuído à sua conta de %s. Mantenha-o offline para a Apuração.",
   "Paste the share JSON from Key Authority. Each %s submits independently; only an Administrator can decrypt after the threshold is met.": "Cole o JSON do compartilhamento da Autoridade de Chaves. Cada %s envia de forma independente; somente um Administrador pode descriptografar após atingir o limiar.",
-  "Editable by administrators, authors, and %s like any WordPress page.": "Editável por administradores, autores e %s como qualquer página do WordPress."
+  "Editable by administrators, authors, and %s like any WordPress page.": "Editável por administradores, autores e %s como qualquer página do WordPress.",
+  "Admin branding": "Identidade visual administrativa",
+  "Logo shown in the top-left of Election Suite admin heroes. When unset, the RelataSoft lockup is used. Aspect ratio is always preserved.": "Logo exibido no canto superior esquerdo dos heróis administrativos do Election Suite. Sem logo personalizado, o lockup RelataSoft é usado. A proporção é sempre preservada.",
+  "Admin logo": "Logo administrativo",
+  "Use default RelataSoft logo": "Usar logo RelataSoft padrão",
+  "Choose admin logo": "Escolher logo administrativo",
+  "Tune branding, export, and custody options for this locked-mode installation.": "Ajuste identidade visual, exportação e custódia para esta instalação em modo travado."
 }

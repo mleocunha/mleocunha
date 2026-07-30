@@ -12,7 +12,6 @@ use RelataSoft\SecureElectionSuite\Security\AuditLogger;
 use RelataSoft\SecureElectionSuite\Security\Capability;
 use RelataSoft\SecureElectionSuite\Security\Nonce;
 use RelataSoft\SecureElectionSuite\I18n\Translator;
-use RelataSoft\SecureElectionSuite\Admin\Brand;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -34,23 +33,49 @@ class SettingsPage {
 	public static function rses_render(): void {
 		Capability::rses_require_admin();
 
-		$rses_settings = JourneySettings::rses_get();
+		$rses_settings   = JourneySettings::rses_get();
 		$rses_allow_full = ! empty( $rses_settings['allow_full_private_export'] );
+		$rses_logo_id    = absint( $rses_settings['admin_logo_attachment_id'] ?? 0 );
+		$rses_logo_url   = $rses_logo_id > 0 ? wp_get_attachment_image_url( $rses_logo_id, 'medium' ) : '';
+		$rses_default    = Brand::rses_asset_url( Brand::RSES_DEFAULT_LOCKUP );
 		?>
 		<div class="wrap rses-wrap rses-screen" <?php echo Translator::rses_html_attrs(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
 			<header class="rses-hero rses-hero--brand">
 				<?php Brand::rses_render_hero_brand(); ?>
 				<p class="rses-hero-kicker"><?php esc_html_e( 'Configuration', 'relatasoft-secure-election-suite' ); ?></p>
 				<h1 class="rses-hero-title"><?php esc_html_e( 'Election Suite Settings', 'relatasoft-secure-election-suite' ); ?></h1>
-				<p class="rses-hero-lead"><?php esc_html_e( 'Tune export and custody options for this locked-mode installation.', 'relatasoft-secure-election-suite' ); ?></p>
+				<p class="rses-hero-lead"><?php esc_html_e( 'Tune branding, export, and custody options for this locked-mode installation.', 'relatasoft-secure-election-suite' ); ?></p>
 			</header>
 
 			<section class="rses-panel rses-panel-card">
-			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="rses-form">
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="rses-form" id="rses-settings-form">
 				<?php Nonce::rses_field( Nonce::RSES_ACTION_SETTINGS_SAVE ); ?>
 				<input type="hidden" name="action" value="rses_save_settings" />
 
+				<h2 class="rses-panel-title"><?php esc_html_e( 'Admin branding', 'relatasoft-secure-election-suite' ); ?></h2>
+				<p class="description"><?php esc_html_e( 'Logo shown in the top-left of Election Suite admin heroes. When unset, the RelataSoft lockup is used. Aspect ratio is always preserved.', 'relatasoft-secure-election-suite' ); ?></p>
+
 				<table class="form-table">
+					<tr>
+						<th scope="row"><?php esc_html_e( 'Admin logo', 'relatasoft-secure-election-suite' ); ?></th>
+						<td>
+							<div class="rses-admin-logo-picker">
+								<input type="hidden" name="rses_admin_logo_attachment_id" id="rses_admin_logo_attachment_id" value="<?php echo esc_attr( (string) $rses_logo_id ); ?>" />
+								<div class="rses-admin-logo-preview" id="rses_admin_logo_preview">
+									<img
+										src="<?php echo esc_url( $rses_logo_url ? $rses_logo_url : $rses_default ); ?>"
+										alt=""
+										class="rses-admin-logo-preview-img"
+										data-rses-default-src="<?php echo esc_url( $rses_default ); ?>"
+									/>
+								</div>
+								<p>
+									<button type="button" class="button" id="rses_pick_admin_logo"><?php esc_html_e( 'Choose logo', 'relatasoft-secure-election-suite' ); ?></button>
+									<button type="button" class="button" id="rses_clear_admin_logo"><?php esc_html_e( 'Use default RelataSoft logo', 'relatasoft-secure-election-suite' ); ?></button>
+								</p>
+							</div>
+						</td>
+					</tr>
 					<tr>
 						<th scope="row"><?php esc_html_e( 'Allow Full Private Key Export', 'relatasoft-secure-election-suite' ); ?></th>
 						<td>
@@ -81,6 +106,7 @@ class SettingsPage {
 
 		$rses_settings = JourneySettings::rses_get();
 		$rses_settings['allow_full_private_export'] = ! empty( $_POST['rses_allow_full_private_export'] );
+		$rses_settings['admin_logo_attachment_id']  = absint( $_POST['rses_admin_logo_attachment_id'] ?? 0 );
 
 		update_option( 'rses_settings', $rses_settings );
 

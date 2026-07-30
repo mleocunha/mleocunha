@@ -215,5 +215,57 @@
 				}
 			});
 		}
+
+		var $adminLogoPick = $('#rses_pick_admin_logo');
+		if ($adminLogoPick.length && typeof wp !== 'undefined' && wp.media) {
+			var $adminInput = $('#rses_admin_logo_attachment_id');
+			var $adminPreview = $('#rses_admin_logo_preview');
+			var $adminImg = $adminPreview.find('img').first();
+			var adminDefault = $adminImg.data('rses-default-src') || $adminImg.attr('src');
+
+			$adminLogoPick.on('click', function (e) {
+				e.preventDefault();
+				var frame = wp.media({
+					title: rsesI18n('selectAdminLogo', 'Choose admin logo'),
+					button: { text: rsesI18n('useAdminLogo', 'Use this logo') },
+					multiple: false,
+					library: { type: 'image' }
+				});
+
+				frame.on('select', function () {
+					var attachment = frame.state().get('selection').first().toJSON();
+					var url =
+						(attachment.sizes && attachment.sizes.medium && attachment.sizes.medium.url) ||
+						(attachment.sizes && attachment.sizes.full && attachment.sizes.full.url) ||
+						attachment.url;
+					$adminInput.val(String(attachment.id));
+					$adminPreview.html(
+						$('<img>', {
+							src: url,
+							alt: '',
+							class: 'rses-admin-logo-preview-img',
+							'data-rses-default-src': adminDefault
+						})
+					);
+				});
+
+				frame.open();
+			});
+
+			$('#rses_clear_admin_logo').on('click', function (e) {
+				e.preventDefault();
+				$adminInput.val('0');
+				if (adminDefault) {
+					$adminPreview.html(
+						$('<img>', {
+							src: adminDefault,
+							alt: '',
+							class: 'rses-admin-logo-preview-img',
+							'data-rses-default-src': adminDefault
+						})
+					);
+				}
+			});
+		}
 	});
 })(jQuery);

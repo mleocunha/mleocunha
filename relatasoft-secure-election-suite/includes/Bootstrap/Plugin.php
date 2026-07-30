@@ -183,12 +183,14 @@ class Plugin {
 					'mediaAttached' => __( 'Media attached', 'relatasoft-secure-election-suite' ),
 					'selectLoginLogo' => __( 'Choose login logo', 'relatasoft-secure-election-suite' ),
 					'useLoginLogo'    => __( 'Use this logo', 'relatasoft-secure-election-suite' ),
+					'selectAdminLogo' => __( 'Choose admin logo', 'relatasoft-secure-election-suite' ),
+					'useAdminLogo'    => __( 'Use this logo', 'relatasoft-secure-election-suite' ),
 				),
 			)
 		);
 
 		// Ballot builder media library (photo / audio / video).
-		if ( in_array( $rses_page, array( 'rses-elections', 'rses-redirections' ), true ) ) {
+		if ( in_array( $rses_page, array( 'rses-elections', 'rses-redirections', 'rses-settings' ), true ) ) {
 			wp_enqueue_media();
 			wp_enqueue_script( 'rses-admin' );
 		}
