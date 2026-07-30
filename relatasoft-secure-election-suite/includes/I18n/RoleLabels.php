@@ -20,7 +20,7 @@ class RoleLabels {
 	 * Register hooks.
 	 */
 	public static function register(): void {
-		add_action( 'init', array( self::class, 'rses_rename_wp_roles' ), 0 );
+		add_action( 'init', array( self::class, 'rses_rename_wp_roles' ), 11 );
 		add_filter( 'translate_user_role', array( self::class, 'rses_translate_user_role' ), 10, 3 );
 		add_filter( 'gettext', array( self::class, 'rses_filter_gettext' ), 20, 3 );
 		add_filter( 'gettext_with_context', array( self::class, 'rses_filter_gettext_with_context' ), 20, 4 );
