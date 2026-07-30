@@ -1,7 +1,7 @@
 # RelataSoft Secure Election Suite — Success Status
 
 **Status:** End-to-end flow verified successful (as of 2026-07-28)  
-**Plugin version:** `1.0.9`  
+**Plugin version:** `1.0.10`  
 **Branch:** `cursor/secure-election-suite-2eb1`  
 **PR:** https://github.com/mleocunha/mleocunha/pull/6  
 **Slug / namespace / prefix:** `relatasoft-secure-election-suite` / `RelataSoft\SecureElectionSuite` / `rses_`  
@@ -126,9 +126,17 @@ Constants in `Capability.php`: `RSES_VOTER_ROLE`, `RSES_OFFICIAL_ROLE`, `RSES_AD
 - Handlers registered from `Plugin::run()` (admin-post works)
 - Nonce fields actually echoed
 - Audit hash chain canonicalization + repair action
-- Asset version `1.0.9` for cache busting
+- Asset version `1.0.10` for cache busting
 
-### Internationalization (v1.0.8)
+### RelataSoft admin branding (v1.0.10)
+
+- Pinwheel mark + lockup on **admin** heroes only (Key Authority, Voting admin, Tallying, Dashboard, Mode Setup, Settings, Audit)
+- Gold brand accents (`#f5a623` / `#ffb800`) on admin shell
+- **Voting booth intentionally unbranded** — no RelataSoft logo/propaganda on cast/receipt screens
+
+---
+
+## Important paths
 
 - Text domain: `relatasoft-secure-election-suite`
 - UI locales: **pt_BR, pt_PT, fr_FR, es_ES, de_DE, nl_NL, ru_RU, zh_CN, ar, he_IL, ca** (+ English source)
