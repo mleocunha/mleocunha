@@ -79,6 +79,37 @@ class EncryptedVoteRepository {
 	}
 
 	/**
+	 * Distinct elector user IDs that cast at least one ballot in a round.
+	 *
+	 * @return list<int>
+	 */
+	public static function rses_unique_voter_ids( int $round_id ): array {
+		global $wpdb;
+
+		$round_id   = absint( $round_id );
+		$rses_table = \RelataSoft\SecureElectionSuite\Database\Schema::rses_table( 'rses_encrypted_votes' );
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$rses_ids = $wpdb->get_col(
+			$wpdb->prepare(
+				"SELECT DISTINCT voter_user_id FROM {$rses_table} WHERE round_id = %d",
+				$round_id
+			)
+		);
+
+		if ( ! is_array( $rses_ids ) ) {
+			return array();
+		}
+
+		$out = array();
+		foreach ( $rses_ids as $id ) {
+			$out[] = absint( $id );
+		}
+
+		return array_values( array_filter( $out ) );
+	}
+
+	/**
 	 * Get voter receipt hash.
 	 *
 	 * @param int $voter_user_id Voter ID.

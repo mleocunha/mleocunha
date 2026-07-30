@@ -267,5 +267,24 @@
 				}
 			});
 		}
+		$(document).on('submit', '.rses-force-logout-form', function (e) {
+			var $form = $(this);
+			var $banField = $form.find('.rses-also-ban-field');
+			var first = window.confirm(
+				rsesI18n('forceLogoutConfirm', 'Force logout this user and destroy all sessions?')
+			);
+			if (!first) {
+				e.preventDefault();
+				return false;
+			}
+
+			var ban = window.confirm(
+				rsesI18n('forceLogoutBanAsk', 'Also bar this user from new logins?') +
+					'\n\n' +
+					rsesI18n('forceLogoutYesBan', 'OK = logout and ban. Cancel = logout only.')
+			);
+			$banField.val(ban ? '1' : '0');
+			return true;
+		});
 	});
 })(jQuery);

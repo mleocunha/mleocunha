@@ -18,6 +18,7 @@ use RelataSoft\SecureElectionSuite\I18n\RoleLabels;
 use RelataSoft\SecureElectionSuite\I18n\Translator;
 use RelataSoft\SecureElectionSuite\Admin\Brand;
 use RelataSoft\SecureElectionSuite\Admin\RedirectionsPage;
+use RelataSoft\SecureElectionSuite\Admin\SecurityMonitorPage;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -129,6 +130,15 @@ class AdminMenu {
 				$rses_admin_cap,
 				'rses-voting-export',
 				array( VotingViews::class, 'rses_render_export_page' )
+			);
+
+			add_submenu_page(
+				'rses-dashboard',
+				__( 'Monitor and Secure Voting', 'relatasoft-secure-election-suite' ),
+				__( 'Security', 'relatasoft-secure-election-suite' ),
+				$rses_admin_cap,
+				'rses-security',
+				array( SecurityMonitorPage::class, 'rses_render' )
 			);
 		}
 
@@ -312,6 +322,15 @@ class AdminMenu {
 							</a>
 						</p>
 					</div>
+					<div class="rses-dashboard-card">
+						<h2><?php esc_html_e( '6. Monitor and Secure Voting', 'relatasoft-secure-election-suite' ); ?></h2>
+						<p><?php esc_html_e( 'Track elector logins, force logout, optionally bar accounts, and review the hashed security log.', 'relatasoft-secure-election-suite' ); ?></p>
+						<p>
+							<a class="button button-primary" href="<?php echo esc_url( admin_url( 'admin.php?page=rses-security' ) ); ?>">
+								<?php esc_html_e( 'Open Security', 'relatasoft-secure-election-suite' ); ?>
+							</a>
+						</p>
+					</div>
 				<?php elseif ( ModeLock::rses_is_mode( ModeLock::RSES_MODE_TALLYING ) ) : ?>
 					<?php if ( Capability::rses_can_manage_election() ) : ?>
 						<div class="rses-dashboard-card">
@@ -358,7 +377,7 @@ class AdminMenu {
 					<?php
 					$rses_crypto_title = __( 'Crypto Self Test', 'relatasoft-secure-election-suite' );
 					if ( ModeLock::rses_is_mode( ModeLock::RSES_MODE_VOTING ) ) {
-						$rses_crypto_title = __( '6. Crypto Self Test', 'relatasoft-secure-election-suite' );
+						$rses_crypto_title = __( '7. Crypto Self Test', 'relatasoft-secure-election-suite' );
 					} elseif ( ModeLock::rses_is_mode( ModeLock::RSES_MODE_TALLYING ) ) {
 						$rses_crypto_title = __( '4. Crypto Self Test', 'relatasoft-secure-election-suite' );
 					} elseif ( ModeLock::rses_is_mode( ModeLock::RSES_MODE_KEY_AUTHORITY ) ) {

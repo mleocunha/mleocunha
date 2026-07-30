@@ -44,6 +44,7 @@ class Activator {
 
 		if ( ModeLock::rses_is_mode( ModeLock::RSES_MODE_VOTING ) ) {
 			VoterJourney::rses_provision_pages();
+			\RelataSoft\SecureElectionSuite\Security\AdminUrlHardener::rses_flush_rules();
 		}
 
 		flush_rewrite_rules();

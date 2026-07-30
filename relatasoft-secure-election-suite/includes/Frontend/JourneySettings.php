@@ -35,6 +35,7 @@ class JourneySettings {
 			'booth_page_id'             => 0,
 			'thank_you_page_id'         => 0,
 			'logout_redirect_url'       => '',
+			'url_hardening_enabled'     => true,
 		);
 	}
 

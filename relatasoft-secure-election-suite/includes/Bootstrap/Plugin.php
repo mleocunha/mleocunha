@@ -22,8 +22,12 @@ use RelataSoft\SecureElectionSuite\Tallying\CertificationService;
 use RelataSoft\SecureElectionSuite\Tallying\OfficialShareSubmissionController;
 use RelataSoft\SecureElectionSuite\Tallying\TallyImportController;
 use RelataSoft\SecureElectionSuite\Admin\RedirectionsPage;
+use RelataSoft\SecureElectionSuite\Admin\SecurityMonitorPage;
 use RelataSoft\SecureElectionSuite\Frontend\LoginCustomizer;
 use RelataSoft\SecureElectionSuite\Frontend\VoterJourney;
+use RelataSoft\SecureElectionSuite\Security\AccessControl;
+use RelataSoft\SecureElectionSuite\Security\AdminUrlHardener;
+use RelataSoft\SecureElectionSuite\Security\LoginTracker;
 use RelataSoft\SecureElectionSuite\Voting\BallotController;
 use RelataSoft\SecureElectionSuite\Voting\ElectionController;
 
@@ -74,8 +78,12 @@ class Plugin {
 		TallyImportController::register();
 		OfficialShareSubmissionController::register();
 		RedirectionsPage::register();
+		SecurityMonitorPage::register();
 		LoginCustomizer::register();
 		VoterJourney::register();
+		LoginTracker::register();
+		AccessControl::register();
+		AdminUrlHardener::register();
 
 		if ( is_admin() ) {
 			Notices::register();
@@ -185,6 +193,9 @@ class Plugin {
 					'useLoginLogo'    => __( 'Use this logo', 'relatasoft-secure-election-suite' ),
 					'selectAdminLogo' => __( 'Choose admin logo', 'relatasoft-secure-election-suite' ),
 					'useAdminLogo'    => __( 'Use this logo', 'relatasoft-secure-election-suite' ),
+					'forceLogoutConfirm' => __( 'Force logout this user and destroy all sessions?', 'relatasoft-secure-election-suite' ),
+					'forceLogoutBanAsk'  => __( 'Also bar this user from new logins?', 'relatasoft-secure-election-suite' ),
+					'forceLogoutYesBan'  => __( 'OK = logout and ban. Cancel = logout only.', 'relatasoft-secure-election-suite' ),
 				),
 			)
 		);
