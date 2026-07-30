@@ -8,6 +8,7 @@
 defined( 'ABSPATH' ) || exit;
 
 use VotoEletronicoTemaBase\Branding;
+use VotoEletronicoTemaBase\Customizer;
 use VotoEletronicoTemaBase\Journey;
 
 get_header();
@@ -16,9 +17,9 @@ $context = Journey::current_context();
 ?>
 
 <div class="vetb-canvas vetb-canvas--<?php echo esc_attr( $context ?: 'page' ); ?>">
-	<?php if ( 'thank_you' === $context ) : ?>
-		<div class="vetb-formal-mark" aria-hidden="true">
-			<?php Branding::render_pinwheel( false, 'formal' ); ?>
+	<?php if ( 'thank_you' === $context && Customizer::formal_thank_you() ) : ?>
+		<div class="vetb-formal-brand">
+			<?php Branding::render_vertical_lockup( 'thank-you' ); ?>
 		</div>
 	<?php endif; ?>
 

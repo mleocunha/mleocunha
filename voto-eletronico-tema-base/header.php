@@ -8,6 +8,7 @@
 defined( 'ABSPATH' ) || exit;
 
 use VotoEletronicoTemaBase\Branding;
+use VotoEletronicoTemaBase\Customizer;
 use VotoEletronicoTemaBase\I18n;
 use VotoEletronicoTemaBase\Journey;
 
@@ -31,11 +32,20 @@ use VotoEletronicoTemaBase\Journey;
 			if ( in_array( $context, array( 'booth' ), true ) ) {
 				// Low cognitive load: pinwheel only in the voting booth.
 				Branding::render_pinwheel( false, 'header' );
+			} elseif ( 'thank_you' === $context && Customizer::formal_thank_you() ) {
+				// Formal screens lead with the vertical lockup in the canvas; keep topbar quiet.
+				Branding::render_pinwheel( false, 'header' );
 			} else {
+				// Common brand expression: horizontal lockup.
 				Branding::render_lockup( 'header' );
 			}
+
+			if ( Customizer::show_topbar_label() && 'booth' !== $context ) :
+				?>
+				<p class="vetb-topbar__label"><?php echo esc_html( I18n::translate( 'Electronic voting' ) ); ?></p>
+				<?php
+			endif;
 			?>
-			<p class="vetb-topbar__label"><?php echo esc_html( I18n::translate( 'Electronic voting' ) ); ?></p>
 		</div>
 	</header>
 

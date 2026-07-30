@@ -7,6 +7,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
+use VotoEletronicoTemaBase\Customizer;
 use VotoEletronicoTemaBase\I18n;
 use VotoEletronicoTemaBase\Journey;
 
@@ -15,7 +16,7 @@ use VotoEletronicoTemaBase\Journey;
 
 	<footer class="vetb-foot" role="contentinfo">
 		<div class="vetb-foot__inner">
-			<?php if ( 'booth' !== Journey::current_context() ) : ?>
+			<?php if ( Customizer::show_footer_note() && 'booth' !== Journey::current_context() ) : ?>
 				<p class="vetb-foot__note"><?php echo esc_html( I18n::translate( 'Secure electronic voting workspace' ) ); ?></p>
 			<?php endif; ?>
 		</div>

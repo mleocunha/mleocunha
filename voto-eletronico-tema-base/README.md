@@ -4,9 +4,10 @@ Tema WordPress standalone (slug `voto-eletronico-tema-base`) para o **RelataSoft
 
 ## Objetivo
 
-- Evidenciar o processo eleitoral (shortcodes RSES)
+- Evidenciar o processo eleitoral (shortcodes RSES exclusivamente)
 - Ocultar menus, sidebars, rodapés e widgets do WordPress no front
 - Branding RelataSoft oficial (sem regeneração), com white-label via o plugin
+- Páginas da jornada resolvidas por **ID** (`rses_settings`) — mudança de slug não quebra o tema
 
 ## Requisitos
 
@@ -20,16 +21,19 @@ Tema WordPress standalone (slug `voto-eletronico-tema-base`) para o **RelataSoft
 2. Ative em **Aparência → Temas**
 3. No plugin: **Election Suite → Redirections** — crie/apointe welcome, cabina e thank-you
 4. Opcional: **Settings → Admin logo** e logo de login para white-label
+5. Opcional: **Aparência → Personalizar → Front eleitoral** — extras do tema (login continua no plugin)
 
-## Logos (defaults oficiais)
+## Logos (defaults oficiais, aprovados por marketing)
 
 | Arquivo | Uso |
 |---------|-----|
-| `pinwheel.svg` | Favicon / marcador / cabina (baixa poluição visual) |
-| `lockup-horizontal-on-dark.png` | Expressão comum da marca no topo |
-| `lockup-vertical-light-text.png` | Tom oficial (ex.: thank-you) |
+| `pinwheel.svg` | Favicon / marcador de URL / cabina (baixa poluição visual) |
+| `lockup-horizontal-on-dark.png` | Expressão comum: roda à esquerda do nome, slogan abaixo |
+| `lockup-vertical-light-text.png` | Tom oficial / PDF: roda centralizada acima do nome e slogan |
 
-Tamanho ajustável via CSS; **aspect-ratio nunca é distorcido**. Animação da roda de fogo = apenas `transform: rotate` CSS no asset oficial.
+Tamanho ajustável via CSS; **aspect-ratio nunca é distorcido**. Animação da roda de fogo = apenas `transform: rotate` CSS no asset oficial (útil em telas longas sem movimento, como espera / tallying no front).
+
+White-label: `admin_logo_attachment_id` (lockup) e `login_logo_attachment_id` (pinwheel/favicon) do plugin; fallback Custom Logo; depois assets do tema.
 
 ## Idioma
 

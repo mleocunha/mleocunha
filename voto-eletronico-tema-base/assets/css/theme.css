@@ -149,6 +149,33 @@ body.vetb-theme::before {
 	margin: 0 auto;
 }
 
+.vetb-brand-vertical {
+	display: flex;
+	justify-content: center;
+	margin: 0 0 1.35rem;
+}
+
+.vetb-brand-vertical__img {
+	display: block;
+	width: auto;
+	height: auto;
+	max-width: min(100%, 220px);
+	max-height: 160px;
+	object-fit: contain;
+	object-position: center top;
+}
+
+.vetb-brand-vertical--thank-you .vetb-brand-vertical__img {
+	max-width: min(100%, 200px);
+	max-height: 148px;
+}
+
+.vetb-formal-brand {
+	display: flex;
+	justify-content: center;
+	margin: 0.25rem 0 1.25rem;
+}
+
 .vetb-pinwheel--spin {
 	animation: vetb-spin 2.8s linear infinite;
 	transform-origin: 50% 50%;
@@ -173,10 +200,8 @@ body.vetb-theme::before {
 	margin: 0 auto;
 }
 
-.vetb-canvas--thank_you .vetb-formal-mark {
-	display: flex;
-	justify-content: center;
-	margin: 0 0 1rem;
+.vetb-canvas--thank_you .vetb-formal-brand {
+	margin-bottom: 1.5rem;
 }
 
 .vetb-article {
@@ -316,5 +341,30 @@ body.vetb-theme #wpadminbar {
 @media (prefers-reduced-motion: reduce) {
 	.vetb-pinwheel--spin {
 		animation: none;
+	}
+}
+
+/* Official / printable documents: light ink, vertical brand prominence */
+@media print {
+	body.vetb-theme {
+		background: #fff !important;
+		color: #111 !important;
+	}
+
+	body.vetb-theme::before,
+	.vetb-topbar,
+	.vetb-foot,
+	.vetb-skip-link {
+		display: none !important;
+	}
+
+	.vetb-brand-vertical__img {
+		max-width: 180px;
+		filter: none;
+	}
+
+	.vetb-article__content a {
+		color: #111;
+		text-decoration: underline;
 	}
 }

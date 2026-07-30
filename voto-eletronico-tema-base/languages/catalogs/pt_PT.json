@@ -11,5 +11,14 @@
   "This page is not available in the electoral workspace.": "Esta página não está disponível no espaço eleitoral.",
   "Return to start": "Voltar ao início",
   "No electoral content is published on this page yet.": "Ainda não há conteúdo eleitoral publicado nesta página.",
-  "RelataSoft — Participação mais Inteligente": "RelataSoft — Participação mais Inteligente"
+  "RelataSoft — Participação mais Inteligente": "RelataSoft — Participação mais Inteligente",
+  "Electoral front (optional)": "Electoral front (optional)",
+  "Optional theme extras. Login screen and white-label logos stay under Election Suite (plugin).": "Optional theme extras. Login screen and white-label logos stay under Election Suite (plugin).",
+  "Show “Electronic voting” label in the top bar": "Show “Electronic voting” label in the top bar",
+  "Show footer note (hidden on the booth)": "Show footer note (hidden on the booth)",
+  "Use vertical lockup on thank-you (official tone)": "Use vertical lockup on thank-you (official tone)",
+  "Pinwheel centered above name and slogan — for official / printable tone.": "Pinwheel centered above name and slogan — for official / printable tone.",
+  "Accent color (optional)": "Accent color (optional)",
+  "Custom waiting message": "Custom waiting message",
+  "Shown on empty / waiting states with the animated pinwheel. Leave blank for the default.": "Shown on empty / waiting states with the animated pinwheel. Leave blank for the default."
 }

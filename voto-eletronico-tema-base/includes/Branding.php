@@ -89,14 +89,15 @@ final class Branding {
 	}
 
 	/**
-	 * Vertical lockup for formal/official screens (thank-you emphasis).
+	 * Vertical lockup for formal/official screens (PDF / printable tone).
+	 * Pinwheel centered above name + slogan — marketing-approved asset only.
 	 */
 	public static function vertical_lockup_url(): string {
 		return self::asset_url( self::LOCKUP_VERTICAL );
 	}
 
 	/**
-	 * Favicon / apple touch using pinwheel.
+	 * Favicon / apple touch using pinwheel (URL marker; low visual noise).
 	 */
 	public static function output_favicon(): void {
 		$url = esc_url( self::pinwheel_url() );
@@ -105,7 +106,7 @@ final class Branding {
 	}
 
 	/**
-	 * Render horizontal brand lockup.
+	 * Render horizontal brand lockup (common expression: mark left of name, slogan below).
 	 *
 	 * @param string $modifier Optional BEM modifier.
 	 */
@@ -127,7 +128,31 @@ final class Branding {
 	}
 
 	/**
+	 * Render vertical lockup (official / PDF tone: mark above name + slogan).
+	 *
+	 * @param string $modifier Optional BEM modifier.
+	 */
+	public static function render_vertical_lockup( string $modifier = '' ): void {
+		$class = 'vetb-brand-vertical';
+		if ( '' !== $modifier ) {
+			$class .= ' vetb-brand-vertical--' . sanitize_html_class( $modifier );
+		}
+		?>
+		<div class="<?php echo esc_attr( $class ); ?>">
+			<img
+				class="vetb-brand-vertical__img"
+				src="<?php echo esc_url( self::vertical_lockup_url() ); ?>"
+				alt="<?php echo esc_attr( I18n::translate( 'RelataSoft — Participação mais Inteligente' ) ); ?>"
+				decoding="async"
+			/>
+		</div>
+		<?php
+	}
+
+	/**
 	 * Render pinwheel mark (optionally animated for waiting screens).
+	 *
+	 * Animation is CSS rotate only — never regenerates the official artwork.
 	 *
 	 * @param bool   $animated Rotate via CSS (does not alter the artwork).
 	 * @param string $modifier Optional modifier.

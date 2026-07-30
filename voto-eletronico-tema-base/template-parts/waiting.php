@@ -10,10 +10,15 @@
 defined( 'ABSPATH' ) || exit;
 
 use VotoEletronicoTemaBase\Branding;
+use VotoEletronicoTemaBase\Customizer;
 use VotoEletronicoTemaBase\I18n;
 
 $args     = is_array( $args ?? null ) ? $args : array();
-$message  = isset( $args['message'] ) ? (string) $args['message'] : I18n::translate( 'Preparing the electoral workspace…' );
+$fallback = Customizer::waiting_message();
+if ( '' === $fallback ) {
+	$fallback = I18n::translate( 'Preparing the electoral workspace…' );
+}
+$message  = isset( $args['message'] ) ? (string) $args['message'] : $fallback;
 $animated = array_key_exists( 'animated', $args ) ? (bool) $args['animated'] : true;
 ?>
 <div class="vetb-waiting">
