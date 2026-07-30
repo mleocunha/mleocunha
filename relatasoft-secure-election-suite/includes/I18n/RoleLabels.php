@@ -17,11 +17,25 @@ defined( 'ABSPATH' ) || exit;
 class RoleLabels {
 
 	/**
+	 * Guard against gettext recursion (calling __() inside a gettext filter).
+	 *
+	 * @var bool
+	 */
+	private static bool $rses_busy = false;
+
+	/**
+	 * English display names stored on wp_roles (User role gettext msgids).
+	 */
+	private const RSES_EDITOR_EN    = 'Electoral Authorities';
+	private const RSES_ELECTOR_EN   = 'Electors';
+	private const RSES_EDITOR_ONE   = 'Electoral Authority';
+	private const RSES_ELECTOR_ONE  = 'Elector';
+
+	/**
 	 * Register hooks.
 	 */
 	public static function register(): void {
 		add_action( 'init', array( self::class, 'rses_rename_wp_roles' ), 11 );
-		add_filter( 'translate_user_role', array( self::class, 'rses_translate_user_role' ), 10, 3 );
 		add_filter( 'gettext', array( self::class, 'rses_filter_gettext' ), 20, 3 );
 		add_filter( 'gettext_with_context', array( self::class, 'rses_filter_gettext_with_context' ), 20, 4 );
 	}
@@ -30,32 +44,57 @@ class RoleLabels {
 	 * Plural role label shown in WordPress role lists.
 	 */
 	public static function rses_editor_plural(): string {
-		return __( 'Electoral Authorities', 'relatasoft-secure-election-suite' );
+		return self::rses_translate_label( self::RSES_EDITOR_EN );
 	}
 
 	/**
 	 * Singular label for one official account.
 	 */
 	public static function rses_editor_singular(): string {
-		return __( 'Electoral Authority', 'relatasoft-secure-election-suite' );
+		return self::rses_translate_label( self::RSES_EDITOR_ONE );
 	}
 
 	/**
 	 * Plural role label for elector accounts.
 	 */
 	public static function rses_elector_plural(): string {
-		return __( 'Electors', 'relatasoft-secure-election-suite' );
+		return self::rses_translate_label( self::RSES_ELECTOR_EN );
 	}
 
 	/**
 	 * Singular label for one elector account.
 	 */
 	public static function rses_elector_singular(): string {
-		return __( 'Elector', 'relatasoft-secure-election-suite' );
+		return self::rses_translate_label( self::RSES_ELECTOR_ONE );
 	}
 
 	/**
-	 * Rename built-in role display names.
+	 * Translate a role label without re-entering gettext filters.
+	 *
+	 * @param string $rses_english English msgid.
+	 */
+	private static function rses_translate_label( string $rses_english ): string {
+		if ( self::$rses_busy ) {
+			return $rses_english;
+		}
+
+		self::$rses_busy = true;
+
+		// Prefer JSON catalog without going through __() / gettext filters.
+		$rses_catalog = Translator::rses_get_catalog();
+		if ( isset( $rses_catalog[ $rses_english ] ) && '' !== $rses_catalog[ $rses_english ] ) {
+			$rses_out = $rses_catalog[ $rses_english ];
+			self::$rses_busy = false;
+			return $rses_out;
+		}
+
+		$rses_out = __( $rses_english, 'relatasoft-secure-election-suite' );
+		self::$rses_busy = false;
+		return $rses_out;
+	}
+
+	/**
+	 * Rename built-in role display names (English msgids; i18n via User role context).
 	 */
 	public static function rses_rename_wp_roles(): void {
 		if ( ! function_exists( 'wp_roles' ) ) {
@@ -68,54 +107,33 @@ class RoleLabels {
 		}
 
 		if ( isset( $rses_roles->roles['editor'] ) ) {
-			$rses_roles->roles['editor']['name'] = self::rses_editor_plural();
-			$rses_roles->role_names['editor']    = self::rses_editor_plural();
+			$rses_roles->roles['editor']['name'] = self::RSES_EDITOR_EN;
+			$rses_roles->role_names['editor']    = self::RSES_EDITOR_EN;
 		}
 
 		if ( isset( $rses_roles->roles['subscriber'] ) ) {
-			$rses_roles->roles['subscriber']['name'] = self::rses_elector_plural();
-			$rses_roles->role_names['subscriber']  = self::rses_elector_plural();
+			$rses_roles->roles['subscriber']['name'] = self::RSES_ELECTOR_EN;
+			$rses_roles->role_names['subscriber']    = self::RSES_ELECTOR_EN;
 		}
 	}
 
 	/**
-	 * Filter role names from translate_user_role().
-	 *
-	 * @param string $translation Translated role name.
-	 * @param string $role        Raw role name from database.
-	 * @param string $context     Context.
-	 */
-	public static function rses_translate_user_role( string $translation, string $role, string $context ): string {
-		unset( $context );
-
-		$rses_slug = sanitize_key( $role );
-		if ( 'editor' === $rses_slug ) {
-			return self::rses_editor_plural();
-		}
-		if ( 'subscriber' === $rses_slug ) {
-			return self::rses_elector_plural();
-		}
-
-		return $translation;
-	}
-
-	/**
-	 * Replace core role names in the default text domain.
+	 * Replace core role names in the default text domain (exact msgid only).
 	 *
 	 * @param string $translation Translated string.
 	 * @param string $text        Source string.
 	 * @param string $domain      Text domain.
 	 */
 	public static function rses_filter_gettext( string $translation, string $text, string $domain ): string {
-		if ( 'default' !== $domain ) {
+		if ( self::$rses_busy || 'default' !== $domain ) {
 			return $translation;
 		}
 
-		return self::rses_map_default_role_string( $text, $translation );
+		return self::rses_map_role_msgid( $text, $translation );
 	}
 
 	/**
-	 * Replace core role names when WordPress supplies context.
+	 * Replace core role names when WordPress supplies User role context.
 	 *
 	 * @param string $translation Translated string.
 	 * @param string $text        Source string.
@@ -123,34 +141,30 @@ class RoleLabels {
 	 * @param string $domain      Text domain.
 	 */
 	public static function rses_filter_gettext_with_context( string $translation, string $text, string $context, string $domain ): string {
-		if ( 'default' !== $domain ) {
+		if ( self::$rses_busy || 'default' !== $domain || 'User role' !== $context ) {
 			return $translation;
 		}
 
-		if ( 'User role' === $context || 'default' === $context ) {
-			return self::rses_map_default_role_string( $text, $translation );
-		}
-
-		return $translation;
+		return self::rses_map_role_msgid( $text, $translation );
 	}
 
 	/**
-	 * Map a default-domain source string to relabeled role names.
+	 * Map a role msgid to the RelataSoft display label.
 	 *
 	 * @param string $text         Original English source.
 	 * @param string $translation  Current translation (fallback).
 	 */
-	private static function rses_map_default_role_string( string $text, string $translation ): string {
-		$rses_map = array(
-			'Editor'     => self::rses_editor_plural(),
-			'Subscriber' => self::rses_elector_plural(),
-		);
-
-		if ( isset( $rses_map[ $text ] ) ) {
-			return $rses_map[ $text ];
+	private static function rses_map_role_msgid( string $text, string $translation ): string {
+		switch ( $text ) {
+			case 'Editor':
+			case self::RSES_EDITOR_EN:
+				return self::rses_editor_plural();
+			case 'Subscriber':
+			case self::RSES_ELECTOR_EN:
+				return self::rses_elector_plural();
+			default:
+				return $translation;
 		}
-
-		return $translation;
 	}
 
 	/**
