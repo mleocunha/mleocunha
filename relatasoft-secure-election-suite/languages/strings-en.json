@@ -543,5 +543,17 @@
   "Admin logo",
   "Use default RelataSoft logo",
   "Choose admin logo",
-  "Tune branding, export, and custody options for this locked-mode installation."
+  "Tune branding, export, and custody options for this locked-mode installation.",
+  "Diagnostics",
+  "Verify ElGamal, homomorphic tallying, and Shamir Secret Sharing on this server before you trust it with live election data.",
+  "These checks exercise key generation, encrypt/decrypt, homomorphic aggregation, Shamir share split/reconstruct, and a mini end-to-end election simulation. They do not replace an independent cryptographic audit.",
+  "Run",
+  "Execute self-tests",
+  "Results are computed on this request and are not stored. Re-run anytime after PHP or server changes.",
+  "All %d cryptographic self-tests passed on this server.",
+  "%1$d passed, %2$d failed. Review the failures below before using this installation for voting.",
+  "Results",
+  "Self-test report",
+  "Passed",
+  "Failed"
 ]

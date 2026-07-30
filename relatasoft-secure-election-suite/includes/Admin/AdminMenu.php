@@ -381,39 +381,124 @@ class AdminMenu {
 		Capability::rses_require_admin();
 
 		$rses_results = array();
-		if ( isset( $_GET['rses_ran'] ) && '1' === $_GET['rses_ran'] ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		$rses_ran     = isset( $_GET['rses_ran'] ) && '1' === $_GET['rses_ran']; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		if ( $rses_ran ) {
 			$rses_results = CryptoSelfTest::runAll();
 		}
+
+		$rses_pass_count = 0;
+		$rses_fail_count = 0;
+		foreach ( $rses_results as $rses_test ) {
+			if ( ! empty( $rses_test['passed'] ) ) {
+				++$rses_pass_count;
+			} else {
+				++$rses_fail_count;
+			}
+		}
+		$rses_all_passed = $rses_ran && empty( $rses_fail_count ) && ! empty( $rses_results );
 		?>
-		<div class="wrap rses-wrap" <?php echo Translator::rses_html_attrs(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
-			<h1><?php esc_html_e( 'Crypto Self Test', 'relatasoft-secure-election-suite' ); ?></h1>
-			<p><?php esc_html_e( 'Run cryptographic self-tests to verify ElGamal, homomorphic tallying, and Shamir Secret Sharing implementations.', 'relatasoft-secure-election-suite' ); ?></p>
+		<div class="wrap rses-wrap rses-screen" <?php echo Translator::rses_html_attrs(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
+			<header class="rses-hero rses-hero--brand">
+				<?php Brand::rses_render_hero_brand(); ?>
+				<p class="rses-hero-kicker"><?php esc_html_e( 'Diagnostics', 'relatasoft-secure-election-suite' ); ?></p>
+				<h1 class="rses-hero-title"><?php esc_html_e( 'Crypto Self Test', 'relatasoft-secure-election-suite' ); ?></h1>
+				<p class="rses-hero-lead"><?php esc_html_e( 'Verify ElGamal, homomorphic tallying, and Shamir Secret Sharing on this server before you trust it with live election data.', 'relatasoft-secure-election-suite' ); ?></p>
+			</header>
 
-			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
-				<?php Nonce::rses_field( Nonce::RSES_ACTION_CRYPTO_SELF_TEST ); ?>
-				<input type="hidden" name="action" value="rses_run_crypto_self_test" />
-				<?php submit_button( __( 'Run Self Tests', 'relatasoft-secure-election-suite' ) ); ?>
-			</form>
+			<section class="rses-panel rses-panel-info">
+				<p><?php esc_html_e( 'These checks exercise key generation, encrypt/decrypt, homomorphic aggregation, Shamir share split/reconstruct, and a mini end-to-end election simulation. They do not replace an independent cryptographic audit.', 'relatasoft-secure-election-suite' ); ?></p>
+			</section>
 
-			<?php if ( ! empty( $rses_results ) ) : ?>
-				<table class="widefat striped rses-self-test-results">
-					<thead>
-						<tr>
-							<th><?php esc_html_e( 'Test', 'relatasoft-secure-election-suite' ); ?></th>
-							<th><?php esc_html_e( 'Result', 'relatasoft-secure-election-suite' ); ?></th>
-							<th><?php esc_html_e( 'Message', 'relatasoft-secure-election-suite' ); ?></th>
-						</tr>
-					</thead>
-					<tbody>
-						<?php foreach ( $rses_results as $rses_test ) : ?>
-							<tr class="<?php echo $rses_test['passed'] ? 'rses-pass' : 'rses-fail'; ?>">
-								<td><?php echo esc_html( $rses_test['name'] ); ?></td>
-								<td><?php echo $rses_test['passed'] ? esc_html__( 'PASS', 'relatasoft-secure-election-suite' ) : esc_html__( 'FAIL', 'relatasoft-secure-election-suite' ); ?></td>
-								<td><?php echo esc_html( $rses_test['message'] ); ?></td>
+			<section class="rses-panel rses-panel-card rses-self-test-run">
+				<header class="rses-panel-header">
+					<p class="rses-panel-kicker"><?php esc_html_e( 'Run', 'relatasoft-secure-election-suite' ); ?></p>
+					<h2 class="rses-panel-title"><?php esc_html_e( 'Execute self-tests', 'relatasoft-secure-election-suite' ); ?></h2>
+					<p class="rses-panel-desc"><?php esc_html_e( 'Results are computed on this request and are not stored. Re-run anytime after PHP or server changes.', 'relatasoft-secure-election-suite' ); ?></p>
+				</header>
+
+				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="rses-form">
+					<?php Nonce::rses_field( Nonce::RSES_ACTION_CRYPTO_SELF_TEST ); ?>
+					<input type="hidden" name="action" value="rses_run_crypto_self_test" />
+					<p class="rses-form-actions">
+						<?php submit_button( __( 'Run Self Tests', 'relatasoft-secure-election-suite' ), 'primary rses-btn-primary', 'submit', false ); ?>
+					</p>
+				</form>
+			</section>
+
+			<?php if ( $rses_ran ) : ?>
+				<?php if ( $rses_all_passed ) : ?>
+					<div class="rses-panel rses-panel-success">
+						<p>
+							<?php
+							echo esc_html(
+								sprintf(
+									/* translators: %d: number of tests that passed */
+									__( 'All %d cryptographic self-tests passed on this server.', 'relatasoft-secure-election-suite' ),
+									$rses_pass_count
+								)
+							);
+							?>
+						</p>
+					</div>
+				<?php else : ?>
+					<div class="rses-panel rses-panel-warning">
+						<p>
+							<?php
+							echo esc_html(
+								sprintf(
+									/* translators: 1: passed count, 2: failed count */
+									__( '%1$d passed, %2$d failed. Review the failures below before using this installation for voting.', 'relatasoft-secure-election-suite' ),
+									$rses_pass_count,
+									$rses_fail_count
+								)
+							);
+							?>
+						</p>
+					</div>
+				<?php endif; ?>
+
+				<section class="rses-panel rses-panel-card rses-self-test-results-panel">
+					<header class="rses-panel-header">
+						<p class="rses-panel-kicker"><?php esc_html_e( 'Results', 'relatasoft-secure-election-suite' ); ?></p>
+						<h2 class="rses-panel-title"><?php esc_html_e( 'Self-test report', 'relatasoft-secure-election-suite' ); ?></h2>
+					</header>
+
+					<div class="rses-self-test-summary">
+						<span class="rses-self-test-stat rses-self-test-stat--pass">
+							<span class="rses-self-test-stat-value"><?php echo esc_html( (string) $rses_pass_count ); ?></span>
+							<span class="rses-self-test-stat-label"><?php esc_html_e( 'Passed', 'relatasoft-secure-election-suite' ); ?></span>
+						</span>
+						<span class="rses-self-test-stat rses-self-test-stat--fail">
+							<span class="rses-self-test-stat-value"><?php echo esc_html( (string) $rses_fail_count ); ?></span>
+							<span class="rses-self-test-stat-label"><?php esc_html_e( 'Failed', 'relatasoft-secure-election-suite' ); ?></span>
+						</span>
+					</div>
+
+					<table class="rses-self-test-results">
+						<thead>
+							<tr>
+								<th scope="col"><?php esc_html_e( 'Test', 'relatasoft-secure-election-suite' ); ?></th>
+								<th scope="col"><?php esc_html_e( 'Result', 'relatasoft-secure-election-suite' ); ?></th>
+								<th scope="col"><?php esc_html_e( 'Message', 'relatasoft-secure-election-suite' ); ?></th>
 							</tr>
-						<?php endforeach; ?>
-					</tbody>
-				</table>
+						</thead>
+						<tbody>
+							<?php foreach ( $rses_results as $rses_test ) : ?>
+								<tr class="<?php echo ! empty( $rses_test['passed'] ) ? 'rses-pass' : 'rses-fail'; ?>">
+									<td class="rses-self-test-name"><?php echo esc_html( $rses_test['name'] ); ?></td>
+									<td>
+										<?php if ( ! empty( $rses_test['passed'] ) ) : ?>
+											<span class="rses-status-pill rses-status-pill--pass"><?php esc_html_e( 'PASS', 'relatasoft-secure-election-suite' ); ?></span>
+										<?php else : ?>
+											<span class="rses-status-pill rses-status-pill--fail"><?php esc_html_e( 'FAIL', 'relatasoft-secure-election-suite' ); ?></span>
+										<?php endif; ?>
+									</td>
+									<td class="rses-self-test-message"><?php echo esc_html( $rses_test['message'] ); ?></td>
+								</tr>
+							<?php endforeach; ?>
+						</tbody>
+					</table>
+				</section>
 			<?php endif; ?>
 		</div>
 		<?php

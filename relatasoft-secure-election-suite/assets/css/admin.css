@@ -1775,3 +1775,141 @@ body.rses-rtl .rses-screen,
 	letter-spacing: 0.04em;
 	text-transform: uppercase;
 }
+
+/* Crypto self-test */
+
+.rses-status-pill--pass {
+	background: var(--rses-success-bg);
+	color: var(--rses-success-ink);
+}
+
+.rses-status-pill--fail {
+	background: #fde8e6;
+	color: #8a1f14;
+}
+
+.rses-self-test-summary {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.85rem;
+	margin: 0 1.25rem 1.15rem;
+}
+
+.rses-self-test-stat {
+	display: flex;
+	flex-direction: column;
+	min-width: 6.5rem;
+	padding: 0.85rem 1rem;
+	border-radius: var(--rses-radius);
+	border: 1px solid var(--rses-line);
+	background: var(--rses-soft, #f4f7f9);
+}
+
+.rses-self-test-stat--pass {
+	background: var(--rses-success-bg);
+	border-color: var(--rses-success-line);
+	color: var(--rses-success-ink);
+}
+
+.rses-self-test-stat--fail {
+	background: #fde8e6;
+	border-color: #f0b4ad;
+	color: #8a1f14;
+}
+
+.rses-self-test-stat-value {
+	font-size: 1.65rem;
+	font-weight: 700;
+	line-height: 1.1;
+	letter-spacing: -0.02em;
+}
+
+.rses-self-test-stat-label {
+	margin-top: 0.2rem;
+	font-size: 0.78rem;
+	font-weight: 700;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	opacity: 0.85;
+}
+
+.rses-self-test-results {
+	width: 100%;
+	border-collapse: separate;
+	border-spacing: 0;
+	margin: 0;
+}
+
+.rses-self-test-results thead th {
+	padding: 0.75rem 1.15rem;
+	text-align: left;
+	font-size: 0.72rem;
+	font-weight: 700;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	color: var(--rses-muted);
+	border-bottom: 1px solid var(--rses-line);
+	background: rgba(12, 124, 156, 0.04);
+}
+
+.rses-self-test-results tbody td {
+	padding: 0.95rem 1.15rem;
+	border-bottom: 1px solid var(--rses-line);
+	vertical-align: top;
+	font-size: 0.95rem;
+	line-height: 1.45;
+}
+
+.rses-self-test-results tbody tr:last-child td {
+	border-bottom: none;
+}
+
+.rses-self-test-results tr.rses-pass {
+	background: linear-gradient(90deg, rgba(46, 125, 50, 0.06), transparent 42%);
+}
+
+.rses-self-test-results tr.rses-fail {
+	background: linear-gradient(90deg, rgba(192, 57, 43, 0.08), transparent 42%);
+}
+
+.rses-self-test-name {
+	font-weight: 700;
+	color: var(--rses-ink);
+	white-space: nowrap;
+}
+
+.rses-self-test-message {
+	color: var(--rses-muted);
+}
+
+@media (max-width: 782px) {
+	.rses-self-test-name {
+		white-space: normal;
+	}
+
+	.rses-self-test-results thead {
+		display: none;
+	}
+
+	.rses-self-test-results,
+	.rses-self-test-results tbody,
+	.rses-self-test-results tr,
+	.rses-self-test-results td {
+		display: block;
+		width: 100%;
+	}
+
+	.rses-self-test-results tbody td {
+		padding: 0.35rem 1.15rem;
+		border-bottom: none;
+	}
+
+	.rses-self-test-results tbody tr {
+		padding: 0.85rem 0 1rem;
+		border-bottom: 1px solid var(--rses-line);
+	}
+
+	.rses-self-test-results tbody tr:last-child {
+		border-bottom: none;
+	}
+}

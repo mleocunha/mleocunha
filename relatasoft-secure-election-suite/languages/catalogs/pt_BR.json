@@ -543,5 +543,17 @@
   "Admin logo": "Logo administrativo",
   "Use default RelataSoft logo": "Usar logo RelataSoft padrão",
   "Choose admin logo": "Escolher logo administrativo",
-  "Tune branding, export, and custody options for this locked-mode installation.": "Ajuste identidade visual, exportação e custódia para esta instalação em modo travado."
+  "Tune branding, export, and custody options for this locked-mode installation.": "Ajuste identidade visual, exportação e custódia para esta instalação em modo travado.",
+  "Diagnostics": "Diagnóstico",
+  "Verify ElGamal, homomorphic tallying, and Shamir Secret Sharing on this server before you trust it with live election data.": "Verifique ElGamal, apuração homomórfica e Shamir Secret Sharing neste servidor antes de confiar nele com dados eleitorais reais.",
+  "These checks exercise key generation, encrypt/decrypt, homomorphic aggregation, Shamir share split/reconstruct, and a mini end-to-end election simulation. They do not replace an independent cryptographic audit.": "Estes testes exercitam geração de chaves, cifra/decifra, agregação homomórfica, divisão/reconstrução Shamir e uma mini simulação ponta a ponta. Não substituem uma auditoria criptográfica independente.",
+  "Run": "Executar",
+  "Execute self-tests": "Executar autotestes",
+  "Results are computed on this request and are not stored. Re-run anytime after PHP or server changes.": "Os resultados são calculados nesta requisição e não são armazenados. Execute novamente após mudanças de PHP ou do servidor.",
+  "All %d cryptographic self-tests passed on this server.": "Todos os %d autotestes criptográficos passaram neste servidor.",
+  "%1$d passed, %2$d failed. Review the failures below before using this installation for voting.": "%1$d passaram, %2$d falharam. Revise as falhas abaixo antes de usar esta instalação para votação.",
+  "Results": "Resultados",
+  "Self-test report": "Relatório do autoteste",
+  "Passed": "Passaram",
+  "Failed": "Falharam"
 }
