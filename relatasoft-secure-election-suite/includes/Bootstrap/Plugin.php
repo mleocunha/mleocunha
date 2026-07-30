@@ -160,6 +160,27 @@ class Plugin {
 			true
 		);
 
+		wp_localize_script(
+			'rses-admin',
+			'rsesAdmin',
+			array(
+				'i18n' => array(
+					'selectMedia'   => __( 'Select option media', 'relatasoft-secure-election-suite' ),
+					'useMedia'      => __( 'Use this media', 'relatasoft-secure-election-suite' ),
+					'photo'         => __( 'Photo', 'relatasoft-secure-election-suite' ),
+					'audio'         => __( 'Audio', 'relatasoft-secure-election-suite' ),
+					'video'         => __( 'Video', 'relatasoft-secure-election-suite' ),
+					'mediaAttached' => __( 'Media attached', 'relatasoft-secure-election-suite' ),
+				),
+			)
+		);
+
+		// Ballot builder media library (photo / audio / video).
+		if ( 'rses-elections' === $rses_page ) {
+			wp_enqueue_media();
+			wp_enqueue_script( 'rses-admin' );
+		}
+
 		$mode = ModeLock::rses_get_mode();
 
 		// Key Authority screen: force the chunked keygen script onto the page.

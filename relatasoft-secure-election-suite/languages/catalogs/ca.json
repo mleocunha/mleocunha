@@ -452,5 +452,15 @@
   "Vote cast successfully. Keep this receipt hash for your records.": "Votació emesa correctament. Conserveu aquest hash del rebut per als vostres registres.",
   "Your ballot is already on file. This is your receipt hash — it does not reveal your choices.": "La teva butlleta ja està registrada. Aquest és el vostre hash del rebut; no revela les vostres opcions.",
   "Receipt hash": "Hash del rebut",
-  "Copy receipt": "Còpia del rebut"
+  "Copy receipt": "Còpia del rebut",
+  "Each option needs a label. Optionally attach a photo, audio clip, or video from the Media Library.": "Cada opció necessita una etiqueta. Opcionalment, adjunteu una foto, àudio o vídeo de la biblioteca de mitjans.",
+  "Attach photo / audio / video": "Adjuntar foto / àudio / vídeo",
+  "Remove media": "Eliminar el multimèdia",
+  "Select option media": "Seleccionar multimèdia de l’opció",
+  "Use this media": "Utilitzar aquest multimèdia",
+  "Photo": "Foto",
+  "Audio": "Àudio",
+  "Video": "Vídeo",
+  "Media": "Multimèdia",
+  "Media attached": "Multimèdia adjunt"
 }

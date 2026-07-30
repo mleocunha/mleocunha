@@ -452,5 +452,15 @@
   "Vote cast successfully. Keep this receipt hash for your records.": "تم الإدلاء بالصوت بنجاح. احتفظ بتجزئة الإيصال هذه لسجلاتك.",
   "Your ballot is already on file. This is your receipt hash — it does not reveal your choices.": "بطاقة اقتراعك موجودة بالفعل في السجل. هذه هي تجزئة إيصالك — ولا تكشف اختياراتك.",
   "Receipt hash": "تجزئة الإيصال",
-  "Copy receipt": "نسخ الإيصال"
+  "Copy receipt": "نسخ الإيصال",
+  "Each option needs a label. Optionally attach a photo, audio clip, or video from the Media Library.": "يحتاج كل خيار إلى تسمية. يمكنك اختياريًا إرفاق صورة أو صوت أو فيديو من مكتبة الوسائط.",
+  "Attach photo / audio / video": "إرفاق صورة / صوت / فيديو",
+  "Remove media": "إزالة الوسائط",
+  "Select option media": "تحديد وسائط الخيار",
+  "Use this media": "استخدام هذه الوسائط",
+  "Photo": "صورة",
+  "Audio": "صوت",
+  "Video": "فيديو",
+  "Media": "وسائط",
+  "Media attached": "تم إرفاق الوسائط"
 }

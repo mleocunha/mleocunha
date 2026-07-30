@@ -452,5 +452,15 @@
   "Vote cast successfully. Keep this receipt hash for your records.": "Stem succesvol uitgebracht. Bewaar deze ontvangsthash voor uw administratie.",
   "Your ballot is already on file. This is your receipt hash — it does not reveal your choices.": "Uw stembiljet staat al geregistreerd. Dit is uw ontvangsthash — deze onthult uw keuzes niet.",
   "Receipt hash": "Ontvangsthash",
-  "Copy receipt": "Ontvangstbewijs kopiëren"
+  "Copy receipt": "Ontvangstbewijs kopiëren",
+  "Each option needs a label. Optionally attach a photo, audio clip, or video from the Media Library.": "Elke optie heeft een label nodig. Optioneel kunt u een foto, audio of video uit de mediabibliotheek toevoegen.",
+  "Attach photo / audio / video": "Foto / audio / video toevoegen",
+  "Remove media": "Media verwijderen",
+  "Select option media": "Media voor optie selecteren",
+  "Use this media": "Deze media gebruiken",
+  "Photo": "Foto",
+  "Audio": "Audio",
+  "Video": "Video",
+  "Media": "Media",
+  "Media attached": "Media toegevoegd"
 }

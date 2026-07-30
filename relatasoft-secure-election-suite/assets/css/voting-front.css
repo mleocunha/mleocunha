@@ -182,7 +182,7 @@
 
 .rses-choice {
 	display: flex;
-	align-items: center;
+	align-items: flex-start;
 	gap: 0.75rem;
 	margin: 0;
 	padding: 0.85rem 0.95rem;
@@ -210,6 +210,7 @@
 	flex: 0 0 auto;
 	width: 1.35rem;
 	height: 1.35rem;
+	margin-top: 0.15rem;
 }
 
 .rses-choice-input {
@@ -264,6 +265,42 @@
 	flex: 1;
 	font-weight: 600;
 	color: var(--rses-ink);
+}
+
+.rses-choice-body {
+	display: flex;
+	flex: 1 1 auto;
+	flex-direction: column;
+	align-items: stretch;
+	gap: 0.55rem;
+	min-width: 0;
+}
+
+.rses-option-media {
+	display: block;
+	width: 100%;
+}
+
+.rses-option-media-image {
+	display: block;
+	width: 100%;
+	max-height: 220px;
+	object-fit: cover;
+	border-radius: calc(var(--rses-radius) - 2px);
+	background: var(--rses-soft);
+}
+
+.rses-option-media-audio,
+.rses-option-media-video {
+	display: block;
+	width: 100%;
+	max-width: 100%;
+	border-radius: calc(var(--rses-radius) - 2px);
+	background: #0b1720;
+}
+
+.rses-option-media-video {
+	max-height: 260px;
 }
 
 .rses-numeric-field {

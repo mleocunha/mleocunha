@@ -452,5 +452,15 @@
   "Vote cast successfully. Keep this receipt hash for your records.": "投票成功。请保存此收据哈希作为记录。",
   "Your ballot is already on file. This is your receipt hash — it does not reveal your choices.": "您的选票已在案。这是您的收据哈希 — 它不会泄露您的选择。",
   "Receipt hash": "收据哈希",
-  "Copy receipt": "复制收据"
+  "Copy receipt": "复制收据",
+  "Each option needs a label. Optionally attach a photo, audio clip, or video from the Media Library.": "每个选项需要一个标签。可选地从媒体库附加照片、音频或视频。",
+  "Attach photo / audio / video": "附加照片 / 音频 / 视频",
+  "Remove media": "移除媒体",
+  "Select option media": "选择选项媒体",
+  "Use this media": "使用此媒体",
+  "Photo": "照片",
+  "Audio": "音频",
+  "Video": "视频",
+  "Media": "媒体",
+  "Media attached": "已附加媒体"
 }

@@ -43,11 +43,19 @@
 		});
 
 		$form.on('keydown', '.rses-choice', function (e) {
+			if ($(e.target).closest('.rses-option-media').length) {
+				return;
+			}
 			if (e.key !== ' ' && e.key !== 'Enter') {
 				return;
 			}
 			e.preventDefault();
 			$(this).find('.rses-choice-input').trigger('click');
+		});
+
+		// Keep audio/video controls from fighting keyboard choice activation.
+		$form.on('click', '.rses-option-media--audio, .rses-option-media--video', function (e) {
+			e.stopPropagation();
 		});
 
 		$form.on('submit', function (e) {

@@ -1524,3 +1524,106 @@ body.rses-rtl .rses-screen,
 .rses-screen[dir="rtl"] .rses-back-link {
 	flex-direction: row-reverse;
 }
+
+/* Ballot option media (admin builder + preview) */
+.rses-option-media-hint {
+	margin: 0 0 0.65rem;
+}
+
+.rses-ballot-options {
+	display: flex;
+	flex-direction: column;
+	gap: 0.75rem;
+}
+
+.rses-option-row {
+	display: flex;
+	flex-direction: column;
+	gap: 0.45rem;
+	padding: 0.85rem 0.95rem;
+	border: 1px solid var(--rses-line, #c9d6dc);
+	border-radius: var(--rses-radius, 10px);
+	background: var(--rses-soft-2, #f7fbfc);
+}
+
+.rses-option-row .rses-option-label-input {
+	width: 100%;
+	max-width: 100%;
+	padding: 0.65rem 0.8rem;
+	border: 1.5px solid var(--rses-line, #c9d6dc);
+	border-radius: var(--rses-radius, 10px);
+	font-size: 0.98rem;
+}
+
+.rses-option-media-controls {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.5rem;
+}
+
+.rses-option-media-preview:not([hidden]) {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.4rem;
+	margin-right: 0.25rem;
+}
+
+.rses-option-media-thumb {
+	width: 56px;
+	height: 56px;
+	object-fit: cover;
+	border-radius: 8px;
+	border: 1px solid var(--rses-line, #c9d6dc);
+	background: #fff;
+}
+
+.rses-option-media-chip {
+	display: inline-flex;
+	align-items: center;
+	padding: 0.3rem 0.65rem;
+	border-radius: 999px;
+	background: var(--rses-soft, #eef5f8);
+	border: 1px solid var(--rses-line, #c9d6dc);
+	font-size: 0.82rem;
+	font-weight: 600;
+	color: var(--rses-ink, #1c2a32);
+}
+
+.rses-ballot-option-preview {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.55rem;
+}
+
+.rses-ballot-option-preview .rses-option-media--admin {
+	flex: 0 0 auto;
+}
+
+.rses-ballot-option-preview .rses-option-media-image {
+	width: 64px;
+	height: 64px;
+	max-height: 64px;
+	object-fit: cover;
+	border-radius: 8px;
+	border: 1px solid var(--rses-line, #c9d6dc);
+}
+
+.rses-ballot-option-preview .rses-option-media-audio,
+.rses-ballot-option-preview .rses-option-media-video {
+	width: min(220px, 100%);
+	max-height: 90px;
+}
+
+.rses-option-media-badge {
+	display: inline-flex;
+	padding: 0.15rem 0.5rem;
+	border-radius: 999px;
+	background: var(--rses-info-bg, #e8f4f8);
+	color: var(--rses-info-ink, #0c5470);
+	font-size: 0.72rem;
+	font-weight: 700;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+}

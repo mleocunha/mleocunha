@@ -452,5 +452,15 @@
   "Vote cast successfully. Keep this receipt hash for your records.",
   "Your ballot is already on file. This is your receipt hash — it does not reveal your choices.",
   "Receipt hash",
-  "Copy receipt"
+  "Copy receipt",
+  "Each option needs a label. Optionally attach a photo, audio clip, or video from the Media Library.",
+  "Attach photo / audio / video",
+  "Remove media",
+  "Select option media",
+  "Use this media",
+  "Photo",
+  "Audio",
+  "Video",
+  "Media",
+  "Media attached"
 ]

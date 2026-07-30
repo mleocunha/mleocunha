@@ -452,5 +452,15 @@
   "Vote cast successfully. Keep this receipt hash for your records.": "Голос успешно подан. Сохраните этот хеш квитанции для своих записей.",
   "Your ballot is already on file. This is your receipt hash — it does not reveal your choices.": "Ваш бюллетень уже в файле. Это ваш хеш квитанции — он не раскрывает ваши выборы.",
   "Receipt hash": "Хеш квитанции",
-  "Copy receipt": "Копировать квитанцию"
+  "Copy receipt": "Копировать квитанцию",
+  "Each option needs a label. Optionally attach a photo, audio clip, or video from the Media Library.": "У каждого варианта должна быть подпись. При желании приложите фото, аудио или видео из медиабиблиотеки.",
+  "Attach photo / audio / video": "Прикрепить фото / аудио / видео",
+  "Remove media": "Удалить медиа",
+  "Select option media": "Выбрать медиа для варианта",
+  "Use this media": "Использовать эти медиа",
+  "Photo": "Фото",
+  "Audio": "Аудио",
+  "Video": "Видео",
+  "Media": "Медиа",
+  "Media attached": "Медиа прикреплено"
 }

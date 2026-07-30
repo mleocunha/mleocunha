@@ -391,9 +391,32 @@ class VotingViews {
 					</div>
 					<div class="rses-field rses-field-full">
 						<span class="rses-field-label"><?php esc_html_e( 'Options', 'relatasoft-secure-election-suite' ); ?></span>
-						<div class="rses-ballot-options">
+						<p class="description rses-option-media-hint"><?php esc_html_e( 'Each option needs a label. Optionally attach a photo, audio clip, or video from the Media Library.', 'relatasoft-secure-election-suite' ); ?></p>
+						<div class="rses-ballot-options" id="rses-ballot-options">
 							<?php for ( $rses_i = 0; $rses_i < 5; ++$rses_i ) : ?>
-								<input type="text" name="rses_options[]" placeholder="<?php esc_attr_e( 'Option label', 'relatasoft-secure-election-suite' ); ?>" />
+								<div class="rses-option-row" data-rses-option-index="<?php echo esc_attr( (string) $rses_i ); ?>">
+									<input
+										type="text"
+										name="rses_options[]"
+										class="rses-option-label-input"
+										placeholder="<?php esc_attr_e( 'Option label', 'relatasoft-secure-election-suite' ); ?>"
+									/>
+									<input type="hidden" name="rses_option_attachments[]" class="rses-option-attachment-id" value="" />
+									<div class="rses-option-media-controls">
+										<span class="rses-option-media-preview" hidden></span>
+										<button
+											type="button"
+											class="button rses-btn-secondary rses-option-media-pick"
+											data-rses-title="<?php echo esc_attr__( 'Select option media', 'relatasoft-secure-election-suite' ); ?>"
+											data-rses-button="<?php echo esc_attr__( 'Use this media', 'relatasoft-secure-election-suite' ); ?>"
+										>
+											<?php esc_html_e( 'Attach photo / audio / video', 'relatasoft-secure-election-suite' ); ?>
+										</button>
+										<button type="button" class="button rses-btn-secondary rses-option-media-clear" hidden>
+											<?php esc_html_e( 'Remove media', 'relatasoft-secure-election-suite' ); ?>
+										</button>
+									</div>
+								</div>
 							<?php endfor; ?>
 						</div>
 					</div>
@@ -424,7 +447,17 @@ class VotingViews {
 								<span class="rses-q-type"><?php echo esc_html( $rses_q->question_type ); ?></span>
 								<ul>
 									<?php foreach ( ElectionRepository::rses_get_options( (int) $rses_q->id ) as $rses_o ) : ?>
-										<li><?php echo esc_html( $rses_o->option_label ); ?></li>
+										<li class="rses-ballot-option-preview">
+											<?php
+											// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- OptionMedia returns escaped HTML.
+											echo OptionMedia::rses_render( $rses_o, 'admin' );
+											?>
+											<span class="rses-ballot-option-preview-label"><?php echo esc_html( $rses_o->option_label ); ?></span>
+											<?php if ( OptionMedia::rses_has_media( $rses_o ) ) : ?>
+												<?php $rses_meta = OptionMedia::rses_parse( $rses_o ); ?>
+												<small class="rses-option-media-badge"><?php echo esc_html( OptionMedia::rses_type_label( $rses_meta['media_type'] ) ); ?></small>
+											<?php endif; ?>
+										</li>
 									<?php endforeach; ?>
 								</ul>
 							</div>

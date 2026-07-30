@@ -164,20 +164,37 @@ class ElectionRepository {
 	 * @return int
 	 */
 	public static function rses_create_option( array $data ): int {
+		$rses_metadata = array();
+		if ( ! empty( $data['metadata'] ) && is_array( $data['metadata'] ) ) {
+			$rses_metadata = $data['metadata'];
+		} elseif ( ! empty( $data['attachment_id'] ) ) {
+			$rses_metadata = OptionMedia::rses_metadata_from_attachment( (int) $data['attachment_id'] );
+		}
+
 		$rses_row = array(
 			'question_id'       => $data['question_id'],
 			'candidate_user_id' => $data['candidate_user_id'] ?? null,
 			'option_label'      => $data['option_label'],
 			'option_value'      => $data['option_value'] ?? null,
 			'order_index'       => $data['order_index'] ?? 0,
+			'metadata_json'     => ! empty( $rses_metadata ) ? wp_json_encode( $rses_metadata ) : null,
 		);
 
-		$rses_row['audit_hash'] = HashService::rses_hash_json( $rses_row );
+		$rses_row['audit_hash'] = HashService::rses_hash_json(
+			array(
+				'question_id'       => $rses_row['question_id'],
+				'candidate_user_id' => $rses_row['candidate_user_id'],
+				'option_label'      => $rses_row['option_label'],
+				'option_value'      => $rses_row['option_value'],
+				'order_index'       => $rses_row['order_index'],
+				'metadata_json'     => $rses_row['metadata_json'],
+			)
+		);
 
 		return Repository::rses_insert(
 			'rses_ballot_options',
 			$rses_row,
-			array( '%d', '%d', '%s', '%s', '%d', '%s' )
+			array( '%d', '%d', '%s', '%s', '%d', '%s', '%s' )
 		);
 	}
 

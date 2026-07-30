@@ -452,5 +452,15 @@
   "Vote cast successfully. Keep this receipt hash for your records.": "הקול הוטל בהצלחה. שמור את גיבוב הקבלה הזה לרשומותיך.",
   "Your ballot is already on file. This is your receipt hash — it does not reveal your choices.": "פתק ההצבעה שלך כבר שמור. זהו גיבוב הקבלה שלך — הוא אינו חושף את בחירותיך.",
   "Receipt hash": "גיבוב קבלה",
-  "Copy receipt": "העתק קבלה"
+  "Copy receipt": "העתק קבלה",
+  "Each option needs a label. Optionally attach a photo, audio clip, or video from the Media Library.": "לכל אפשרות נדרשת תווית. ניתן לצרף גם תמונה, אודיו או וידאו מספריית המדיה.",
+  "Attach photo / audio / video": "צרף תמונה / אודיו / וידאו",
+  "Remove media": "הסר מדיה",
+  "Select option media": "בחר מדיה לאפשרות",
+  "Use this media": "השתמש במדיה זו",
+  "Photo": "תמונה",
+  "Audio": "אודיו",
+  "Video": "וידאו",
+  "Media": "מדיה",
+  "Media attached": "מדיה מצורפת"
 }

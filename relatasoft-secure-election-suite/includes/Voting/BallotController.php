@@ -46,6 +46,9 @@ class BallotController {
 		$rses_options     = isset( $_POST['rses_options'] ) && is_array( $_POST['rses_options'] )
 			? array_map( array( Sanitizer::class, 'rses_text' ), wp_unslash( $_POST['rses_options'] ) )
 			: array();
+		$rses_attachments = isset( $_POST['rses_option_attachments'] ) && is_array( $_POST['rses_option_attachments'] )
+			? array_map( 'absint', wp_unslash( $_POST['rses_option_attachments'] ) )
+			: array();
 
 		$rses_qid = ElectionRepository::rses_create_question(
 			array(
@@ -62,11 +65,17 @@ class BallotController {
 			if ( '' === $rses_label ) {
 				continue;
 			}
+
+			$rses_attachment_id = isset( $rses_attachments[ $rses_idx ] )
+				? OptionMedia::rses_sanitize_attachment_id( (int) $rses_attachments[ $rses_idx ] )
+				: 0;
+
 			ElectionRepository::rses_create_option(
 				array(
-					'question_id'  => $rses_qid,
-					'option_label' => $rses_label,
-					'order_index'  => $rses_idx,
+					'question_id'    => $rses_qid,
+					'option_label'   => $rses_label,
+					'order_index'    => $rses_idx,
+					'attachment_id'  => $rses_attachment_id,
 				)
 			);
 		}

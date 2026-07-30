@@ -105,7 +105,13 @@ class BallotRenderer {
 													</svg>
 												</span>
 											</span>
-											<span class="rses-choice-label"><?php echo esc_html( $rses_option->option_label ); ?></span>
+											<span class="rses-choice-body">
+												<?php
+												// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- OptionMedia returns escaped HTML.
+												echo OptionMedia::rses_render( $rses_option, 'booth' );
+												?>
+												<span class="rses-choice-label"><?php echo esc_html( $rses_option->option_label ); ?></span>
+											</span>
 										</label>
 									<?php endforeach; ?>
 								</div>

@@ -1,7 +1,7 @@
 # RelataSoft Secure Election Suite — Success Status
 
 **Status:** End-to-end flow verified successful (as of 2026-07-28)  
-**Plugin version:** `1.0.8`  
+**Plugin version:** `1.0.9`  
 **Branch:** `cursor/secure-election-suite-2eb1`  
 **PR:** https://github.com/mleocunha/mleocunha/pull/6  
 **Slug / namespace / prefix:** `relatasoft-secure-election-suite` / `RelataSoft\SecureElectionSuite` / `rses_`  
@@ -112,6 +112,7 @@ Constants in `Capability.php`: `RSES_VOTER_ROLE`, `RSES_OFFICIAL_ROLE`, `RSES_AD
 - Successful cast returns a **receipt hash** (plaintext choices never stored)
 - Frontend booth + receipt restyled (v1.0.5) with TotalPoll-inspired choice cards / check selectors / receipt card — **logic unchanged**
 - Election / Public Keys / Shortcodes / Export admin restyled (v1.0.7) to match RelataSoft shell — **logic unchanged**
+- Ballot options may include **photo / audio / video** attachments from the Media Library (v1.0.9); stored in `metadata_json`, shown on the booth — **vote encryption still keyed by option ID**
 
 ### Tallying
 
@@ -125,7 +126,7 @@ Constants in `Capability.php`: `RSES_VOTER_ROLE`, `RSES_OFFICIAL_ROLE`, `RSES_AD
 - Handlers registered from `Plugin::run()` (admin-post works)
 - Nonce fields actually echoed
 - Audit hash chain canonicalization + repair action
-- Asset version `1.0.8` for cache busting
+- Asset version `1.0.9` for cache busting
 
 ### Internationalization (v1.0.8)
 
@@ -147,7 +148,8 @@ relatasoft-secure-election-suite/
   includes/I18n/Translator.php                  # JSON catalogs + gettext filters
   includes/Security/Capability.php              # role gates
   includes/KeyAuthority/                        # keys, shares, chunked keygen
-  includes/Voting/                              # elections, cast, export
+  includes/Voting/                              # elections, cast, export, OptionMedia
+  includes/Voting/OptionMedia.php               # option photo/audio/video attachments
   includes/Tallying/                            # import, shares, decrypt, certify
   includes/Admin/AdminMenu.php                  # menus by mode/role
   languages/catalogs/                           # UI translation JSON

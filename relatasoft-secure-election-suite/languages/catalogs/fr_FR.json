@@ -452,5 +452,15 @@
   "Vote cast successfully. Keep this receipt hash for your records.": "Vote exprimé avec succès. Conservez ce hachage de reçu pour vos dossiers.",
   "Your ballot is already on file. This is your receipt hash — it does not reveal your choices.": "Votre bulletin de vote est déjà enregistré. Il s'agit du hachage de votre reçu — il ne révèle pas vos choix.",
   "Receipt hash": "Hachage du reçu",
-  "Copy receipt": "Copier le reçu"
+  "Copy receipt": "Copier le reçu",
+  "Each option needs a label. Optionally attach a photo, audio clip, or video from the Media Library.": "Chaque option nécessite un libellé. Vous pouvez joindre une photo, un audio ou une vidéo depuis la médiathèque.",
+  "Attach photo / audio / video": "Joindre photo / audio / vidéo",
+  "Remove media": "Retirer le média",
+  "Select option media": "Sélectionner le média de l’option",
+  "Use this media": "Utiliser ce média",
+  "Photo": "Photo",
+  "Audio": "Audio",
+  "Video": "Vidéo",
+  "Media": "Média",
+  "Media attached": "Média joint"
 }

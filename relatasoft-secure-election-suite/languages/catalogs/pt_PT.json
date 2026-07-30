@@ -452,5 +452,15 @@
   "Vote cast successfully. Keep this receipt hash for your records.": "Votação lançada com sucesso. Mantenha este hash de recibo em seus registos.",
   "Your ballot is already on file. This is your receipt hash — it does not reveal your choices.": "Sua cédula já está arquivada. Este é o hash do seu recibo – ele não revela suas escolhas.",
   "Receipt hash": "Hash do recibo",
-  "Copy receipt": "Copiar recibo"
+  "Copy receipt": "Copiar recibo",
+  "Each option needs a label. Optionally attach a photo, audio clip, or video from the Media Library.": "Cada opção precisa de um rótulo. Opcionalmente, anexe uma fotografia, áudio ou vídeo da Biblioteca de Multimédia.",
+  "Attach photo / audio / video": "Anexar fotografia / áudio / vídeo",
+  "Remove media": "Remover multimédia",
+  "Select option media": "Selecionar multimédia da opção",
+  "Use this media": "Usar esta multimédia",
+  "Photo": "Fotografia",
+  "Audio": "Áudio",
+  "Video": "Vídeo",
+  "Media": "Multimédia",
+  "Media attached": "Multimédia anexada"
 }
