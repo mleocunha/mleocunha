@@ -79,17 +79,9 @@ class RoleLabels {
 		}
 
 		self::$rses_busy = true;
-
-		// Prefer JSON catalog without going through __() / gettext filters.
-		$rses_catalog = Translator::rses_get_catalog();
-		if ( isset( $rses_catalog[ $rses_english ] ) && '' !== $rses_catalog[ $rses_english ] ) {
-			$rses_out = $rses_catalog[ $rses_english ];
-			self::$rses_busy = false;
-			return $rses_out;
-		}
-
-		$rses_out = __( $rses_english, 'relatasoft-secure-election-suite' );
+		$rses_out        = __( $rses_english, 'relatasoft-secure-election-suite' );
 		self::$rses_busy = false;
+
 		return $rses_out;
 	}
 
