@@ -1,7 +1,7 @@
 # RelataSoft Secure Election Suite — Success Status
 
 **Status:** End-to-end flow verified successful (as of 2026-07-28)  
-**Plugin version:** `1.0.11`  
+**Plugin version:** `1.0.12`  
 **Branch:** `cursor/voter-journey-login-2eb1`  
 **Slug / namespace / prefix:** `relatasoft-secure-election-suite` / `RelataSoft\SecureElectionSuite` / `rses_`  
 **Path in repo:** `relatasoft-secure-election-suite/`
@@ -187,6 +187,31 @@ CLI (GMP required):
 php tests/crypto-acceptance.php
 php tests/keygen-checkpoint-acceptance.php
 ```
+
+---
+
+## Role display labels (v1.0.12)
+
+WordPress role **slugs are unchanged** (`editor`, `subscriber`). Labels only:
+
+| Slug | Display label |
+|------|----------------|
+| `editor` | Electoral Authorities |
+| `subscriber` | Electors |
+
+Implemented via `I18n/RoleLabels.php` (`wp_roles` rename, `translate_user_role`, core `gettext`) plus plugin messages using the same labels.
+
+---
+
+## Voter journey & login (v1.0.11)
+
+When the site is in **voting** mode:
+
+- **wp-login.php** uses TotalPoll-inspired styling; WordPress logo is replaced by an admin-chosen image (default: RelataSoft pinwheel). Labels: **Identification** / **Secret**.
+- **Election Suite → Redirections** configures welcome page, voting booth page, thank-you page, logout URL, and login logo.
+- **Auto-provisioned pages:** `[rses_voter_welcome]` and `[rses_voter_thank_you]` (editable by admin, author, editor).
+- **Subscriber electors** redirect to welcome after login; one click to booth; after cast → thank-you page with receipt.
+- Voting booth front-end remains **unbranded** (no RelataSoft propaganda on cast screens).
 
 ---
 

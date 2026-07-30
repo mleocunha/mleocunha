@@ -11,6 +11,7 @@ use RelataSoft\SecureElectionSuite\Bootstrap\Plugin;
 use RelataSoft\SecureElectionSuite\Security\Capability;
 use RelataSoft\SecureElectionSuite\Security\Escaper;
 use RelataSoft\SecureElectionSuite\Security\Nonce;
+use RelataSoft\SecureElectionSuite\I18n\RoleLabels;
 use RelataSoft\SecureElectionSuite\I18n\Translator;
 use RelataSoft\SecureElectionSuite\Admin\Brand;
 
@@ -42,7 +43,15 @@ class KeyAuthorityViews {
 
 				<p class="rses-ka-kicker"><?php esc_html_e( 'Key Authority', 'relatasoft-secure-election-suite' ); ?></p>
 				<h1 class="rses-ka-title"><?php esc_html_e( 'ElGamal Key Manager', 'relatasoft-secure-election-suite' ); ?></h1>
-				<p class="rses-ka-lead"><?php esc_html_e( 'Generate keys, assign Shamir shares to Editors, import public parameters, and export packages for Voting / Tallying sites.', 'relatasoft-secure-election-suite' ); ?></p>
+				<p class="rses-ka-lead"><?php
+					echo esc_html(
+						sprintf(
+							/* translators: %s: electoral authority role label (plural) */
+							__( 'Generate keys, assign Shamir shares to %s, import public parameters, and export packages for Voting / Tallying sites.', 'relatasoft-secure-election-suite' ),
+							RoleLabels::rses_editor_plural()
+						)
+					);
+				?></p>
 			</header>
 
 			<?php if ( ! empty( $_GET['rses_mode_set'] ) || ! empty( $_GET['rses_key_created'] ) ) : // phpcs:ignore WordPress.Security.NonceVerification.Recommended ?>
@@ -65,7 +74,15 @@ class KeyAuthorityViews {
 
 			<?php if ( empty( $rses_officials ) ) : ?>
 				<div class="rses-panel rses-panel-warning">
-					<p><?php esc_html_e( 'No editor accounts found. Create WordPress users with the Editor role before assigning Shamir shares.', 'relatasoft-secure-election-suite' ); ?></p>
+					<p><?php
+						echo esc_html(
+							sprintf(
+								/* translators: %s: electoral authority role label (singular) */
+								__( 'No %1$s accounts found. Create WordPress users with the %1$s role before assigning Shamir shares.', 'relatasoft-secure-election-suite' ),
+								RoleLabels::rses_editor_singular()
+							)
+						);
+					?></p>
 				</div>
 			<?php endif; ?>
 
@@ -227,7 +244,15 @@ class KeyAuthorityViews {
 
 				<p class="rses-ka-kicker"><?php esc_html_e( 'Key Authority', 'relatasoft-secure-election-suite' ); ?></p>
 				<h1 class="rses-ka-title"><?php esc_html_e( 'My Shamir Shares', 'relatasoft-secure-election-suite' ); ?></h1>
-				<p class="rses-ka-lead"><?php esc_html_e( 'View, copy, and download the share assigned to your Editor account. Keep it offline for Tallying.', 'relatasoft-secure-election-suite' ); ?></p>
+				<p class="rses-ka-lead"><?php
+					echo esc_html(
+						sprintf(
+							/* translators: %s: electoral authority role label (singular) */
+							__( 'View, copy, and download the share assigned to your %s account. Keep it offline for Tallying.', 'relatasoft-secure-election-suite' ),
+							RoleLabels::rses_editor_singular()
+						)
+					);
+				?></p>
 			</header>
 
 			<div class="rses-panel rses-panel-warning">

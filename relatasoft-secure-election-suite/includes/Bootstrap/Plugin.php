@@ -15,6 +15,7 @@ use RelataSoft\SecureElectionSuite\Admin\SettingsPage;
 use RelataSoft\SecureElectionSuite\Ajax\AjaxRouter;
 use RelataSoft\SecureElectionSuite\Database\Migration;
 use RelataSoft\SecureElectionSuite\I18n\LocaleResolver;
+use RelataSoft\SecureElectionSuite\I18n\RoleLabels;
 use RelataSoft\SecureElectionSuite\I18n\Translator;
 use RelataSoft\SecureElectionSuite\KeyAuthority\KeyAuthorityController;
 use RelataSoft\SecureElectionSuite\Tallying\CertificationService;
@@ -57,6 +58,7 @@ class Plugin {
 	 */
 	public function run(): void {
 		Translator::rses_register();
+		RoleLabels::register();
 		add_action( 'init', array( $this, 'rses_init' ) );
 		add_action( 'admin_init', array( Migration::class, 'rses_maybe_migrate' ) );
 

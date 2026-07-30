@@ -9,6 +9,7 @@ namespace RelataSoft\SecureElectionSuite\Tallying;
 
 use RelataSoft\SecureElectionSuite\Security\Capability;
 use RelataSoft\SecureElectionSuite\Security\Nonce;
+use RelataSoft\SecureElectionSuite\I18n\RoleLabels;
 use RelataSoft\SecureElectionSuite\I18n\Translator;
 use RelataSoft\SecureElectionSuite\Admin\Brand;
 
@@ -128,7 +129,15 @@ class TallyingViews {
 
 				<p class="rses-hero-kicker"><?php esc_html_e( 'Tallying', 'relatasoft-secure-election-suite' ); ?></p>
 				<h1 class="rses-hero-title"><?php esc_html_e( 'Official Share Submission', 'relatasoft-secure-election-suite' ); ?></h1>
-				<p class="rses-hero-lead"><?php esc_html_e( 'Paste the share JSON from Key Authority. Each Editor submits independently; only an Administrator can decrypt after the threshold is met.', 'relatasoft-secure-election-suite' ); ?></p>
+				<p class="rses-hero-lead"><?php
+					echo esc_html(
+						sprintf(
+							/* translators: %s: electoral authority role label (singular) */
+							__( 'Paste the share JSON from Key Authority. Each %s submits independently; only an Administrator can decrypt after the threshold is met.', 'relatasoft-secure-election-suite' ),
+							RoleLabels::rses_editor_singular()
+						)
+					);
+				?></p>
 			</header>
 
 			<?php if ( ! empty( $_GET['rses_submitted'] ) ) : // phpcs:ignore WordPress.Security.NonceVerification.Recommended ?>

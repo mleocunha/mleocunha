@@ -11,6 +11,7 @@ use RelataSoft\SecureElectionSuite\KeyAuthority\KeyRepository;
 use RelataSoft\SecureElectionSuite\Security\Capability;
 use RelataSoft\SecureElectionSuite\Security\Nonce;
 use RelataSoft\SecureElectionSuite\Frontend\VoterJourney;
+use RelataSoft\SecureElectionSuite\I18n\RoleLabels;
 use RelataSoft\SecureElectionSuite\I18n\Translator;
 use RelataSoft\SecureElectionSuite\Admin\Brand;
 
@@ -493,7 +494,15 @@ class VotingViews {
 
 				<p class="rses-hero-kicker"><?php esc_html_e( 'Voting Platform', 'relatasoft-secure-election-suite' ); ?></p>
 				<h1 class="rses-hero-title"><?php esc_html_e( 'Shortcode Generator', 'relatasoft-secure-election-suite' ); ?></h1>
-				<p class="rses-hero-lead"><?php esc_html_e( 'Copy a shortcode and paste it into any WordPress page or post. Only Subscriber-role voters may cast a ballot.', 'relatasoft-secure-election-suite' ); ?></p>
+				<p class="rses-hero-lead"><?php
+					echo esc_html(
+						sprintf(
+							/* translators: %s: elector role label (plural) */
+							__( 'Copy a shortcode and paste it into any WordPress page or post. Only %s may cast a ballot.', 'relatasoft-secure-election-suite' ),
+							RoleLabels::rses_elector_plural()
+						)
+					);
+				?></p>
 			</header>
 
 			<div class="rses-panel rses-panel-info">
@@ -722,7 +731,9 @@ class VotingViews {
 		}
 
 		if ( ! Capability::rses_can_vote() ) {
-			echo '<div class="rses-booth" ' . Translator::rses_html_attrs() . '><div class="rses-message rses-message-error rses-vote-denied">' . esc_html__( 'Only users enrolled with the Subscriber role may cast a ballot. Sign in with a Subscriber account (Administrator and Editor accounts are not eligible unless they also have the Subscriber role).', 'relatasoft-secure-election-suite' ) . '</div></div>';
+			echo '<div class="rses-booth" ' . Translator::rses_html_attrs() . '><div class="rses-message rses-message-error rses-vote-denied">';
+			echo esc_html( RoleLabels::rses_message_vote_denied_booth() );
+			echo '</div></div>';
 			return;
 		}
 

@@ -10,6 +10,7 @@ namespace RelataSoft\SecureElectionSuite\Admin;
 use RelataSoft\SecureElectionSuite\Bootstrap\ModeLock;
 use RelataSoft\SecureElectionSuite\Frontend\JourneySettings;
 use RelataSoft\SecureElectionSuite\Frontend\VoterJourney;
+use RelataSoft\SecureElectionSuite\I18n\RoleLabels;
 use RelataSoft\SecureElectionSuite\I18n\Translator;
 use RelataSoft\SecureElectionSuite\Security\AuditLogger;
 use RelataSoft\SecureElectionSuite\Security\Capability;
@@ -106,7 +107,15 @@ class RedirectionsPage {
 							<th scope="row"><label for="rses_thank_you_page_id"><?php esc_html_e( 'Thank-you page', 'relatasoft-secure-election-suite' ); ?></label></th>
 							<td>
 								<?php self::rses_render_page_select( 'rses_thank_you_page_id', (int) $rses_settings['thank_you_page_id'], $rses_pages ); ?>
-								<p class="description"><?php esc_html_e( 'Editable by administrators, authors, and editors like any WordPress page.', 'relatasoft-secure-election-suite' ); ?></p>
+								<p class="description"><?php
+									echo esc_html(
+										sprintf(
+											/* translators: %s: electoral authority role label (plural) */
+											__( 'Editable by administrators, authors, and %s like any WordPress page.', 'relatasoft-secure-election-suite' ),
+											RoleLabels::rses_editor_plural()
+										)
+									);
+								?></p>
 							</td>
 						</tr>
 						<tr>

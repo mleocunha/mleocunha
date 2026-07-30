@@ -12,6 +12,7 @@ use RelataSoft\SecureElectionSuite\Crypto\CryptoException;
 use RelataSoft\SecureElectionSuite\Security\AuditLogger;
 use RelataSoft\SecureElectionSuite\Security\Capability;
 use RelataSoft\SecureElectionSuite\Security\Nonce;
+use RelataSoft\SecureElectionSuite\I18n\RoleLabels;
 use RelataSoft\SecureElectionSuite\Frontend\VoterJourney;
 use RelataSoft\SecureElectionSuite\Security\Sanitizer;
 
@@ -140,7 +141,7 @@ class BallotController {
 		if ( ! Capability::rses_can_vote() ) {
 			wp_send_json_error(
 				array(
-					'message' => __( 'Only users enrolled with the Subscriber role may cast a ballot. Administrator and Editor accounts cannot vote unless they also have the Subscriber role.', 'relatasoft-secure-election-suite' ),
+					'message' => RoleLabels::rses_message_vote_denied_full(),
 				),
 				403
 			);

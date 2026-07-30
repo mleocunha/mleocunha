@@ -7,6 +7,8 @@
 
 namespace RelataSoft\SecureElectionSuite\Security;
 
+use RelataSoft\SecureElectionSuite\I18n\RoleLabels;
+
 defined( 'ABSPATH' ) || exit;
 
 /**
@@ -231,7 +233,7 @@ class Capability {
 	public static function rses_require_official(): void {
 		if ( ! self::rses_is_election_official() ) {
 			wp_die(
-				esc_html__( 'Only users with the Editor role (election officials) may receive or submit Shamir shares. Administrators who were assigned a share may also access their own share.', 'relatasoft-secure-election-suite' ),
+				esc_html( RoleLabels::rses_message_official_required() ),
 				esc_html__( 'Permission Denied', 'relatasoft-secure-election-suite' ),
 				array( 'response' => 403 )
 			);
@@ -244,7 +246,7 @@ class Capability {
 	public static function rses_require_voter(): void {
 		if ( ! self::rses_can_vote() ) {
 			wp_die(
-				esc_html__( 'Only users enrolled with the Subscriber role may cast a ballot. Administrator and Editor accounts cannot vote unless they also have the Subscriber role.', 'relatasoft-secure-election-suite' ),
+				esc_html( RoleLabels::rses_message_vote_denied_full() ),
 				esc_html__( 'Permission Denied', 'relatasoft-secure-election-suite' ),
 				array( 'response' => 403 )
 			);

@@ -520,5 +520,22 @@
   "Elector journey & login": "Elector journey & login",
   "Brand wp-login.php, configure welcome and thank-you pages, and plan post-login redirects for electors.": "Brand wp-login.php, configure welcome and thank-you pages, and plan post-login redirects for electors.",
   "Choose login logo": "Choose login logo",
-  "Use this logo": "Use this logo"
+  "Use this logo": "Use this logo",
+  "Electoral Authorities": "Electoral Authorities",
+  "Electoral Authority": "Electoral Authority",
+  "Electors": "Electors",
+  "Elector": "Elector",
+  "Only users enrolled with the %s role may cast a ballot.": "Only users enrolled with the %s role may cast a ballot.",
+  "Only users enrolled with the %1$s role may cast a ballot. Administrator and %2$s accounts cannot vote unless they also have the %1$s role.": "Only users enrolled with the %1$s role may cast a ballot. Administrator and %2$s accounts cannot vote unless they also have the %1$s role.",
+  "Only users enrolled with the %1$s role may cast a ballot. Sign in with an %1$s account (Administrator and %2$s accounts are not eligible unless they also have the %1$s role).": "Only users enrolled with the %1$s role may cast a ballot. Sign in with an %1$s account (Administrator and %2$s accounts are not eligible unless they also have the %1$s role).",
+  "Only users with the %s role (election officials) may receive or submit Shamir shares. Administrators who were assigned a share may also access their own share.": "Only users with the %s role (election officials) may receive or submit Shamir shares. Administrators who were assigned a share may also access their own share.",
+  "Copy a shortcode and paste it into any WordPress page or post. Only %s may cast a ballot.": "Copy a shortcode and paste it into any WordPress page or post. Only %s may cast a ballot.",
+  "Copy shortcodes into any WordPress page or post so %s can cast encrypted ballots.": "Copy shortcodes into any WordPress page or post so %s can cast encrypted ballots.",
+  "View, copy, and download the Shamir share assigned to your %s account. Keep it offline and confidential.": "View, copy, and download the Shamir share assigned to your %s account. Keep it offline and confidential.",
+  "Each %s pastes their offline Shamir share JSON here until the threshold is met.": "Each %s pastes their offline Shamir share JSON here until the threshold is met.",
+  "Generate keys, assign Shamir shares to %s, import public parameters, and export packages for Voting / Tallying sites.": "Generate keys, assign Shamir shares to %s, import public parameters, and export packages for Voting / Tallying sites.",
+  "No %1$s accounts found. Create WordPress users with the %1$s role before assigning Shamir shares.": "No %1$s accounts found. Create WordPress users with the %1$s role before assigning Shamir shares.",
+  "View, copy, and download the share assigned to your %s account. Keep it offline for Tallying.": "View, copy, and download the share assigned to your %s account. Keep it offline for Tallying.",
+  "Paste the share JSON from Key Authority. Each %s submits independently; only an Administrator can decrypt after the threshold is met.": "Paste the share JSON from Key Authority. Each %s submits independently; only an Administrator can decrypt after the threshold is met.",
+  "Editable by administrators, authors, and %s like any WordPress page.": "Editable by administrators, authors, and %s like any WordPress page."
 }

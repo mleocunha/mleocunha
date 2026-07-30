@@ -14,6 +14,7 @@ use RelataSoft\SecureElectionSuite\Crypto\ElGamalCiphertext;
 use RelataSoft\SecureElectionSuite\Crypto\HomomorphicTally;
 use RelataSoft\SecureElectionSuite\Exports\HashService;
 use RelataSoft\SecureElectionSuite\KeyAuthority\KeyRepository;
+use RelataSoft\SecureElectionSuite\I18n\RoleLabels;
 use RelataSoft\SecureElectionSuite\Security\AuditLogger;
 use RelataSoft\SecureElectionSuite\Security\Capability;
 
@@ -57,7 +58,7 @@ class VoteEncryptionService {
 				)
 			);
 			throw new CryptoException(
-				__( 'Only users enrolled with the Subscriber role may cast a ballot.', 'relatasoft-secure-election-suite' )
+				RoleLabels::rses_message_vote_denied_short()
 			);
 		}
 
