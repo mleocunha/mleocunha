@@ -11,6 +11,7 @@ use RelataSoft\SecureElectionSuite\Security\AuditLogger;
 use RelataSoft\SecureElectionSuite\Security\Capability;
 use RelataSoft\SecureElectionSuite\Security\Nonce;
 use RelataSoft\SecureElectionSuite\I18n\Translator;
+use RelataSoft\SecureElectionSuite\Admin\Brand;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -35,11 +36,16 @@ class AuditLogPage {
 		$rses_entries = AuditLogger::rses_get_entries( 200 );
 		$rses_chain   = AuditLogger::rses_verify_chain();
 		?>
-		<div class="wrap rses-wrap" <?php echo Translator::rses_html_attrs(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
-			<h1><?php esc_html_e( 'Audit Log', 'relatasoft-secure-election-suite' ); ?></h1>
+		<div class="wrap rses-wrap rses-screen" <?php echo Translator::rses_html_attrs(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
+			<header class="rses-hero rses-hero--brand">
+				<?php Brand::rses_render_hero_brand(); ?>
+				<p class="rses-hero-kicker"><?php esc_html_e( 'Integrity', 'relatasoft-secure-election-suite' ); ?></p>
+				<h1 class="rses-hero-title"><?php esc_html_e( 'Audit Log', 'relatasoft-secure-election-suite' ); ?></h1>
+				<p class="rses-hero-lead"><?php esc_html_e( 'Review chained audit events for this installation.', 'relatasoft-secure-election-suite' ); ?></p>
+			</header>
 
 			<?php if ( ! empty( $_GET['rses_repaired'] ) ) : // phpcs:ignore WordPress.Security.NonceVerification.Recommended ?>
-				<div class="notice notice-success is-dismissible">
+				<div class="rses-panel rses-panel-success">
 					<p><?php esc_html_e( 'Audit hash chain recomputed successfully.', 'relatasoft-secure-election-suite' ); ?></p>
 				</div>
 			<?php endif; ?>

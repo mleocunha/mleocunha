@@ -15,6 +15,7 @@ use RelataSoft\SecureElectionSuite\Security\Nonce;
 use RelataSoft\SecureElectionSuite\Tallying\TallyingViews;
 use RelataSoft\SecureElectionSuite\Voting\VotingViews;
 use RelataSoft\SecureElectionSuite\I18n\Translator;
+use RelataSoft\SecureElectionSuite\Admin\Brand;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -195,16 +196,21 @@ class AdminMenu {
 
 		$rses_mode = ModeLock::rses_get_mode();
 		?>
-		<div class="wrap rses-wrap" <?php echo Translator::rses_html_attrs(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
-			<h1><?php esc_html_e( 'RelataSoft Secure Election Suite', 'relatasoft-secure-election-suite' ); ?></h1>
+		<div class="wrap rses-wrap rses-screen" <?php echo Translator::rses_html_attrs(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
+			<header class="rses-hero rses-hero--brand">
+				<?php Brand::rses_render_hero_brand(); ?>
+				<p class="rses-hero-kicker"><?php esc_html_e( 'Secure Election Suite', 'relatasoft-secure-election-suite' ); ?></p>
+				<h1 class="rses-hero-title"><?php esc_html_e( 'Dashboard', 'relatasoft-secure-election-suite' ); ?></h1>
+				<p class="rses-hero-lead"><?php esc_html_e( 'Continue your locked-mode workflow with the actions below.', 'relatasoft-secure-election-suite' ); ?></p>
+			</header>
 
 			<?php if ( ! empty( $_GET['rses_mode_set'] ) ) : // phpcs:ignore WordPress.Security.NonceVerification.Recommended ?>
-				<div class="notice notice-success is-dismissible">
+				<div class="rses-panel rses-panel-success">
 					<p><?php esc_html_e( 'Mode locked successfully. Use the actions below to continue.', 'relatasoft-secure-election-suite' ); ?></p>
 				</div>
 			<?php endif; ?>
 
-			<div class="rses-notice rses-notice-info">
+			<div class="rses-panel rses-panel-info">
 				<p>
 					<strong><?php esc_html_e( 'Active Mode:', 'relatasoft-secure-election-suite' ); ?></strong>
 					<?php echo esc_html( ModeLock::rses_get_mode_label( $rses_mode ) ); ?>

@@ -1,5 +1,5 @@
 {
-  "Secure Election Suite": "Suite Electoral Segura",
+  "Secure Election Suite": "Suite electoral segura",
   "Election Suite": "Suite Electoral",
   "Mode Setup": "Configuración del modo",
   "Key Authority": "Autoridad de claves",
@@ -462,5 +462,14 @@
   "Audio": "Audio",
   "Video": "Vídeo",
   "Media": "Medio",
-  "Media attached": "Medio adjunto"
+  "Media attached": "Medio adjunto",
+  "Participação mais Inteligente": "Participación más inteligente",
+  "Dashboard": "Panel",
+  "Continue your locked-mode workflow with the actions below.": "Continúe el flujo del modo bloqueado con las acciones siguientes.",
+  "Setup": "Configuración",
+  "Select exactly one mode for this WordPress installation. Once selected, the mode is locked.": "Seleccione exactamente un modo para esta instalación de WordPress. Una vez elegido, el modo queda bloqueado.",
+  "Configuration": "Configuración",
+  "Tune export and custody options for this locked-mode installation.": "Ajuste las opciones de exportación y custodia para esta instalación en modo bloqueado.",
+  "Integrity": "Integridad",
+  "Review chained audit events for this installation.": "Revise los eventos de auditoría encadenados de esta instalación."
 }

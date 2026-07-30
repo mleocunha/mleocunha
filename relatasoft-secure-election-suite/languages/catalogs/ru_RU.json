@@ -462,5 +462,14 @@
   "Audio": "Аудио",
   "Video": "Видео",
   "Media": "Медиа",
-  "Media attached": "Медиа прикреплено"
+  "Media attached": "Медиа прикреплено",
+  "Participação mais Inteligente": "Более умное участие",
+  "Dashboard": "Панель",
+  "Continue your locked-mode workflow with the actions below.": "Продолжите рабочий процесс заблокированного режима с помощью действий ниже.",
+  "Setup": "Настройка",
+  "Select exactly one mode for this WordPress installation. Once selected, the mode is locked.": "Выберите ровно один режим для этой установки WordPress. После выбора режим блокируется.",
+  "Configuration": "Конфигурация",
+  "Tune export and custody options for this locked-mode installation.": "Настройте параметры экспорта и хранения для этой установки в заблокированном режиме.",
+  "Integrity": "Целостность",
+  "Review chained audit events for this installation.": "Просмотрите цепочку событий аудита для этой установки."
 }

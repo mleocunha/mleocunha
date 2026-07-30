@@ -462,5 +462,14 @@
   "Audio": "Audio",
   "Video": "Vidéo",
   "Media": "Média",
-  "Media attached": "Média joint"
+  "Media attached": "Média joint",
+  "Participação mais Inteligente": "Participation plus intelligente",
+  "Dashboard": "Tableau de bord",
+  "Continue your locked-mode workflow with the actions below.": "Poursuivez le flux du mode verrouillé avec les actions ci-dessous.",
+  "Setup": "Configuration",
+  "Select exactly one mode for this WordPress installation. Once selected, the mode is locked.": "Sélectionnez exactement un mode pour cette installation WordPress. Une fois choisi, le mode est verrouillé.",
+  "Configuration": "Configuration",
+  "Tune export and custody options for this locked-mode installation.": "Réglez les options d’export et de garde pour cette installation en mode verrouillé.",
+  "Integrity": "Intégrité",
+  "Review chained audit events for this installation.": "Consultez les événements d’audit chaînés de cette installation."
 }

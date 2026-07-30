@@ -462,5 +462,14 @@
   "Audio": "אודיו",
   "Video": "וידאו",
   "Media": "מדיה",
-  "Media attached": "מדיה מצורפת"
+  "Media attached": "מדיה מצורפת",
+  "Participação mais Inteligente": "השתתפות חכמה יותר",
+  "Dashboard": "לוח בקרה",
+  "Continue your locked-mode workflow with the actions below.": "המשך את תהליך המצב הנעול עם הפעולות שלמטה.",
+  "Setup": "הגדרה",
+  "Select exactly one mode for this WordPress installation. Once selected, the mode is locked.": "בחר מצב אחד בדיוק להתקנת וורדפרס זו. לאחר הבחירה המצב ננעל.",
+  "Configuration": "תצורה",
+  "Tune export and custody options for this locked-mode installation.": "כוונן אפשרויות ייצוא ומשמורת עבור התקנה זו במצב נעול.",
+  "Integrity": "שלמות",
+  "Review chained audit events for this installation.": "סקור אירועי ביקורת משורשרים עבור התקנה זו."
 }

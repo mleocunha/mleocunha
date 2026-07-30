@@ -462,5 +462,14 @@
   "Audio": "音频",
   "Video": "视频",
   "Media": "媒体",
-  "Media attached": "已附加媒体"
+  "Media attached": "已附加媒体",
+  "Participação mais Inteligente": "更智慧的参与",
+  "Dashboard": "控制台",
+  "Continue your locked-mode workflow with the actions below.": "使用下方操作继续已锁定模式的工作流。",
+  "Setup": "设置",
+  "Select exactly one mode for this WordPress installation. Once selected, the mode is locked.": "为此 WordPress 安装精确选择一种模式。选定后模式将被锁定。",
+  "Configuration": "配置",
+  "Tune export and custody options for this locked-mode installation.": "为该锁定模式安装调整导出与保管选项。",
+  "Integrity": "完整性",
+  "Review chained audit events for this installation.": "查看此安装的链式审计事件。"
 }

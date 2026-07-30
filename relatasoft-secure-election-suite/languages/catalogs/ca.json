@@ -462,5 +462,14 @@
   "Audio": "Àudio",
   "Video": "Vídeo",
   "Media": "Multimèdia",
-  "Media attached": "Multimèdia adjunt"
+  "Media attached": "Multimèdia adjunt",
+  "Participação mais Inteligente": "Participació més intel·ligent",
+  "Dashboard": "Tauler",
+  "Continue your locked-mode workflow with the actions below.": "Continueu el flux del mode bloquejat amb les accions següents.",
+  "Setup": "Configuració",
+  "Select exactly one mode for this WordPress installation. Once selected, the mode is locked.": "Seleccioneu exactament un mode per a aquesta instal·lació de WordPress. Un cop seleccionat, el mode queda bloquejat.",
+  "Configuration": "Configuració",
+  "Tune export and custody options for this locked-mode installation.": "Ajusteu les opcions d’exportació i custòdia per a aquesta instal·lació en mode bloquejat.",
+  "Integrity": "Integritat",
+  "Review chained audit events for this installation.": "Reviseu els esdeveniments d’auditoria encadenats d’aquesta instal·lació."
 }

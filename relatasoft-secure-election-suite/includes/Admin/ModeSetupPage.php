@@ -13,6 +13,7 @@ use RelataSoft\SecureElectionSuite\Security\Escaper;
 use RelataSoft\SecureElectionSuite\Security\Nonce;
 use RelataSoft\SecureElectionSuite\Security\Sanitizer;
 use RelataSoft\SecureElectionSuite\I18n\Translator;
+use RelataSoft\SecureElectionSuite\Admin\Brand;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -38,10 +39,15 @@ class ModeSetupPage {
 		$rses_locked = ModeLock::rses_is_locked();
 		$rses_mode   = ModeLock::rses_get_mode();
 		?>
-		<div class="wrap rses-wrap" <?php echo Translator::rses_html_attrs(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
-			<h1><?php esc_html_e( 'Mode Setup', 'relatasoft-secure-election-suite' ); ?></h1>
+		<div class="wrap rses-wrap rses-screen" <?php echo Translator::rses_html_attrs(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
+			<header class="rses-hero rses-hero--brand">
+				<?php Brand::rses_render_hero_brand(); ?>
+				<p class="rses-hero-kicker"><?php esc_html_e( 'Setup', 'relatasoft-secure-election-suite' ); ?></p>
+				<h1 class="rses-hero-title"><?php esc_html_e( 'Mode Setup', 'relatasoft-secure-election-suite' ); ?></h1>
+				<p class="rses-hero-lead"><?php esc_html_e( 'Select exactly one mode for this WordPress installation. Once selected, the mode is locked.', 'relatasoft-secure-election-suite' ); ?></p>
+			</header>
 
-			<div class="rses-notice rses-notice-warning">
+			<div class="rses-panel rses-panel-warning">
 				<p><?php esc_html_e( 'Select exactly one mode for this WordPress installation. Once selected, the mode is locked. Switching requires a destructive reset that removes all election data.', 'relatasoft-secure-election-suite' ); ?></p>
 			</div>
 

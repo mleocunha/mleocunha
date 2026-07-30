@@ -11,12 +11,16 @@
 
 .rses-ka,
 .rses-screen {
-	--rses-primary: #0c7c9c;
-	--rses-primary-dark: #095e77;
+	--rses-primary: #f5a623;
+	--rses-primary-dark: #d4890f;
+	--rses-brand-navy: #0b1230;
+	--rses-brand-ink: #f7f4ea;
+	--rses-brand-gold: #ffb800;
+	--rses-brand-gold-deep: #f58220;
 	--rses-ink: #1c2a32;
 	--rses-muted: #5a6b75;
 	--rses-line: #c9d6dc;
-	--rses-soft: #eef5f8;
+	--rses-soft: #fff7e8;
 	--rses-soft-2: #f7fbfc;
 	--rses-white: #ffffff;
 	--rses-success-bg: #e3f5e3;
@@ -25,9 +29,9 @@
 	--rses-warn-bg: #fff6df;
 	--rses-warn-ink: #8a5a08;
 	--rses-warn-line: #ffdf9e;
-	--rses-info-bg: #e8f4f8;
-	--rses-info-ink: #0c5470;
-	--rses-info-line: #b8dce8;
+	--rses-info-bg: #fff4de;
+	--rses-info-ink: #7a4a00;
+	--rses-info-line: #f0d59a;
 	--rses-danger: #b42318;
 	--rses-radius: 10px;
 	--rses-font: "Source Sans 3", "Segoe UI", sans-serif;
@@ -65,13 +69,138 @@
 	overflow: hidden;
 	margin: 0 0 18px;
 	padding: 1.55rem 1.6rem 1.65rem;
-	border: 1px solid var(--rses-line);
+	border: 1px solid rgba(255, 184, 0, 0.22);
 	border-radius: calc(var(--rses-radius) + 2px);
+	color: var(--rses-brand-ink);
 	background:
-		radial-gradient(120% 80% at 0% 0%, rgba(12, 124, 156, 0.1), transparent 55%),
-		radial-gradient(90% 70% at 100% 0%, rgba(9, 94, 119, 0.08), transparent 50%),
-		linear-gradient(180deg, var(--rses-soft-2), #ffffff 55%);
+		radial-gradient(ellipse 70% 90% at 100% 0%, rgba(245, 166, 35, 0.22), transparent 55%),
+		radial-gradient(ellipse 50% 70% at 0% 100%, rgba(245, 130, 32, 0.14), transparent 50%),
+		linear-gradient(135deg, #070a14 0%, #12182b 48%, #0b1230 100%);
+	box-shadow: 0 16px 40px rgba(7, 10, 20, 0.28);
 	animation: rses-ka-in 0.45s var(--rses-ease) both;
+}
+
+.rses-ka-hero::before,
+.rses-hero::before {
+	content: "";
+	position: absolute;
+	inset: 0;
+	opacity: 0.22;
+	pointer-events: none;
+	background-image:
+		linear-gradient(30deg, transparent 40%, rgba(255, 184, 0, 0.08) 41%, transparent 42%),
+		linear-gradient(-30deg, transparent 45%, rgba(255, 255, 255, 0.04) 46%, transparent 47%);
+	background-size: 48px 48px;
+}
+
+.rses-brand-lockup {
+	position: relative;
+	z-index: 1;
+	display: flex;
+	align-items: center;
+	gap: 0.85rem;
+	margin: 0 0 1.1rem;
+}
+
+.rses-brand-mark {
+	display: block;
+	width: 44px;
+	height: 44px;
+	flex: 0 0 auto;
+	filter: drop-shadow(0 4px 12px rgba(245, 166, 35, 0.35));
+}
+
+.rses-brand-mark--solo {
+	width: 28px;
+	height: 28px;
+}
+
+.rses-brand-text {
+	display: flex;
+	flex-direction: column;
+	gap: 0.1rem;
+	min-width: 0;
+}
+
+.rses-brand-name {
+	margin: 0;
+	font-family: var(--rses-font);
+	font-size: 1.15rem;
+	font-weight: 700;
+	letter-spacing: -0.02em;
+	line-height: 1.15;
+	color: #fff;
+}
+
+.rses-brand-tagline {
+	margin: 0;
+	font-size: 0.82rem;
+	font-weight: 500;
+	letter-spacing: 0.01em;
+	color: rgba(255, 255, 255, 0.72);
+}
+
+.rses-ka-hero .rses-ka-kicker,
+.rses-ka-hero .rses-hero-kicker,
+.rses-hero .rses-hero-kicker,
+.rses-hero .rses-ka-kicker {
+	color: var(--rses-brand-gold);
+}
+
+.rses-ka-hero .rses-ka-title,
+.rses-ka-hero .rses-hero-title,
+.rses-hero .rses-hero-title,
+.rses-hero .rses-ka-title {
+	color: #fff;
+}
+
+.rses-ka-hero .rses-ka-lead,
+.rses-ka-hero .rses-hero-lead,
+.rses-hero .rses-hero-lead,
+.rses-hero .rses-ka-lead {
+	color: rgba(247, 244, 234, 0.78);
+}
+
+.rses-dashboard-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+	gap: 1rem;
+	margin: 0 0 1.25rem;
+}
+
+.rses-dashboard-card {
+	padding: 1.15rem 1.2rem 1.25rem;
+	border: 1px solid var(--rses-line);
+	border-radius: var(--rses-radius);
+	background:
+		radial-gradient(120% 80% at 100% 0%, rgba(245, 166, 35, 0.1), transparent 55%),
+		#fff;
+	box-shadow: 0 6px 22px rgba(28, 42, 50, 0.05);
+}
+
+.rses-dashboard-card h2 {
+	margin: 0 0 0.45rem;
+	font-family: var(--rses-display);
+	font-size: 1.2rem;
+	font-weight: 600;
+	color: var(--rses-ink);
+	border: 0;
+	padding: 0;
+}
+
+.rses-dashboard-card p {
+	margin: 0 0 0.85rem;
+	color: var(--rses-muted);
+	line-height: 1.45;
+}
+
+.rses-dashboard-card .button-primary,
+.rses-dashboard-card .button.button-primary {
+	background: var(--rses-primary);
+	border-color: var(--rses-primary);
+	border-radius: 999px;
+	text-shadow: none;
+	box-shadow: 0 6px 16px rgba(245, 166, 35, 0.28);
 }
 
 .rses-ka-kicker,
@@ -311,7 +440,7 @@
 .rses-screen .rses-code-area:focus {
 	outline: none;
 	border-color: var(--rses-primary);
-	box-shadow: 0 0 0 3px rgba(12, 124, 156, 0.16);
+	box-shadow: 0 0 0 3px rgba(245, 166, 35, 0.16);
 }
 
 .rses-ka .rses-field textarea,
@@ -384,7 +513,7 @@
 .rses-screen .rses-official-choice:has(input:checked) {
 	border-color: var(--rses-primary);
 	background: var(--rses-soft);
-	box-shadow: 0 0 0 3px rgba(12, 124, 156, 0.12);
+	box-shadow: 0 0 0 3px rgba(245, 166, 35, 0.12);
 }
 
 .rses-ka .rses-official-choice input ,
@@ -476,7 +605,7 @@
 	font-weight: 600;
 	line-height: 1.2;
 	text-shadow: none;
-	box-shadow: 0 6px 16px rgba(12, 124, 156, 0.22);
+	box-shadow: 0 6px 16px rgba(245, 166, 35, 0.22);
 	transition:
 		background 0.22s var(--rses-ease),
 		border-color 0.22s var(--rses-ease),
@@ -492,7 +621,7 @@
 	border-color: var(--rses-primary-dark);
 	color: #fff !important;
 	transform: translateY(-1px);
-	box-shadow: 0 8px 18px rgba(12, 124, 156, 0.28);
+	box-shadow: 0 8px 18px rgba(245, 166, 35, 0.28);
 }
 
 .rses-ka .button.rses-btn-secondary,
@@ -577,7 +706,7 @@
 	height: 10px;
 	margin: 0.35rem 0 0.75rem;
 	border-radius: 999px;
-	background: rgba(12, 124, 156, 0.12);
+	background: rgba(245, 166, 35, 0.12);
 	overflow: hidden;
 }
 
@@ -586,7 +715,7 @@
 	height: 100%;
 	width: 0;
 	border-radius: inherit;
-	background: linear-gradient(90deg, var(--rses-primary), #14a0c4);
+	background: linear-gradient(90deg, var(--rses-primary), #ffd56a);
 	transition: width 0.35s var(--rses-ease);
 }
 
@@ -626,7 +755,7 @@
 
 .rses-ka .rses-export-card:hover ,
 .rses-screen .rses-export-card:hover {
-	border-color: rgba(12, 124, 156, 0.4);
+	border-color: rgba(245, 166, 35, 0.4);
 	box-shadow: 0 8px 22px rgba(28, 42, 50, 0.06);
 }
 
@@ -862,7 +991,7 @@
 	font-weight: 600;
 	line-height: 1.2;
 	text-shadow: none;
-	box-shadow: 0 6px 16px rgba(12, 124, 156, 0.22);
+	box-shadow: 0 6px 16px rgba(245, 166, 35, 0.22);
 	transition: background 0.22s var(--rses-ease), border-color 0.22s var(--rses-ease), transform 0.22s var(--rses-ease), box-shadow 0.22s var(--rses-ease);
 }
 .rses-screen .button.rses-btn-primary:hover,
@@ -945,7 +1074,7 @@
 .rses-screen .rses-code-area:focus {
 	outline: none;
 	border-color: var(--rses-primary);
-	box-shadow: 0 0 0 3px rgba(12, 124, 156, 0.16);
+	box-shadow: 0 0 0 3px rgba(245, 166, 35, 0.16);
 }
 .rses-screen .rses-field textarea,
 .rses-screen .rses-code-area {
@@ -1247,8 +1376,8 @@
 }
 
 .rses-screen .rses-shortcode-focus {
-	box-shadow: 0 0 0 3px rgba(12, 124, 156, 0.14);
-	border-color: rgba(12, 124, 156, 0.45);
+	box-shadow: 0 0 0 3px rgba(245, 166, 35, 0.14);
+	border-color: rgba(245, 166, 35, 0.45);
 }
 
 .rses-screen .rses-shortcode-actions {
@@ -1317,14 +1446,14 @@
 	height: 10px;
 	margin: 0 0 1.1rem;
 	border-radius: 999px;
-	background: rgba(12, 124, 156, 0.12);
+	background: rgba(245, 166, 35, 0.12);
 	overflow: hidden;
 }
 
 .rses-screen .rses-progress-fill {
 	height: 100%;
 	border-radius: inherit;
-	background: linear-gradient(90deg, var(--rses-primary), #14a0c4);
+	background: linear-gradient(90deg, var(--rses-primary), #ffd56a);
 	transition: width 0.35s var(--rses-ease);
 }
 

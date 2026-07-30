@@ -462,5 +462,14 @@
   "Audio": "Audio",
   "Video": "Video",
   "Media": "Media",
-  "Media attached": "Media toegevoegd"
+  "Media attached": "Media toegevoegd",
+  "Participação mais Inteligente": "Slimmere participatie",
+  "Dashboard": "Dashboard",
+  "Continue your locked-mode workflow with the actions below.": "Ga verder met de vergrendelde modus via de acties hieronder.",
+  "Setup": "Instellen",
+  "Select exactly one mode for this WordPress installation. Once selected, the mode is locked.": "Selecteer precies één modus voor deze WordPress-installatie. Na selectie wordt de modus vergrendeld.",
+  "Configuration": "Configuratie",
+  "Tune export and custody options for this locked-mode installation.": "Stel export- en bewaarmogelijkheden in voor deze vergrendelde installatie.",
+  "Integrity": "Integriteit",
+  "Review chained audit events for this installation.": "Bekijk de gekoppelde auditgebeurtenissen van deze installatie."
 }

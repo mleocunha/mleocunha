@@ -462,5 +462,14 @@
   "Audio",
   "Video",
   "Media",
-  "Media attached"
+  "Media attached",
+  "Participação mais Inteligente",
+  "Dashboard",
+  "Continue your locked-mode workflow with the actions below.",
+  "Setup",
+  "Select exactly one mode for this WordPress installation. Once selected, the mode is locked.",
+  "Configuration",
+  "Tune export and custody options for this locked-mode installation.",
+  "Integrity",
+  "Review chained audit events for this installation."
 ]

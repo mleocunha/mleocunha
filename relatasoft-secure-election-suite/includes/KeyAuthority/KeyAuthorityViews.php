@@ -12,6 +12,7 @@ use RelataSoft\SecureElectionSuite\Security\Capability;
 use RelataSoft\SecureElectionSuite\Security\Escaper;
 use RelataSoft\SecureElectionSuite\Security\Nonce;
 use RelataSoft\SecureElectionSuite\I18n\Translator;
+use RelataSoft\SecureElectionSuite\Admin\Brand;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -37,6 +38,8 @@ class KeyAuthorityViews {
 		?>
 		<div class="wrap rses-wrap rses-ka" <?php echo Translator::rses_html_attrs(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
 			<header class="rses-ka-hero">
+				<?php Brand::rses_render_hero_brand(); ?>
+
 				<p class="rses-ka-kicker"><?php esc_html_e( 'Key Authority', 'relatasoft-secure-election-suite' ); ?></p>
 				<h1 class="rses-ka-title"><?php esc_html_e( 'ElGamal Key Manager', 'relatasoft-secure-election-suite' ); ?></h1>
 				<p class="rses-ka-lead"><?php esc_html_e( 'Generate keys, assign Shamir shares to Editors, import public parameters, and export packages for Voting / Tallying sites.', 'relatasoft-secure-election-suite' ); ?></p>
@@ -220,6 +223,8 @@ class KeyAuthorityViews {
 		?>
 		<div class="wrap rses-wrap rses-ka" <?php echo Translator::rses_html_attrs(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
 			<header class="rses-ka-hero">
+				<?php Brand::rses_render_hero_brand(); ?>
+
 				<p class="rses-ka-kicker"><?php esc_html_e( 'Key Authority', 'relatasoft-secure-election-suite' ); ?></p>
 				<h1 class="rses-ka-title"><?php esc_html_e( 'My Shamir Shares', 'relatasoft-secure-election-suite' ); ?></h1>
 				<p class="rses-ka-lead"><?php esc_html_e( 'View, copy, and download the share assigned to your Editor account. Keep it offline for Tallying.', 'relatasoft-secure-election-suite' ); ?></p>

@@ -11,6 +11,7 @@ use RelataSoft\SecureElectionSuite\Security\AuditLogger;
 use RelataSoft\SecureElectionSuite\Security\Capability;
 use RelataSoft\SecureElectionSuite\Security\Nonce;
 use RelataSoft\SecureElectionSuite\I18n\Translator;
+use RelataSoft\SecureElectionSuite\Admin\Brand;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -35,10 +36,16 @@ class SettingsPage {
 		$rses_settings = get_option( 'rses_settings', array() );
 		$rses_allow_full = ! empty( $rses_settings['allow_full_private_export'] );
 		?>
-		<div class="wrap rses-wrap" <?php echo Translator::rses_html_attrs(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
-			<h1><?php esc_html_e( 'Election Suite Settings', 'relatasoft-secure-election-suite' ); ?></h1>
+		<div class="wrap rses-wrap rses-screen" <?php echo Translator::rses_html_attrs(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
+			<header class="rses-hero rses-hero--brand">
+				<?php Brand::rses_render_hero_brand(); ?>
+				<p class="rses-hero-kicker"><?php esc_html_e( 'Configuration', 'relatasoft-secure-election-suite' ); ?></p>
+				<h1 class="rses-hero-title"><?php esc_html_e( 'Election Suite Settings', 'relatasoft-secure-election-suite' ); ?></h1>
+				<p class="rses-hero-lead"><?php esc_html_e( 'Tune export and custody options for this locked-mode installation.', 'relatasoft-secure-election-suite' ); ?></p>
+			</header>
 
-			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+			<section class="rses-panel rses-panel-card">
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="rses-form">
 				<?php Nonce::rses_field( Nonce::RSES_ACTION_SETTINGS_SAVE ); ?>
 				<input type="hidden" name="action" value="rses_save_settings" />
 
@@ -55,8 +62,11 @@ class SettingsPage {
 					</tr>
 				</table>
 
-				<?php submit_button( __( 'Save Settings', 'relatasoft-secure-election-suite' ) ); ?>
+				<p class="rses-form-actions">
+					<?php submit_button( __( 'Save Settings', 'relatasoft-secure-election-suite' ), 'primary rses-btn-primary', 'submit', false ); ?>
+				</p>
 			</form>
+			</section>
 		</div>
 		<?php
 	}

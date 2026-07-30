@@ -10,6 +10,7 @@ namespace RelataSoft\SecureElectionSuite\Tallying;
 use RelataSoft\SecureElectionSuite\Security\Capability;
 use RelataSoft\SecureElectionSuite\Security\Nonce;
 use RelataSoft\SecureElectionSuite\I18n\Translator;
+use RelataSoft\SecureElectionSuite\Admin\Brand;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -38,6 +39,8 @@ class TallyingViews {
 		?>
 		<div class="wrap rses-wrap rses-screen" <?php echo Translator::rses_html_attrs(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
 			<header class="rses-hero">
+				<?php Brand::rses_render_hero_brand(); ?>
+
 				<p class="rses-hero-kicker"><?php esc_html_e( 'Tallying', 'relatasoft-secure-election-suite' ); ?></p>
 				<h1 class="rses-hero-title"><?php esc_html_e( 'Tally Import', 'relatasoft-secure-election-suite' ); ?></h1>
 				<p class="rses-hero-lead"><?php esc_html_e( 'Import sealed voting packages (ZIP or JSON) from the Voting site to begin share collection and decryption.', 'relatasoft-secure-election-suite' ); ?></p>
@@ -121,6 +124,8 @@ class TallyingViews {
 		?>
 		<div class="wrap rses-wrap rses-screen" <?php echo Translator::rses_html_attrs(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
 			<header class="rses-hero">
+				<?php Brand::rses_render_hero_brand(); ?>
+
 				<p class="rses-hero-kicker"><?php esc_html_e( 'Tallying', 'relatasoft-secure-election-suite' ); ?></p>
 				<h1 class="rses-hero-title"><?php esc_html_e( 'Official Share Submission', 'relatasoft-secure-election-suite' ); ?></h1>
 				<p class="rses-hero-lead"><?php esc_html_e( 'Paste the share JSON from Key Authority. Each Editor submits independently; only an Administrator can decrypt after the threshold is met.', 'relatasoft-secure-election-suite' ); ?></p>
@@ -214,6 +219,8 @@ class TallyingViews {
 		?>
 		<div class="wrap rses-wrap rses-screen" <?php echo Translator::rses_html_attrs(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
 			<header class="rses-hero">
+				<?php Brand::rses_render_hero_brand(); ?>
+
 				<p class="rses-hero-kicker"><?php esc_html_e( 'Tallying', 'relatasoft-secure-election-suite' ); ?></p>
 				<h1 class="rses-hero-title"><?php esc_html_e( 'Certification', 'relatasoft-secure-election-suite' ); ?></h1>
 				<p class="rses-hero-lead"><?php esc_html_e( 'Review decrypted tallies, generate certification records, and export ZIP or PDF packages.', 'relatasoft-secure-election-suite' ); ?></p>

@@ -11,6 +11,7 @@ use RelataSoft\SecureElectionSuite\KeyAuthority\KeyRepository;
 use RelataSoft\SecureElectionSuite\Security\Capability;
 use RelataSoft\SecureElectionSuite\Security\Nonce;
 use RelataSoft\SecureElectionSuite\I18n\Translator;
+use RelataSoft\SecureElectionSuite\Admin\Brand;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -45,6 +46,8 @@ class VotingViews {
 				<?php self::rses_render_election_editor( $rses_edit_id, $rses_round_id ); ?>
 			<?php else : ?>
 				<header class="rses-hero">
+				<?php Brand::rses_render_hero_brand(); ?>
+
 					<p class="rses-hero-kicker"><?php esc_html_e( 'Voting Platform', 'relatasoft-secure-election-suite' ); ?></p>
 					<h1 class="rses-hero-title"><?php esc_html_e( 'Election Management', 'relatasoft-secure-election-suite' ); ?></h1>
 					<p class="rses-hero-lead"><?php esc_html_e( 'Create elections, build ballots, open voting, and prepare exports for the Tallying site.', 'relatasoft-secure-election-suite' ); ?></p>
@@ -189,6 +192,8 @@ class VotingViews {
 		?>
 		<div class="wrap rses-wrap rses-screen" <?php echo Translator::rses_html_attrs(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
 			<header class="rses-hero">
+				<?php Brand::rses_render_hero_brand(); ?>
+
 				<p class="rses-hero-kicker"><?php esc_html_e( 'Voting Platform', 'relatasoft-secure-election-suite' ); ?></p>
 				<h1 class="rses-hero-title"><?php esc_html_e( 'Public Keys', 'relatasoft-secure-election-suite' ); ?></h1>
 				<p class="rses-hero-lead"><?php esc_html_e( 'Import the public key JSON exported from the Key Authority site. Only public components (p, q, g, y) are stored here.', 'relatasoft-secure-election-suite' ); ?></p>
@@ -293,6 +298,8 @@ class VotingViews {
 		);
 		?>
 		<header class="rses-hero">
+				<?php Brand::rses_render_hero_brand(); ?>
+
 			<p class="rses-hero-kicker"><?php esc_html_e( 'Election editor', 'relatasoft-secure-election-suite' ); ?></p>
 			<h1 class="rses-hero-title"><?php echo esc_html( $rses_election->title ); ?></h1>
 			<p class="rses-hero-lead">
@@ -481,6 +488,8 @@ class VotingViews {
 		?>
 		<div class="wrap rses-wrap rses-screen" <?php echo Translator::rses_html_attrs(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
 			<header class="rses-hero">
+				<?php Brand::rses_render_hero_brand(); ?>
+
 				<p class="rses-hero-kicker"><?php esc_html_e( 'Voting Platform', 'relatasoft-secure-election-suite' ); ?></p>
 				<h1 class="rses-hero-title"><?php esc_html_e( 'Shortcode Generator', 'relatasoft-secure-election-suite' ); ?></h1>
 				<p class="rses-hero-lead"><?php esc_html_e( 'Copy a shortcode and paste it into any WordPress page or post. Only Subscriber-role voters may cast a ballot.', 'relatasoft-secure-election-suite' ); ?></p>
@@ -641,6 +650,8 @@ class VotingViews {
 		?>
 		<div class="wrap rses-wrap rses-screen" <?php echo Translator::rses_html_attrs(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
 			<header class="rses-hero">
+				<?php Brand::rses_render_hero_brand(); ?>
+
 				<p class="rses-hero-kicker"><?php esc_html_e( 'Voting Platform', 'relatasoft-secure-election-suite' ); ?></p>
 				<h1 class="rses-hero-title"><?php esc_html_e( 'Voting Export', 'relatasoft-secure-election-suite' ); ?></h1>
 				<p class="rses-hero-lead"><?php esc_html_e( 'Download sealed ballot packages for import on the Tallying site.', 'relatasoft-secure-election-suite' ); ?></p>

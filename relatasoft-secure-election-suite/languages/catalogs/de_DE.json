@@ -462,5 +462,14 @@
   "Audio": "Audio",
   "Video": "Video",
   "Media": "Medium",
-  "Media attached": "Medium angehängt"
+  "Media attached": "Medium angehängt",
+  "Participação mais Inteligente": "Intelligentere Teilhabe",
+  "Dashboard": "Dashboard",
+  "Continue your locked-mode workflow with the actions below.": "Setzen Sie den gesperrten Modus mit den Aktionen unten fort.",
+  "Setup": "Einrichtung",
+  "Select exactly one mode for this WordPress installation. Once selected, the mode is locked.": "Wählen Sie genau einen Modus für diese WordPress-Installation. Nach der Auswahl ist der Modus gesperrt.",
+  "Configuration": "Konfiguration",
+  "Tune export and custody options for this locked-mode installation.": "Passen Sie Export- und Verwahrungsoptionen für diese gesperrte Installation an.",
+  "Integrity": "Integrität",
+  "Review chained audit events for this installation.": "Prüfen Sie die verketteten Audit-Ereignisse dieser Installation."
 }

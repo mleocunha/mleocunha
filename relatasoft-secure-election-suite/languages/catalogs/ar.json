@@ -462,5 +462,14 @@
   "Audio": "صوت",
   "Video": "فيديو",
   "Media": "وسائط",
-  "Media attached": "تم إرفاق الوسائط"
+  "Media attached": "تم إرفاق الوسائط",
+  "Participação mais Inteligente": "مشاركة أكثر ذكاءً",
+  "Dashboard": "لوحة التحكم",
+  "Continue your locked-mode workflow with the actions below.": "تابع سير العمل في الوضع المقفل باستخدام الإجراءات أدناه.",
+  "Setup": "الإعداد",
+  "Select exactly one mode for this WordPress installation. Once selected, the mode is locked.": "حدد وضعًا واحدًا بالضبط لهذا التثبيت من ووردبريس. بمجرد الاختيار يتم قفل الوضع.",
+  "Configuration": "التكوين",
+  "Tune export and custody options for this locked-mode installation.": "اضبط خيارات التصدير والحفظ لهذا التثبيت في الوضع المقفل.",
+  "Integrity": "النزاهة",
+  "Review chained audit events for this installation.": "راجع أحداث التدقيق المتسلسلة لهذا التثبيت."
 }
