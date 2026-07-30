@@ -14,7 +14,6 @@ use RelataSoft\SecureElectionSuite\Security\Capability;
 use RelataSoft\SecureElectionSuite\Security\Nonce;
 use RelataSoft\SecureElectionSuite\Frontend\VoterJourney;
 use RelataSoft\SecureElectionSuite\Security\Sanitizer;
-use RelataSoft\SecureElectionSuite\Security\Sanitizer;
 
 defined( 'ABSPATH' ) || exit;
 
