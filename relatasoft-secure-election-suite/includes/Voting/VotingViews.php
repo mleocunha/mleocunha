@@ -10,7 +10,7 @@ namespace RelataSoft\SecureElectionSuite\Voting;
 use RelataSoft\SecureElectionSuite\KeyAuthority\KeyRepository;
 use RelataSoft\SecureElectionSuite\Security\Capability;
 use RelataSoft\SecureElectionSuite\Security\Nonce;
-use RelataSoft\SecureElectionSuite\I18n\Translator;
+use RelataSoft\SecureElectionSuite\Frontend\VoterJourney;
 use RelataSoft\SecureElectionSuite\Admin\Brand;
 
 defined( 'ABSPATH' ) || exit;
@@ -711,7 +711,12 @@ class VotingViews {
 	 */
 	public static function rses_render_voting_booth( int $election_id, int $round_id ): void {
 		if ( ! is_user_logged_in() ) {
-			echo '<div class="rses-booth" ' . Translator::rses_html_attrs() . '><div class="rses-message rses-message-warning rses-login-required">' . esc_html__( 'Please log in to vote.', 'relatasoft-secure-election-suite' ) . '</div></div>';
+			$rses_login = VoterJourney::rses_login_url();
+			echo '<div class="rses-booth" ' . Translator::rses_html_attrs() . '><div class="rses-message rses-message-warning rses-login-required">';
+			echo esc_html__( 'Please log in to vote.', 'relatasoft-secure-election-suite' );
+			echo ' <a class="rses-booth-login-link" href="' . esc_url( $rses_login ) . '">';
+			echo esc_html__( 'Sign in', 'relatasoft-secure-election-suite' );
+			echo '</a></div></div>';
 			return;
 		}
 

@@ -35,6 +35,8 @@ class Nonce {
 	public const RSES_ACTION_SETTINGS_SAVE      = 'rses_settings_save';
 	public const RSES_ACTION_VOTING_EXPORT      = 'rses_voting_export';
 	public const RSES_ACTION_BALLOT_SAVE        = 'rses_ballot_save';
+	public const RSES_ACTION_REDIRECTIONS_SAVE  = 'rses_redirections_save';
+	public const RSES_ACTION_JOURNEY_PROVISION  = 'rses_journey_provision';
 
 	/**
 	 * Output a nonce field for forms.

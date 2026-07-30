@@ -178,5 +178,42 @@
 			e.preventDefault();
 			rsesSetOptionMedia($(this).closest('.rses-option-row'), null);
 		});
+
+		var $loginLogoPick = $('#rses_pick_login_logo');
+		if ($loginLogoPick.length && typeof wp !== 'undefined' && wp.media) {
+			var $logoInput = $('#rses_login_logo_attachment_id');
+			var $logoPreview = $('#rses_login_logo_preview');
+			var defaultLogo = $logoPreview.find('img').attr('src');
+
+			$loginLogoPick.on('click', function (e) {
+				e.preventDefault();
+				var frame = wp.media({
+					title: rsesI18n('selectLoginLogo', 'Choose login logo'),
+					button: { text: rsesI18n('useLoginLogo', 'Use this logo') },
+					multiple: false,
+					library: { type: 'image' }
+				});
+
+				frame.on('select', function () {
+					var attachment = frame.state().get('selection').first().toJSON();
+					var thumb =
+						(attachment.sizes && attachment.sizes.medium && attachment.sizes.medium.url) ||
+						(attachment.sizes && attachment.sizes.thumbnail && attachment.sizes.thumbnail.url) ||
+						attachment.url;
+					$logoInput.val(String(attachment.id));
+					$logoPreview.html($('<img>', { src: thumb, alt: '', width: 80, height: 80 }));
+				});
+
+				frame.open();
+			});
+
+			$('#rses_clear_login_logo').on('click', function (e) {
+				e.preventDefault();
+				$logoInput.val('0');
+				if (defaultLogo) {
+					$logoPreview.html($('<img>', { src: defaultLogo, alt: '', width: 80, height: 80 }));
+				}
+			});
+		}
 	});
 })(jQuery);

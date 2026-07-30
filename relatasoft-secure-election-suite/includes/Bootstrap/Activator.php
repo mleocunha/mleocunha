@@ -7,7 +7,8 @@
 
 namespace RelataSoft\SecureElectionSuite\Bootstrap;
 
-use RelataSoft\SecureElectionSuite\Database\Migration;
+use RelataSoft\SecureElectionSuite\Frontend\JourneySettings;
+use RelataSoft\SecureElectionSuite\Frontend\VoterJourney;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -33,12 +34,16 @@ class Activator {
 		}
 
 		if ( ! get_option( 'rses_settings' ) ) {
-			add_option(
-				'rses_settings',
-				array(
-					'allow_full_private_export' => false,
-				)
-			);
+			add_option( 'rses_settings', JourneySettings::rses_defaults() );
+		} else {
+			$rses_existing = get_option( 'rses_settings', array() );
+			if ( is_array( $rses_existing ) ) {
+				update_option( 'rses_settings', array_merge( JourneySettings::rses_defaults(), $rses_existing ) );
+			}
+		}
+
+		if ( ModeLock::rses_is_mode( ModeLock::RSES_MODE_VOTING ) ) {
+			VoterJourney::rses_provision_pages();
 		}
 
 		flush_rewrite_rules();

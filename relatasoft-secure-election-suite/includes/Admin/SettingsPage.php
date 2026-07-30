@@ -7,6 +7,7 @@
 
 namespace RelataSoft\SecureElectionSuite\Admin;
 
+use RelataSoft\SecureElectionSuite\Frontend\JourneySettings;
 use RelataSoft\SecureElectionSuite\Security\AuditLogger;
 use RelataSoft\SecureElectionSuite\Security\Capability;
 use RelataSoft\SecureElectionSuite\Security\Nonce;
@@ -33,7 +34,7 @@ class SettingsPage {
 	public static function rses_render(): void {
 		Capability::rses_require_admin();
 
-		$rses_settings = get_option( 'rses_settings', array() );
+		$rses_settings = JourneySettings::rses_get();
 		$rses_allow_full = ! empty( $rses_settings['allow_full_private_export'] );
 		?>
 		<div class="wrap rses-wrap rses-screen" <?php echo Translator::rses_html_attrs(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
@@ -78,9 +79,8 @@ class SettingsPage {
 		Capability::rses_require_admin();
 		Nonce::rses_verify_or_die( Nonce::RSES_ACTION_SETTINGS_SAVE );
 
-		$rses_settings = array(
-			'allow_full_private_export' => ! empty( $_POST['rses_allow_full_private_export'] ),
-		);
+		$rses_settings = JourneySettings::rses_get();
+		$rses_settings['allow_full_private_export'] = ! empty( $_POST['rses_allow_full_private_export'] );
 
 		update_option( 'rses_settings', $rses_settings );
 

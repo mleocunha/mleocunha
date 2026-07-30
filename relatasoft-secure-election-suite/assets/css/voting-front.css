@@ -115,6 +115,18 @@
 	border-color: #ffdf9e;
 }
 
+.rses-booth-login-link {
+	margin-left: 0.35rem;
+	font-weight: 700;
+	color: var(--rses-primary-dark);
+	text-decoration: underline;
+}
+
+.rses-booth-login-link:hover,
+.rses-booth-login-link:focus {
+	color: var(--rses-primary);
+}
+
 .rses-message-error {
 	background: #fde8e8;
 	color: #8a1f1f;

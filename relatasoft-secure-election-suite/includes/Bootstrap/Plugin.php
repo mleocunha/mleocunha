@@ -20,6 +20,9 @@ use RelataSoft\SecureElectionSuite\KeyAuthority\KeyAuthorityController;
 use RelataSoft\SecureElectionSuite\Tallying\CertificationService;
 use RelataSoft\SecureElectionSuite\Tallying\OfficialShareSubmissionController;
 use RelataSoft\SecureElectionSuite\Tallying\TallyImportController;
+use RelataSoft\SecureElectionSuite\Admin\RedirectionsPage;
+use RelataSoft\SecureElectionSuite\Frontend\LoginCustomizer;
+use RelataSoft\SecureElectionSuite\Frontend\VoterJourney;
 use RelataSoft\SecureElectionSuite\Voting\BallotController;
 use RelataSoft\SecureElectionSuite\Voting\ElectionController;
 
@@ -68,6 +71,9 @@ class Plugin {
 		BallotController::register();
 		TallyImportController::register();
 		OfficialShareSubmissionController::register();
+		RedirectionsPage::register();
+		LoginCustomizer::register();
+		VoterJourney::register();
 
 		if ( is_admin() ) {
 			Notices::register();
@@ -77,6 +83,8 @@ class Plugin {
 		add_shortcode( 'rses_voting_booth', array( $this, 'rses_render_voting_booth_shortcode' ) );
 		add_shortcode( 'rses_voter_receipt', array( $this, 'rses_render_voter_receipt_shortcode' ) );
 		add_shortcode( 'rses_election_status', array( $this, 'rses_render_election_status_shortcode' ) );
+		add_shortcode( 'rses_voter_welcome', array( VoterJourney::class, 'rses_render_welcome_shortcode' ) );
+		add_shortcode( 'rses_voter_thank_you', array( VoterJourney::class, 'rses_render_thank_you_shortcode' ) );
 
 		add_action( 'wp_enqueue_scripts', array( $this, 'rses_enqueue_frontend_assets' ) );
 		add_action( 'admin_enqueue_scripts', array( $this, 'rses_enqueue_admin_assets' ) );
@@ -171,12 +179,14 @@ class Plugin {
 					'audio'         => __( 'Audio', 'relatasoft-secure-election-suite' ),
 					'video'         => __( 'Video', 'relatasoft-secure-election-suite' ),
 					'mediaAttached' => __( 'Media attached', 'relatasoft-secure-election-suite' ),
+					'selectLoginLogo' => __( 'Choose login logo', 'relatasoft-secure-election-suite' ),
+					'useLoginLogo'    => __( 'Use this logo', 'relatasoft-secure-election-suite' ),
 				),
 			)
 		);
 
 		// Ballot builder media library (photo / audio / video).
-		if ( 'rses-elections' === $rses_page ) {
+		if ( in_array( $rses_page, array( 'rses-elections', 'rses-redirections' ), true ) ) {
 			wp_enqueue_media();
 			wp_enqueue_script( 'rses-admin' );
 		}

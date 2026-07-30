@@ -12,6 +12,8 @@ use RelataSoft\SecureElectionSuite\Crypto\CryptoException;
 use RelataSoft\SecureElectionSuite\Security\AuditLogger;
 use RelataSoft\SecureElectionSuite\Security\Capability;
 use RelataSoft\SecureElectionSuite\Security\Nonce;
+use RelataSoft\SecureElectionSuite\Frontend\VoterJourney;
+use RelataSoft\SecureElectionSuite\Security\Sanitizer;
 use RelataSoft\SecureElectionSuite\Security\Sanitizer;
 
 defined( 'ABSPATH' ) || exit;
@@ -108,6 +110,12 @@ class BallotController {
 				$rses_ballot
 			);
 
+			$rses_thank_you = VoterJourney::rses_thank_you_redirect_url( $rses_receipt, $rses_election_id, $rses_round_id );
+			if ( '' !== $rses_thank_you ) {
+				wp_safe_redirect( $rses_thank_you );
+				exit;
+			}
+
 			wp_safe_redirect(
 				add_query_arg(
 					array(
@@ -155,7 +163,14 @@ class BallotController {
 				$rses_ballot
 			);
 
-			wp_send_json_success( array( 'receipt' => $rses_receipt ) );
+			$rses_thank_you = VoterJourney::rses_thank_you_redirect_url( $rses_receipt, $rses_election_id, $rses_round_id );
+
+			wp_send_json_success(
+				array(
+					'receipt'      => $rses_receipt,
+					'redirect_url' => $rses_thank_you,
+				)
+			);
 		} catch ( CryptoException $rses_e ) {
 			wp_send_json_error( array( 'message' => $rses_e->getMessage() ) );
 		}

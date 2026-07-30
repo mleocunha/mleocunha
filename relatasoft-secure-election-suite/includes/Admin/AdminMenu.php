@@ -16,6 +16,7 @@ use RelataSoft\SecureElectionSuite\Tallying\TallyingViews;
 use RelataSoft\SecureElectionSuite\Voting\VotingViews;
 use RelataSoft\SecureElectionSuite\I18n\Translator;
 use RelataSoft\SecureElectionSuite\Admin\Brand;
+use RelataSoft\SecureElectionSuite\Admin\RedirectionsPage;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -109,6 +110,15 @@ class AdminMenu {
 				$rses_admin_cap,
 				'rses-shortcodes',
 				array( VotingViews::class, 'rses_render_shortcodes_page' )
+			);
+
+			add_submenu_page(
+				'rses-dashboard',
+				__( 'Redirections', 'relatasoft-secure-election-suite' ),
+				__( 'Redirections', 'relatasoft-secure-election-suite' ),
+				$rses_admin_cap,
+				'rses-redirections',
+				array( RedirectionsPage::class, 'rses_render' )
 			);
 
 			add_submenu_page(
@@ -264,6 +274,15 @@ class AdminMenu {
 						<p>
 							<a class="button button-primary" href="<?php echo esc_url( admin_url( 'admin.php?page=rses-shortcodes' ) ); ?>">
 								<?php esc_html_e( 'Shortcode Generator', 'relatasoft-secure-election-suite' ); ?>
+							</a>
+						</p>
+					</div>
+					<div class="rses-dashboard-card">
+						<h2><?php esc_html_e( 'Elector journey & login', 'relatasoft-secure-election-suite' ); ?></h2>
+						<p><?php esc_html_e( 'Brand wp-login.php, configure welcome and thank-you pages, and plan post-login redirects for electors.', 'relatasoft-secure-election-suite' ); ?></p>
+						<p>
+							<a class="button button-primary" href="<?php echo esc_url( admin_url( 'admin.php?page=rses-redirections' ) ); ?>">
+								<?php esc_html_e( 'Redirections', 'relatasoft-secure-election-suite' ); ?>
 							</a>
 						</p>
 					</div>

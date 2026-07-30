@@ -1,9 +1,8 @@
 # RelataSoft Secure Election Suite — Success Status
 
 **Status:** End-to-end flow verified successful (as of 2026-07-28)  
-**Plugin version:** `1.0.10`  
-**Branch:** `cursor/secure-election-suite-2eb1`  
-**PR:** https://github.com/mleocunha/mleocunha/pull/6  
+**Plugin version:** `1.0.11`  
+**Branch:** `cursor/voter-journey-login-2eb1`  
 **Slug / namespace / prefix:** `relatasoft-secure-election-suite` / `RelataSoft\SecureElectionSuite` / `rses_`  
 **Path in repo:** `relatasoft-secure-election-suite/`
 
