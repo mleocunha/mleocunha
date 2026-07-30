@@ -555,5 +555,10 @@
   "Results": "Results",
   "Self-test report": "Self-test report",
   "Passed": "Passed",
-  "Failed": "Failed"
+  "Failed": "Failed",
+  "4. Elector journey & login": "4. Elector journey & login",
+  "5. Export Encrypted Tallies": "5. Export Encrypted Tallies",
+  "6. Crypto Self Test": "6. Crypto Self Test",
+  "4. Crypto Self Test": "4. Crypto Self Test",
+  "2. Crypto Self Test": "2. Crypto Self Test"
 }

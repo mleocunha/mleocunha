@@ -295,7 +295,7 @@ class AdminMenu {
 						</p>
 					</div>
 					<div class="rses-dashboard-card">
-						<h2><?php esc_html_e( 'Elector journey & login', 'relatasoft-secure-election-suite' ); ?></h2>
+						<h2><?php esc_html_e( '4. Elector journey & login', 'relatasoft-secure-election-suite' ); ?></h2>
 						<p><?php esc_html_e( 'Brand wp-login.php, configure welcome and thank-you pages, and plan post-login redirects for electors.', 'relatasoft-secure-election-suite' ); ?></p>
 						<p>
 							<a class="button button-primary" href="<?php echo esc_url( admin_url( 'admin.php?page=rses-redirections' ) ); ?>">
@@ -304,10 +304,10 @@ class AdminMenu {
 						</p>
 					</div>
 					<div class="rses-dashboard-card">
-						<h2><?php esc_html_e( '4. Export Encrypted Tallies', 'relatasoft-secure-election-suite' ); ?></h2>
+						<h2><?php esc_html_e( '5. Export Encrypted Tallies', 'relatasoft-secure-election-suite' ); ?></h2>
 						<p><?php esc_html_e( 'After closing an election, export ZIP/JSON packages for the Tallying platform.', 'relatasoft-secure-election-suite' ); ?></p>
 						<p>
-							<a class="button" href="<?php echo esc_url( admin_url( 'admin.php?page=rses-voting-export' ) ); ?>">
+							<a class="button button-primary" href="<?php echo esc_url( admin_url( 'admin.php?page=rses-voting-export' ) ); ?>">
 								<?php esc_html_e( 'Voting Export', 'relatasoft-secure-election-suite' ); ?>
 							</a>
 						</p>
@@ -346,7 +346,7 @@ class AdminMenu {
 							<h2><?php esc_html_e( '3. Decrypt & Certify', 'relatasoft-secure-election-suite' ); ?></h2>
 							<p><?php esc_html_e( 'Reconstruct the private exponent in memory, decrypt tallies, and export certification reports.', 'relatasoft-secure-election-suite' ); ?></p>
 							<p>
-								<a class="button" href="<?php echo esc_url( admin_url( 'admin.php?page=rses-certification' ) ); ?>">
+								<a class="button button-primary" href="<?php echo esc_url( admin_url( 'admin.php?page=rses-certification' ) ); ?>">
 									<?php esc_html_e( 'Certification', 'relatasoft-secure-election-suite' ); ?>
 								</a>
 							</p>
@@ -355,11 +355,21 @@ class AdminMenu {
 				<?php endif; ?>
 
 				<?php if ( Capability::rses_can_manage_election() ) : ?>
+					<?php
+					$rses_crypto_title = __( 'Crypto Self Test', 'relatasoft-secure-election-suite' );
+					if ( ModeLock::rses_is_mode( ModeLock::RSES_MODE_VOTING ) ) {
+						$rses_crypto_title = __( '6. Crypto Self Test', 'relatasoft-secure-election-suite' );
+					} elseif ( ModeLock::rses_is_mode( ModeLock::RSES_MODE_TALLYING ) ) {
+						$rses_crypto_title = __( '4. Crypto Self Test', 'relatasoft-secure-election-suite' );
+					} elseif ( ModeLock::rses_is_mode( ModeLock::RSES_MODE_KEY_AUTHORITY ) ) {
+						$rses_crypto_title = __( '2. Crypto Self Test', 'relatasoft-secure-election-suite' );
+					}
+					?>
 					<div class="rses-dashboard-card">
-						<h2><?php esc_html_e( 'Crypto Self Test', 'relatasoft-secure-election-suite' ); ?></h2>
+						<h2><?php echo esc_html( $rses_crypto_title ); ?></h2>
 						<p><?php esc_html_e( 'Verify ElGamal, homomorphic aggregation, and Shamir Secret Sharing on this server.', 'relatasoft-secure-election-suite' ); ?></p>
 						<p>
-							<a class="button" href="<?php echo esc_url( admin_url( 'admin.php?page=rses-crypto-self-test' ) ); ?>">
+							<a class="button button-primary" href="<?php echo esc_url( admin_url( 'admin.php?page=rses-crypto-self-test' ) ); ?>">
 								<?php esc_html_e( 'Run Self Tests', 'relatasoft-secure-election-suite' ); ?>
 							</a>
 						</p>

@@ -555,5 +555,10 @@
   "Results": "Resultados",
   "Self-test report": "Relatório do autoteste",
   "Passed": "Passaram",
-  "Failed": "Falharam"
+  "Failed": "Falharam",
+  "4. Elector journey & login": "4. Jornada do eleitor e login",
+  "5. Export Encrypted Tallies": "5. Exportar contagens criptografadas",
+  "6. Crypto Self Test": "6. Autoteste criptográfico",
+  "4. Crypto Self Test": "4. Autoteste criptográfico",
+  "2. Crypto Self Test": "2. Autoteste criptográfico"
 }
