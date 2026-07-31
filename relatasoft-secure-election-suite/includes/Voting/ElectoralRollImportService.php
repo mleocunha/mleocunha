@@ -82,43 +82,145 @@ class ElectoralRollImportService {
 	}
 
 	/**
-	 * Sample CSV (header + one row) for download.
+	 * Localized download basename for the example CSV (e.g. exemplo.csv).
+	 */
+	public static function rses_sample_filename(): string {
+		$locale = \RelataSoft\SecureElectionSuite\I18n\LocaleResolver::rses_resolve();
+		$stem   = self::rses_example_stem_for_locale( $locale );
+		return $stem . '.csv';
+	}
+
+	/**
+	 * Word for “example” used in the sample filename, by UI locale.
+	 */
+	public static function rses_example_stem_for_locale( string $locale ): string {
+		$map = array(
+			'pt_BR' => 'exemplo',
+			'pt_PT' => 'exemplo',
+			'en_US' => 'example',
+			'es_ES' => 'ejemplo',
+			'ca'    => 'exemple',
+			'fr_FR' => 'exemple',
+			'de_DE' => 'beispiel',
+			'nl_NL' => 'voorbeeld',
+			'ru_RU' => 'primer',
+			'zh_CN' => 'lizi',
+			'ar'    => 'mithal',
+			'he_IL' => 'dugma',
+		);
+
+		if ( isset( $map[ $locale ] ) ) {
+			return $map[ $locale ];
+		}
+
+		$lang = strtolower( (string) strtok( $locale, '_' ) );
+		foreach ( $map as $code => $stem ) {
+			if ( str_starts_with( strtolower( $code ), $lang ) ) {
+				return $stem;
+			}
+		}
+
+		return 'example';
+	}
+
+	/**
+	 * Sample CSV: one metadata (header) line + 10 data rows.
 	 */
 	public static function rses_sample_csv(): string {
 		$headers = self::rses_expected_headers();
-		$sample  = array(
-			'eleitor.exemplo.0001',
-			'0001@relatasoft.com.br',
-			'Eleitor Exemplo',
-			'subscriber',
-			'Eleitor',
-			'Exemplo',
-			'Eleitor',
-			'Exemplo',
-			'',
-			'0001@relatasoft.com.br',
-			'11900000001',
-			'BR',
-			'Rua Exemplo 1',
-			'Apto 1',
-			'Brasília',
-			'DF',
-			'70000000',
-			'Eleitor',
-			'Exemplo',
-			'',
-			'BR',
-			'Rua Exemplo 1',
-			'Apto 1',
-			'Brasília',
-			'DF',
-			'70000000',
-			'senha-exemplo-123',
+		$cities  = array(
+			array( 'Brasília', 'DF', '70000000' ),
+			array( 'Maceió', 'AL', '57007919' ),
+			array( 'Manaus', 'AM', '69015838' ),
+			array( 'Salvador', 'BA', '40023757' ),
+			array( 'Fortaleza', 'CE', '60031676' ),
+			array( 'Vitória', 'ES', '29000000' ),
+			array( 'Goiânia', 'GO', '74000000' ),
+			array( 'São Luís', 'MA', '65000000' ),
+			array( 'Belo Horizonte', 'MG', '30000000' ),
+			array( 'Belém', 'PA', '66000000' ),
 		);
 
 		$out = fopen( 'php://temp', 'r+' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen
 		fputcsv( $out, $headers );
-		fputcsv( $out, $sample );
+
+		for ( $i = 1; $i <= 10; $i++ ) {
+			$n     = sprintf( '%04d', $i );
+			$city  = $cities[ $i - 1 ];
+			$login = 'eleitor.exemplo.' . $n;
+			$email = $n . '@relatasoft.com.br';
+			$first = 'Eleitor';
+			$last  = 'Exemplo ' . $n;
+			$name  = $first . ' ' . $last;
+			$phone = '119' . str_pad( (string) ( 10000000 + $i ), 8, '0', STR_PAD_LEFT );
+			$street = 'Rua Exemplo ' . $i;
+			$comp   = ( 0 === $i % 2 ) ? 'Apto ' . $i : 'Casa ' . $i;
+
+			fputcsv(
+				$out,
+				array(
+					$login,
+					$email,
+					$name,
+					'subscriber',
+					$first,
+					$last,
+					$first,
+					$last,
+					'',
+					$email,
+					$phone,
+					'BR',
+					$street,
+					$comp,
+					$city[0],
+					$city[1],
+					$city[2],
+					$first,
+					$last,
+					'',
+					'BR',
+					$street,
+					$comp,
+					$city[0],
+					$city[1],
+					$city[2],
+					'senha-exemplo-' . $n,
+				)
+			);
+		}
+
+		rewind( $out );
+		$csv = stream_get_contents( $out );
+		fclose( $out ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+
+		return is_string( $csv ) ? $csv : '';
+	}
+
+	/**
+	 * Build a CSV report of import errors (for download).
+	 *
+	 * @param list<string> $errors Error messages.
+	 */
+	public static function rses_errors_csv( array $errors ): string {
+		$out = fopen( 'php://temp', 'r+' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen
+		fputcsv(
+			$out,
+			array(
+				'line',
+				'error',
+			)
+		);
+
+		foreach ( $errors as $message ) {
+			$message = (string) $message;
+			$line    = '';
+			if ( preg_match( '/(?:Row|Linha)\s+(\d+)/u', $message, $m ) ) {
+				$line = $m[1];
+			}
+			fputcsv( $out, array( $line, $message ) );
+		}
+
 		rewind( $out );
 		$csv = stream_get_contents( $out );
 		fclose( $out ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose

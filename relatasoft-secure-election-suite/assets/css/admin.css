@@ -1913,3 +1913,11 @@ body.rses-rtl .rses-screen,
 		border-bottom: none;
 	}
 }
+
+.rses-electoral-errors-scroll {
+	max-height: 22rem;
+	overflow: auto;
+	border: 1px solid var(--rses-line, rgba(255, 184, 0, 0.22));
+	border-radius: 10px;
+	margin-top: 0.75rem;
+}

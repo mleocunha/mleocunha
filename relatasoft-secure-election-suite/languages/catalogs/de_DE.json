@@ -592,5 +592,12 @@
   "5. Electoral roll import": "5. Electoral roll import",
   "Import the electoral registration CSV (spreadsheet columns + password on the right).": "Import the electoral registration CSV (spreadsheet columns + password on the right).",
   "6. Export Encrypted Tallies": "6. Export Encrypted Tallies",
-  "7. Crypto Self Test": "7. Crypto Self Test"
+  "7. Crypto Self Test": "7. Crypto Self Test",
+  "Electoral roll import finished. Created: %1$d. Updated: %2$d. Skipped: %3$d. Errors: %4$d.": "Electoral roll import finished. Created: %1$d. Updated: %2$d. Skipped: %3$d. Errors: %4$d.",
+  "Import errors": "Importfehler",
+  "%d issue(s) were reported. Review the table below or download the error CSV.": "%d issue(s) were reported. Review the table below or download the error CSV.",
+  "Download error report CSV": "Download error report CSV",
+  "Download %s — one metadata (header) line and 10 example data rows.": "Download %s — one metadata (header) line and 10 example data rows.",
+  "Download %s": "Download %s",
+  "#": "#"
 }
