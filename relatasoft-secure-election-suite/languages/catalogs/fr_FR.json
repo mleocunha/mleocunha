@@ -560,5 +560,7 @@
   "5. Export Encrypted Tallies": "5. Export Encrypted Tallies",
   "6. Crypto Self Test": "6. Crypto Self Test",
   "4. Crypto Self Test": "4. Crypto Self Test",
-  "2. Crypto Self Test": "2. Crypto Self Test"
+  "2. Crypto Self Test": "2. Crypto Self Test",
+  "1. Key Authority": "1. Autorité de clés",
+  "1. My Shamir Shares": "1. Mes parts Shamir"
 }

@@ -562,5 +562,7 @@
   "4. Crypto Self Test": "4. Autoteste criptográfico",
   "2. Crypto Self Test": "2. Autoteste criptográfico",
   "Continue the locked-mode workflow with the actions below.": "Continue o fluxo do modo bloqueado com as ações abaixo.",
-  "Run Self-Tests": "Executar autotestes"
+  "Run Self-Tests": "Executar autotestes",
+  "1. Key Authority": "1. Autoridade de Chaves",
+  "1. My Shamir Shares": "1. Minhas partes Shamir"
 }
