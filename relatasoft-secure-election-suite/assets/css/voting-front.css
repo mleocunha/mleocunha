@@ -1,0 +1,494 @@
+/**
+ * Frontend voting booth + receipt (TotalPoll-inspired aesthetics).
+ * Intentionally unbranded: do not place RelataSoft logos/propaganda on the voting booth.
+ * Logic stays in PHP/JS cast handlers — this file is presentation only.
+ */
+
+@import url("https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600;700&family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&display=swap");
+
+.rses-booth {
+	--rses-primary: #0c7c9c;
+	--rses-primary-dark: #095e77;
+	--rses-primary-contrast: #ffffff;
+	--rses-ink: #1c2a32;
+	--rses-muted: #5a6b75;
+	--rses-line: #c9d6dc;
+	--rses-soft: #eef5f8;
+	--rses-soft-2: #f7fbfc;
+	--rses-radius: 10px;
+	--rses-gutter: 1rem;
+	--rses-font: "Source Sans 3", "Segoe UI", sans-serif;
+	--rses-display: "Source Serif 4", Georgia, serif;
+
+	box-sizing: border-box;
+	max-width: 42rem;
+	margin: 1.5rem auto;
+	padding: 1.5rem 1.35rem 1.75rem;
+	color: var(--rses-ink);
+	font-family: var(--rses-font);
+	font-size: 1.05rem;
+	line-height: 1.5;
+	background:
+		radial-gradient(120% 80% at 0% 0%, rgba(12, 124, 156, 0.08), transparent 55%),
+		radial-gradient(90% 70% at 100% 0%, rgba(9, 94, 119, 0.06), transparent 50%),
+		linear-gradient(180deg, var(--rses-soft-2), #ffffff 42%);
+	border: 1px solid var(--rses-line);
+	border-radius: calc(var(--rses-radius) + 2px);
+	animation: rsesBoothIn 0.45s ease-out both;
+}
+
+.rses-booth *,
+.rses-booth *::before,
+.rses-booth *::after {
+	box-sizing: border-box;
+}
+
+@keyframes rsesBoothIn {
+	from {
+		opacity: 0;
+		transform: translateY(8px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+@keyframes rsesChoicePop {
+	from {
+		transform: scale(0.92);
+		opacity: 0.35;
+	}
+	to {
+		transform: scale(1);
+		opacity: 1;
+	}
+}
+
+.rses-booth-header {
+	margin-bottom: 1.35rem;
+	padding-bottom: 1rem;
+	border-bottom: 1px solid var(--rses-line);
+}
+
+.rses-booth-kicker {
+	margin: 0 0 0.35rem;
+	font-size: 0.78rem;
+	font-weight: 700;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: var(--rses-primary);
+}
+
+.rses-booth-title {
+	margin: 0 0 0.5rem;
+	font-family: var(--rses-display);
+	font-size: clamp(1.45rem, 2.4vw, 1.85rem);
+	font-weight: 700;
+	line-height: 1.2;
+	color: var(--rses-ink);
+}
+
+.rses-booth-lead {
+	margin: 0;
+	color: var(--rses-muted);
+	font-size: 0.98rem;
+}
+
+.rses-message {
+	margin: 0 0 var(--rses-gutter);
+	padding: 0.9rem 1rem;
+	border: 1px solid var(--rses-line);
+	border-radius: var(--rses-radius);
+	font-size: 0.95rem;
+}
+
+.rses-message-success {
+	background: #e3f5e3;
+	color: #1a661a;
+	border-color: #c6eac6;
+}
+
+.rses-message-warning {
+	background: #fff6df;
+	color: #8a5a08;
+	border-color: #ffdf9e;
+}
+
+.rses-booth-login-link {
+	margin-left: 0.35rem;
+	font-weight: 700;
+	color: var(--rses-primary-dark);
+	text-decoration: underline;
+}
+
+.rses-booth-login-link:hover,
+.rses-booth-login-link:focus {
+	color: var(--rses-primary);
+}
+
+.rses-message-error {
+	background: #fde8e8;
+	color: #8a1f1f;
+	border-color: #f0b4b4;
+}
+
+.rses-message-info {
+	background: #e5f3f8;
+	color: #1a5266;
+	border-color: #a8d0de;
+}
+
+.rses-questions {
+	display: flex;
+	flex-direction: column;
+	gap: 1.15rem;
+}
+
+.rses-question {
+	margin: 0;
+	padding: 0;
+	border: 0;
+	min-inline-size: 0;
+}
+
+.rses-question-title {
+	display: flex;
+	align-items: flex-start;
+	gap: 0.65rem;
+	margin: 0 0 0.65rem;
+	padding: 0;
+	font-family: var(--rses-display);
+	font-size: 1.15rem;
+	font-weight: 600;
+	line-height: 1.3;
+	color: var(--rses-ink);
+}
+
+.rses-question-number {
+	flex: 0 0 auto;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 1.6rem;
+	height: 1.6rem;
+	margin-top: 0.1rem;
+	border-radius: 6px;
+	background: var(--rses-primary);
+	color: var(--rses-primary-contrast);
+	font-family: var(--rses-font);
+	font-size: 0.8rem;
+	font-weight: 700;
+}
+
+.rses-question-desc {
+	margin: -0.25rem 0 0.75rem;
+	color: var(--rses-muted);
+	font-size: 0.92rem;
+}
+
+.rses-choices {
+	display: flex;
+	flex-direction: column;
+	gap: 0.55rem;
+}
+
+.rses-choice {
+	display: flex;
+	align-items: flex-start;
+	gap: 0.75rem;
+	margin: 0;
+	padding: 0.85rem 0.95rem;
+	background: #fff;
+	border: 1px solid var(--rses-line);
+	border-radius: var(--rses-radius);
+	cursor: pointer;
+	transition: border-color 0.18s ease, background-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.rses-choice:hover,
+.rses-choice:focus-within {
+	border-color: var(--rses-primary);
+	background: var(--rses-soft);
+}
+
+.rses-choice.is-checked {
+	border-color: var(--rses-primary);
+	background: rgba(12, 124, 156, 0.08);
+	box-shadow: inset 0 0 0 1px var(--rses-primary);
+}
+
+.rses-choice-control {
+	position: relative;
+	flex: 0 0 auto;
+	width: 1.35rem;
+	height: 1.35rem;
+	margin-top: 0.15rem;
+}
+
+.rses-choice-input {
+	position: absolute;
+	inset: 0;
+	opacity: 0;
+	margin: 0;
+	cursor: pointer;
+}
+
+.rses-choice-selector {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 100%;
+	height: 100%;
+	border: 2px solid var(--rses-line);
+	background: #fff;
+	color: transparent;
+	transition: border-color 0.15s ease, background-color 0.15s ease, color 0.15s ease;
+}
+
+.rses-choice-selector-single {
+	border-radius: 50%;
+}
+
+.rses-choice-selector-multiple {
+	border-radius: 5px;
+}
+
+.rses-choice-selector svg {
+	width: 0.85rem;
+	height: 0.85rem;
+	opacity: 0;
+	transform: scale(0.7);
+	transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.rses-choice.is-checked .rses-choice-selector {
+	border-color: var(--rses-primary);
+	background: var(--rses-primary);
+	color: var(--rses-primary-contrast);
+	animation: rsesChoicePop 0.22s ease-out;
+}
+
+.rses-choice.is-checked .rses-choice-selector svg {
+	opacity: 1;
+	transform: scale(1);
+}
+
+.rses-choice-label {
+	flex: 1;
+	font-weight: 600;
+	color: var(--rses-ink);
+}
+
+.rses-choice-body {
+	display: flex;
+	flex: 1 1 auto;
+	flex-direction: column;
+	align-items: stretch;
+	gap: 0.55rem;
+	min-width: 0;
+}
+
+.rses-option-media {
+	display: block;
+	width: 100%;
+}
+
+.rses-option-media-image {
+	display: block;
+	width: 100%;
+	max-height: 220px;
+	object-fit: cover;
+	border-radius: calc(var(--rses-radius) - 2px);
+	background: var(--rses-soft);
+}
+
+.rses-option-media-audio,
+.rses-option-media-video {
+	display: block;
+	width: 100%;
+	max-width: 100%;
+	border-radius: calc(var(--rses-radius) - 2px);
+	background: #0b1720;
+}
+
+.rses-option-media-video {
+	max-height: 260px;
+}
+
+.rses-numeric-field {
+	display: flex;
+	flex-direction: column;
+	gap: 0.4rem;
+}
+
+.rses-numeric-label {
+	font-size: 0.9rem;
+	color: var(--rses-muted);
+}
+
+.rses-numeric-input {
+	max-width: 12rem;
+	padding: 0.65rem 0.75rem;
+	border: 1px solid var(--rses-line);
+	border-radius: var(--rses-radius);
+	font: inherit;
+}
+
+.rses-numeric-input:focus {
+	outline: 2px solid rgba(12, 124, 156, 0.35);
+	border-color: var(--rses-primary);
+}
+
+.rses-ballot-footer {
+	margin-top: 1.5rem;
+	padding-top: 1.15rem;
+	border-top: 1px solid var(--rses-line);
+	display: flex;
+	flex-direction: column;
+	align-items: stretch;
+	gap: 0.85rem;
+}
+
+.rses-ballot-review-notice {
+	margin: 0;
+	font-size: 0.92rem;
+	font-weight: 600;
+	color: var(--rses-muted);
+}
+
+.rses-submit-vote {
+	appearance: none;
+	border: 1px solid var(--rses-primary-dark);
+	border-radius: var(--rses-radius);
+	background: var(--rses-primary);
+	color: var(--rses-primary-contrast);
+	font-family: var(--rses-font);
+	font-size: 1rem;
+	font-weight: 700;
+	padding: 0.85rem 1.2rem;
+	cursor: pointer;
+	transition: background-color 0.18s ease, border-color 0.18s ease, transform 0.12s ease;
+}
+
+.rses-submit-vote:hover,
+.rses-submit-vote:focus {
+	background: var(--rses-primary-dark);
+	border-color: var(--rses-primary-dark);
+}
+
+.rses-submit-vote:active {
+	transform: translateY(1px);
+}
+
+.rses-receipt-card {
+	padding: 1.1rem 1.15rem;
+	background: #fff;
+	border: 1px solid var(--rses-line);
+	border-radius: var(--rses-radius);
+	animation: rsesBoothIn 0.5s 0.08s ease-out both;
+}
+
+.rses-receipt-label {
+	margin: 0 0 0.45rem;
+	font-size: 0.78rem;
+	font-weight: 700;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	color: var(--rses-muted);
+}
+
+.rses-receipt-hash {
+	display: block;
+	margin: 0;
+	padding: 0.85rem 0.9rem;
+	background: var(--rses-soft);
+	border: 1px dashed var(--rses-line);
+	border-radius: 8px;
+	font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+	font-size: 0.82rem;
+	line-height: 1.45;
+	word-break: break-all;
+	color: var(--rses-ink);
+	user-select: all;
+}
+
+.rses-receipt-actions {
+	margin: 0.85rem 0 0;
+}
+
+.rses-copy-receipt {
+	appearance: none;
+	border: 1px solid var(--rses-primary);
+	border-radius: var(--rses-radius);
+	background: transparent;
+	color: var(--rses-primary-dark);
+	font-family: var(--rses-font);
+	font-size: 0.92rem;
+	font-weight: 700;
+	padding: 0.55rem 0.95rem;
+	cursor: pointer;
+	transition: background-color 0.18s ease, color 0.18s ease;
+}
+
+.rses-copy-receipt:hover,
+.rses-copy-receipt:focus {
+	background: var(--rses-primary);
+	color: var(--rses-primary-contrast);
+}
+
+.rses-election-status {
+	max-width: 42rem;
+	margin: 1.25rem auto;
+	padding: 1rem 1.15rem;
+	border: 1px solid var(--rses-line);
+	border-radius: var(--rses-radius);
+	background: var(--rses-soft-2);
+	font-family: var(--rses-font);
+}
+
+.rses-election-status h3 {
+	margin: 0 0 0.35rem;
+	font-family: var(--rses-display);
+}
+
+@media (min-width: 640px) {
+	.rses-booth {
+		padding: 1.75rem 1.75rem 2rem;
+	}
+
+	.rses-ballot-footer {
+		flex-direction: row;
+		align-items: center;
+		justify-content: space-between;
+	}
+
+	.rses-submit-vote {
+		flex: 0 0 auto;
+		min-width: 12rem;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.rses-booth,
+	.rses-receipt-card,
+	.rses-choice.is-checked .rses-choice-selector {
+		animation: none;
+	}
+}
+
+/* RTL booth */
+.rses-booth[dir="rtl"] {
+	direction: rtl;
+	text-align: right;
+}
+
+.rses-booth[dir="rtl"] .rses-choice,
+.rses-booth[dir="rtl"] .rses-choice-face {
+	flex-direction: row-reverse;
+}
+
+.rses-booth[dir="rtl"] .rses-receipt-actions,
+.rses-booth[dir="rtl"] .rses-ballot-actions {
+	justify-content: flex-start;
+}
