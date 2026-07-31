@@ -10,6 +10,8 @@ namespace RelataSoft\SecureElectionSuite\Frontend;
 use RelataSoft\SecureElectionSuite\Bootstrap\ModeLock;
 use RelataSoft\SecureElectionSuite\I18n\Translator;
 use RelataSoft\SecureElectionSuite\Security\Capability;
+use RelataSoft\SecureElectionSuite\Voting\EncryptedVoteRepository;
+use RelataSoft\SecureElectionSuite\Voting\OpenElectionsService;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -287,10 +289,18 @@ class VoterJourney {
 			return (string) ob_get_clean();
 		}
 
-		$rses_booth = JourneySettings::rses_page_url( 'booth_page_id' );
+		$rses_booth  = JourneySettings::rses_page_url( 'booth_page_id' );
+		$rses_open   = OpenElectionsService::rses_open_round_links();
+		$rses_user   = get_current_user_id();
+		$rses_snap   = OpenElectionsService::rses_snapshot();
 		ob_start();
 		?>
-		<div class="rses-journey" <?php echo Translator::rses_html_attrs(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
+		<div
+			class="rses-journey"
+			data-rses-journey="welcome"
+			<?php echo Translator::rses_html_attrs(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+		>
+			<script type="application/json" id="rses-open-elections-json"><?php echo wp_json_encode( $rses_snap, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- JSON for automation. ?></script>
 			<div class="rses-journey-card">
 				<p class="rses-journey-kicker"><?php esc_html_e( 'Electronic voting', 'relatasoft-secure-election-suite' ); ?></p>
 				<h2 class="rses-journey-title"><?php esc_html_e( 'Welcome and instructions', 'relatasoft-secure-election-suite' ); ?></h2>
@@ -302,15 +312,47 @@ class VoterJourney {
 						<li><?php esc_html_e( 'Each elector may vote only once per election round.', 'relatasoft-secure-election-suite' ); ?></li>
 					</ol>
 				</div>
-				<?php if ( $rses_booth ) : ?>
-					<p class="rses-journey-actions">
-						<a class="rses-journey-btn rses-journey-btn--primary" href="<?php echo esc_url( $rses_booth ); ?>">
-							<?php esc_html_e( 'Enter voting booth', 'relatasoft-secure-election-suite' ); ?>
-						</a>
-					</p>
-				<?php else : ?>
+				<?php if ( ! $rses_booth ) : ?>
 					<div class="rses-journey-notice">
 						<?php esc_html_e( 'The voting booth page has not been configured yet. An administrator must assign it under Election Suite → Redirections.', 'relatasoft-secure-election-suite' ); ?>
+					</div>
+				<?php elseif ( empty( $rses_open ) ) : ?>
+					<div class="rses-journey-notice" data-rses-open-count="0">
+						<?php esc_html_e( 'There are no open elections right now. Please check back later.', 'relatasoft-secure-election-suite' ); ?>
+					</div>
+				<?php else : ?>
+					<div class="rses-open-elections" data-rses-open-count="<?php echo esc_attr( (string) count( $rses_open ) ); ?>">
+						<p class="rses-open-elections-label"><?php esc_html_e( 'Open elections', 'relatasoft-secure-election-suite' ); ?></p>
+						<ul class="rses-open-elections-list">
+							<?php foreach ( $rses_open as $rses_item ) : ?>
+								<?php
+								$rses_voted = EncryptedVoteRepository::rses_has_voted_round( $rses_user, (int) $rses_item['round_id'] );
+								$rses_href  = add_query_arg(
+									array(
+										'election_id' => (int) $rses_item['election_id'],
+										'round_id'    => (int) $rses_item['round_id'],
+									),
+									$rses_booth
+								);
+								?>
+								<li>
+									<a
+										class="rses-open-election-link<?php echo $rses_voted ? ' rses-open-election-link--voted' : ''; ?>"
+										href="<?php echo esc_url( $rses_href ); ?>"
+										data-rses-election-id="<?php echo esc_attr( (string) (int) $rses_item['election_id'] ); ?>"
+										data-rses-round-id="<?php echo esc_attr( (string) (int) $rses_item['round_id'] ); ?>"
+										data-rses-already-voted="<?php echo $rses_voted ? '1' : '0'; ?>"
+									>
+										<span class="rses-open-election-title"><?php echo esc_html( $rses_item['title'] ); ?></span>
+										<?php if ( $rses_voted ) : ?>
+											<span class="rses-open-election-status"><?php esc_html_e( 'Already voted', 'relatasoft-secure-election-suite' ); ?></span>
+										<?php else : ?>
+											<span class="rses-open-election-status"><?php esc_html_e( 'Enter booth', 'relatasoft-secure-election-suite' ); ?></span>
+										<?php endif; ?>
+									</a>
+								</li>
+							<?php endforeach; ?>
+						</ul>
 					</div>
 				<?php endif; ?>
 			</div>
@@ -331,19 +373,32 @@ class VoterJourney {
 		$rses_receipt = isset( $_GET['rses_receipt'] ) // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 			? sanitize_text_field( wp_unslash( $_GET['rses_receipt'] ) )
 			: '';
+		$rses_election_id = isset( $_GET['election_id'] ) // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+			? absint( $_GET['election_id'] )
+			: 0;
+		$rses_round_id    = isset( $_GET['round_id'] ) // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+			? absint( $_GET['round_id'] )
+			: 0;
+		$rses_welcome     = JourneySettings::rses_page_url( 'welcome_page_id' );
 
 		ob_start();
 		?>
-		<div class="rses-journey rses-journey--thanks" <?php echo Translator::rses_html_attrs(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
+		<div
+			class="rses-journey rses-journey--thanks"
+			data-rses-journey="thank-you"
+			data-rses-election-id="<?php echo esc_attr( (string) $rses_election_id ); ?>"
+			data-rses-round-id="<?php echo esc_attr( (string) $rses_round_id ); ?>"
+			<?php echo Translator::rses_html_attrs(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+		>
 			<div class="rses-journey-card">
 				<p class="rses-journey-kicker"><?php esc_html_e( 'Vote recorded', 'relatasoft-secure-election-suite' ); ?></p>
 				<h2 class="rses-journey-title"><?php esc_html_e( 'Thank you for participating', 'relatasoft-secure-election-suite' ); ?></h2>
 				<p class="rses-journey-lead"><?php esc_html_e( 'Your encrypted ballot has been submitted successfully. You may now close this window or sign out.', 'relatasoft-secure-election-suite' ); ?></p>
 
 				<?php if ( '' !== $rses_receipt ) : ?>
-					<div class="rses-journey-receipt">
+					<div class="rses-journey-receipt" data-rses-receipt="1">
 						<p class="rses-journey-receipt-label"><?php esc_html_e( 'Your vote receipt', 'relatasoft-secure-election-suite' ); ?></p>
-						<code class="rses-journey-receipt-hash" id="rses-journey-receipt-hash"><?php echo esc_html( $rses_receipt ); ?></code>
+						<code class="rses-journey-receipt-hash" id="rses-journey-receipt-hash" data-rses-receipt-hash="1"><?php echo esc_html( $rses_receipt ); ?></code>
 						<p class="rses-journey-actions">
 							<button type="button" class="rses-journey-btn rses-copy-receipt" data-rses-target="rses-journey-receipt-hash" data-copied-label="<?php esc_attr_e( 'Copied!', 'relatasoft-secure-election-suite' ); ?>">
 								<?php esc_html_e( 'Copy receipt', 'relatasoft-secure-election-suite' ); ?>
@@ -353,7 +408,12 @@ class VoterJourney {
 				<?php endif; ?>
 
 				<p class="rses-journey-actions rses-journey-actions--secondary">
-					<a class="rses-journey-btn rses-journey-btn--ghost" href="<?php echo esc_url( wp_logout_url( JourneySettings::rses_page_url( 'welcome_page_id' ) ?: home_url( '/' ) ) ); ?>">
+					<?php if ( $rses_welcome ) : ?>
+						<a class="rses-journey-btn rses-journey-btn--primary" data-rses-continue-voting="1" href="<?php echo esc_url( $rses_welcome ); ?>">
+							<?php esc_html_e( 'Continue voting', 'relatasoft-secure-election-suite' ); ?>
+						</a>
+					<?php endif; ?>
+					<a class="rses-journey-btn rses-journey-btn--ghost" href="<?php echo esc_url( wp_logout_url( $rses_welcome ?: home_url( '/' ) ) ); ?>">
 						<?php esc_html_e( 'Sign out', 'relatasoft-secure-election-suite' ); ?>
 					</a>
 				</p>

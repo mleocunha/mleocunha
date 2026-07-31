@@ -178,6 +178,17 @@ class VotingViews {
 							</table>
 						</div>
 					<?php endif; ?>
+
+					<?php
+					$rses_open_snap = OpenElectionsService::rses_snapshot();
+					$rses_dump_url  = admin_url( 'admin-post.php?action=rses_dump_open_elections' );
+					?>
+					<script type="application/json" id="rses-open-elections-json"><?php echo wp_json_encode( $rses_open_snap, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- JSON payload for scrapers. ?></script>
+					<p class="rses-panel-desc" style="margin-top:1rem;">
+						<a class="rses-table-link" id="rses-dump-open-elections" data-rses-open-dump="1" href="<?php echo esc_url( $rses_dump_url ); ?>">
+							<?php esc_html_e( 'Download open elections JSON', 'relatasoft-secure-election-suite' ); ?>
+						</a>
+					</p>
 				</section>
 			<?php endif; ?>
 		</div>
@@ -803,7 +814,14 @@ class VotingViews {
 		$rses_election = ElectionRepository::rses_get( $election_id );
 		$rses_id       = 'rses-receipt-hash-' . $round_id;
 		?>
-		<div class="rses-booth rses-booth-receipt" data-rses-booth="receipt" <?php echo Translator::rses_html_attrs(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
+		<div
+			class="rses-booth rses-booth-receipt"
+			data-rses-booth="receipt"
+			data-rses-election-id="<?php echo esc_attr( (string) $election_id ); ?>"
+			data-rses-round-id="<?php echo esc_attr( (string) $round_id ); ?>"
+			data-rses-already-voted="<?php echo $just_cast ? '0' : '1'; ?>"
+			<?php echo Translator::rses_html_attrs(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+		>
 			<header class="rses-booth-header">
 				<p class="rses-booth-kicker"><?php esc_html_e( 'Vote receipt', 'relatasoft-secure-election-suite' ); ?></p>
 				<?php if ( $rses_election ) : ?>
@@ -823,7 +841,7 @@ class VotingViews {
 
 			<div class="rses-receipt-card">
 				<p class="rses-receipt-label"><?php esc_html_e( 'Receipt hash', 'relatasoft-secure-election-suite' ); ?></p>
-				<code class="rses-receipt-hash" id="<?php echo esc_attr( $rses_id ); ?>"><?php echo esc_html( $hash ); ?></code>
+				<code class="rses-receipt-hash" id="<?php echo esc_attr( $rses_id ); ?>" data-rses-receipt-hash="1"><?php echo esc_html( $hash ); ?></code>
 				<p class="rses-receipt-actions">
 					<button
 						type="button"

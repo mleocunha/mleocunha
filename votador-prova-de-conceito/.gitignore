@@ -1,0 +1,12 @@
+node_modules/
+results/
+credentials/
+uploads/
+*.csv
+!samples/exemplo-cadastro.csv
+.DS_Store
+.env
+.env.*
+*.log
+playwright-report/
+test-results/

@@ -40,7 +40,13 @@ class BallotRenderer {
 
 		ob_start();
 		?>
-		<div class="rses-booth rses-booth-ballot" data-rses-booth="ballot" <?php echo Translator::rses_html_attrs(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
+		<div
+			class="rses-booth rses-booth-ballot"
+			data-rses-booth="ballot"
+			data-rses-election-id="<?php echo esc_attr( (string) $election_id ); ?>"
+			data-rses-round-id="<?php echo esc_attr( (string) $round_id ); ?>"
+			<?php echo Translator::rses_html_attrs(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+		>
 			<header class="rses-booth-header">
 				<p class="rses-booth-kicker"><?php esc_html_e( 'Secure voting booth', 'relatasoft-secure-election-suite' ); ?></p>
 				<?php if ( $rses_election ) : ?>
@@ -66,8 +72,16 @@ class BallotRenderer {
 						$rses_name    = 'rses_ballot[question_' . (int) $rses_question->id . ']';
 						$rses_type    = $rses_question->question_type;
 						$rses_multi   = ( 'multiple_choice' === $rses_type );
+						$rses_min     = (int) $rses_question->min_choices;
+						$rses_max     = (int) $rses_question->max_choices;
 						?>
-						<fieldset class="rses-question" data-rses-question="<?php echo esc_attr( (string) (int) $rses_question->id ); ?>">
+						<fieldset
+							class="rses-question"
+							data-rses-question="<?php echo esc_attr( (string) (int) $rses_question->id ); ?>"
+							data-rses-question-type="<?php echo esc_attr( (string) $rses_type ); ?>"
+							data-rses-min="<?php echo esc_attr( (string) $rses_min ); ?>"
+							data-rses-max="<?php echo esc_attr( (string) $rses_max ); ?>"
+						>
 							<legend class="rses-question-title">
 								<span class="rses-question-number"><?php echo esc_html( (string) $rses_q_index ); ?></span>
 								<span class="rses-question-text"><?php echo esc_html( $rses_question->question_title ); ?></span>
@@ -97,6 +111,7 @@ class BallotRenderer {
 													name="<?php echo esc_attr( $rses_name ); ?>[]"
 													id="<?php echo esc_attr( $rses_id ); ?>"
 													value="<?php echo esc_attr( (string) $rses_oid ); ?>"
+													data-rses-option-id="<?php echo esc_attr( (string) $rses_oid ); ?>"
 													<?php echo $rses_multi ? '' : 'required'; ?>
 												/>
 												<span class="rses-choice-selector rses-choice-selector-<?php echo $rses_multi ? 'multiple' : 'single'; ?>" aria-hidden="true">

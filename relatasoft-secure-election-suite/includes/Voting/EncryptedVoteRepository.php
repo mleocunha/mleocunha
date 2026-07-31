@@ -65,6 +65,21 @@ class EncryptedVoteRepository {
 	}
 
 	/**
+	 * Check if voter already cast any ballot for the round.
+	 *
+	 * @param int $voter_user_id Voter ID.
+	 * @param int $round_id      Round ID.
+	 * @return bool
+	 */
+	public static function rses_has_voted_round( int $voter_user_id, int $round_id ): bool {
+		return Repository::rses_count(
+			'rses_encrypted_votes',
+			'voter_user_id = %d AND round_id = %d',
+			array( $voter_user_id, $round_id )
+		) > 0;
+	}
+
+	/**
 	 * Get votes for round.
 	 *
 	 * @param int $round_id Round ID.

@@ -1,0 +1,266 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import { chromium } from 'playwright';
+import { loadElectorsFromCsv } from './csv.js';
+import { createRunLogger } from './logger.js';
+import { scrapeOpenElections } from './scrapeAdmin.js';
+import { resolveLoginUrl } from './urls.js';
+import { voteElector } from './voteSession.js';
+
+export const DEFAULTS = {
+  windows: 5,
+  tabsPerWindow: 5,
+  tentativas: 50,
+  insistencias: 3,
+  limiteRetentativas: 100,
+};
+
+/**
+ * @param {object} config
+ * @param {{ onEvent?: Function, signal?: AbortSignal }} [hooks]
+ */
+export async function runVotador(config, hooks = {}) {
+  const cfg = {
+    ...DEFAULTS,
+    ...config,
+    windows: Number(config.windows ?? DEFAULTS.windows),
+    tabsPerWindow: Number(config.tabsPerWindow ?? DEFAULTS.tabsPerWindow),
+    tentativas: Number(config.tentativas ?? DEFAULTS.tentativas),
+    insistencias: Number(config.insistencias ?? DEFAULTS.insistencias),
+    limiteRetentativas: Number(config.limiteRetentativas ?? DEFAULTS.limiteRetentativas),
+  };
+
+  if (!cfg.platformUrl) {
+    throw new Error('URL da plataforma é obrigatória.');
+  }
+  if (!cfg.csvPath || !fs.existsSync(cfg.csvPath)) {
+    throw new Error('Arquivo CSV de eleitores não encontrado.');
+  }
+  if (!cfg.adminUser || !cfg.adminPassword) {
+    throw new Error('Credenciais de administrador são obrigatórias para descobrir eleições abertas.');
+  }
+
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const resultsDir =
+    cfg.resultsDir ||
+    path.join(path.resolve('results'), stamp);
+  const logger = createRunLogger(resultsDir);
+  if (hooks.onEvent) {
+    logger.on(hooks.onEvent);
+  }
+
+  const { electors } = loadElectorsFromCsv(cfg.csvPath);
+  const loginUrl = resolveLoginUrl(cfg);
+  const concurrency = cfg.windows * cfg.tabsPerWindow;
+
+  logger.info('Iniciando Votador PoC', {
+    electors: electors.length,
+    concurrency,
+    windows: cfg.windows,
+    tabsPerWindow: cfg.tabsPerWindow,
+    tentativas: cfg.tentativas,
+    insistencias: cfg.insistencias,
+    limiteRetentativas: cfg.limiteRetentativas,
+    loginUrl,
+    resultsDir,
+  });
+
+  const launchOpts = buildLaunchOptions(cfg);
+  const browsers = [];
+  const workerContexts = [];
+
+  try {
+    for (let w = 0; w < cfg.windows; w += 1) {
+      const browser = await chromium.launch(launchOpts);
+      browsers.push(browser);
+      for (let t = 0; t < cfg.tabsPerWindow; t += 1) {
+        const context = await browser.newContext({
+          ignoreHTTPSErrors: Boolean(cfg.ignoreHTTPSErrors),
+          viewport: { width: 1180, height: 820 },
+        });
+        workerContexts.push(context);
+      }
+    }
+
+    // Admin scrape in a dedicated context (not counted as a voter slot).
+    const adminBrowser = browsers[0];
+    const adminContext = await adminBrowser.newContext({
+      ignoreHTTPSErrors: Boolean(cfg.ignoreHTTPSErrors),
+    });
+    let snapshot;
+    try {
+      snapshot = await scrapeOpenElections(adminContext, {
+        platformUrl: cfg.platformUrl.replace(/\/+$/, ''),
+        adminUser: cfg.adminUser,
+        adminPassword: cfg.adminPassword,
+        loginUrl,
+        log: (e) => logger.info(e.message || 'admin', e),
+      });
+    } finally {
+      await adminContext.close().catch(() => {});
+    }
+
+    if (!snapshot.rounds.length) {
+      logger.warn('Nenhuma rodada aberta encontrada no admin.');
+    } else {
+      logger.info(`Rodadas abertas: ${snapshot.rounds.length}`, {
+        rounds: snapshot.rounds.map((r) => ({
+          election_id: r.election_id,
+          round_id: r.round_id,
+          title: r.election_title,
+        })),
+      });
+    }
+
+    const journeyCache = {
+      current: {
+        welcome: snapshot.journey.welcome || '',
+        booth: snapshot.journey.booth || '',
+        thank_you: snapshot.journey.thank_you || '',
+      },
+    };
+
+    const state = {
+      failureEvents: 0,
+      retryAttempts: 0,
+      successElectors: 0,
+      failedElectors: 0,
+      skippedElectors: 0,
+      stopped: false,
+      stopReason: '',
+    };
+
+    const queue = electors.map((e, index) => ({ elector: e, index }));
+    let cursor = 0;
+
+    async function nextJob() {
+      if (state.stopped) {
+        return null;
+      }
+      if (hooks.signal?.aborted) {
+        state.stopped = true;
+        state.stopReason = 'abortado';
+        return null;
+      }
+      if (cursor >= queue.length) {
+        return null;
+      }
+      const job = queue[cursor];
+      cursor += 1;
+      return job;
+    }
+
+    async function processWithRetries(context, job) {
+      const { elector } = job;
+      let lastError = null;
+
+      for (let attempt = 1; attempt <= cfg.insistencias; attempt += 1) {
+        if (state.stopped) {
+          return;
+        }
+        try {
+          await voteElector(context, {
+            elector,
+            loginUrl,
+            openRounds: snapshot.rounds,
+            journeyCache,
+            logger,
+          });
+          state.successElectors += 1;
+          logger.info('Eleitor concluído', {
+            user_login: elector.user_login,
+            attempt,
+          });
+          return;
+        } catch (err) {
+          lastError = err;
+          state.retryAttempts += 1;
+          logger.warn(`Falha (insistência ${attempt}/${cfg.insistencias})`, {
+            user_login: elector.user_login,
+            error: String(err.message || err),
+            retryAttempts: state.retryAttempts,
+          });
+
+          if (state.retryAttempts >= cfg.limiteRetentativas) {
+            state.stopped = true;
+            state.stopReason = `Limite máximo de retentativas (${cfg.limiteRetentativas}) atingido`;
+            break;
+          }
+        }
+      }
+
+      state.failureEvents += 1;
+      state.failedElectors += 1;
+      logger.error('Eleitor falhou após insistências', {
+        user_login: elector.user_login,
+        error: String(lastError?.message || lastError || 'erro desconhecido'),
+        failureEvents: state.failureEvents,
+      });
+
+      if (state.failureEvents >= cfg.tentativas) {
+        state.stopped = true;
+        state.stopReason = `Tentativas (${cfg.tentativas}) esgotadas`;
+      }
+    }
+
+    async function workerLoop(context, workerId) {
+      while (!state.stopped) {
+        const job = await nextJob();
+        if (!job) {
+          break;
+        }
+        logger.info(`Worker ${workerId} → ${job.elector.user_login}`, {
+          remaining: queue.length - cursor,
+        });
+        await processWithRetries(context, job);
+      }
+    }
+
+    await Promise.all(
+      workerContexts.map((ctx, i) => workerLoop(ctx, i + 1))
+    );
+
+    if (state.stopped && cursor < queue.length) {
+      state.skippedElectors = queue.length - cursor;
+      logger.warn(`Execução interrompida: ${state.stopReason}`, {
+        skipped: state.skippedElectors,
+      });
+    }
+
+    const summary = {
+      resultsDir,
+      electorsTotal: electors.length,
+      successElectors: state.successElectors,
+      failedElectors: state.failedElectors,
+      skippedElectors: state.skippedElectors,
+      failureEvents: state.failureEvents,
+      retryAttempts: state.retryAttempts,
+      openRounds: snapshot.rounds.length,
+      journey: journeyCache.current,
+      stopReason: state.stopReason || null,
+      finishedAt: new Date().toISOString(),
+    };
+    logger.writeSummary(summary);
+    return summary;
+  } finally {
+    for (const ctx of workerContexts) {
+      await ctx.close().catch(() => {});
+    }
+    for (const browser of browsers) {
+      await browser.close().catch(() => {});
+    }
+  }
+}
+
+function buildLaunchOptions(cfg) {
+  const opts = {
+    headless: false,
+    channel: cfg.channel || 'chrome',
+    args: ['--disable-dev-shm-usage'],
+  };
+  if (cfg.chromePath) {
+    opts.executablePath = cfg.chromePath;
+    delete opts.channel;
+  }
+  return opts;
+}

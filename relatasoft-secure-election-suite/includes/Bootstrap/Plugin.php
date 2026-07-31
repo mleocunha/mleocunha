@@ -270,10 +270,25 @@ class Plugin {
 			'rses_voting_booth'
 		);
 
+		// Query args override shortcode attributes so one booth page can serve every open round.
+		$rses_election_id = isset( $_GET['election_id'] ) // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+			? absint( $_GET['election_id'] )
+			: 0;
+		$rses_round_id    = isset( $_GET['round_id'] ) // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+			? absint( $_GET['round_id'] )
+			: 0;
+
+		if ( $rses_election_id < 1 ) {
+			$rses_election_id = absint( $atts['election_id'] );
+		}
+		if ( $rses_round_id < 1 ) {
+			$rses_round_id = absint( $atts['round_id'] );
+		}
+
 		ob_start();
 		\RelataSoft\SecureElectionSuite\Voting\VotingViews::rses_render_voting_booth(
-			absint( $atts['election_id'] ),
-			absint( $atts['round_id'] )
+			$rses_election_id,
+			$rses_round_id
 		);
 		return (string) ob_get_clean();
 	}

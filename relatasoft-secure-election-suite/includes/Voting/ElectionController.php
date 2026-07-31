@@ -27,6 +27,7 @@ class ElectionController {
 		add_action( 'admin_post_rses_save_election', array( self::class, 'rses_handle_save_election' ) );
 		add_action( 'admin_post_rses_election_action', array( self::class, 'rses_handle_election_action' ) );
 		add_action( 'admin_post_rses_export_voting', array( self::class, 'rses_handle_export' ) );
+		add_action( 'admin_post_rses_dump_open_elections', array( self::class, 'rses_handle_dump_open_elections' ) );
 	}
 
 	/**
@@ -117,5 +118,21 @@ class ElectionController {
 		$rses_format      = Sanitizer::rses_text( $_GET['format'] ?? 'zip' );
 
 		VotingExportService::rses_export( $rses_election_id, $rses_round_id, $rses_format );
+	}
+
+	/**
+	 * JSON dump of open elections for automation scrapers (admin only).
+	 */
+	public static function rses_handle_dump_open_elections(): void {
+		Capability::rses_require_admin();
+		ModeLock::rses_require_mode( ModeLock::RSES_MODE_VOTING );
+
+		$rses_payload = OpenElectionsService::rses_snapshot();
+
+		nocache_headers();
+		header( 'Content-Type: application/json; charset=utf-8' );
+		header( 'X-Content-Type-Options: nosniff' );
+		echo wp_json_encode( $rses_payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE );
+		exit;
 	}
 }

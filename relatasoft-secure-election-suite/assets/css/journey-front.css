@@ -157,3 +157,60 @@
 .rses-journey--thanks .rses-journey-card {
 	border-top: 4px solid var(--rses-primary);
 }
+
+.rses-open-elections {
+	margin-top: 0.25rem;
+}
+
+.rses-open-elections-label {
+	margin: 0 0 0.65rem;
+	font-weight: 700;
+	font-size: 0.95rem;
+	color: var(--rses-ink);
+}
+
+.rses-open-elections-list {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+
+.rses-open-elections-list li + li {
+	margin-top: 0.5rem;
+}
+
+.rses-open-election-link {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 1rem;
+	padding: 0.7rem 0.85rem;
+	border: 1px solid var(--rses-line);
+	border-radius: var(--rses-radius);
+	text-decoration: none;
+	color: var(--rses-ink);
+	background: #fff;
+	transition: border-color 0.15s ease, transform 0.15s ease;
+}
+
+.rses-open-election-link:hover,
+.rses-open-election-link:focus {
+	border-color: var(--rses-primary);
+	transform: translateY(-1px);
+	color: var(--rses-ink);
+}
+
+.rses-open-election-title {
+	font-weight: 700;
+}
+
+.rses-open-election-status {
+	flex-shrink: 0;
+	font-size: 0.85rem;
+	font-weight: 600;
+	color: var(--rses-primary);
+}
+
+.rses-open-election-link--voted .rses-open-election-status {
+	color: var(--rses-muted);
+}

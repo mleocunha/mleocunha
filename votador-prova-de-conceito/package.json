@@ -1,0 +1,19 @@
+{
+  "name": "votador-prova-de-conceito",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Votador Prova de Conceito — stress/voting tester with headed Google Chrome (Playwright)",
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.js",
+    "vote": "node src/cli.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "multer": "^2.2.0",
+    "playwright": "^1.51.0"
+  }
+}
