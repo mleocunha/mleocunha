@@ -35,8 +35,10 @@ class Nonce {
 	public const RSES_ACTION_SETTINGS_SAVE      = 'rses_settings_save';
 	public const RSES_ACTION_VOTING_EXPORT      = 'rses_voting_export';
 	public const RSES_ACTION_BALLOT_SAVE        = 'rses_ballot_save';
-	public const RSES_ACTION_REDIRECTIONS_SAVE  = 'rses_redirections_save';
-	public const RSES_ACTION_JOURNEY_PROVISION  = 'rses_journey_provision';
+	public const RSES_ACTION_REDIRECTIONS_SAVE       = 'rses_redirections_save';
+	public const RSES_ACTION_JOURNEY_PROVISION       = 'rses_journey_provision';
+	public const RSES_ACTION_ELECTORAL_ROLL_IMPORT   = 'rses_electoral_roll_import';
+	public const RSES_ACTION_ELECTORAL_ROLL_SAMPLE   = 'rses_electoral_roll_sample';
 
 	/**
 	 * Output a nonce field for forms.
