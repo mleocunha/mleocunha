@@ -22,6 +22,7 @@ use RelataSoft\SecureElectionSuite\Tallying\CertificationService;
 use RelataSoft\SecureElectionSuite\Tallying\OfficialShareSubmissionController;
 use RelataSoft\SecureElectionSuite\Tallying\TallyImportController;
 use RelataSoft\SecureElectionSuite\Admin\RedirectionsPage;
+use RelataSoft\SecureElectionSuite\Admin\UserImportPage;
 use RelataSoft\SecureElectionSuite\Frontend\LoginCustomizer;
 use RelataSoft\SecureElectionSuite\Frontend\VoterJourney;
 use RelataSoft\SecureElectionSuite\Voting\BallotController;
@@ -74,6 +75,7 @@ class Plugin {
 		TallyImportController::register();
 		OfficialShareSubmissionController::register();
 		RedirectionsPage::register();
+		UserImportPage::register();
 		LoginCustomizer::register();
 		VoterJourney::register();
 

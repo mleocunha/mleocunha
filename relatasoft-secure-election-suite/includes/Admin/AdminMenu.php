@@ -18,6 +18,7 @@ use RelataSoft\SecureElectionSuite\I18n\RoleLabels;
 use RelataSoft\SecureElectionSuite\I18n\Translator;
 use RelataSoft\SecureElectionSuite\Admin\Brand;
 use RelataSoft\SecureElectionSuite\Admin\RedirectionsPage;
+use RelataSoft\SecureElectionSuite\Admin\UserImportPage;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -120,6 +121,15 @@ class AdminMenu {
 				$rses_admin_cap,
 				'rses-redirections',
 				array( RedirectionsPage::class, 'rses_render' )
+			);
+
+			add_submenu_page(
+				'rses-dashboard',
+				__( 'Import users', 'relatasoft-secure-election-suite' ),
+				__( 'Import users', 'relatasoft-secure-election-suite' ),
+				$rses_admin_cap,
+				'rses-user-import',
+				array( UserImportPage::class, 'rses_render' )
 			);
 
 			add_submenu_page(
@@ -304,7 +314,16 @@ class AdminMenu {
 						</p>
 					</div>
 					<div class="rses-dashboard-card">
-						<h2><?php esc_html_e( '5. Export Encrypted Tallies', 'relatasoft-secure-election-suite' ); ?></h2>
+						<h2><?php esc_html_e( '5. Import users', 'relatasoft-secure-election-suite' ); ?></h2>
+						<p><?php esc_html_e( 'CSV import of electors with a final senha column; passwords are accepted as-is.', 'relatasoft-secure-election-suite' ); ?></p>
+						<p>
+							<a class="button button-primary" href="<?php echo esc_url( admin_url( 'admin.php?page=rses-user-import' ) ); ?>">
+								<?php esc_html_e( 'Import users', 'relatasoft-secure-election-suite' ); ?>
+							</a>
+						</p>
+					</div>
+					<div class="rses-dashboard-card">
+						<h2><?php esc_html_e( '6. Export Encrypted Tallies', 'relatasoft-secure-election-suite' ); ?></h2>
 						<p><?php esc_html_e( 'After closing an election, export ZIP/JSON packages for the Tallying platform.', 'relatasoft-secure-election-suite' ); ?></p>
 						<p>
 							<a class="button button-primary" href="<?php echo esc_url( admin_url( 'admin.php?page=rses-voting-export' ) ); ?>">
@@ -358,7 +377,7 @@ class AdminMenu {
 					<?php
 					$rses_crypto_title = __( 'Crypto Self Test', 'relatasoft-secure-election-suite' );
 					if ( ModeLock::rses_is_mode( ModeLock::RSES_MODE_VOTING ) ) {
-						$rses_crypto_title = __( '6. Crypto Self Test', 'relatasoft-secure-election-suite' );
+						$rses_crypto_title = __( '7. Crypto Self Test', 'relatasoft-secure-election-suite' );
 					} elseif ( ModeLock::rses_is_mode( ModeLock::RSES_MODE_TALLYING ) ) {
 						$rses_crypto_title = __( '4. Crypto Self Test', 'relatasoft-secure-election-suite' );
 					} elseif ( ModeLock::rses_is_mode( ModeLock::RSES_MODE_KEY_AUTHORITY ) ) {
