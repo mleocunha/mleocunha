@@ -15,9 +15,9 @@ Opções:
   --chrome           Caminho do Google Chrome (opcional)
   --windows          Janelas Chrome (default ${DEFAULTS.windows})
   --tabs             Contextos por janela (default ${DEFAULTS.tabsPerWindow})
-  --tentativas       x — falhas de eleitor toleradas (default ${DEFAULTS.tentativas})
-  --insistencias     n — retentativas por eleitor (default ${DEFAULTS.insistencias})
-  --limite           y — teto global de retentativas (default ${DEFAULTS.limiteRetentativas})
+  --tentativas       x — eleitores pulados/registrados no teste (default ${DEFAULTS.tentativas})
+  --insistencias     n — retentativas por falha (default ${DEFAULTS.insistencias})
+  --limite           y — teto por falha; ao atingir y nessa falha, para o teste (default ${DEFAULTS.limiteRetentativas})
   --ignore-https     Ignorar erros de certificado
 `);
 }

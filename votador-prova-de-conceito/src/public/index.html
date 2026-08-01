@@ -83,18 +83,22 @@
         </div>
         <div class="row triple">
           <label>
-            Tentativas (x)
-            <input name="tentativas" type="number" min="1" value="50" title="Falhas de eleitor toleradas antes de parar" />
+            Tentativas
+            <input name="tentativas" type="number" min="1" value="50" title="Máximo de eleitores pulados/registrados no teste inteiro (x)" />
           </label>
           <label>
-            Insistências (n)
-            <input name="insistencias" type="number" min="1" value="3" title="Retentativas por eleitor com falha" />
+            Insistências
+            <input name="insistencias" type="number" min="1" value="3" title="Retentativas por cada falha de eleitor (n)" />
           </label>
           <label>
-            Limite máximo de retentativas (y)
-            <input name="limiteRetentativas" type="number" min="1" value="100" title="Teto global de retentativas" />
+            Limite máximo de retentativas
+            <input name="limiteRetentativas" type="number" min="1" value="3" title="Teto por falha (y): se as insistências daquela falha chegarem a y, o teste para" />
           </label>
         </div>
+        <p class="hint">
+          Pula e registra até <strong>Tentativas</strong> falhas; retenta até <strong>Insistências</strong> por falha;
+          se as insistências de uma falha atingirem o <strong>Limite máximo de retentativas</strong>, o teste inteiro para.
+        </p>
         <label>
           Caminho do Google Chrome (opcional)
           <input name="chromePath" type="text" placeholder="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" autocomplete="off" />

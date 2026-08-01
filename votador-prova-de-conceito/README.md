@@ -41,9 +41,11 @@ Abra `http://127.0.0.1:3847` e preencha:
 | Caminho de login | `/id.php`, `/wp-login.php` ou personalizado |
 | Admin | Usuário/senha WP admin (só para descobrir eleições abertas; não é persistido) |
 | CSV | Mesmo formato do **Importador de cadastro eleitoral** (`password` como última coluna) |
-| Tentativas (x) | Falhas de eleitor toleradas antes de parar (default 50) |
-| Insistências (n) | Retentativas por eleitor com falha (default 3) |
-| Limite (y) | Teto global de retentativas (default 100) |
+| Tentativas (x) | Máximo de eleitores pulados/registrados no teste (default 50) |
+| Insistências (n) | Retentativas por cada falha (default 3) |
+| Limite máximo de retentativas (y) | Teto **por falha**: se as insistências daquela falha chegarem a y, o teste para (default 3) |
+
+Com `n < y`, um eleitor pode esgotar as insistências, ser pulado/registrado e contar para x. Com `n ≥ y`, a primeira falha que atingir y insistências encerra o teste inteiro.
 
 ## CLI
 

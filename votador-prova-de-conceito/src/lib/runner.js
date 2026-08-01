@@ -10,9 +10,15 @@ import { voteElector } from './voteSession.js';
 export const DEFAULTS = {
   windows: 5,
   tabsPerWindow: 5,
+  /** Max electors skipped/logged after their insistências cycle (x). */
   tentativas: 50,
+  /** Retry attempts per failed elector (n). */
   insistencias: 3,
-  limiteRetentativas: 100,
+  /**
+   * Per-failure insistências ceiling (y). When a single elector's failed
+   * attempts reach y, the whole run stops ("n == y" on that failure).
+   */
+  limiteRetentativas: 3,
 };
 
 /**
@@ -150,11 +156,20 @@ export async function runVotador(config, hooks = {}) {
       return job;
     }
 
+    /**
+     * Retry semantics (option 2):
+     * - Tentativas (x): max electors skipped/logged after exhausting insistências
+     * - Insistências (n): attempts per failed elector
+     * - Limite máximo de retentativas (y): per-failure ceiling — when this
+     *   elector's failed attempts reach y, stop the entire run
+     */
     async function processWithRetries(context, job) {
       const { elector } = job;
       let lastError = null;
+      let failedAttempts = 0;
+      const maxAttempts = Math.max(1, cfg.insistencias);
 
-      for (let attempt = 1; attempt <= cfg.insistencias; attempt += 1) {
+      for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
         if (state.stopped) {
           return;
         }
@@ -174,32 +189,45 @@ export async function runVotador(config, hooks = {}) {
           return;
         } catch (err) {
           lastError = err;
+          failedAttempts += 1;
           state.retryAttempts += 1;
-          logger.warn(`Falha (insistência ${attempt}/${cfg.insistencias})`, {
-            user_login: elector.user_login,
-            error: String(err.message || err),
-            retryAttempts: state.retryAttempts,
-          });
+          logger.warn(
+            `Falha (insistência ${failedAttempts}/${cfg.insistencias}; limite y=${cfg.limiteRetentativas})`,
+            {
+              user_login: elector.user_login,
+              error: String(err.message || err),
+              failedAttempts,
+            }
+          );
 
-          if (state.retryAttempts >= cfg.limiteRetentativas) {
+          // y = per-failure ceiling: n == y on this failure → stop the test
+          if (failedAttempts >= cfg.limiteRetentativas) {
             state.stopped = true;
-            state.stopReason = `Limite máximo de retentativas (${cfg.limiteRetentativas}) atingido`;
-            break;
+            state.stopReason =
+              `Limite máximo de retentativas (y=${cfg.limiteRetentativas}) atingido ` +
+              `para ${elector.user_login}`;
+            logger.error(state.stopReason, {
+              user_login: elector.user_login,
+              failedAttempts,
+            });
+            return;
           }
         }
       }
 
+      // Exhausted n without hitting y (only possible when n < y): skip & register
       state.failureEvents += 1;
       state.failedElectors += 1;
-      logger.error('Eleitor falhou após insistências', {
+      logger.error('Eleitor pulado após insistências (registrado)', {
         user_login: elector.user_login,
         error: String(lastError?.message || lastError || 'erro desconhecido'),
         failureEvents: state.failureEvents,
+        tentativas: cfg.tentativas,
       });
 
       if (state.failureEvents >= cfg.tentativas) {
         state.stopped = true;
-        state.stopReason = `Tentativas (${cfg.tentativas}) esgotadas`;
+        state.stopReason = `Tentativas (x=${cfg.tentativas}) esgotadas`;
       }
     }
 
