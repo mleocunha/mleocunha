@@ -25,7 +25,6 @@ class LoginCustomizer {
 		add_action( 'login_enqueue_scripts', array( self::class, 'rses_enqueue_login_assets' ) );
 		add_filter( 'login_headerurl', array( self::class, 'rses_login_header_url' ) );
 		add_filter( 'login_headertext', array( self::class, 'rses_login_header_text' ) );
-		add_filter( 'login_headertitle', array( self::class, 'rses_login_header_title' ) );
 		add_filter( 'gettext', array( self::class, 'rses_filter_login_labels' ), 20, 3 );
 		add_filter( 'login_body_class', array( self::class, 'rses_login_body_class' ) );
 		add_action( 'login_footer', array( self::class, 'rses_login_footer_note' ) );
