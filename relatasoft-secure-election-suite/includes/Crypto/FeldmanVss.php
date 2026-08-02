@@ -136,6 +136,126 @@ class FeldmanVss {
 	}
 
 	/**
+	 * Build encrypted-share JSON payload (includes commitments for offline verify).
+	 *
+	 * @param array<string,mixed> $args Args.
+	 * @return array<string,mixed>
+	 */
+	public static function rses_build_share_payload( array $args ): array {
+		$payload = array(
+			'format_version'         => '1.0',
+			'version'                => self::RSES_SHARE_VERSION,
+			'scheme'                 => self::RSES_SHARE_SCHEME,
+			'scheme_id'              => self::SCHEME_ID,
+			'ceremony_id'            => (string) ( $args['ceremony_id'] ?? '' ),
+			'key_id'                 => (int) ( $args['key_id'] ?? 0 ),
+			'election_round_id'      => (int) ( $args['election_round_id'] ?? 0 ),
+			'threshold_t'            => (int) ( $args['threshold_t'] ?? 0 ),
+			'total_n'                => (int) ( $args['total_n'] ?? 0 ),
+			'participant_id'         => (int) ( $args['participant_id'] ?? 0 ),
+			'field_prime'            => (string) ( $args['field_prime'] ?? '' ), // q as decimal
+			'share_index'            => (string) (int) ( $args['share_index'] ?? 0 ),
+			'share_value'            => (string) ( $args['share_value'] ?? '' ),
+			'public_key'             => array(
+				'p' => (string) ( $args['public_key']['p'] ?? '' ),
+				'q' => (string) ( $args['public_key']['q'] ?? '' ),
+				'g' => (string) ( $args['public_key']['g'] ?? '' ),
+				'y' => (string) ( $args['public_key']['y'] ?? '' ),
+			),
+			'commitments'            => array_values( (array) ( $args['commitments'] ?? array() ) ),
+			'public_transcript_hash' => (string) ( $args['public_transcript_hash'] ?? '' ),
+		);
+
+		$payload['checksum'] = self::rses_compute_payload_checksum( $payload );
+		return $payload;
+	}
+
+	/**
+	 * @param array<string,mixed> $payload Payload.
+	 */
+	public static function rses_compute_payload_checksum( array $payload ): string {
+		$data = $payload;
+		unset( $data['checksum'] );
+		return hash( 'sha256', (string) wp_json_encode( $data, JSON_UNESCAPED_SLASHES ) );
+	}
+
+	/**
+	 * Validate Feldman share payload (structure, checksum, VSS equation).
+	 *
+	 * @param array<string,mixed> $payload Share payload.
+	 * @throws CryptoException If invalid.
+	 */
+	public static function validateSharePayload( array $payload ): void {
+		if ( self::SCHEME_ID !== (string) ( $payload['scheme_id'] ?? '' )
+			&& self::RSES_SHARE_SCHEME !== (string) ( $payload['scheme'] ?? '' ) ) {
+			throw new CryptoException( __( 'Invalid Feldman share scheme.', 'relatasoft-secure-election-suite' ) );
+		}
+
+		$required = array(
+			'key_id',
+			'threshold_t',
+			'total_n',
+			'field_prime',
+			'share_index',
+			'share_value',
+			'public_key',
+			'commitments',
+			'checksum',
+		);
+		foreach ( $required as $field ) {
+			if ( ! array_key_exists( $field, $payload ) ) {
+				throw new CryptoException(
+					sprintf(
+						/* translators: %s: field name */
+						__( 'Missing required share field: %s', 'relatasoft-secure-election-suite' ),
+						$field
+					)
+				);
+			}
+		}
+
+		if ( ! is_array( $payload['public_key'] ) || ! is_array( $payload['commitments'] ) ) {
+			throw new CryptoException( __( 'Invalid public key or commitments in share payload.', 'relatasoft-secure-election-suite' ) );
+		}
+
+		$expected = self::rses_compute_payload_checksum( $payload );
+		if ( ! hash_equals( $expected, (string) $payload['checksum'] ) ) {
+			throw new CryptoException( __( 'Share checksum validation failed.', 'relatasoft-secure-election-suite' ) );
+		}
+
+		$pk = $payload['public_key'];
+		foreach ( array( 'p', 'q', 'g', 'y' ) as $pk_key ) {
+			if ( empty( $pk[ $pk_key ] ) ) {
+				throw new CryptoException( __( 'Incomplete public key in share payload.', 'relatasoft-secure-election-suite' ) );
+			}
+		}
+
+		$p           = BigInt::fromDecimalString( (string) $pk['p'] );
+		$q           = BigInt::fromDecimalString( (string) $pk['q'] );
+		$g           = BigInt::fromDecimalString( (string) $pk['g'] );
+		$y           = BigInt::fromDecimalString( (string) $pk['y'] );
+		$share_value = BigInt::fromDecimalString( (string) $payload['share_value'] );
+		$commitments = self::rses_commitments_from_decimal( array_map( 'strval', $payload['commitments'] ) );
+
+		if ( empty( $commitments ) || \gmp_cmp( $commitments[0], $y ) !== 0 ) {
+			throw new CryptoException( __( 'Commitment C0 does not match the public key y.', 'relatasoft-secure-election-suite' ) );
+		}
+
+		$ok = self::rses_verify_share(
+			(int) $payload['share_index'],
+			$share_value,
+			$commitments,
+			$p,
+			$q,
+			$g,
+			$y
+		);
+		if ( ! $ok ) {
+			throw new CryptoException( __( 'Share is incompatible with the Feldman commitments.', 'relatasoft-secure-election-suite' ) );
+		}
+	}
+
+	/**
 	 * Commitments as decimal strings for JSON transcripts.
 	 *
 	 * @param list<\GMP> $commitments Commitments.

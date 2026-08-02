@@ -14,7 +14,7 @@ defined( 'ABSPATH' ) || exit;
  */
 class Schema {
 
-	public const RSES_DB_VERSION = '1.0.0';
+	public const RSES_DB_VERSION = '1.1.0';
 
 	/**
 	 * Get all table creation SQL statements.
@@ -42,6 +42,12 @@ class Schema {
 				field_prime LONGTEXT NULL,
 				threshold_t INT NULL,
 				total_n INT NULL,
+				scheme_id VARCHAR(64) NULL,
+				ceremony_id VARCHAR(64) NULL,
+				commitments_json LONGTEXT NULL,
+				ceremony_transcript_json LONGTEXT NULL,
+				public_transcript_hash CHAR(64) NULL,
+				ceremony_status VARCHAR(50) NOT NULL DEFAULT 'active',
 				description TEXT NULL,
 				attachments LONGTEXT NULL,
 				created_by BIGINT UNSIGNED NOT NULL,

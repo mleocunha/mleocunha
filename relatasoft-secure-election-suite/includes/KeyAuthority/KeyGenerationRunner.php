@@ -296,9 +296,9 @@ class KeyGenerationRunner {
 				$rses_total,
 				$rses_officials
 			);
-			$job['message'] = __( 'Key generation complete. Shamir shares assigned to officials.', 'relatasoft-secure-election-suite' );
+			$job['message'] = __( 'Key generation complete. Feldman VSS shares assigned to officials.', 'relatasoft-secure-election-suite' );
 		} else {
-			$job['message'] = __( 'Key generation complete. No officials selected — public key saved without Shamir shares.', 'relatasoft-secure-election-suite' );
+			$job['message'] = __( 'Key generation complete. No officials selected — public key saved without shares.', 'relatasoft-secure-election-suite' );
 		}
 
 		KeyGenerationJob::rses_clear_secrets( $job );
@@ -317,6 +317,7 @@ class KeyGenerationRunner {
 				'job_id'    => (string) ( $job['job_id'] ?? '' ),
 				'attempts'  => (int) ( $job['safe_prime_attempt'] ?? 0 ),
 				'chunked'   => true,
+				'scheme_id' => \RelataSoft\SecureElectionSuite\Crypto\CryptoSchemeRegistry::rses_active_generation_scheme(),
 			)
 		);
 

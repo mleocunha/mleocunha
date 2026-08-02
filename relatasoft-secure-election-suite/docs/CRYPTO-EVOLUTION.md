@@ -1,6 +1,7 @@
 # Evolução criptográfica — decisões e backlog
 
-**Status:** Fase 0 concluída (baseline congelada); Fase 1 (Feldman VSS) é o próximo trabalho de código  
+**Status:** Fase 0 concluída; Fase 1 (Feldman VSS + cerimônia) ativa na geração (≥ 1.0.30); Fase 2 é o próximo trabalho de código  
+ 
 **Plugin:** RelataSoft Secure Election Suite  
 **Última atualização:** 2026-08-02  
 **Branch de trabalho:** `cursor/votador-prova-de-conceito-2eb1`
@@ -195,13 +196,13 @@ Artefactos:
 | Aceitação Fase 0 | `tests/baseline-scheme-acceptance.php` |
 | Matriz TSE provisória | §2 deste documento |
 
-### Fase 1 (próxima)
+### Fase 1 (ativa na geração)
 
-- Feldman VSS sobre ElGamal modular atual (PHP + GMP)  
-- Transcript público + verificação offline  
-- Novos `scheme_id` sem mistura com legado  
-- UI “Verificar meu share” + fail-closed  
-- Testes adversariais (bit flip, índice errado, cerimônia trocada, etc.)  
+- Feldman VSS sobre ElGamal modular atual (PHP + GMP) — **ligado**  
+- Transcript público + verificação offline — **ligado**  
+- `scheme_id` / artefatos sem mistura com legado — **ligado**  
+- UI “Verificar meu share” + fail-closed — **ligado**  
+- Testes adversariais básicos (bit flip, índice errado) — **ligado**; suite de pacotes ZIP ainda pode expandir  
 
 ### Explicitamente fora até as fases seguintes
 

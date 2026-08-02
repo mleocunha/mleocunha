@@ -14,8 +14,8 @@ Use this file as the handoff baseline when starting a new context window for imp
 
 The suite has been exercised across its intended multi-site / multi-role workflow:
 
-1. **Key Authority** generates an ElGamal key, splits the private exponent with Shamir, assigns shares to officials.
-2. **Editors** can view, copy, and download their own Shamir share.
+1. **Key Authority** generates an ElGamal key, splits the private exponent with **Feldman VSS** (`modp-elgamal-feldman-v1`), assigns verifiable shares to officials (legacy Shamir archive-only).
+2. **Editors** can view, copy, download, and **offline-verify** their own share.
 3. **Voting Platform** accepts encrypted ballots from enrolled **Subscriber** voters and returns a receipt hash.
 4. **Tallying** accepts official share submissions; **Administrators** import packages, decrypt when threshold is met, and certify.
 
@@ -219,7 +219,7 @@ When the site is in **voting** mode:
 
 Use this list only as optional backlog after context reset; none of these block the declared success:
 
-- **Crypto evolution (product-settled roadmap):** [`docs/CRYPTO-EVOLUTION.md`](docs/CRYPTO-EVOLUTION.md) — Fase 0 baseline freeze → Fase 1 Feldman VSS (PHP) → threshold decrypt → Rust → P-521 → DKG. Eight contractual pendencies wait on TSE team (Monday); they do **not** block Fase 0–1.
+- **Crypto evolution (product-settled roadmap):** [`docs/CRYPTO-EVOLUTION.md`](docs/CRYPTO-EVOLUTION.md) — Fase 0 baseline freeze → **Fase 1 Feldman VSS active** (PHP generation + ceremony) → threshold decrypt → Rust → P-521 → DKG. Remaining TSE pendencies (B1–B3, B5–B8) do **not** block Fase 2 prep.
 - Independent crypto review / threat model documentation
 - Stronger share–submitter binding across Key Authority → Tallying sites
 - Rate limiting / lockout around cast and share submit

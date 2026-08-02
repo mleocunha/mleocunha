@@ -7,6 +7,8 @@
 
 namespace RelataSoft\SecureElectionSuite\KeyAuthority;
 
+use RelataSoft\SecureElectionSuite\Crypto\CeremonyTranscript;
+use RelataSoft\SecureElectionSuite\Crypto\FeldmanVss;
 use RelataSoft\SecureElectionSuite\Exports\JsonExport;
 use RelataSoft\SecureElectionSuite\Exports\ManifestBuilder;
 use RelataSoft\SecureElectionSuite\Exports\ZipExport;
@@ -114,6 +116,14 @@ class KeyExportService {
 			wp_die( esc_html__( 'Key not found.', 'relatasoft-secure-election-suite' ) );
 		}
 
+		if ( ! KeyRepository::rses_ceremony_is_active( $rses_key ) ) {
+			wp_die(
+				esc_html__( 'This ceremony was invalidated after a failed share verification. Generate new election material.', 'relatasoft-secure-election-suite' ),
+				esc_html__( 'Ceremony invalid', 'relatasoft-secure-election-suite' ),
+				array( 'response' => 409 )
+			);
+		}
+
 		$rses_files = array();
 
 		$rses_public = array(
@@ -125,6 +135,11 @@ class KeyExportService {
 		);
 
 		$rses_files['public-key.json'] = wp_json_encode( $rses_public, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES );
+
+		// Embed canonical Feldman transcript when present (byte-identical across packages).
+		foreach ( self::rses_transcript_files_for_key( $rses_key ) as $path => $contents ) {
+			$rses_files[ $path ] = $contents;
+		}
 
 		if ( $include_full && Capability::rses_can_export_all_shares() ) {
 			if ( ! empty( $rses_key->private_x_encrypted ) ) {
@@ -155,17 +170,62 @@ class KeyExportService {
 				wp_die( esc_html__( 'No Shamir share is assigned to your account for this key.', 'relatasoft-secure-election-suite' ) );
 			}
 
-			$rses_files['own-share.json'] = ShareEncryptionService::rses_decrypt( $rses_share->share_payload_encrypted );
+			$rses_files['encrypted-share.json'] = ShareEncryptionService::rses_decrypt( $rses_share->share_payload_encrypted );
+			// Keep legacy filename for older tooling.
+			$rses_files['own-share.json'] = $rses_files['encrypted-share.json'];
+			$rses_files['verification-instructions.txt'] = self::rses_verification_instructions();
 			AuditLogger::rses_log( 'share_export_own', 'share', (int) $rses_share->id );
 		} else {
 			AuditLogger::rses_log( 'key_export_public_zip', 'key', $key_id );
 		}
 
 		$rses_manifest = ManifestBuilder::rses_build_key_manifest( $key_id, $rses_public );
+		if ( ! empty( $rses_key->scheme_id ) ) {
+			$rses_manifest['scheme_id']              = (string) $rses_key->scheme_id;
+			$rses_manifest['ceremony_id']            = (string) ( $rses_key->ceremony_id ?? '' );
+			$rses_manifest['public_transcript_hash'] = (string) ( $rses_key->public_transcript_hash ?? '' );
+		}
 		$rses_files['manifest.json']   = wp_json_encode( $rses_manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES );
 		$rses_files['checksums.json']  = wp_json_encode( ManifestBuilder::rses_build_checksums( $rses_files ), JSON_PRETTY_PRINT );
 		$rses_files['README.txt']      = __( 'RelataSoft Secure Election Suite - Key Export Package', 'relatasoft-secure-election-suite' );
 
 		ZipExport::rses_send_download( 'key-export-' . $key_id . '.zip', $rses_files );
+	}
+
+	/**
+	 * @param object $key Key row.
+	 * @return array<string,string>
+	 */
+	private static function rses_transcript_files_for_key( object $key ): array {
+		if ( empty( $key->scheme_id ) || FeldmanVss::SCHEME_ID !== (string) $key->scheme_id ) {
+			return array();
+		}
+		if ( empty( $key->ceremony_transcript_json ) ) {
+			return array();
+		}
+
+		$transcript = json_decode( (string) $key->ceremony_transcript_json, true );
+		if ( ! is_array( $transcript ) ) {
+			return array();
+		}
+
+		return CeremonyTranscript::rses_public_files( $transcript );
+	}
+
+	private static function rses_verification_instructions(): string {
+		return implode(
+			"\n",
+			array(
+				'RelataSoft Secure Election Suite — share verification',
+				'',
+				'1. Open Key Authority → My Shamir Shares (or Verify share).',
+				'2. Paste encrypted-share.json / own-share.json contents.',
+				'3. Run “Verify my share”.',
+				'4. Accept only SHARE VÁLIDO / SHARE VALID results.',
+				'5. On SHARE INVÁLIDO, do not use the file — the ceremony must be regenerated.',
+				'',
+				'Offline math: g^{share} must equal Π commitments[k]^(index^k) mod p (Feldman VSS).',
+			)
+		);
 	}
 }

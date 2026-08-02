@@ -28,7 +28,7 @@ RelataSoft Secure Election Suite is intended to be engineered toward production-
 - Field prime is dynamically generated greater than x (not fixed 128-bit)
 - Threshold t-of-n reconstruction required for decryption
 - Share payloads include SHA-256 checksums
-- **No Feldman/Pedersen commitments yet** (planned in Fase 1 of the evolution doc)
+- **Feldman VSS (Fase 1)** is active for new Key Authority ceremonies (`modp-elgamal-feldman-v1`); legacy Shamir elections remain archive-only. Pedersen / DKG remain later phases.
 
 ### Private Key Policy
 

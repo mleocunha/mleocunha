@@ -9,7 +9,7 @@
  */
 
 define( 'ABSPATH', true );
-define( 'RSES_VERSION', '1.0.29' );
+define( 'RSES_VERSION', '1.0.30' );
 
 require_once dirname( __DIR__ ) . '/includes/Crypto/CryptoException.php';
 require_once dirname( __DIR__ ) . '/includes/Crypto/BigInt.php';
@@ -59,20 +59,20 @@ if ( ! extension_loaded( 'gmp' ) ) {
 
 rses_report(
 	'Active generation scheme',
-	CryptoSchemeRegistry::SCHEME_MODP_ELGAMAL_SHAMIR_V1 === CryptoSchemeRegistry::rses_active_generation_scheme(),
+	CryptoSchemeRegistry::SCHEME_MODP_ELGAMAL_FELDMAN_V1 === CryptoSchemeRegistry::rses_active_generation_scheme(),
 	CryptoSchemeRegistry::rses_active_generation_scheme()
 );
 
 rses_report(
-	'Baseline may generate',
-	CryptoSchemeRegistry::rses_may_generate( CryptoSchemeRegistry::SCHEME_MODP_ELGAMAL_SHAMIR_V1 ),
-	'modp-elgamal-shamir-v1'
+	'Feldman may generate',
+	CryptoSchemeRegistry::rses_may_generate( CryptoSchemeRegistry::SCHEME_MODP_ELGAMAL_FELDMAN_V1 ),
+	'modp-elgamal-feldman-v1'
 );
 
 rses_report(
-	'Feldman not yet generative',
-	! CryptoSchemeRegistry::rses_may_generate( CryptoSchemeRegistry::SCHEME_MODP_ELGAMAL_FELDMAN_V1 ),
-	'feldman gated until Fase 1'
+	'Baseline no longer generative',
+	! CryptoSchemeRegistry::rses_may_generate( CryptoSchemeRegistry::SCHEME_MODP_ELGAMAL_SHAMIR_V1 ),
+	'legacy read-only'
 );
 
 $rses_path = __DIR__ . '/vectors/modp-elgamal-shamir-v1-tiny.json';

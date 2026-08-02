@@ -1,7 +1,6 @@
 node_modules/
 results/
-credentials/
-credentials/**
+credentials/*
 !credentials/.gitkeep
 uploads/
 *.csv

@@ -157,4 +157,31 @@ class KeyRepository {
 
 		return $rses_shares[0] ?? null;
 	}
+
+	/**
+	 * Fail-closed ceremony invalidation after a failed share verification.
+	 *
+	 * @param int    $key_id Key ID.
+	 * @param string $reason Machine reason code.
+	 */
+	public static function rses_invalidate_ceremony( int $key_id, string $reason ): bool {
+		return Repository::rses_update(
+			'rses_keys',
+			array(
+				'ceremony_status' => 'CEREMONY_INVALID:' . $reason,
+				'updated_at'      => current_time( 'mysql', true ),
+			),
+			array( 'id' => $key_id ),
+			array( '%s', '%s' ),
+			array( '%d' )
+		);
+	}
+
+	/**
+	 * Whether the ceremony is still usable for exports / tally material.
+	 */
+	public static function rses_ceremony_is_active( object $key ): bool {
+		$status = (string) ( $key->ceremony_status ?? 'active' );
+		return 'active' === $status || '' === $status;
+	}
 }

@@ -69,8 +69,10 @@ class KeyAuthorityViews {
 			<?php endif; ?>
 
 			<div class="rses-panel rses-panel-warning">
-				<p><?php esc_html_e( 'Private keys are split into Shamir Secret Sharing shares immediately. Full private keys are not persisted by default.', 'relatasoft-secure-election-suite' ); ?></p>
+				<p><?php esc_html_e( 'Private keys are split with Feldman verifiable secret sharing. Full private keys are not persisted by default. Officials must verify their share offline before the election.', 'relatasoft-secure-election-suite' ); ?></p>
 			</div>
+
+			<?php self::rses_render_verify_share_panel(); ?>
 
 			<?php if ( empty( $rses_officials ) ) : ?>
 				<div class="rses-panel rses-panel-warning">
@@ -259,6 +261,8 @@ class KeyAuthorityViews {
 				<p><?php esc_html_e( 'Store your share offline and keep it confidential. You will paste this same JSON on the Tallying site when submitting your share. Never share it with other officials.', 'relatasoft-secure-election-suite' ); ?></p>
 			</div>
 
+			<?php self::rses_render_verify_share_panel(); ?>
+
 			<?php
 			$rses_found = false;
 			foreach ( $rses_keys as $rses_key ) {
@@ -334,6 +338,56 @@ class KeyAuthorityViews {
 	}
 
 	/**
+	 * Offline “Verify my share” panel (officials + admins).
+	 */
+	private static function rses_render_verify_share_panel(): void {
+		$result = get_transient( 'rses_share_verify_' . get_current_user_id() );
+		if ( isset( $_GET['rses_verify'] ) && is_array( $result ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+			delete_transient( 'rses_share_verify_' . get_current_user_id() );
+			$ok = ! empty( $result['ok'] );
+			?>
+			<div class="rses-panel <?php echo $ok ? 'rses-panel-success' : 'rses-panel-warning'; ?>">
+				<p>
+					<strong><?php echo $ok ? esc_html__( 'SHARE VALID', 'relatasoft-secure-election-suite' ) : esc_html__( 'SHARE INVALID', 'relatasoft-secure-election-suite' ); ?></strong>
+					— <?php echo esc_html( (string) ( $result['message'] ?? '' ) ); ?>
+				</p>
+				<?php if ( ! empty( $result['code'] ) ) : ?>
+					<p><code><?php echo esc_html( (string) $result['code'] ); ?></code></p>
+				<?php endif; ?>
+				<?php if ( ! $ok && ! empty( $result['details']['key_id'] ) ) : ?>
+					<p><?php esc_html_e( 'Do not use this file. The ceremony must be annulled and new election material generated.', 'relatasoft-secure-election-suite' ); ?></p>
+				<?php endif; ?>
+				<?php if ( $ok && ! empty( $result['details'] ) && is_array( $result['details'] ) ) : ?>
+					<ul class="rses-verify-details">
+						<?php foreach ( $result['details'] as $k => $v ) : ?>
+							<li><span><?php echo esc_html( (string) $k ); ?></span> <code><?php echo esc_html( is_scalar( $v ) ? (string) $v : wp_json_encode( $v ) ); ?></code></li>
+						<?php endforeach; ?>
+					</ul>
+				<?php endif; ?>
+			</div>
+			<?php
+		}
+		?>
+		<section class="rses-panel rses-panel-card" id="rses-verify-share">
+			<header class="rses-panel-header">
+				<p class="rses-panel-kicker"><?php esc_html_e( 'Verify', 'relatasoft-secure-election-suite' ); ?></p>
+				<h2 class="rses-panel-title"><?php esc_html_e( 'Verify my share', 'relatasoft-secure-election-suite' ); ?></h2>
+				<p class="rses-panel-desc"><?php esc_html_e( 'Paste your share JSON (from the on-screen view or encrypted-share.json). Verification is local: the Key Authority is not asked whether the share it produced is valid.', 'relatasoft-secure-election-suite' ); ?></p>
+			</header>
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="rses-form">
+				<?php Nonce::rses_field( Nonce::RSES_ACTION_SHARE_VERIFY ); ?>
+				<input type="hidden" name="action" value="rses_verify_share" />
+				<label class="rses-field-label" for="rses_share_json"><?php esc_html_e( 'Share JSON', 'relatasoft-secure-election-suite' ); ?></label>
+				<textarea id="rses_share_json" name="rses_share_json" class="large-text code rses-code-area" rows="10" required placeholder="{ ... }"></textarea>
+				<p class="submit">
+					<button type="submit" class="button button-primary"><?php esc_html_e( 'Verify my share', 'relatasoft-secure-election-suite' ); ?></button>
+				</p>
+			</form>
+		</section>
+		<?php
+	}
+
+	/**
 	 * Render a single key card.
 	 *
 	 * @param object              $key      Key row.
@@ -342,8 +396,9 @@ class KeyAuthorityViews {
 	private static function rses_render_key_card( object $key, array $settings ): void {
 		$rses_shares      = KeyRepository::rses_get_shares( (int) $key->id );
 		$rses_attachments = json_decode( $key->attachments ?? '[]', true ) ?: array();
+		$ceremony_active  = KeyRepository::rses_ceremony_is_active( $key );
 		?>
-		<article class="rses-key-card rses-export-card">
+		<article class="rses-key-card rses-export-card<?php echo $ceremony_active ? '' : ' is-invalid-ceremony'; ?>">
 			<header class="rses-key-card-header">
 				<h3 class="rses-key-card-title">
 					<?php echo esc_html( $key->key_label ); ?>
@@ -358,12 +413,31 @@ class KeyAuthorityViews {
 					);
 					?>
 					·
-					<?php echo (int) $key->private_key_persisted ? esc_html__( 'Private persisted', 'relatasoft-secure-election-suite' ) : esc_html__( 'Shamir shares only', 'relatasoft-secure-election-suite' ); ?>
+					<?php echo (int) $key->private_key_persisted ? esc_html__( 'Private persisted', 'relatasoft-secure-election-suite' ) : esc_html__( 'Feldman VSS shares', 'relatasoft-secure-election-suite' ); ?>
+					<?php if ( ! empty( $key->scheme_id ) ) : ?>
+						· <code><?php echo esc_html( (string) $key->scheme_id ); ?></code>
+					<?php endif; ?>
 				</p>
 			</header>
 
+			<?php if ( ! $ceremony_active ) : ?>
+				<div class="rses-panel rses-panel-warning">
+					<p><?php esc_html_e( 'Ceremony invalidated. Do not use these shares. Generate new election material.', 'relatasoft-secure-election-suite' ); ?>
+					<?php if ( ! empty( $key->ceremony_status ) ) : ?>
+						<code><?php echo esc_html( (string) $key->ceremony_status ); ?></code>
+					<?php endif; ?>
+					</p>
+				</div>
+			<?php endif; ?>
+
 			<table class="rses-key-meta-table">
 				<tr><th><?php esc_html_e( 'Key Size', 'relatasoft-secure-election-suite' ); ?></th><td><?php echo esc_html( (string) $key->key_size ); ?> bits</td></tr>
+				<?php if ( ! empty( $key->ceremony_id ) ) : ?>
+					<tr><th><?php esc_html_e( 'Ceremony', 'relatasoft-secure-election-suite' ); ?></th><td><code><?php echo esc_html( (string) $key->ceremony_id ); ?></code></td></tr>
+				<?php endif; ?>
+				<?php if ( ! empty( $key->public_transcript_hash ) ) : ?>
+					<tr><th><?php esc_html_e( 'Transcript', 'relatasoft-secure-election-suite' ); ?></th><td><code><?php echo esc_html( (string) $key->public_transcript_hash ); ?></code></td></tr>
+				<?php endif; ?>
 				<tr><th>p</th><td><code class="rses-bigint"><?php echo esc_html( substr( $key->public_p, 0, 64 ) . '...' ); ?></code></td></tr>
 				<tr><th>q</th><td><code class="rses-bigint"><?php echo esc_html( substr( $key->public_q, 0, 64 ) . '...' ); ?></code></td></tr>
 				<tr><th>g</th><td><code class="rses-bigint"><?php echo esc_html( substr( $key->public_g, 0, 64 ) . '...' ); ?></code></td></tr>

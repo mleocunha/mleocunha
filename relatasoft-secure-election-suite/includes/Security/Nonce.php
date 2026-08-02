@@ -40,6 +40,7 @@ class Nonce {
 	public const RSES_ACTION_ELECTORAL_ROLL_IMPORT   = 'rses_electoral_roll_import';
 	public const RSES_ACTION_ELECTORAL_ROLL_SAMPLE   = 'rses_electoral_roll_sample';
 	public const RSES_ACTION_ELECTORAL_ROLL_ERRORS   = 'rses_electoral_roll_errors';
+	public const RSES_ACTION_SHARE_VERIFY            = 'rses_share_verify';
 
 	/**
 	 * Output a nonce field for forms.

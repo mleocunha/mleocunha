@@ -1,6 +1,6 @@
-# Scheme specification: `modp-elgamal-feldman-v1` (Fase 1 — in progress)
+# Scheme specification: `modp-elgamal-feldman-v1` (Fase 1)
 
-**Status:** mathematics + verify API landed; ceremony wiring / UI / ZIP transcript **not** enabled for generation yet  
+**Status:** generation + ceremony wiring enabled (plugin ≥ 1.0.30)  
 **Implementation:** PHP + GMP  
 **Registry:** `CryptoSchemeRegistry::SCHEME_MODP_ELGAMAL_FELDMAN_V1` → `modp-elgamal-feldman-v1`  
 **Class:** `includes/Crypto/FeldmanVss.php`
@@ -20,21 +20,31 @@ requires polynomial arithmetic in \(\mathbb{Z}/q\mathbb{Z}\) where \(q\) is the 
 
 Also \(C_0 = g^{a_0} = g^x = y\) (ElGamal public key).
 
-## API (landed)
+## API
 
 - `FeldmanVss::rses_split_with_commitments(x, t, n, p, q, g)`
 - `FeldmanVss::rses_verify_share(i, s, commitments, p, q, g, y?)`
-- Decimal helpers for transcript JSON
+- `FeldmanVss::rses_build_share_payload(...)` / `validateSharePayload(...)`
+- `CeremonyTranscript::rses_build` / `rses_public_files` (ZIP transcript)
+- `ShareVerifyService::rses_verify_payload` (offline UI) and `rses_validate_for_tally` (submit / decrypt)
 
-## Still to land (Fase 1 remainder)
+## Landed in Key Authority
 
-- Public ceremony transcript ZIP (`commitments.json`, manifest, signature)
-- Official package with encrypted share + transcript copy
-- Offline “Verificar meu share” UI (fail-closed → `CEREMONY_INVALID`)
-- Wire Key Authority generation to this scheme (`rses_may_generate` still false)
-- Adversarial acceptance suite on full packages
-- Freeze `scheme_id` / `format_version` on every artefact
+- Active generation scheme = `modp-elgamal-feldman-v1` (`rses_may_generate`)
+- Schema `rses_keys` 1.1.0: `scheme_id`, `ceremony_id`, commitments, transcript, status
+- Official ZIP includes ceremony files + `encrypted-share.json` + verification instructions
+- Offline “Verify my share” UI; fail-closed → `CEREMONY_INVALID:SHARE_VERIFICATION_FAILED`
+- Export blocked when ceremony is invalid
+- Tally / share submit accept Feldman payloads (still reconstruct `x` until Fase 2)
+
+Legacy elections stay on `modp-elgamal-shamir-v1` (read-only archive).
+
+## Still open (later)
+
+- Broader adversarial acceptance suite on full ZIP packages
+- Partial decryption + Chaum–Pedersen (Fase 2) — reconstruct `x` remains until then
 
 ## Tests
 
-`php tests/feldman-vss-acceptance.php`
+`php tests/feldman-vss-acceptance.php`  
+`php tests/baseline-scheme-acceptance.php`

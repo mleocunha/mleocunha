@@ -11,6 +11,7 @@ use RelataSoft\SecureElectionSuite\Crypto\BigInt;
 use RelataSoft\SecureElectionSuite\Crypto\CryptoException;
 use RelataSoft\SecureElectionSuite\Crypto\ElGamalCiphertext;
 use RelataSoft\SecureElectionSuite\Crypto\HomomorphicTally;
+use RelataSoft\SecureElectionSuite\Crypto\ShareVerifyService;
 use RelataSoft\SecureElectionSuite\Crypto\ShamirSecretSharing;
 use RelataSoft\SecureElectionSuite\KeyAuthority\ShareEncryptionService;
 use RelataSoft\SecureElectionSuite\Security\AuditLogger;
@@ -90,7 +91,7 @@ class TallyDecryptionService {
 					throw new CryptoException( __( 'Invalid share payload.', 'relatasoft-secure-election-suite' ) );
 				}
 
-				ShamirSecretSharing::validateSharePayload( $rses_payload );
+				ShareVerifyService::rses_validate_for_tally( $rses_payload );
 
 				if ( $rses_payload['public_key']['p'] !== $rses_public['p']
 					|| $rses_payload['public_key']['y'] !== $rses_public['y'] ) {

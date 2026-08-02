@@ -12,8 +12,8 @@ defined( 'ABSPATH' ) || exit;
 /**
  * Registry of crypto schemes used by the suite.
  *
- * Artefacts will carry scheme_id once Fase 1+ exporters land. Until then this
- * class is the canonical catalogue for docs, tests, and future gating.
+ * Artefacts carry scheme_id from Fase 1 exporters. This class is the canonical
+ * catalogue for docs, tests, and generation / archive gating.
  *
  * @see docs/CRYPTO-EVOLUTION.md
  * @see docs/crypto/modp-elgamal-shamir-v1.md
@@ -42,10 +42,10 @@ final class CryptoSchemeRegistry {
 	public const STATUS_PLANNED           = 'planned';
 
 	/**
-	 * Scheme that new ceremonies use until Fase 1 ships.
+	 * Scheme used for new Key Authority ceremonies.
 	 */
 	public static function rses_active_generation_scheme(): string {
-		return self::SCHEME_MODP_ELGAMAL_SHAMIR_V1;
+		return self::SCHEME_MODP_ELGAMAL_FELDMAN_V1;
 	}
 
 	/**
@@ -85,8 +85,7 @@ final class CryptoSchemeRegistry {
 	 * Whether a scheme may still generate new election material.
 	 */
 	public static function rses_may_generate( string $scheme_id ): bool {
-		// Until Fase 1 lands, only the baseline generates.
-		return self::SCHEME_MODP_ELGAMAL_SHAMIR_V1 === $scheme_id;
+		return self::SCHEME_MODP_ELGAMAL_FELDMAN_V1 === $scheme_id;
 	}
 
 	/**
