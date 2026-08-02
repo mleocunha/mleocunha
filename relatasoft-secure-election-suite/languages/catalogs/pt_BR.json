@@ -666,5 +666,13 @@
   "The CSV upload was only partially received. Please try again.": "O upload do CSV foi recebido só parcialmente. Tente de novo.",
   "Server temporary folder is missing; contact the host.": "Falta a pasta temporária do servidor; contate o provedor.",
   "Server could not write the uploaded CSV to disk.": "O servidor não conseguiu gravar o CSV enviado no disco.",
-  "A PHP extension blocked the CSV upload.": "Uma extensão PHP bloqueou o upload do CSV."
+  "A PHP extension blocked the CSV upload.": "Uma extensão PHP bloqueou o upload do CSV.",
+  "Receiving": "Recebendo",
+  "Validating": "Validando",
+  "Importing": "Importando",
+  "Finished": "Concluído",
+  "Failure": "Falha",
+  "Cancelled": "Cancelado",
+  "The uploaded CSV is no longer available on the server. Please start the import again.": "O CSV enviado não está mais disponível no servidor. Inicie a importação novamente.",
+  "The uploaded CSV is empty on the server. Please start the import again.": "O CSV enviado está vazio no servidor. Inicie a importação novamente."
 }

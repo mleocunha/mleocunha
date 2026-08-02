@@ -495,7 +495,7 @@ class ElectoralRollImportPage {
 							</div>
 							<p class="rses-electoral-progress-meta">
 								<span id="rses-electoral-percent"><?php echo esc_html( (string) (int) $active_job['progress'] ); ?>%</span>
-								— <span id="rses-electoral-stage"><?php echo esc_html( (string) $active_job['stage'] ); ?></span>
+								— <span id="rses-electoral-stage"><?php echo esc_html( (string) ( $active_job['stage_label'] ?: $active_job['stage'] ) ); ?></span>
 							</p>
 							<ul class="rses-electoral-counters" aria-live="polite">
 								<li><span><?php esc_html_e( 'Created', 'relatasoft-secure-election-suite' ); ?></span> <strong id="rses-electoral-created"><?php echo esc_html( (string) (int) $active_job['created'] ); ?></strong></li>

@@ -92,16 +92,84 @@ class ElectoralRollImportJob {
 	}
 
 	/**
-	 * Create an empty temp file for this import.
+	 * Persistent directory for CSV uploads (must survive across AJAX requests).
+	 *
+	 * System temp via wp_tempnam() is not safe here: many hosts clear /tmp between
+	 * requests, which makes validation fail immediately after a successful upload.
+	 *
+	 * @return string|\WP_Error Absolute path.
+	 */
+	public static function rses_upload_dir() {
+		$uploads = wp_upload_dir();
+		if ( ! empty( $uploads['error'] ) ) {
+			return new \WP_Error( 'rses_upload_dir', (string) $uploads['error'] );
+		}
+
+		$dir = trailingslashit( $uploads['basedir'] ) . 'rses-electoral-roll';
+		if ( ! is_dir( $dir ) && ! wp_mkdir_p( $dir ) ) {
+			return new \WP_Error( 'rses_upload_mkdir', __( 'Could not create import upload directory.', 'relatasoft-secure-election-suite' ) );
+		}
+
+		$index = $dir . '/index.php';
+		if ( ! file_exists( $index ) ) {
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
+			file_put_contents( $index, "<?php\n// Silence is golden.\n" );
+		}
+
+		$htaccess = $dir . '/.htaccess';
+		if ( ! file_exists( $htaccess ) ) {
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
+			file_put_contents( $htaccess, "Deny from all\n" );
+		}
+
+		return $dir;
+	}
+
+	/**
+	 * Create an empty CSV file in the persistent import directory.
 	 *
 	 * @return string|\WP_Error Absolute path.
 	 */
 	private static function rses_make_temp_file() {
-		$path = wp_tempnam( 'rses-er-' . get_current_user_id() . '-' );
-		if ( ! is_string( $path ) || '' === $path || ! file_exists( $path ) ) {
+		$dir = self::rses_upload_dir();
+		if ( is_wp_error( $dir ) ) {
+			return $dir;
+		}
+
+		$token = wp_generate_password( 20, false, false );
+		$path  = trailingslashit( $dir ) . 'import-' . get_current_user_id() . '-' . $token . '.csv';
+
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen
+		$handle = fopen( $path, 'wb' );
+		if ( false === $handle ) {
 			return new \WP_Error( 'rses_file_create', __( 'Could not create temporary import file.', 'relatasoft-secure-election-suite' ) );
 		}
+		fclose( $handle ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+
 		return $path;
+	}
+
+	/**
+	 * Localized label for a job stage (UI must not show raw English keys).
+	 */
+	public static function rses_stage_label( string $stage ): string {
+		switch ( $stage ) {
+			case self::STAGE_RECEIVING:
+				return __( 'Receiving', 'relatasoft-secure-election-suite' );
+			case self::STAGE_READY:
+				return __( 'Validating', 'relatasoft-secure-election-suite' );
+			case self::STAGE_IMPORTING:
+				return __( 'Importing', 'relatasoft-secure-election-suite' );
+			case self::STAGE_COMPLETE:
+				return __( 'Finished', 'relatasoft-secure-election-suite' );
+			case self::STAGE_FAILED:
+				// Distinct from crypto self-test "Failed" → "Falharam".
+				return __( 'Failure', 'relatasoft-secure-election-suite' );
+			case self::STAGE_CANCELLED:
+				return __( 'Cancelled', 'relatasoft-secure-election-suite' );
+			default:
+				return '';
+		}
 	}
 
 	/**
@@ -137,7 +205,7 @@ class ElectoralRollImportJob {
 			return $path;
 		}
 
-		$token = wp_generate_password( 12, false, false );
+		$token = wp_generate_password( 20, false, false );
 		$job   = array(
 			'stage'           => self::STAGE_RECEIVING,
 			'file_path'       => $path,
@@ -315,6 +383,35 @@ class ElectoralRollImportJob {
 		}
 
 		$path = (string) ( $job['file_path'] ?? '' );
+		if ( '' === $path || ! is_readable( $path ) ) {
+			$err = new \WP_Error(
+				'rses_file_missing',
+				__( 'The uploaded CSV is no longer available on the server. Please start the import again.', 'relatasoft-secure-election-suite' )
+			);
+			$job['stage']   = self::STAGE_FAILED;
+			$job['message'] = $err->get_error_message();
+			self::rses_push_error( $job, $err->get_error_message() );
+			self::rses_save( $job );
+			return $err;
+		}
+
+		$size = filesize( $path );
+		if ( false === $size || $size < 1 ) {
+			$err = new \WP_Error(
+				'rses_file_empty',
+				__( 'The uploaded CSV is empty on the server. Please start the import again.', 'relatasoft-secure-election-suite' )
+			);
+			$job['stage']   = self::STAGE_FAILED;
+			$job['message'] = $err->get_error_message();
+			self::rses_push_error( $job, $err->get_error_message() );
+			self::rses_save( $job );
+			return $err;
+		}
+
+		$job['stage']   = self::STAGE_READY;
+		$job['message'] = __( 'Validating CSV…', 'relatasoft-secure-election-suite' );
+		self::rses_save( $job );
+
 		$prep = ElectoralRollImportService::rses_prepare_file( $path );
 		if ( is_wp_error( $prep ) ) {
 			$job['stage']   = self::STAGE_FAILED;
@@ -447,19 +544,20 @@ class ElectoralRollImportJob {
 	public static function rses_public_status( ?array $job ): array {
 		if ( ! $job ) {
 			return array(
-				'active'         => false,
-				'stage'          => '',
-				'progress'       => 0,
-				'message'        => '',
-				'created'        => 0,
-				'updated'        => 0,
-				'skipped'        => 0,
-				'error_count'    => 0,
-				'processed_rows' => 0,
-				'total_rows'     => 0,
-				'errors'         => array(),
-				'chunks_received'=> 0,
-				'total_chunks'   => 0,
+				'active'          => false,
+				'stage'           => '',
+				'stage_label'     => '',
+				'progress'        => 0,
+				'message'         => '',
+				'created'         => 0,
+				'updated'         => 0,
+				'skipped'         => 0,
+				'error_count'     => 0,
+				'processed_rows'  => 0,
+				'total_rows'      => 0,
+				'errors'          => array(),
+				'chunks_received' => 0,
+				'total_chunks'    => 0,
 			);
 		}
 
@@ -480,12 +578,20 @@ class ElectoralRollImportJob {
 		} elseif ( self::STAGE_FAILED === $stage || self::STAGE_CANCELLED === $stage ) {
 			$total = max( 1, (int) ( $job['total_rows'] ?? 1 ) );
 			$done  = min( $total, (int) ( $job['processed_rows'] ?? 0 ) );
-			$progress = $done > 0 ? ( 20 + (int) floor( ( $done / $total ) * 80 ) ) : 0;
+			if ( $done > 0 ) {
+				$progress = 20 + (int) floor( ( $done / $total ) * 80 );
+			} elseif ( (int) ( $job['chunks_received'] ?? 0 ) > 0 ) {
+				// Failed during/after validation — keep the validating marker, not 0%.
+				$progress = 22;
+			} else {
+				$progress = 0;
+			}
 		}
 
 		return array(
 			'active'          => in_array( $stage, array( self::STAGE_RECEIVING, self::STAGE_READY, self::STAGE_IMPORTING ), true ),
 			'stage'           => $stage,
+			'stage_label'     => self::rses_stage_label( $stage ),
 			'progress'        => max( 0, min( 100, $progress ) ),
 			'message'         => (string) ( $job['message'] ?? '' ),
 			'created'         => (int) ( $job['created'] ?? 0 ),

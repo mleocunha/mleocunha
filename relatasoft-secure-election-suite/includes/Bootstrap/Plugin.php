@@ -295,6 +295,14 @@ class Plugin {
 					'finished'        => __( 'Electoral roll import finished. Created: %1$d. Updated: %2$d. Skipped: %3$d. Errors: %4$d.', 'relatasoft-secure-election-suite' ),
 					'errorsDesc'      => __( '%d issue(s) were reported. Review the table below or download the error CSV.', 'relatasoft-secure-election-suite' ),
 					'errorsTruncated' => __( 'Additional errors were omitted from this preview; download the CSV for the stored sample.', 'relatasoft-secure-election-suite' ),
+					'stages'          => array(
+						'receiving' => __( 'Receiving', 'relatasoft-secure-election-suite' ),
+						'ready'     => __( 'Validating', 'relatasoft-secure-election-suite' ),
+						'importing' => __( 'Importing', 'relatasoft-secure-election-suite' ),
+						'complete'  => __( 'Finished', 'relatasoft-secure-election-suite' ),
+						'failed'    => __( 'Failure', 'relatasoft-secure-election-suite' ),
+						'cancelled' => __( 'Cancelled', 'relatasoft-secure-election-suite' ),
+					),
 				),
 			)
 		);

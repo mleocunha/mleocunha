@@ -228,12 +228,35 @@
 		);
 	}
 
+	function rsesStageLabel(status) {
+		var cfg = rsesCfg();
+		var key = (status && status.stage) || '';
+		if (status && status.stage_label) {
+			return status.stage_label;
+		}
+		if (cfg.i18n && cfg.i18n.stages && cfg.i18n.stages[key]) {
+			return cfg.i18n.stages[key];
+		}
+		return '';
+	}
+
+	function rsesIsJobStatus(status) {
+		return !!(
+			status &&
+			typeof status === 'object' &&
+			!Array.isArray(status) &&
+			(Object.prototype.hasOwnProperty.call(status, 'stage') ||
+				Object.prototype.hasOwnProperty.call(status, 'progress') ||
+				Object.prototype.hasOwnProperty.call(status, 'error_count'))
+		);
+	}
+
 	function rsesSetProgress(status) {
 		status = status || {};
 		var $box = $('#rses-electoral-progress');
 		$box.removeAttr('hidden').removeClass('is-idle').addClass('is-active').show();
 		$('#rses-electoral-message').text(status.message || '');
-		$('#rses-electoral-stage').text(status.stage || '');
+		$('#rses-electoral-stage').text(rsesStageLabel(status));
 		$('#rses-electoral-percent').text((status.progress || 0) + '%');
 		$('#rses-electoral-bar-fill').css('width', (status.progress || 0) + '%');
 		$('#rses-electoral-created').text(status.created || 0);
@@ -309,19 +332,33 @@
 	}
 
 	function rsesFail(message, status) {
-		if (status) {
+		var cfg = rsesCfg();
+		var jobStatus = rsesIsJobStatus(status) ? status : null;
+		var failedLabel =
+			(cfg.i18n && cfg.i18n.stages && cfg.i18n.stages.failed) || '';
+		var msg = message || (jobStatus && jobStatus.message) || rsesFallbackError();
+		var currentProgress = parseInt($('#rses-electoral-percent').text(), 10) || 0;
+
+		if (jobStatus) {
+			var progress =
+				typeof jobStatus.progress === 'number' && jobStatus.progress > 0
+					? jobStatus.progress
+					: Math.max(currentProgress, 0);
 			rsesSetProgress(
-				$.extend({}, status, {
-					message: message || status.message || rsesFallbackError(),
-					stage: status.stage || 'failed'
+				$.extend({}, jobStatus, {
+					message: msg,
+					stage: jobStatus.stage || 'failed',
+					stage_label: jobStatus.stage_label || failedLabel,
+					progress: progress
 				})
 			);
-			rsesRenderErrors(status);
+			rsesRenderErrors(jobStatus);
 		} else {
 			rsesSetProgress({
-				message: message || rsesFallbackError(),
-				progress: 0,
-				stage: 'failed'
+				message: msg,
+				progress: currentProgress > 0 ? currentProgress : 0,
+				stage: 'failed',
+				stage_label: failedLabel
 			});
 		}
 		rsesSetFormBusy(false);
@@ -436,6 +473,7 @@
 			message: (cfg.i18n && cfg.i18n.starting) || 'Starting chunked import…',
 			progress: 5,
 			stage: 'receiving',
+			stage_label: cfg.i18n && cfg.i18n.stages ? cfg.i18n.stages.receiving : '',
 			created: 0,
 			updated: 0,
 			skipped: 0,
@@ -471,6 +509,7 @@
 			message: (cfg.i18n && cfg.i18n.starting) || 'Starting chunked import…',
 			progress: 1,
 			stage: 'receiving',
+			stage_label: cfg.i18n && cfg.i18n.stages ? cfg.i18n.stages.receiving : '',
 			created: 0,
 			updated: 0,
 			skipped: 0,
@@ -512,7 +551,8 @@
 				rsesSetProgress({
 					message: (cfg.i18n && cfg.i18n.validating) || 'Validating CSV…',
 					progress: 22,
-					stage: 'ready'
+					stage: 'ready',
+					stage_label: cfg.i18n && cfg.i18n.stages ? cfg.i18n.stages.ready : ''
 				});
 				return rsesPost('rses_electoral_roll_begin');
 			})
@@ -521,10 +561,15 @@
 					return;
 				}
 				if (!resp || !resp.success) {
+					var st = resp && resp.data && resp.data.status;
+					var msg =
+						rsesErrorMessage(resp && resp.data, '') ||
+						(st && st.message) ||
+						rsesFallbackError();
 					return $.Deferred()
 						.reject({
-							message: rsesErrorMessage(resp && resp.data, rsesFallbackError()),
-							status: resp && resp.data && resp.data.status
+							message: msg,
+							status: st
 						})
 						.promise();
 				}
@@ -534,7 +579,12 @@
 				if (err && err.cancelled) {
 					return;
 				}
-				rsesFail(rsesErrorMessage(err), err && err.status);
+				var st = err && rsesIsJobStatus(err.status) ? err.status : null;
+				var msg =
+					rsesErrorMessage(err, '') ||
+					(st && st.message) ||
+					rsesFallbackError();
+				rsesFail(msg, st);
 			});
 	}
 
