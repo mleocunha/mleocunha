@@ -9,6 +9,9 @@ import { voteElector } from './voteSession.js';
 import { createPasswordStore } from './passwordStore.js';
 import { discoverBatchLocale } from './discoverLocale.js';
 
+/** Bumped when PoC runtime behaviour changes — look for this in startup logs. */
+export const VOTADOR_BUILD = 'ballot-dom-select-1';
+
 export const DEFAULTS = {
   windows: 5,
   tabsPerWindow: 5,
@@ -67,6 +70,7 @@ export async function runVotador(config, hooks = {}) {
   const passwordStore = createPasswordStore();
 
   logger.info('Iniciando Votador PoC', {
+    build: VOTADOR_BUILD,
     electors: electors.length,
     concurrency,
     windows: cfg.windows,

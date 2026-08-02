@@ -417,35 +417,44 @@ async function fillRandomBallot(page) {
 }
 
 /**
- * Select a booth radio/checkbox. Custom CSS hides the input (opacity:0) and
- * Playwright's locator.check({ force }) often clicks without leaving it checked.
- * Prefer the visible label, then fall back to setting the DOM property.
+ * Select a booth radio/checkbox.
+ *
+ * Never use Playwright locator.check() here: custom CSS sets opacity:0 on
+ * .rses-choice-input and check({ force }) clicks without leaving it checked.
+ * Set the DOM property first (reliable), then sync the visible label UI.
  *
  * @param {import('playwright').Locator} input
  */
 async function selectBallotChoice(input) {
-  if (await input.isChecked()) {
-    return;
-  }
+  const ok = await input.evaluate((el) => {
+    if (!(el instanceof HTMLInputElement)) {
+      return false;
+    }
+    if (el.checked) {
+      return true;
+    }
 
-  const label = input.locator('xpath=ancestor::label[contains(@class,"rses-choice")][1]');
-  if (await label.count()) {
-    await label.click({ timeout: 15000 });
-  } else {
-    await input.click({ force: true, timeout: 15000 });
-  }
+    // Radios: clear siblings in the same named group first.
+    if (el.type === 'radio' && el.name) {
+      const form = el.form || el.ownerDocument;
+      const group = form.querySelectorAll(`input[type="radio"][name="${CSS.escape(el.name)}"]`);
+      group.forEach((sibling) => {
+        if (sibling instanceof HTMLInputElement && sibling !== el) {
+          sibling.checked = false;
+          const sibLabel = sibling.closest('label.rses-choice');
+          sibLabel?.classList.remove('is-checked');
+        }
+      });
+    }
 
-  if (await input.isChecked()) {
-    return;
-  }
-
-  await input.evaluate((el) => {
     el.checked = true;
     el.dispatchEvent(new Event('input', { bubbles: true }));
     el.dispatchEvent(new Event('change', { bubbles: true }));
+    el.closest('label.rses-choice')?.classList.add('is-checked');
+    return el.checked;
   });
 
-  if (!(await input.isChecked())) {
+  if (!ok) {
     const id = (await input.getAttribute('id')) || '?';
     throw new Error(`Não foi possível marcar a opção do boletim (${id})`);
   }
