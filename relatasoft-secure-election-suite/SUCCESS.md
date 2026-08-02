@@ -219,6 +219,7 @@ When the site is in **voting** mode:
 
 Use this list only as optional backlog after context reset; none of these block the declared success:
 
+- **Crypto evolution (product-settled roadmap):** [`docs/CRYPTO-EVOLUTION.md`](docs/CRYPTO-EVOLUTION.md) — Fase 0 baseline freeze → Fase 1 Feldman VSS (PHP) → threshold decrypt → Rust → P-521 → DKG. Eight contractual pendencies wait on TSE team (Monday); they do **not** block Fase 0–1.
 - Independent crypto review / threat model documentation
 - Stronger share–submitter binding across Key Authority → Tallying sites
 - Rate limiting / lockout around cast and share submit
@@ -230,4 +231,4 @@ Use this list only as optional backlog after context reset; none of these block 
 
 ## Handoff note for the next session
 
-Start from this file and the current `README.md` / `SECURITY.md`. Prefer small, policy-preserving changes. Role and keygen chunking decisions above are **product-settled** unless the user explicitly revises them.
+Start from this file, `README.md`, `SECURITY.md`, and `docs/CRYPTO-EVOLUTION.md`. Prefer small, policy-preserving changes. Role, keygen chunking, and crypto-evolution sequencing above are **product-settled** unless the user explicitly revises them.
