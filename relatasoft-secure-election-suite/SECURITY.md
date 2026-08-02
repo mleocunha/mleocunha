@@ -11,6 +11,10 @@ RelataSoft Secure Election Suite is intended to be engineered toward production-
 
 ## Cryptographic Design
 
+**Baseline (shipping today):** modular ElGamal + plain Shamir (`modp-elgamal-shamir-v1`).
+
+**Evolution (product decisions locked):** see [`docs/CRYPTO-EVOLUTION.md`](docs/CRYPTO-EVOLUTION.md) — Feldman VSS → threshold decryption without reconstructing `x` → Rust parity → EC P-521 → DKG. TSE alignment is **primitives/parameters** (P-521, SHA-512, ECDSA P-521+SHA-512, AES+HMAC-SHA-2), not an identical electoral protocol.
+
 ### ElGamal Encryption
 
 - Safe prime generation: p = 2q + 1
@@ -24,11 +28,12 @@ RelataSoft Secure Election Suite is intended to be engineered toward production-
 - Field prime is dynamically generated greater than x (not fixed 128-bit)
 - Threshold t-of-n reconstruction required for decryption
 - Share payloads include SHA-256 checksums
+- **No Feldman/Pedersen commitments yet** (planned in Fase 1 of the evolution doc)
 
 ### Private Key Policy
 
 - Full private key x is **not persisted** by default
-- Reconstructed x exists only in memory during tally decryption
+- Reconstructed x exists only in memory during tally decryption (to be prohibited after threshold partial-decryption ships)
 - x is never written to database, logs, or exports
 - Reconstructed variables are cleared after use
 
