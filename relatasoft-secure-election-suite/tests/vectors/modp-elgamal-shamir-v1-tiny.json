@@ -1,0 +1,43 @@
+{
+  "scheme_id": "modp-elgamal-shamir-v1",
+  "purpose": "Toy fixed vectors for arithmetic regression only — not production parameters.",
+  "elgamal": {
+    "p": "23",
+    "q": "11",
+    "g": "4",
+    "x": "3",
+    "y": "18",
+    "note": "g = 2^2 mod 23; g^q ≡ 1; y = g^x mod p"
+  },
+  "encrypt_known_r": {
+    "count": 1,
+    "message_g_pow_count": "4",
+    "r": "5",
+    "alpha": "12",
+    "beta": "12"
+  },
+  "aggregate_two_votes_of_one": {
+    "r1": "5",
+    "r2": "6",
+    "alpha": "3",
+    "beta": "9",
+    "decrypted_message": "16",
+    "decoded_count": 2,
+    "note": "alpha/beta recomputed in the acceptance test; decrypted message must equal g^2 = 16"
+  },
+  "shamir": {
+    "field_prime": "31",
+    "secret": "3",
+    "threshold_t": 3,
+    "total_n": 5,
+    "coefficients": ["3", "7", "11"],
+    "shares": [
+      {"index": 1, "value": "21"},
+      {"index": 2, "value": "30"},
+      {"index": 3, "value": "30"},
+      {"index": 4, "value": "21"},
+      {"index": 5, "value": "3"}
+    ],
+    "reconstruct_indices": [1, 3, 5]
+  }
+}

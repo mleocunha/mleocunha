@@ -1,6 +1,6 @@
 # Evolução criptográfica — decisões e backlog
 
-**Status:** decisões de produto/protocolo fechadas para iniciar Fase 0–1  
+**Status:** Fase 0 concluída (baseline congelada); Fase 1 (Feldman VSS) é o próximo trabalho de código  
 **Plugin:** RelataSoft Secure Election Suite  
 **Última atualização:** 2026-08-02  
 **Branch de trabalho:** `cursor/votador-prova-de-conceito-2eb1`
@@ -170,7 +170,7 @@ Aguardar alinhamento com a equipe do TSE (retorno na segunda-feira). Podem evolu
 | B1 | Âncora normativa formal da matriz “TSE vs Suite” (qual norma/parecer/edital nomeia o perfil) | Nome oficial do `profile_id` / comunicação jurídica | **Não** — usar rótulo provisório `rses-tse-aligned-primitives-draft` |
 | B2 | SemVer de `format_version` vs `scheme_id` (nomes finais canônicos) | Cosmético nos artefatos; pode versionar v1 agora | **Não** |
 | B3 | Quem assina o transcript na fase dealer (chave de instalação KA / cerimônia / HSM depois) | Detalhe de `issuer_signature`; MVP pode usar chave de instalação KA documentada como transitória | **Não** |
-| B4 | Campo Feldman: primo próprio `P > x` (como hoje) vs subgrupo `q` | Spec matemática da verificação; default proposto = **manter P > x** até decisão | **Não** — default documentado |
+| B4 | Campo Feldman: primo próprio `P > x` vs subgrupo `q` | **Resolvido para Fase 1:** Feldman usa **field = q** (necessário para \(g^{s}=\prod C_k^{i^k}\)); quebra limpa com o baseline | **Não** (fechado) |
 | B5 | Escopo UX “Verificar meu share”: só WP vs também CLI offline | MVP = botão no admin KA; CLI depois | **Não** |
 | B6 | Unidade da partial decryption (eleição / cargo / opção) | Só Fase 2 | **Não** |
 | B7 | Fronteira PHP→Rust (`proc_open` / socket / serviço) | Só Fase 3 | **Não** |
@@ -182,15 +182,20 @@ Aguardar alinhamento com a equipe do TSE (retorno na segunda-feira). Podem evolu
 
 ## 5. O que a implementação pode fazer já (sem a equipe do TSE)
 
-### Fase 0 (imediato)
+### Fase 0 — concluída
 
-- Spec do comportamento atual `modp-elgamal-shamir-v1`  
-- Catálogo de formatos e vetores de regressão  
-- Inventário de onde `x` existe em memória  
-- Matriz provisória TSE↔Suite (esta seção 2)  
-- ADR apontando para este roadmap  
+Artefactos:
 
-### Fase 1 (em seguida)
+| Artefacto | Caminho |
+|-----------|---------|
+| Spec matemática + formatos + inventário de `x` | `docs/crypto/modp-elgamal-shamir-v1.md` |
+| ADR do roadmap | `docs/crypto/ADR-001-crypto-evolution.md` |
+| Registry de `scheme_id` | `includes/Crypto/CryptoSchemeRegistry.php` |
+| Vetores toy fixos | `tests/vectors/modp-elgamal-shamir-v1-tiny.json` |
+| Aceitação Fase 0 | `tests/baseline-scheme-acceptance.php` |
+| Matriz TSE provisória | §2 deste documento |
+
+### Fase 1 (próxima)
 
 - Feldman VSS sobre ElGamal modular atual (PHP + GMP)  
 - Transcript público + verificação offline  
