@@ -41,7 +41,13 @@ class ElectoralRollImportPage {
 		add_action( 'wp_ajax_rses_electoral_roll_status', array( self::class, 'rses_ajax_status' ) );
 		add_action( 'wp_ajax_rses_electoral_roll_cancel', array( self::class, 'rses_ajax_cancel' ) );
 
-		add_action( 'admin_init', array( ElectoralRollImportJob::class, 'rses_purge_if_expired' ) );
+		// admin_init passes '' into callbacks — do not bind the typed method directly.
+		add_action(
+			'admin_init',
+			static function (): void {
+				ElectoralRollImportJob::rses_purge_if_expired();
+			}
+		);
 	}
 
 	/**
