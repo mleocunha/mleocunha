@@ -74,22 +74,11 @@ class LoginCustomizer {
 	}
 
 	/**
-	 * Logo link title attribute.
+	 * Logo link text (replaces deprecated login_headertitle since WP 5.2).
 	 */
 	public static function rses_login_header_text( string $text ): string {
 		if ( ! self::rses_is_active() ) {
 			return $text;
-		}
-
-		return get_bloginfo( 'name', 'display' );
-	}
-
-	/**
-	 * Logo alt / tooltip.
-	 */
-	public static function rses_login_header_title( string $title ): string {
-		if ( ! self::rses_is_active() ) {
-			return $title;
 		}
 
 		return get_bloginfo( 'name', 'display' );
