@@ -1,0 +1,398 @@
+<?php
+/**
+ * Main plugin bootstrap.
+ *
+ * @package RelataSoft\SecureElectionSuite\Bootstrap
+ */
+
+namespace RelataSoft\SecureElectionSuite\Bootstrap;
+
+use RelataSoft\SecureElectionSuite\Admin\AdminMenu;
+use RelataSoft\SecureElectionSuite\Admin\AuditLogPage;
+use RelataSoft\SecureElectionSuite\Admin\ModeSetupPage;
+use RelataSoft\SecureElectionSuite\Admin\Notices;
+use RelataSoft\SecureElectionSuite\Admin\SettingsPage;
+use RelataSoft\SecureElectionSuite\Ajax\AjaxRouter;
+use RelataSoft\SecureElectionSuite\Database\Migration;
+use RelataSoft\SecureElectionSuite\I18n\LocaleResolver;
+use RelataSoft\SecureElectionSuite\I18n\RoleLabels;
+use RelataSoft\SecureElectionSuite\I18n\Translator;
+use RelataSoft\SecureElectionSuite\KeyAuthority\KeyAuthorityController;
+use RelataSoft\SecureElectionSuite\Tallying\CertificationService;
+use RelataSoft\SecureElectionSuite\Tallying\OfficialShareSubmissionController;
+use RelataSoft\SecureElectionSuite\Tallying\TallyImportController;
+use RelataSoft\SecureElectionSuite\Admin\RedirectionsPage;
+use RelataSoft\SecureElectionSuite\Admin\ElectoralRollImportPage;
+use RelataSoft\SecureElectionSuite\Frontend\LoginCustomizer;
+use RelataSoft\SecureElectionSuite\Frontend\PasswordResetShortcode;
+use RelataSoft\SecureElectionSuite\Frontend\VoterJourney;
+use RelataSoft\SecureElectionSuite\Voting\BallotController;
+use RelataSoft\SecureElectionSuite\Voting\ElectionController;
+
+defined( 'ABSPATH' ) || exit;
+
+/**
+ * Plugin singleton.
+ */
+class Plugin {
+
+	/**
+	 * Singleton instance.
+	 *
+	 * @var Plugin|null
+	 */
+	private static ?Plugin $instance = null;
+
+	/**
+	 * Get singleton instance.
+	 *
+	 * @return Plugin
+	 */
+	public static function instance(): Plugin {
+		if ( null === self::$instance ) {
+			self::$instance = new self();
+		}
+		return self::$instance;
+	}
+
+	/**
+	 * Run the plugin.
+	 */
+	public function run(): void {
+		Translator::rses_register();
+		RoleLabels::register();
+		add_action( 'init', array( $this, 'rses_init' ) );
+		add_action( 'admin_init', array( Migration::class, 'rses_maybe_migrate' ) );
+
+		// Admin-post handlers must register on every request (including admin-post.php).
+		ModeSetupPage::register();
+		SettingsPage::register();
+		AuditLogPage::register();
+		CertificationService::register();
+		AjaxRouter::register();
+		KeyAuthorityController::register();
+		ElectionController::register();
+		BallotController::register();
+		TallyImportController::register();
+		OfficialShareSubmissionController::register();
+		RedirectionsPage::register();
+		ElectoralRollImportPage::register();
+		LoginCustomizer::register();
+		VoterJourney::register();
+		PasswordResetShortcode::register();
+
+		if ( is_admin() ) {
+			Notices::register();
+			AdminMenu::register();
+		}
+
+		add_shortcode( 'rses_voting_booth', array( $this, 'rses_render_voting_booth_shortcode' ) );
+		add_shortcode( 'rses_voter_receipt', array( $this, 'rses_render_voter_receipt_shortcode' ) );
+		add_shortcode( 'rses_election_status', array( $this, 'rses_render_election_status_shortcode' ) );
+		add_shortcode( 'rses_voter_welcome', array( VoterJourney::class, 'rses_render_welcome_shortcode' ) );
+		add_shortcode( 'rses_voter_thank_you', array( VoterJourney::class, 'rses_render_thank_you_shortcode' ) );
+
+		add_action( 'wp_enqueue_scripts', array( $this, 'rses_enqueue_frontend_assets' ) );
+		add_action( 'admin_enqueue_scripts', array( $this, 'rses_enqueue_admin_assets' ) );
+	}
+
+	/**
+	 * Initialize plugin hooks.
+	 */
+	public function rses_init(): void {
+		// Reserved for future init hooks.
+	}
+
+	/**
+	 * Enqueue frontend assets.
+	 */
+	public function rses_enqueue_frontend_assets(): void {
+		if ( ! ModeLock::rses_is_mode( 'voting' ) ) {
+			return;
+		}
+
+		wp_enqueue_style(
+			'rses-voting-front',
+			RSES_PLUGIN_URL . 'assets/css/voting-front.css',
+			array(),
+			RSES_VERSION
+		);
+
+		wp_enqueue_script(
+			'rses-voting',
+			RSES_PLUGIN_URL . 'assets/js/voting.js',
+			array( 'jquery' ),
+			RSES_VERSION,
+			true
+		);
+
+		wp_localize_script(
+			'rses-voting',
+			'rsesVoting',
+			array(
+				'ajaxUrl' => admin_url( 'admin-ajax.php' ),
+				'nonce'   => wp_create_nonce( 'rses_vote_cast' ),
+				'locale'  => LocaleResolver::rses_resolve(),
+				'dir'     => Translator::rses_dir_attr(),
+				'i18n'    => array(
+					'confirm' => __( 'Submit your encrypted vote? This cannot be undone.', 'relatasoft-secure-election-suite' ),
+				),
+			)
+		);
+	}
+
+	/**
+	 * Enqueue admin assets.
+	 *
+	 * @param string $hook_suffix Current admin page hook suffix.
+	 */
+	public function rses_enqueue_admin_assets( string $hook_suffix ): void {
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only admin page id.
+		$rses_page = isset( $_GET['page'] ) ? sanitize_key( wp_unslash( $_GET['page'] ) ) : '';
+
+		// Prefer ?page= over hook_suffix: translated menu titles can rewrite the hook string.
+		$rses_is_plugin_screen = ( 0 === strpos( $rses_page, 'rses-' ) )
+			|| false !== strpos( $hook_suffix, 'rses-' )
+			|| false !== strpos( $hook_suffix, 'relatasoft-secure-election' );
+
+		if ( ! $rses_is_plugin_screen ) {
+			return;
+		}
+
+		wp_enqueue_style(
+			'rses-admin',
+			RSES_PLUGIN_URL . 'assets/css/admin.css',
+			array(),
+			RSES_VERSION
+		);
+
+		wp_enqueue_script(
+			'rses-admin',
+			RSES_PLUGIN_URL . 'assets/js/admin.js',
+			array( 'jquery' ),
+			RSES_VERSION,
+			true
+		);
+
+		wp_localize_script(
+			'rses-admin',
+			'rsesAdmin',
+			array(
+				'i18n' => array(
+					'selectMedia'   => __( 'Select option media', 'relatasoft-secure-election-suite' ),
+					'useMedia'      => __( 'Use this media', 'relatasoft-secure-election-suite' ),
+					'photo'         => __( 'Photo', 'relatasoft-secure-election-suite' ),
+					'audio'         => __( 'Audio', 'relatasoft-secure-election-suite' ),
+					'video'         => __( 'Video', 'relatasoft-secure-election-suite' ),
+					'mediaAttached' => __( 'Media attached', 'relatasoft-secure-election-suite' ),
+					'selectLoginLogo' => __( 'Choose login logo', 'relatasoft-secure-election-suite' ),
+					'useLoginLogo'    => __( 'Use this logo', 'relatasoft-secure-election-suite' ),
+					'selectAdminLogo' => __( 'Choose admin logo', 'relatasoft-secure-election-suite' ),
+					'useAdminLogo'    => __( 'Use this logo', 'relatasoft-secure-election-suite' ),
+				),
+			)
+		);
+
+		// Ballot builder media library (photo / audio / video).
+		if ( in_array( $rses_page, array( 'rses-elections', 'rses-redirections', 'rses-settings' ), true ) ) {
+			wp_enqueue_media();
+			wp_enqueue_script( 'rses-admin' );
+		}
+
+		$mode = ModeLock::rses_get_mode();
+
+		// Key Authority screen: force the chunked keygen script onto the page.
+		if ( 'rses-key-authority' === $rses_page || 'key_authority' === $mode ) {
+			self::rses_enqueue_key_authority_script();
+		}
+
+		if ( 'rses-electoral-roll' === $rses_page ) {
+			self::rses_enqueue_electoral_roll_script();
+		}
+
+		if ( 'tallying' === $mode ) {
+			wp_enqueue_script(
+				'rses-tallying',
+				RSES_PLUGIN_URL . 'assets/js/tallying.js',
+				array( 'jquery', 'rses-admin' ),
+				RSES_VERSION,
+				true
+			);
+		}
+	}
+
+	/**
+	 * Register, localize, and enqueue Key Authority keygen script.
+	 *
+	 * Safe to call from admin_enqueue_scripts or during page render.
+	 */
+	public static function rses_enqueue_key_authority_script(): void {
+		wp_register_script(
+			'rses-key-authority',
+			RSES_PLUGIN_URL . 'assets/js/key-authority.js',
+			array( 'jquery' ),
+			RSES_VERSION,
+			true
+		);
+		wp_localize_script(
+			'rses-key-authority',
+			'rsesKeygen',
+			array(
+				'ajaxUrl' => admin_url( 'admin-ajax.php' ),
+				'nonce'   => wp_create_nonce( 'rses_keygen' ),
+				'doneUrl' => admin_url( 'admin.php?page=rses-key-authority' ),
+				'locale'  => LocaleResolver::rses_resolve(),
+				'dir'     => Translator::rses_dir_attr(),
+				'i18n'    => array(
+					'starting'  => __( 'Starting chunked key generation…', 'relatasoft-secure-election-suite' ),
+					'error'     => __( 'Key generation request failed.', 'relatasoft-secure-election-suite' ),
+					'cancelled' => __( 'Key generation cancelled.', 'relatasoft-secure-election-suite' ),
+					'attempts'  => __( '%d candidates tested', 'relatasoft-secure-election-suite' ),
+					'slowHint'  => __( 'Key generation at %d bits uses chunked AJAX (≤25s per step) and may take several minutes.', 'relatasoft-secure-election-suite' ),
+					'noJs'      => __( 'JavaScript failed to start key generation. Hard-refresh this page (Ctrl/Cmd+Shift+R) and try again.', 'relatasoft-secure-election-suite' ),
+				),
+			)
+		);
+		wp_enqueue_script( 'rses-key-authority' );
+	}
+
+	/**
+	 * Register, localize, and enqueue electoral-roll chunked import script.
+	 */
+	public static function rses_enqueue_electoral_roll_script(): void {
+		wp_register_script(
+			'rses-electoral-roll',
+			RSES_PLUGIN_URL . 'assets/js/electoral-roll-import.js',
+			array( 'jquery' ),
+			RSES_VERSION,
+			true
+		);
+
+		$resume = \RelataSoft\SecureElectionSuite\Voting\ElectoralRollImportJob::rses_public_status(
+			\RelataSoft\SecureElectionSuite\Voting\ElectoralRollImportJob::rses_get()
+		);
+
+		$php_ceiling = \RelataSoft\SecureElectionSuite\Admin\ElectoralRollImportPage::rses_php_upload_ceiling();
+
+		wp_localize_script(
+			'rses-electoral-roll',
+			'rsesElectoralRoll',
+			array(
+				'ajaxUrl'       => admin_url( 'admin-ajax.php' ),
+				'nonce'         => wp_create_nonce( \RelataSoft\SecureElectionSuite\Admin\ElectoralRollImportPage::AJAX_NONCE_ACTION ),
+				'maxBytes'      => \RelataSoft\SecureElectionSuite\Voting\ElectoralRollImportJob::MAX_UPLOAD_BYTES,
+				'chunkBytes'    => 131072,
+				'phpUploadMax'  => $php_ceiling,
+				'resume'        => $resume,
+				'i18n'          => array(
+					'starting'        => __( 'Starting chunked import…', 'relatasoft-secure-election-suite' ),
+					'validating'      => __( 'Validating CSV…', 'relatasoft-secure-election-suite' ),
+					'error'           => __( 'Electoral roll import failed.', 'relatasoft-secure-election-suite' ),
+					'cancelled'       => __( 'Electoral roll import cancelled.', 'relatasoft-secure-election-suite' ),
+					'noFile'          => __( 'Choose a CSV file first.', 'relatasoft-secure-election-suite' ),
+					'tooLarge'        => __( 'CSV file is too large for import.', 'relatasoft-secure-election-suite' ),
+					'noJs'            => __( 'JavaScript failed to start the import. Hard-refresh this page and try again.', 'relatasoft-secure-election-suite' ),
+					'finished'        => __( 'Electoral roll import finished. Created: %1$d. Updated: %2$d. Skipped: %3$d. Errors: %4$d.', 'relatasoft-secure-election-suite' ),
+					'errorsDesc'      => __( '%d issue(s) were reported. Review the table below or download the error CSV.', 'relatasoft-secure-election-suite' ),
+					'errorsTruncated' => __( 'Additional errors were omitted from this preview; download the CSV for the stored sample.', 'relatasoft-secure-election-suite' ),
+					'stages'          => array(
+						'receiving' => __( 'Receiving', 'relatasoft-secure-election-suite' ),
+						'ready'     => __( 'Validating', 'relatasoft-secure-election-suite' ),
+						'importing' => __( 'Importing', 'relatasoft-secure-election-suite' ),
+						'complete'  => __( 'Finished', 'relatasoft-secure-election-suite' ),
+						'failed'    => __( 'Failure', 'relatasoft-secure-election-suite' ),
+						'cancelled' => __( 'Cancelled', 'relatasoft-secure-election-suite' ),
+					),
+				),
+			)
+		);
+		wp_enqueue_script( 'rses-electoral-roll' );
+	}
+
+	/**
+	 * Render voting booth shortcode.
+	 *
+	 * @param array<string,mixed> $atts Shortcode attributes.
+	 * @return string
+	 */
+	public function rses_render_voting_booth_shortcode( array $atts = array() ): string {
+		if ( ! ModeLock::rses_is_mode( 'voting' ) ) {
+			return '<p>' . esc_html__( 'Voting is not available on this site.', 'relatasoft-secure-election-suite' ) . '</p>';
+		}
+
+		$atts = shortcode_atts(
+			array(
+				'election_id' => 0,
+				'round_id'    => 0,
+			),
+			$atts,
+			'rses_voting_booth'
+		);
+
+		// Query args override shortcode attributes so one booth page can serve every open round.
+		$rses_election_id = isset( $_GET['election_id'] ) // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+			? absint( $_GET['election_id'] )
+			: 0;
+		$rses_round_id    = isset( $_GET['round_id'] ) // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+			? absint( $_GET['round_id'] )
+			: 0;
+
+		if ( $rses_election_id < 1 ) {
+			$rses_election_id = absint( $atts['election_id'] );
+		}
+		if ( $rses_round_id < 1 ) {
+			$rses_round_id = absint( $atts['round_id'] );
+		}
+
+		ob_start();
+		\RelataSoft\SecureElectionSuite\Voting\VotingViews::rses_render_voting_booth(
+			$rses_election_id,
+			$rses_round_id
+		);
+		return (string) ob_get_clean();
+	}
+
+	/**
+	 * Render voter receipt shortcode.
+	 *
+	 * @param array<string,mixed> $atts Shortcode attributes.
+	 * @return string
+	 */
+	public function rses_render_voter_receipt_shortcode( array $atts = array() ): string {
+		$atts = shortcode_atts(
+			array(
+				'election_id' => 0,
+				'round_id'    => 0,
+			),
+			$atts,
+			'rses_voter_receipt'
+		);
+
+		ob_start();
+		\RelataSoft\SecureElectionSuite\Voting\VotingViews::rses_render_voter_receipt(
+			absint( $atts['election_id'] ),
+			absint( $atts['round_id'] )
+		);
+		return (string) ob_get_clean();
+	}
+
+	/**
+	 * Render election status shortcode.
+	 *
+	 * @param array<string,mixed> $atts Shortcode attributes.
+	 * @return string
+	 */
+	public function rses_render_election_status_shortcode( array $atts = array() ): string {
+		$atts = shortcode_atts(
+			array(
+				'election_id' => 0,
+			),
+			$atts,
+			'rses_election_status'
+		);
+
+		ob_start();
+		\RelataSoft\SecureElectionSuite\Voting\VotingViews::rses_render_election_status( absint( $atts['election_id'] ) );
+		return (string) ob_get_clean();
+	}
+}

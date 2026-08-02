@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 148" role="img" aria-label="RelataSoft — Participa??o mais Inteligente">
+  <defs>
+    <linearGradient id="rsesLogoGoldDark" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFE56A"/>
+      <stop offset="48%" stop-color="#FFB800"/>
+      <stop offset="100%" stop-color="#F58220"/>
+    </linearGradient>
+  </defs>
+  <g fill="url(#rsesLogoGoldDark)" transform="translate(66 74)">
+    <g id="rses-blade-d">
+      <path d="M0-52 C14-52 26-44 30-30 C18-28 8-18 4-6 C-2-18 -2-36 0-52 Z"/>
+    </g>
+    <use href="#rses-blade-d" transform="rotate(60)"/>
+    <use href="#rses-blade-d" transform="rotate(120)"/>
+    <use href="#rses-blade-d" transform="rotate(180)"/>
+    <use href="#rses-blade-d" transform="rotate(240)"/>
+    <use href="#rses-blade-d" transform="rotate(300)"/>
+  </g>
+  <text x="148" y="72" fill="#FFFFFF" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif" font-size="46" font-weight="700" letter-spacing="-0.02em">RelataSoft</text>
+  <text x="150" y="108" fill="rgba(255,255,255,0.84)" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif" font-size="19" font-weight="500">Participa??o mais Inteligente</text>
+</svg>
