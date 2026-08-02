@@ -3,7 +3,7 @@
  * Plugin Name:       RelataSoft Secure Election Suite
  * Plugin URI:        https://relatasoft.com/secure-election-suite
  * Description:       Production-oriented secure election platform with ElGamal encryption and Shamir Secret Sharing.
- * Version:           1.0.22
+ * Version:           1.0.23
  * Requires at least: 6.0
  * Requires PHP:      8.1
  * Author:            RelataSoft
@@ -18,7 +18,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'RSES_VERSION', '1.0.22' );
+define( 'RSES_VERSION', '1.0.23' );
 define( 'RSES_PLUGIN_FILE', __FILE__ );
 define( 'RSES_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'RSES_PLUGIN_URL', plugin_dir_url( __FILE__ ) );

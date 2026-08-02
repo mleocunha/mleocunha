@@ -333,18 +333,209 @@ class ElectoralRollImportService {
 		fclose( $handle ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
 		self::rses_end_unquestioned_passwords();
 
+		self::rses_log_import_audit(
+			(int) $result['created'],
+			(int) $result['updated'],
+			(int) $result['skipped'],
+			count( $result['errors'] )
+		);
+
+		return $result;
+	}
+
+	/**
+	 * Audit helper shared by sync and chunked imports.
+	 */
+	public static function rses_log_import_audit( int $created, int $updated, int $skipped, int $errors ): void {
 		AuditLogger::rses_log(
 			'electoral_roll_import',
 			'users',
 			null,
 			array(
 				'command' => 'import_electoral_roll_csv',
-				'created' => $result['created'],
-				'updated' => $result['updated'],
-				'skipped' => $result['skipped'],
-				'errors'  => count( $result['errors'] ),
+				'created' => $created,
+				'updated' => $updated,
+				'skipped' => $skipped,
+				'errors'  => $errors,
 			)
 		);
+	}
+
+	/**
+	 * Validate headers, count data rows, and return the byte offset of the first data row.
+	 *
+	 * @return array{map:array<string,int>,byte_offset:int,total_rows:int}|\WP_Error
+	 */
+	public static function rses_prepare_file( string $file_path ) {
+		if ( ! is_readable( $file_path ) ) {
+			return new \WP_Error( 'rses_csv_read', __( 'CSV file could not be read.', 'relatasoft-secure-election-suite' ) );
+		}
+
+		$handle = fopen( $file_path, 'rb' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen
+		if ( false === $handle ) {
+			return new \WP_Error( 'rses_csv_open', __( 'CSV file could not be opened.', 'relatasoft-secure-election-suite' ) );
+		}
+
+		$raw_header = self::rses_fgetcsv( $handle );
+		if ( ! is_array( $raw_header ) || empty( $raw_header ) ) {
+			fclose( $handle ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+			return new \WP_Error( 'rses_csv_headers', __( 'CSV header row is missing.', 'relatasoft-secure-election-suite' ) );
+		}
+
+		if ( isset( $raw_header[0] ) && is_string( $raw_header[0] ) ) {
+			$raw_header[0] = preg_replace( '/^\xEF\xBB\xBF/', '', $raw_header[0] ) ?? $raw_header[0];
+		}
+
+		$map = self::rses_map_headers( $raw_header );
+		if ( is_wp_error( $map ) ) {
+			fclose( $handle ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+			return $map;
+		}
+
+		$byte_offset = ftell( $handle );
+		if ( false === $byte_offset ) {
+			fclose( $handle ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+			return new \WP_Error( 'rses_csv_seek', __( 'Could not determine CSV data offset.', 'relatasoft-secure-election-suite' ) );
+		}
+
+		$total_rows = 0;
+		while ( ( $row = self::rses_fgetcsv( $handle ) ) !== false ) {
+			if ( self::rses_row_empty( $row ) ) {
+				continue;
+			}
+			++$total_rows;
+			if ( $total_rows > self::MAX_ROWS ) {
+				fclose( $handle ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+				return new \WP_Error(
+					'rses_csv_max',
+					sprintf(
+						/* translators: %d: max rows */
+						__( 'Import stopped: more than %d data rows.', 'relatasoft-secure-election-suite' ),
+						self::MAX_ROWS
+					)
+				);
+			}
+		}
+
+		fclose( $handle ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+
+		if ( $total_rows < 1 ) {
+			return new \WP_Error( 'rses_csv_empty', __( 'CSV has a header but no data rows.', 'relatasoft-secure-election-suite' ) );
+		}
+
+		return array(
+			'map'         => $map,
+			'byte_offset' => (int) $byte_offset,
+			'total_rows'  => $total_rows,
+		);
+	}
+
+	/**
+	 * Process up to $limit non-empty data rows from a byte offset.
+	 *
+	 * @param array<string,int> $map Header map.
+	 * @return array{created:int,updated:int,skipped:int,errors:list<string>,processed:int,byte_offset:int,next_row_num:int,done:bool}|\WP_Error
+	 */
+	public static function rses_process_batch(
+		string $file_path,
+		array $map,
+		int $byte_offset,
+		int $row_num,
+		int $limit,
+		bool $update_existing,
+		int $max_data_rows = self::MAX_ROWS
+	) {
+		$result = array(
+			'created'      => 0,
+			'updated'      => 0,
+			'skipped'      => 0,
+			'errors'       => array(),
+			'processed'    => 0,
+			'byte_offset'  => $byte_offset,
+			'next_row_num' => $row_num,
+			'done'         => false,
+		);
+
+		if ( ! is_readable( $file_path ) ) {
+			return new \WP_Error( 'rses_csv_read', __( 'CSV file could not be read.', 'relatasoft-secure-election-suite' ) );
+		}
+
+		$handle = fopen( $file_path, 'rb' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen
+		if ( false === $handle ) {
+			return new \WP_Error( 'rses_csv_open', __( 'CSV file could not be opened.', 'relatasoft-secure-election-suite' ) );
+		}
+
+		if ( $byte_offset > 0 && 0 !== fseek( $handle, $byte_offset ) ) {
+			fclose( $handle ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+			return new \WP_Error( 'rses_csv_seek', __( 'Could not seek in CSV file.', 'relatasoft-secure-election-suite' ) );
+		}
+
+		$limit     = max( 1, $limit );
+		$max_reads = max( $limit * 4, $limit + 50 );
+		$reads     = 0;
+		self::rses_begin_unquestioned_passwords();
+
+		while ( $result['processed'] < $limit && $reads < $max_reads ) {
+			$row = self::rses_fgetcsv( $handle );
+			++$reads;
+			if ( false === $row ) {
+				$result['done'] = true;
+				break;
+			}
+
+			++$result['next_row_num'];
+			$pos_after = ftell( $handle );
+			if ( false !== $pos_after ) {
+				$result['byte_offset'] = (int) $pos_after;
+			}
+
+			$data_index = $result['next_row_num'] - 1;
+			if ( $data_index > $max_data_rows ) {
+				$result['errors'][] = sprintf(
+					/* translators: %d: max rows */
+					__( 'Import stopped: more than %d data rows.', 'relatasoft-secure-election-suite' ),
+					$max_data_rows
+				);
+				$result['done'] = true;
+				break;
+			}
+
+			if ( self::rses_row_empty( $row ) ) {
+				continue;
+			}
+
+			++$result['processed'];
+
+			$parsed = self::rses_parse_row( $row, $map, $result['next_row_num'] );
+			if ( is_wp_error( $parsed ) ) {
+				$result['errors'][] = $parsed->get_error_message();
+				++$result['skipped'];
+				continue;
+			}
+
+			$outcome = self::rses_upsert_user( $parsed, $update_existing );
+			if ( is_wp_error( $outcome ) ) {
+				$result['errors'][] = sprintf(
+					/* translators: 1: row number, 2: error */
+					__( 'Row %1$d: %2$s', 'relatasoft-secure-election-suite' ),
+					$result['next_row_num'],
+					$outcome->get_error_message()
+				);
+				++$result['skipped'];
+				continue;
+			}
+
+			if ( 'created' === $outcome ) {
+				++$result['created'];
+			} elseif ( 'updated' === $outcome ) {
+				++$result['updated'];
+			} else {
+				++$result['skipped'];
+			}
+		}
+
+		fclose( $handle ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+		self::rses_end_unquestioned_passwords();
 
 		return $result;
 	}

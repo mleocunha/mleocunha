@@ -206,6 +206,10 @@ class Plugin {
 			self::rses_enqueue_key_authority_script();
 		}
 
+		if ( 'rses-electoral-roll' === $rses_page ) {
+			self::rses_enqueue_electoral_roll_script();
+		}
+
 		if ( 'tallying' === $mode ) {
 			wp_enqueue_script(
 				'rses-tallying',
@@ -250,6 +254,48 @@ class Plugin {
 			)
 		);
 		wp_enqueue_script( 'rses-key-authority' );
+	}
+
+	/**
+	 * Register, localize, and enqueue electoral-roll chunked import script.
+	 */
+	public static function rses_enqueue_electoral_roll_script(): void {
+		wp_register_script(
+			'rses-electoral-roll',
+			RSES_PLUGIN_URL . 'assets/js/electoral-roll-import.js',
+			array( 'jquery' ),
+			RSES_VERSION,
+			true
+		);
+
+		$resume = \RelataSoft\SecureElectionSuite\Voting\ElectoralRollImportJob::rses_public_status(
+			\RelataSoft\SecureElectionSuite\Voting\ElectoralRollImportJob::rses_get()
+		);
+
+		wp_localize_script(
+			'rses-electoral-roll',
+			'rsesElectoralRoll',
+			array(
+				'ajaxUrl'    => admin_url( 'admin-ajax.php' ),
+				'nonce'      => wp_create_nonce( \RelataSoft\SecureElectionSuite\Admin\ElectoralRollImportPage::AJAX_NONCE_ACTION ),
+				'maxBytes'   => \RelataSoft\SecureElectionSuite\Voting\ElectoralRollImportJob::MAX_UPLOAD_BYTES,
+				'chunkBytes' => 262144,
+				'resume'     => $resume,
+				'i18n'       => array(
+					'starting'        => __( 'Starting chunked import…', 'relatasoft-secure-election-suite' ),
+					'validating'      => __( 'Validating CSV…', 'relatasoft-secure-election-suite' ),
+					'error'           => __( 'Electoral roll import failed.', 'relatasoft-secure-election-suite' ),
+					'cancelled'       => __( 'Electoral roll import cancelled.', 'relatasoft-secure-election-suite' ),
+					'noFile'          => __( 'Choose a CSV file first.', 'relatasoft-secure-election-suite' ),
+					'tooLarge'        => __( 'CSV file is too large for import.', 'relatasoft-secure-election-suite' ),
+					'noJs'            => __( 'JavaScript failed to start the import. Hard-refresh this page and try again.', 'relatasoft-secure-election-suite' ),
+					'finished'        => __( 'Electoral roll import finished. Created: %1$d. Updated: %2$d. Skipped: %3$d. Errors: %4$d.', 'relatasoft-secure-election-suite' ),
+					'errorsDesc'      => __( '%d issue(s) were reported. Review the table below or download the error CSV.', 'relatasoft-secure-election-suite' ),
+					'errorsTruncated' => __( 'Additional errors were omitted from this preview; download the CSV for the stored sample.', 'relatasoft-secure-election-suite' ),
+				),
+			)
+		);
+		wp_enqueue_script( 'rses-electoral-roll' );
 	}
 
 	/**
