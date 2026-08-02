@@ -69,7 +69,7 @@ export async function runVotador(config, hooks = {}) {
   const mailUrl = String(cfg.mailUrl || DEFAULTS.mailUrl).trim() || DEFAULTS.mailUrl;
   const passwordStore = createPasswordStore();
 
-  logger.info('Iniciando Votador PoC', {
+  logger.info(`Iniciando Votador PoC [${VOTADOR_BUILD}]`, {
     build: VOTADOR_BUILD,
     electors: electors.length,
     concurrency,

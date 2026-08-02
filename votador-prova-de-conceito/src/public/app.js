@@ -27,17 +27,15 @@ function appendLog(ev) {
   if (level === 'error') line.className = 'err';
   if (level === 'warn') line.className = 'warn';
   const ts = ev.ts ? ev.ts.slice(11, 19) : '';
-  const extra =
-    ev.user_login || ev.error || ev.receipt_hash
-      ? ` ${JSON.stringify({
-          user_login: ev.user_login,
-          election_id: ev.election_id,
-          round_id: ev.round_id,
-          receipt_hash: ev.receipt_hash,
-          error: ev.error,
-          status: ev.status,
-        })}`
-      : '';
+  const extraBits = {};
+  if (ev.build) extraBits.build = ev.build;
+  if (ev.user_login) extraBits.user_login = ev.user_login;
+  if (ev.election_id != null) extraBits.election_id = ev.election_id;
+  if (ev.round_id != null) extraBits.round_id = ev.round_id;
+  if (ev.receipt_hash) extraBits.receipt_hash = ev.receipt_hash;
+  if (ev.error) extraBits.error = ev.error;
+  if (ev.status) extraBits.status = ev.status;
+  const extra = Object.keys(extraBits).length ? ` ${JSON.stringify(extraBits)}` : '';
   line.textContent = `${ts} [${level}] ${ev.message || ''}${extra}`;
   logEl.appendChild(line);
   logEl.scrollTop = logEl.scrollHeight;
