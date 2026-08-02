@@ -1,11 +1,12 @@
 /**
- * Electoral roll — chunked upload + batched AJAX import.
+ * Electoral roll — upload + batched AJAX import.
  */
 (function ($) {
 	'use strict';
 
 	var rsesBusy = false;
 	var rsesCancelled = false;
+	var RSES_SINGLE_UPLOAD_MAX = 8 * 1024 * 1024;
 
 	function rsesCfg() {
 		var cfg = window.rsesElectoralRoll || {};
@@ -18,6 +19,56 @@
 		}
 		cfg.i18n = cfg.i18n || {};
 		return cfg;
+	}
+
+	function rsesFallbackError() {
+		var cfg = rsesCfg();
+		return (cfg.i18n && cfg.i18n.error) || 'Electoral roll import failed.';
+	}
+
+	/**
+	 * Extract a human message from jqXHR / Deferred reject payloads.
+	 */
+	function rsesErrorMessage(err, fallback) {
+		fallback = fallback || rsesFallbackError();
+		if (!err) {
+			return fallback;
+		}
+		if (typeof err === 'string' && err) {
+			return err;
+		}
+		if (err.message && typeof err.message === 'string' && !err.getResponseHeader) {
+			return err.message;
+		}
+		var json = err.responseJSON;
+		if (json) {
+			if (json.data && typeof json.data.message === 'string') {
+				return json.data.message;
+			}
+			if (typeof json.data === 'string') {
+				return json.data;
+			}
+			if (typeof json.message === 'string') {
+				return json.message;
+			}
+		}
+		if (err.responseText) {
+			try {
+				var parsed = JSON.parse(err.responseText);
+				if (parsed && parsed.data && parsed.data.message) {
+					return parsed.data.message;
+				}
+			} catch (e) {
+				/* ignore */
+			}
+			if (/permission|nonce|forbidden|not available/i.test(err.responseText)) {
+				return fallback + ' (' + (err.status || '?') + ')';
+			}
+		}
+		if (err.statusText && err.status) {
+			return fallback + ' (HTTP ' + err.status + ')';
+		}
+		return fallback;
 	}
 
 	function rsesPost(action, data) {
@@ -127,13 +178,22 @@
 		$live.removeAttr('hidden').show();
 	}
 
-	function rsesFail(message) {
-		var cfg = rsesCfg();
-		rsesSetProgress({
-			message: message || (cfg.i18n && cfg.i18n.error) || 'Electoral roll import failed.',
-			progress: 0,
-			stage: 'failed'
-		});
+	function rsesFail(message, status) {
+		if (status) {
+			rsesSetProgress(
+				$.extend({}, status, {
+					message: message || status.message || rsesFallbackError(),
+					stage: status.stage || 'failed'
+				})
+			);
+			rsesRenderErrors(status);
+		} else {
+			rsesSetProgress({
+				message: message || rsesFallbackError(),
+				progress: 0,
+				stage: 'failed'
+			});
+		}
 		rsesSetFormBusy(false);
 	}
 
@@ -145,15 +205,7 @@
 			.done(function (resp) {
 				if (!resp || !resp.success) {
 					var st = resp && resp.data && resp.data.status;
-					if (st) {
-						rsesSetProgress(st);
-						rsesRenderErrors(st);
-					}
-					rsesFail(
-						(resp && resp.data && resp.data.message) ||
-							(rsesCfg().i18n && rsesCfg().i18n.error) ||
-							'Electoral roll import failed.'
-					);
+					rsesFail(rsesErrorMessage(resp && resp.data, rsesFallbackError()), st);
 					return;
 				}
 				var status = resp.data || {};
@@ -170,8 +222,13 @@
 				}
 				window.setTimeout(rsesTickLoop, 40);
 			})
-			.fail(function () {
-				rsesFail((rsesCfg().i18n && rsesCfg().i18n.error) || 'Electoral roll import failed.');
+			.fail(function (xhr) {
+				var st =
+					xhr &&
+					xhr.responseJSON &&
+					xhr.responseJSON.data &&
+					xhr.responseJSON.data.status;
+				rsesFail(rsesErrorMessage(xhr), st);
 			});
 	}
 
@@ -189,26 +246,167 @@
 			var blob = file.slice(start, Math.min(file.size, start + chunkBytes));
 			var fd = new FormData();
 			fd.append('chunk_index', String(index));
-			fd.append('chunk', blob, file.name + '.part' + index);
+			fd.append('chunk', blob, 'part-' + index + '.bin');
 
-			return rsesPostFormData('rses_electoral_roll_chunk', fd).then(function (resp) {
-				if (!resp || !resp.success) {
+			return rsesPostFormData('rses_electoral_roll_chunk', fd).then(
+				function (resp) {
+					if (!resp || !resp.success) {
+						return $.Deferred()
+							.reject({
+								message: rsesErrorMessage(resp && resp.data, rsesFallbackError()),
+								status: resp && resp.data && resp.data.status
+							})
+							.promise();
+					}
+					rsesSetProgress(resp.data || {});
+					index += 1;
+					return next();
+				},
+				function (xhr) {
 					return $.Deferred()
 						.reject({
-							message:
-								(resp && resp.data && resp.data.message) ||
-								(rsesCfg().i18n && rsesCfg().i18n.error) ||
-								'Upload failed.'
+							message: rsesErrorMessage(xhr),
+							status:
+								xhr &&
+								xhr.responseJSON &&
+								xhr.responseJSON.data &&
+								xhr.responseJSON.data.status
 						})
 						.promise();
 				}
-				rsesSetProgress(resp.data || {});
-				index += 1;
-				return next();
-			});
+			);
 		}
 
 		return next();
+	}
+
+	function rsesAfterReady(status) {
+		rsesSetProgress(status || {});
+		if (status && status.stage === 'importing') {
+			rsesTickLoop();
+			return;
+		}
+		if (status && status.stage === 'complete') {
+			rsesShowResult(status);
+			rsesSetFormBusy(false);
+			return;
+		}
+		rsesFail(rsesFallbackError(), status);
+	}
+
+	function rsesStartSingleUpload(file, updateExisting) {
+		var cfg = rsesCfg();
+		var fd = new FormData();
+		fd.append('csv', file, file.name || 'cadastro.csv');
+		fd.append('update_existing', updateExisting ? '1' : '0');
+
+		rsesSetProgress({
+			message: (cfg.i18n && cfg.i18n.starting) || 'Starting chunked import…',
+			progress: 5,
+			stage: 'receiving',
+			created: 0,
+			updated: 0,
+			skipped: 0,
+			error_count: 0
+		});
+
+		rsesPostFormData('rses_electoral_roll_upload', fd)
+			.done(function (resp) {
+				if (!resp || !resp.success) {
+					var st = resp && resp.data && resp.data.status;
+					rsesFail(rsesErrorMessage(resp && resp.data, rsesFallbackError()), st);
+					return;
+				}
+				rsesAfterReady(resp.data || {});
+			})
+			.fail(function (xhr) {
+				var st =
+					xhr &&
+					xhr.responseJSON &&
+					xhr.responseJSON.data &&
+					xhr.responseJSON.data.status;
+				rsesFail(rsesErrorMessage(xhr), st);
+			});
+	}
+
+	function rsesStartChunkedUpload(file, updateExisting) {
+		var cfg = rsesCfg();
+		var chunkBytes = cfg.chunkBytes || 262144;
+		var totalChunks = Math.max(1, Math.ceil(file.size / chunkBytes));
+
+		rsesSetProgress({
+			message: (cfg.i18n && cfg.i18n.starting) || 'Starting chunked import…',
+			progress: 1,
+			stage: 'receiving',
+			created: 0,
+			updated: 0,
+			skipped: 0,
+			error_count: 0
+		});
+
+		rsesPost('rses_electoral_roll_init', {
+			filename: file.name,
+			total_chunks: totalChunks,
+			total_bytes: file.size,
+			update_existing: updateExisting ? 1 : 0
+		})
+			.then(
+				function (resp) {
+					if (!resp || !resp.success) {
+						return $.Deferred()
+							.reject({
+								message: rsesErrorMessage(resp && resp.data, rsesFallbackError()),
+								status: resp && resp.data && resp.data.status
+							})
+							.promise();
+					}
+					rsesSetProgress(resp.data || {});
+					return rsesUploadChunks(file, totalChunks, chunkBytes);
+				},
+				function (xhr) {
+					return $.Deferred()
+						.reject({
+							message: rsesErrorMessage(xhr),
+							status:
+								xhr &&
+								xhr.responseJSON &&
+								xhr.responseJSON.data &&
+								xhr.responseJSON.data.status
+						})
+						.promise();
+				}
+			)
+			.then(function () {
+				if (rsesCancelled) {
+					return;
+				}
+				rsesSetProgress({
+					message: (cfg.i18n && cfg.i18n.validating) || 'Validating CSV…',
+					progress: 22,
+					stage: 'ready'
+				});
+				return rsesPost('rses_electoral_roll_begin');
+			})
+			.then(function (resp) {
+				if (rsesCancelled || resp === undefined) {
+					return;
+				}
+				if (!resp || !resp.success) {
+					return $.Deferred()
+						.reject({
+							message: rsesErrorMessage(resp && resp.data, rsesFallbackError()),
+							status: resp && resp.data && resp.data.status
+						})
+						.promise();
+				}
+				rsesAfterReady(resp.data || {});
+			})
+			.fail(function (err) {
+				if (err && err.cancelled) {
+					return;
+				}
+				rsesFail(rsesErrorMessage(err), err && err.status);
+			});
 	}
 
 	function rsesStartImport(e) {
@@ -220,6 +418,7 @@
 		var cfg = rsesCfg();
 		var input = document.getElementById('rses_electoral_roll_csv');
 		var file = input && input.files && input.files[0];
+		var updateExisting = $('#rses_update_existing').is(':checked');
 
 		if (!file) {
 			rsesFail((cfg.i18n && cfg.i18n.noFile) || 'Choose a CSV file first.');
@@ -239,78 +438,11 @@
 		$('#rses-electoral-errors-live').attr('hidden', true).hide();
 		rsesSetFormBusy(true);
 
-		var chunkBytes = cfg.chunkBytes || 262144;
-		var totalChunks = Math.max(1, Math.ceil(file.size / chunkBytes));
-
-		rsesSetProgress({
-			message: (cfg.i18n && cfg.i18n.starting) || 'Starting chunked import…',
-			progress: 1,
-			stage: 'receiving',
-			created: 0,
-			updated: 0,
-			skipped: 0,
-			error_count: 0
-		});
-
-		rsesPost('rses_electoral_roll_init', {
-			filename: file.name,
-			total_chunks: totalChunks,
-			total_bytes: file.size,
-			update_existing: $('#rses_update_existing').is(':checked') ? 1 : 0
-		})
-			.then(function (resp) {
-				if (!resp || !resp.success) {
-					return $.Deferred()
-						.reject({
-							message:
-								(resp && resp.data && resp.data.message) ||
-								(cfg.i18n && cfg.i18n.error) ||
-								'Could not start import.'
-						})
-						.promise();
-				}
-				rsesSetProgress(resp.data || {});
-				return rsesUploadChunks(file, totalChunks, chunkBytes);
-			})
-			.then(function () {
-				if (rsesCancelled) {
-					return;
-				}
-				rsesSetProgress({
-					message: (cfg.i18n && cfg.i18n.validating) || 'Validating CSV…',
-					progress: 22,
-					stage: 'ready'
-				});
-				return rsesPost('rses_electoral_roll_begin');
-			})
-			.then(function (resp) {
-				if (rsesCancelled || resp === undefined) {
-					return;
-				}
-				if (!resp || !resp.success) {
-					var st = resp && resp.data && resp.data.status;
-					if (st) {
-						rsesSetProgress(st);
-						rsesRenderErrors(st);
-					}
-					return $.Deferred()
-						.reject({
-							message:
-								(resp && resp.data && resp.data.message) ||
-								(cfg.i18n && cfg.i18n.error) ||
-								'CSV validation failed.'
-						})
-						.promise();
-				}
-				rsesSetProgress(resp.data || {});
-				rsesTickLoop();
-			})
-			.fail(function (err) {
-				if (err && err.cancelled) {
-					return;
-				}
-				rsesFail((err && err.message) || (cfg.i18n && cfg.i18n.error) || 'Electoral roll import failed.');
-			});
+		if (file.size <= RSES_SINGLE_UPLOAD_MAX) {
+			rsesStartSingleUpload(file, updateExisting);
+		} else {
+			rsesStartChunkedUpload(file, updateExisting);
+		}
 	}
 
 	function rsesCancel() {
@@ -384,7 +516,6 @@
 		$('#rses-electoral-cancel').on('click', rsesCancel);
 		$('#rses-electoral-cancel').prop('disabled', true);
 
-		// Resume an in-flight job after refresh.
 		var cfg = rsesCfg();
 		if (cfg.resume && cfg.resume.active) {
 			rsesSetProgress(cfg.resume);

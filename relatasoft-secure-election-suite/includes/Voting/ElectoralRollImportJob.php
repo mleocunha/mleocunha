@@ -92,40 +92,22 @@ class ElectoralRollImportJob {
 	}
 
 	/**
-	 * Directory for temporary CSV uploads.
+	 * Create an empty temp file for this import.
 	 *
 	 * @return string|\WP_Error Absolute path.
 	 */
-	public static function rses_upload_dir() {
-		$uploads = wp_upload_dir();
-		if ( ! empty( $uploads['error'] ) ) {
-			return new \WP_Error( 'rses_upload_dir', (string) $uploads['error'] );
+	private static function rses_make_temp_file() {
+		$path = wp_tempnam( 'rses-er-' . get_current_user_id() . '-' );
+		if ( ! is_string( $path ) || '' === $path || ! file_exists( $path ) ) {
+			return new \WP_Error( 'rses_file_create', __( 'Could not create temporary import file.', 'relatasoft-secure-election-suite' ) );
 		}
-
-		$dir = trailingslashit( $uploads['basedir'] ) . 'rses-electoral-roll';
-		if ( ! is_dir( $dir ) ) {
-			if ( ! wp_mkdir_p( $dir ) ) {
-				return new \WP_Error( 'rses_upload_mkdir', __( 'Could not create import upload directory.', 'relatasoft-secure-election-suite' ) );
-			}
-		}
-
-		$index = $dir . '/index.php';
-		if ( ! file_exists( $index ) ) {
-			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
-			file_put_contents( $index, "<?php\n// Silence is golden.\n" );
-		}
-
-		$htaccess = $dir . '/.htaccess';
-		if ( ! file_exists( $htaccess ) ) {
-			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
-			file_put_contents( $htaccess, "Deny from all\n" );
-		}
-
-		return $dir;
+		return $path;
 	}
 
 	/**
 	 * Create a receiving job and empty temp file.
+	 *
+	 * A new start always replaces any prior job for this administrator (avoids stuck uploads).
 	 *
 	 * @param string $original_name Original filename.
 	 * @param int    $total_chunks  Expected upload chunks.
@@ -134,13 +116,6 @@ class ElectoralRollImportJob {
 	 * @return array<string,mixed>|\WP_Error
 	 */
 	public static function rses_create_receiving( string $original_name, int $total_chunks, int $total_bytes, bool $update_existing ) {
-		if ( self::rses_has_active() ) {
-			return new \WP_Error(
-				'rses_job_active',
-				__( 'An electoral roll import is already in progress. Cancel it first or wait for it to finish.', 'relatasoft-secure-election-suite' )
-			);
-		}
-
 		if ( $total_bytes < 1 || $total_bytes > self::MAX_UPLOAD_BYTES ) {
 			return new \WP_Error(
 				'rses_file_size',
@@ -153,25 +128,17 @@ class ElectoralRollImportJob {
 		}
 
 		$total_chunks = max( 1, $total_chunks );
-		$dir          = self::rses_upload_dir();
-		if ( is_wp_error( $dir ) ) {
-			return $dir;
-		}
 
-		// Clear leftover terminal job for this user.
+		// Replace any stuck/active job from a previous attempt.
 		self::rses_delete();
 
-		$token = wp_generate_password( 20, false, false );
-		$path  = trailingslashit( $dir ) . 'import-' . get_current_user_id() . '-' . $token . '.csv';
-
-		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen
-		$handle = fopen( $path, 'wb' );
-		if ( false === $handle ) {
-			return new \WP_Error( 'rses_file_create', __( 'Could not create temporary import file.', 'relatasoft-secure-election-suite' ) );
+		$path = self::rses_make_temp_file();
+		if ( is_wp_error( $path ) ) {
+			return $path;
 		}
-		fclose( $handle ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
 
-		$job = array(
+		$token = wp_generate_password( 12, false, false );
+		$job   = array(
 			'stage'           => self::STAGE_RECEIVING,
 			'file_path'       => $path,
 			'file_token'      => $token,
@@ -198,6 +165,62 @@ class ElectoralRollImportJob {
 
 		self::rses_save( $job );
 		return $job;
+	}
+
+	/**
+	 * Ingest a complete uploaded CSV and move straight to importing.
+	 *
+	 * @param string $tmp_path        Uploaded temp path.
+	 * @param string $original_name   Original filename.
+	 * @param bool   $update_existing Update matching users.
+	 * @return array<string,mixed>|\WP_Error
+	 */
+	public static function rses_ingest_full_upload( string $tmp_path, string $original_name, bool $update_existing ) {
+		if ( ! is_readable( $tmp_path ) ) {
+			return new \WP_Error( 'rses_chunk_read', __( 'Could not read upload chunk.', 'relatasoft-secure-election-suite' ) );
+		}
+
+		$size = filesize( $tmp_path );
+		if ( false === $size || $size < 1 || $size > self::MAX_UPLOAD_BYTES ) {
+			return new \WP_Error(
+				'rses_file_size',
+				sprintf(
+					/* translators: %s: max size label */
+					__( 'CSV file must be between 1 byte and %s.', 'relatasoft-secure-election-suite' ),
+					size_format( self::MAX_UPLOAD_BYTES )
+				)
+			);
+		}
+
+		$job = self::rses_create_receiving( $original_name, 1, (int) $size, $update_existing );
+		if ( is_wp_error( $job ) ) {
+			return $job;
+		}
+
+		$dest = (string) $job['file_path'];
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen
+		$in = fopen( $tmp_path, 'rb' );
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen
+		$out = fopen( $dest, 'wb' );
+		if ( false === $in || false === $out ) {
+			if ( is_resource( $in ) ) {
+				fclose( $in ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+			}
+			if ( is_resource( $out ) ) {
+				fclose( $out ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+			}
+			return new \WP_Error( 'rses_chunk_append', __( 'Could not append upload chunk.', 'relatasoft-secure-election-suite' ) );
+		}
+		stream_copy_to_stream( $in, $out );
+		fclose( $in ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+		fclose( $out ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+
+		$job['chunks_received'] = 1;
+		$job['bytes_received']  = (int) $size;
+		$job['message']         = __( 'Validating CSV…', 'relatasoft-secure-election-suite' );
+		self::rses_save( $job );
+
+		return self::rses_begin_import();
 	}
 
 	/**

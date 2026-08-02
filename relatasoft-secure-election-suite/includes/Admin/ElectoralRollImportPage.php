@@ -36,6 +36,7 @@ class ElectoralRollImportPage {
 
 		add_action( 'wp_ajax_rses_electoral_roll_init', array( self::class, 'rses_ajax_init' ) );
 		add_action( 'wp_ajax_rses_electoral_roll_chunk', array( self::class, 'rses_ajax_chunk' ) );
+		add_action( 'wp_ajax_rses_electoral_roll_upload', array( self::class, 'rses_ajax_upload' ) );
 		add_action( 'wp_ajax_rses_electoral_roll_begin', array( self::class, 'rses_ajax_begin' ) );
 		add_action( 'wp_ajax_rses_electoral_roll_tick', array( self::class, 'rses_ajax_tick' ) );
 		add_action( 'wp_ajax_rses_electoral_roll_status', array( self::class, 'rses_ajax_status' ) );
@@ -51,12 +52,16 @@ class ElectoralRollImportPage {
 	}
 
 	/**
-	 * Shared AJAX guard.
+	 * Shared AJAX guard (JSON errors — never HTML wp_die).
 	 */
 	private static function rses_ajax_guard(): void {
-		Capability::rses_require_admin();
-		ModeLock::rses_require_mode( ModeLock::RSES_MODE_VOTING );
+		if ( ! Capability::rses_can_manage_election() ) {
+			wp_send_json_error( array( 'message' => __( 'Permission denied.', 'relatasoft-secure-election-suite' ) ), 403 );
+		}
 		check_ajax_referer( self::AJAX_NONCE_ACTION, 'nonce' );
+		if ( ! ModeLock::rses_is_mode( ModeLock::RSES_MODE_VOTING ) ) {
+			wp_send_json_error( array( 'message' => __( 'Not available in this mode.', 'relatasoft-secure-election-suite' ) ), 403 );
+		}
 	}
 
 	/**
@@ -86,7 +91,7 @@ class ElectoralRollImportPage {
 
 		$job = ElectoralRollImportJob::rses_create_receiving( $original, $chunks, $bytes, $update );
 		if ( is_wp_error( $job ) ) {
-			wp_send_json_error( array( 'message' => $job->get_error_message() ), 400 );
+			wp_send_json_error( array( 'message' => $job->get_error_message() ) );
 		}
 
 		wp_send_json_success( ElectoralRollImportJob::rses_public_status( $job ) );
@@ -100,17 +105,51 @@ class ElectoralRollImportPage {
 
 		$index = isset( $_POST['chunk_index'] ) ? absint( $_POST['chunk_index'] ) : -1;
 		if ( $index < 0 || empty( $_FILES['chunk']['tmp_name'] ) ) {
-			wp_send_json_error( array( 'message' => __( 'Invalid upload chunk.', 'relatasoft-secure-election-suite' ) ), 400 );
+			wp_send_json_error( array( 'message' => __( 'Invalid upload chunk.', 'relatasoft-secure-election-suite' ) ) );
 		}
 
 		$tmp = (string) $_FILES['chunk']['tmp_name']; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
 		if ( ! is_uploaded_file( $tmp ) ) {
-			wp_send_json_error( array( 'message' => __( 'Invalid upload chunk.', 'relatasoft-secure-election-suite' ) ), 400 );
+			wp_send_json_error( array( 'message' => __( 'Invalid upload chunk.', 'relatasoft-secure-election-suite' ) ) );
 		}
 
 		$job = ElectoralRollImportJob::rses_append_chunk( $tmp, $index );
 		if ( is_wp_error( $job ) ) {
-			wp_send_json_error( array( 'message' => $job->get_error_message() ), 400 );
+			wp_send_json_error( array( 'message' => $job->get_error_message() ) );
+		}
+
+		wp_send_json_success( ElectoralRollImportJob::rses_public_status( $job ) );
+	}
+
+	/**
+	 * AJAX: upload a complete CSV (preferred for typical rolls ≤ ~8 MiB).
+	 */
+	public static function rses_ajax_upload(): void {
+		self::rses_ajax_guard();
+
+		if ( empty( $_FILES['csv']['tmp_name'] ) ) {
+			wp_send_json_error( array( 'message' => __( 'No CSV file uploaded.', 'relatasoft-secure-election-suite' ) ) );
+		}
+
+		$tmp = (string) $_FILES['csv']['tmp_name']; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+		if ( ! is_uploaded_file( $tmp ) ) {
+			wp_send_json_error( array( 'message' => __( 'Invalid upload.', 'relatasoft-secure-election-suite' ) ) );
+		}
+
+		$original = isset( $_FILES['csv']['name'] )
+			? sanitize_file_name( wp_unslash( (string) $_FILES['csv']['name'] ) )
+			: 'cadastro.csv';
+		$update   = ! empty( $_POST['update_existing'] );
+
+		$job = ElectoralRollImportJob::rses_ingest_full_upload( $tmp, $original, $update );
+		if ( is_wp_error( $job ) ) {
+			$current = ElectoralRollImportJob::rses_get();
+			wp_send_json_error(
+				array(
+					'message' => $job->get_error_message(),
+					'status'  => ElectoralRollImportJob::rses_public_status( $current ),
+				)
+			);
 		}
 
 		wp_send_json_success( ElectoralRollImportJob::rses_public_status( $job ) );
@@ -129,8 +168,7 @@ class ElectoralRollImportPage {
 				array(
 					'message' => $job->get_error_message(),
 					'status'  => ElectoralRollImportJob::rses_public_status( $current ),
-				),
-				400
+				)
 			);
 		}
 
@@ -152,8 +190,7 @@ class ElectoralRollImportPage {
 				array(
 					'message' => $job->get_error_message(),
 					'status'  => $status,
-				),
-				400
+				)
 			);
 		}
 
