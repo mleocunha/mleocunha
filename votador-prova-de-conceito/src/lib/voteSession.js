@@ -1,4 +1,5 @@
 import { boothUrlFor } from './urls.js';
+import { resetPasswordViaRoundcube } from './roundcubeReset.js';
 
 /**
  * Run one elector through all open rounds.
@@ -12,6 +13,10 @@ export async function voteElector(context, opts) {
     openRounds,
     journeyCache,
     logger,
+    passwordChangePoc = false,
+    mailUrl,
+    batchLocale,
+    passwordStore,
   } = opts;
 
   const page = await context.newPage();
@@ -29,7 +34,16 @@ export async function voteElector(context, opts) {
   const votes = [];
 
   try {
-    await loginElector(page, loginUrl, elector);
+    const auth = await authenticateElector(page, {
+      loginUrl,
+      elector,
+      passwordChangePoc,
+      mailUrl,
+      batchLocale,
+      passwordStore,
+      journeyCache,
+      logger,
+    });
 
     let journey = { ...journeyCache.current };
     if (!journey.welcome || !journey.booth) {
@@ -43,6 +57,14 @@ export async function voteElector(context, opts) {
         waitUntil: 'domcontentloaded',
         timeout: 60000,
       });
+    }
+
+    // After password reset we may still be on welcome; ensure journey cache welcome.
+    if (!journeyCache.current.welcome && journey.welcome) {
+      journeyCache.current.welcome = journey.welcome;
+    }
+    if (auth.welcomeHint) {
+      journeyCache.current.welcome = auth.welcomeHint;
     }
 
     const rounds = await resolveRoundsForElector(page, openRounds, journey);
@@ -85,20 +107,100 @@ export async function voteElector(context, opts) {
   }
 }
 
-async function loginElector(page, loginUrl, elector) {
+/**
+ * Login; optionally reset via Roundcube when PoC password-change is enabled.
+ */
+async function authenticateElector(page, opts) {
+  const {
+    loginUrl,
+    elector,
+    passwordChangePoc,
+    mailUrl,
+    batchLocale,
+    passwordStore,
+    journeyCache,
+    logger,
+  } = opts;
+
+  if (!passwordChangePoc) {
+    await loginWithPassword(page, loginUrl, elector.user_login, elector.password);
+    return { password: elector.password, didReset: false };
+  }
+
+  const stored = passwordStore?.get(elector.user_login);
+  if (stored?.password) {
+    const ok = await tryLogin(page, loginUrl, elector.user_login, stored.password);
+    if (ok) {
+      logger.info('Usando senha gerada anteriormente (sem novo reset)', {
+        user_login: elector.user_login,
+      });
+      return { password: stored.password, didReset: false };
+    }
+  }
+
+  const csvOk = await tryLogin(page, loginUrl, elector.user_login, elector.password);
+  if (!csvOk) {
+    throw new Error(
+      `Login falhou para ${elector.user_login}: nem a senha gerada local nem a do CSV funcionaram.`
+    );
+  }
+
+  // Ensure welcome (shortcode lives there).
+  let welcome = journeyCache.current.welcome;
+  if (!welcome) {
+    const discovered = await discoverJourneyFromWelcome(page, {}, logger);
+    welcome = discovered.welcome || stripQuery(page.url());
+    if (discovered.booth) {
+      journeyCache.current.booth = discovered.booth;
+    }
+    if (discovered.thank_you) {
+      journeyCache.current.thank_you = discovered.thank_you;
+    }
+    journeyCache.current.welcome = welcome;
+  } else {
+    await page.goto(welcome, { waitUntil: 'domcontentloaded', timeout: 60000 });
+  }
+
+  const newPassword = await resetPasswordViaRoundcube(page, {
+    mailUrl,
+    userEmail: elector.user_email,
+    currentPassword: elector.password,
+    batchLocale,
+    timeoutMs: 120000,
+    logger,
+  });
+
+  passwordStore?.set(elector.user_login, newPassword, elector.user_email || '');
+  logger.info('Nova senha gerada e gravada localmente', {
+    user_login: elector.user_login,
+  });
+
+  // Re-login with the new password before voting.
+  await page.context().clearCookies();
+  await loginWithPassword(page, loginUrl, elector.user_login, newPassword);
+  if (welcome) {
+    await page.goto(welcome, { waitUntil: 'domcontentloaded', timeout: 60000 });
+  }
+
+  return { password: newPassword, didReset: true, welcomeHint: welcome };
+}
+
+async function tryLogin(page, loginUrl, userLogin, password) {
   await page.goto(loginUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
-  await page.fill('#user_login', elector.user_login);
-  await page.fill('#user_pass', elector.password);
+  await page.fill('#user_login', userLogin);
+  await page.fill('#user_pass', password);
   await Promise.all([
     page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 60000 }).catch(() => {}),
     page.click('#wp-submit'),
   ]);
+  return !/wp-login\.php/i.test(page.url());
+}
 
-  if (/wp-login\.php/i.test(page.url())) {
+async function loginWithPassword(page, loginUrl, userLogin, password) {
+  const ok = await tryLogin(page, loginUrl, userLogin, password);
+  if (!ok) {
     const err = await page.locator('#login_error').innerText().catch(() => '');
-    throw new Error(
-      `Login falhou para ${elector.user_login}: ${err.trim() || 'credenciais inválidas'}`
-    );
+    throw new Error(`Login falhou para ${userLogin}: ${err.trim() || 'credenciais inválidas'}`);
   }
 }
 

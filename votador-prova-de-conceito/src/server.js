@@ -126,6 +126,11 @@ app.post('/api/start', upload.single('csv'), async (req, res) => {
     tentativas: Number(body.tentativas || DEFAULTS.tentativas),
     insistencias: Number(body.insistencias || DEFAULTS.insistencias),
     limiteRetentativas: Number(body.limiteRetentativas || DEFAULTS.limiteRetentativas),
+    passwordChangePoc:
+      body.passwordChangePoc === '1' ||
+      body.passwordChangePoc === 'true' ||
+      body.passwordChangePoc === 'on',
+    mailUrl: String(body.mailUrl || DEFAULTS.mailUrl).trim() || DEFAULTS.mailUrl,
   };
 
   if (!config.platformUrl) {

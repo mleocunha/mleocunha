@@ -553,6 +553,18 @@ class VotingViews {
 								<td><code>[rses_election_status]</code></td>
 								<td><?php esc_html_e( 'Displays election title and status (draft / open / closed).', 'relatasoft-secure-election-suite' ); ?></td>
 							</tr>
+							<tr>
+								<td><code>[rses_voter_welcome]</code></td>
+								<td><?php esc_html_e( 'Elector welcome and open-election links.', 'relatasoft-secure-election-suite' ); ?></td>
+							</tr>
+							<tr>
+								<td><code>[rses_voter_thank_you]</code></td>
+								<td><?php esc_html_e( 'Thank-you page with vote receipt hash.', 'relatasoft-secure-election-suite' ); ?></td>
+							</tr>
+							<tr>
+								<td><code>[enviar_redefinicao_senha]</code></td>
+								<td><?php esc_html_e( 'Sends a password-reset email to the currently logged-in user (plain text). Place on the welcome page for the Votador PoC password-change flow.', 'relatasoft-secure-election-suite' ); ?></td>
+							</tr>
 						</tbody>
 					</table>
 				</div>

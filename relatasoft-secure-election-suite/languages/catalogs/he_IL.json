@@ -599,5 +599,22 @@
   "Download error report CSV": "Download error report CSV",
   "Download %s — one metadata (header) line and 10 example data rows.": "Download %s — one metadata (header) line and 10 example data rows.",
   "Download %s": "Download %s",
-  "#": "#"
+  "#": "#",
+  "Recover my password": "שחזור הסיסמה שלי",
+  "The reset email was sent. Check your inbox and spam folder.": "דוא״ל האיפוס נשלח. בדקו גם את תיקיית הספאם.",
+  "Could not send the reset email. Try again or contact support.": "לא ניתן לשלוח את הדוא״ל. נסו שוב או פנו לתמיכה.",
+  "Receive email to reset my password": "קבלת דוא״ל לאיפוס הסיסמה",
+  "Elector Password Reset": "איפוס סיסמת בוחר",
+  "A password reset was requested for your elector account on %s.": "התקבלה בקשה לאיפוס סיסמה עבור חשבון הבוחר שלך ב-%s.",
+  "Open the following address to choose a new password:": "פתחו את הכתובת הבאה כדי לבחור סיסמה חדשה:",
+  "If you did not request this, ignore this message.": "אם לא ביקשתם זאת, התעלמו מהודעה זו.",
+  "Download open elections JSON": "הורדת JSON של בחירות פתוחות",
+  "Open elections": "בחירות פתוחות",
+  "Already voted": "כבר הצביע",
+  "Enter booth": "כניסה לקלפי",
+  "There are no open elections right now. Please check back later.": "אין כרגע בחירות פתוחות. אנא בדקו שוב מאוחר יותר.",
+  "Continue voting": "המשך הצבעה",
+  "Elector welcome and open-election links.": "ברוכים הבאים לבוחר וקישורים לבחירות פתוחות.",
+  "Thank-you page with vote receipt hash.": "עמוד תודה עם גיבוב קבלה על ההצבעה.",
+  "Sends a password-reset email to the currently logged-in user (plain text). Place on the welcome page for the Votador PoC password-change flow.": "שולח דוא״ל לאיפוס סיסמה למשתמש המחובר (טקסט פשוט). יש להציב בעמוד הפתיחה עבור זרימת החלפת הסיסמה של Votador PoC."
 }

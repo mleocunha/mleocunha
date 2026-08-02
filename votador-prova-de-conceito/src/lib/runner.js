@@ -6,6 +6,8 @@ import { createRunLogger } from './logger.js';
 import { scrapeOpenElections } from './scrapeAdmin.js';
 import { resolveLoginUrl } from './urls.js';
 import { voteElector } from './voteSession.js';
+import { createPasswordStore } from './passwordStore.js';
+import { discoverBatchLocale } from './discoverLocale.js';
 
 export const DEFAULTS = {
   windows: 5,
@@ -19,6 +21,8 @@ export const DEFAULTS = {
    * attempts reach y, the whole run stops ("n == y" on that failure).
    */
   limiteRetentativas: 3,
+  passwordChangePoc: false,
+  mailUrl: 'https://relatasoft.com.br/mail/',
 };
 
 /**
@@ -58,6 +62,9 @@ export async function runVotador(config, hooks = {}) {
   const { electors } = loadElectorsFromCsv(cfg.csvPath);
   const loginUrl = resolveLoginUrl(cfg);
   const concurrency = cfg.windows * cfg.tabsPerWindow;
+  const passwordChangePoc = Boolean(cfg.passwordChangePoc);
+  const mailUrl = String(cfg.mailUrl || DEFAULTS.mailUrl).trim() || DEFAULTS.mailUrl;
+  const passwordStore = createPasswordStore();
 
   logger.info('Iniciando Votador PoC', {
     electors: electors.length,
@@ -67,6 +74,9 @@ export async function runVotador(config, hooks = {}) {
     tentativas: cfg.tentativas,
     insistencias: cfg.insistencias,
     limiteRetentativas: cfg.limiteRetentativas,
+    passwordChangePoc,
+    mailUrl: passwordChangePoc ? mailUrl : null,
+    storedPasswords: passwordStore.size(),
     loginUrl,
     resultsDir,
   });
@@ -126,6 +136,32 @@ export async function runVotador(config, hooks = {}) {
       },
     };
 
+    let batchLocale = 'en_US';
+    if (passwordChangePoc) {
+      if (!electors[0]?.user_email) {
+        throw new Error('PoC com troca de senha exige user_email no CSV de cada eleitor.');
+      }
+      const localeContext = await browsers[0].newContext({
+        ignoreHTTPSErrors: Boolean(cfg.ignoreHTTPSErrors),
+      });
+      try {
+        const first = { ...electors[0] };
+        const stored = passwordStore.get(first.user_login);
+        if (stored?.password) {
+          first.password = stored.password;
+        }
+        batchLocale = await discoverBatchLocale(localeContext, {
+          loginUrl,
+          elector: first,
+          platformUrl: cfg.platformUrl.replace(/\/+$/, ''),
+          logger,
+        });
+      } finally {
+        await localeContext.close().catch(() => {});
+      }
+      logger.info('PoC com troca de senha ativo', { batchLocale, mailUrl });
+    }
+
     const state = {
       failureEvents: 0,
       retryAttempts: 0,
@@ -180,6 +216,10 @@ export async function runVotador(config, hooks = {}) {
             openRounds: snapshot.rounds,
             journeyCache,
             logger,
+            passwordChangePoc,
+            mailUrl,
+            batchLocale,
+            passwordStore,
           });
           state.successElectors += 1;
           logger.info('Eleitor concluído', {
@@ -255,6 +295,15 @@ export async function runVotador(config, hooks = {}) {
       });
     }
 
+    let passwordsExport = null;
+    if (passwordChangePoc) {
+      passwordsExport = passwordStore.exportTo(resultsDir);
+      logger.info('Senhas geradas exportadas para o resultado da corrida', {
+        path: passwordsExport,
+        count: passwordStore.size(),
+      });
+    }
+
     const summary = {
       resultsDir,
       electorsTotal: electors.length,
@@ -265,6 +314,9 @@ export async function runVotador(config, hooks = {}) {
       retryAttempts: state.retryAttempts,
       openRounds: snapshot.rounds.length,
       journey: journeyCache.current,
+      passwordChangePoc,
+      batchLocale: passwordChangePoc ? batchLocale : null,
+      passwordsExport,
       stopReason: state.stopReason || null,
       finishedAt: new Date().toISOString(),
     };

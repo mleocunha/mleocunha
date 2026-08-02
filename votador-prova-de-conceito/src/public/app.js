@@ -15,6 +15,12 @@ loginPath.addEventListener('change', () => {
   customLoginWrap.classList.toggle('hidden', loginPath.value !== 'custom');
 });
 
+const passwordChangePoc = document.getElementById('passwordChangePoc');
+const mailUrlWrap = document.getElementById('mailUrlWrap');
+passwordChangePoc.addEventListener('change', () => {
+  mailUrlWrap.classList.toggle('hidden', !passwordChangePoc.checked);
+});
+
 function appendLog(ev) {
   const line = document.createElement('div');
   const level = ev.level || 'info';

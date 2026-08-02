@@ -298,6 +298,7 @@ class VoterJourney {
 		<div
 			class="rses-journey"
 			data-rses-journey="welcome"
+			data-rses-user-locale="<?php echo esc_attr( get_user_locale( get_current_user_id() ) ); ?>"
 			<?php echo Translator::rses_html_attrs(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
 		>
 			<script type="application/json" id="rses-open-elections-json"><?php echo wp_json_encode( $rses_snap, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- JSON for automation. ?></script>

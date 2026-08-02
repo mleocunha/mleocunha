@@ -19,6 +19,8 @@ Opções:
   --insistencias     n — retentativas por falha (default ${DEFAULTS.insistencias})
   --limite           y — teto por falha; ao atingir y nessa falha, para o teste (default ${DEFAULTS.limiteRetentativas})
   --ignore-https     Ignorar erros de certificado
+  --password-change  Ativa PoC com troca de senha (Roundcube)
+  --mail-url         URL Roundcube (default ${DEFAULTS.mailUrl})
 `);
 }
 
@@ -63,6 +65,8 @@ const summary = await runVotador({
   insistencias: Number(arg('insistencias', DEFAULTS.insistencias)),
   limiteRetentativas: Number(arg('limite', DEFAULTS.limiteRetentativas)),
   ignoreHTTPSErrors: hasFlag('ignore-https'),
+  passwordChangePoc: hasFlag('password-change'),
+  mailUrl: arg('mail-url', DEFAULTS.mailUrl),
 }, {
   onEvent: (ev) => {
     const line = `[${ev.level || 'info'}] ${ev.message || ''}`;

@@ -24,6 +24,7 @@ use RelataSoft\SecureElectionSuite\Tallying\TallyImportController;
 use RelataSoft\SecureElectionSuite\Admin\RedirectionsPage;
 use RelataSoft\SecureElectionSuite\Admin\ElectoralRollImportPage;
 use RelataSoft\SecureElectionSuite\Frontend\LoginCustomizer;
+use RelataSoft\SecureElectionSuite\Frontend\PasswordResetShortcode;
 use RelataSoft\SecureElectionSuite\Frontend\VoterJourney;
 use RelataSoft\SecureElectionSuite\Voting\BallotController;
 use RelataSoft\SecureElectionSuite\Voting\ElectionController;
@@ -78,6 +79,7 @@ class Plugin {
 		ElectoralRollImportPage::register();
 		LoginCustomizer::register();
 		VoterJourney::register();
+		PasswordResetShortcode::register();
 
 		if ( is_admin() ) {
 			Notices::register();
