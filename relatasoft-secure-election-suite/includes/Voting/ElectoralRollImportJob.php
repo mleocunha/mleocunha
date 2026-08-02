@@ -150,6 +150,65 @@ class ElectoralRollImportJob {
 	}
 
 	/**
+	 * Ensure on-disk size matches the client-declared upload size.
+	 *
+	 * Parallel imports can append the CSV twice; a 5000-row sheet then looks like
+	 * >10000 rows during validation. Truncate back to the declared byte length.
+	 *
+	 * @param array<string,mixed> $job  Job.
+	 * @param string              $path Absolute CSV path.
+	 * @param int                 $size Current filesize.
+	 * @return array<string,mixed>|\WP_Error Updated job.
+	 */
+	private static function rses_normalize_uploaded_size( array $job, string $path, int $size ) {
+		$declared = (int) ( $job['total_bytes'] ?? 0 );
+		$received = (int) ( $job['bytes_received'] ?? 0 );
+
+		if ( $declared < 1 ) {
+			return $job;
+		}
+
+		// Incomplete assembly.
+		if ( $size < (int) floor( $declared * 0.98 ) ) {
+			return new \WP_Error(
+				'rses_upload_short',
+				sprintf(
+					/* translators: 1: bytes on disk, 2: declared bytes */
+					__( 'CSV upload is incomplete on the server (%1$s of %2$s). Please start the import again.', 'relatasoft-secure-election-suite' ),
+					size_format( $size ),
+					size_format( $declared )
+				)
+			);
+		}
+
+		$oversize = $size > (int) ceil( $declared * 1.02 ) || $received > (int) ceil( $declared * 1.02 );
+		if ( $oversize ) {
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen
+			$fh = fopen( $path, 'rb+' );
+			if ( false === $fh ) {
+				return new \WP_Error(
+					'rses_upload_dup',
+					__( 'CSV upload was larger than declared (possible duplicate append). Please start the import again.', 'relatasoft-secure-election-suite' )
+				);
+			}
+			$ok = ftruncate( $fh, $declared );
+			fclose( $fh ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+			clearstatcache( true, $path );
+			$new_size = filesize( $path );
+			if ( ! $ok || false === $new_size || $new_size !== $declared ) {
+				return new \WP_Error(
+					'rses_upload_dup',
+					__( 'CSV upload was larger than declared (possible duplicate append). Please start the import again.', 'relatasoft-secure-election-suite' )
+				);
+			}
+			$job['bytes_received'] = $declared;
+			$job['message']        = __( 'Removed duplicated upload bytes; validating CSV…', 'relatasoft-secure-election-suite' );
+		}
+
+		return $job;
+	}
+
+	/**
 	 * Localized label for a job stage (UI must not show raw English keys).
 	 */
 	public static function rses_stage_label( string $stage ): string {
@@ -310,6 +369,11 @@ class ElectoralRollImportJob {
 		}
 
 		$expected = (int) ( $job['chunks_received'] ?? 0 );
+		// Idempotent: a retried chunk that was already accepted must not be appended again
+		// (that duplicates the CSV and trips the max-row check on ~5000-row sheets).
+		if ( $chunk_index < $expected ) {
+			return $job;
+		}
 		if ( $chunk_index !== $expected ) {
 			return new \WP_Error(
 				'rses_chunk_order',
@@ -407,6 +471,17 @@ class ElectoralRollImportJob {
 			self::rses_save( $job );
 			return $err;
 		}
+
+		// Recover from duplicated chunk appends (e.g. double-submit): keep the declared prefix.
+		$normalized = self::rses_normalize_uploaded_size( $job, $path, (int) $size );
+		if ( is_wp_error( $normalized ) ) {
+			$job['stage']   = self::STAGE_FAILED;
+			$job['message'] = $normalized->get_error_message();
+			self::rses_push_error( $job, $normalized->get_error_message() );
+			self::rses_save( $job );
+			return $normalized;
+		}
+		$job = $normalized;
 
 		$job['stage']   = self::STAGE_READY;
 		$job['message'] = __( 'Validating CSV…', 'relatasoft-secure-election-suite' );

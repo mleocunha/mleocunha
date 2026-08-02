@@ -674,5 +674,10 @@
   "Failure": "Falha",
   "Cancelled": "Cancelado",
   "The uploaded CSV is no longer available on the server. Please start the import again.": "O CSV enviado não está mais disponível no servidor. Inicie a importação novamente.",
-  "The uploaded CSV is empty on the server. Please start the import again.": "O CSV enviado está vazio no servidor. Inicie a importação novamente."
+  "The uploaded CSV is empty on the server. Please start the import again.": "O CSV enviado está vazio no servidor. Inicie a importação novamente.",
+  "CSV upload is incomplete on the server (%1$s of %2$s). Please start the import again.": "O upload do CSV está incompleto no servidor (%1$s de %2$s). Inicie a importação novamente.",
+  "CSV upload was larger than declared (possible duplicate append). Please start the import again.": "O CSV no servidor ficou maior do que o declarado (possível duplicação no envio). Inicie a importação novamente.",
+  "Removed duplicated upload bytes; validating CSV…": "Bytes duplicados do upload removidos; validando CSV…",
+  "Import stopped: the CSV has more than %1$d data rows (limit is %2$d). Split the spreadsheet or remove duplicate content and try again.": "Importação interrompida: o CSV tem mais de %1$d linhas de dados (limite %2$d). Divida a planilha ou remova conteúdo duplicado e tente de novo.",
+  "Import stopped: more than %d data rows.": "Importação interrompida: mais de %d linhas de dados."
 }
