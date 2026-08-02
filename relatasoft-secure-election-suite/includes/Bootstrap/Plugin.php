@@ -272,16 +272,19 @@ class Plugin {
 			\RelataSoft\SecureElectionSuite\Voting\ElectoralRollImportJob::rses_get()
 		);
 
+		$php_ceiling = \RelataSoft\SecureElectionSuite\Admin\ElectoralRollImportPage::rses_php_upload_ceiling();
+
 		wp_localize_script(
 			'rses-electoral-roll',
 			'rsesElectoralRoll',
 			array(
-				'ajaxUrl'    => admin_url( 'admin-ajax.php' ),
-				'nonce'      => wp_create_nonce( \RelataSoft\SecureElectionSuite\Admin\ElectoralRollImportPage::AJAX_NONCE_ACTION ),
-				'maxBytes'   => \RelataSoft\SecureElectionSuite\Voting\ElectoralRollImportJob::MAX_UPLOAD_BYTES,
-				'chunkBytes' => 262144,
-				'resume'     => $resume,
-				'i18n'       => array(
+				'ajaxUrl'       => admin_url( 'admin-ajax.php' ),
+				'nonce'         => wp_create_nonce( \RelataSoft\SecureElectionSuite\Admin\ElectoralRollImportPage::AJAX_NONCE_ACTION ),
+				'maxBytes'      => \RelataSoft\SecureElectionSuite\Voting\ElectoralRollImportJob::MAX_UPLOAD_BYTES,
+				'chunkBytes'    => 131072,
+				'phpUploadMax'  => $php_ceiling,
+				'resume'        => $resume,
+				'i18n'          => array(
 					'starting'        => __( 'Starting chunked import…', 'relatasoft-secure-election-suite' ),
 					'validating'      => __( 'Validating CSV…', 'relatasoft-secure-election-suite' ),
 					'error'           => __( 'Electoral roll import failed.', 'relatasoft-secure-election-suite' ),

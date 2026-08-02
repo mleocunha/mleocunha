@@ -209,11 +209,16 @@ class ElectoralRollImportJob {
 			if ( is_resource( $out ) ) {
 				fclose( $out ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
 			}
+			self::rses_delete();
 			return new \WP_Error( 'rses_chunk_append', __( 'Could not append upload chunk.', 'relatasoft-secure-election-suite' ) );
 		}
-		stream_copy_to_stream( $in, $out );
+		$copied = stream_copy_to_stream( $in, $out );
 		fclose( $in ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
 		fclose( $out ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+		if ( false === $copied || (int) $copied < 1 ) {
+			self::rses_delete();
+			return new \WP_Error( 'rses_chunk_append', __( 'Could not append upload chunk.', 'relatasoft-secure-election-suite' ) );
+		}
 
 		$job['chunks_received'] = 1;
 		$job['bytes_received']  = (int) $size;

@@ -6,7 +6,11 @@
 
 	var rsesBusy = false;
 	var rsesCancelled = false;
-	var RSES_SINGLE_UPLOAD_MAX = 8 * 1024 * 1024;
+	/**
+	 * Prefer single POST only for tiny files. Typical electoral rolls (~1–2 MiB)
+	 * always use chunked upload so PHP post_max_size cannot empty $_POST/$_FILES.
+	 */
+	var RSES_SINGLE_UPLOAD_CAP = 512 * 1024;
 
 	function rsesCfg() {
 		var cfg = window.rsesElectoralRoll || {};
@@ -15,7 +19,9 @@
 			cfg.ajaxUrl = cfg.ajaxUrl || $form.data('rsesAjaxUrl') || '';
 			cfg.nonce = cfg.nonce || $form.data('rsesNonce') || '';
 			cfg.maxBytes = cfg.maxBytes || parseInt($form.data('rsesMaxBytes'), 10) || 0;
-			cfg.chunkBytes = cfg.chunkBytes || parseInt($form.data('rsesChunkBytes'), 10) || 262144;
+			cfg.chunkBytes = cfg.chunkBytes || parseInt($form.data('rsesChunkBytes'), 10) || 131072;
+			cfg.phpUploadMax =
+				cfg.phpUploadMax || parseInt($form.data('rsesPhpUploadMax'), 10) || 0;
 		}
 		cfg.i18n = cfg.i18n || {};
 		return cfg;
@@ -24,6 +30,27 @@
 	function rsesFallbackError() {
 		var cfg = rsesCfg();
 		return (cfg.i18n && cfg.i18n.error) || 'Electoral roll import failed.';
+	}
+
+	function rsesPickMessage(obj) {
+		if (!obj) {
+			return '';
+		}
+		if (typeof obj === 'string' && obj) {
+			return obj;
+		}
+		if (typeof obj.message === 'string' && obj.message) {
+			return obj.message;
+		}
+		if (obj.data) {
+			if (typeof obj.data === 'string' && obj.data) {
+				return obj.data;
+			}
+			if (obj.data && typeof obj.data.message === 'string' && obj.data.message) {
+				return obj.data.message;
+			}
+		}
+		return '';
 	}
 
 	/**
@@ -37,38 +64,89 @@
 		if (typeof err === 'string' && err) {
 			return err;
 		}
-		if (err.message && typeof err.message === 'string' && !err.getResponseHeader) {
-			return err.message;
+
+		var picked = rsesPickMessage(err);
+		if (picked) {
+			return picked;
 		}
+
 		var json = err.responseJSON;
-		if (json) {
-			if (json.data && typeof json.data.message === 'string') {
-				return json.data.message;
-			}
-			if (typeof json.data === 'string') {
-				return json.data;
-			}
-			if (typeof json.message === 'string') {
-				return json.message;
-			}
+		picked = rsesPickMessage(json) || rsesPickMessage(json && json.data);
+		if (picked) {
+			return picked;
 		}
-		if (err.responseText) {
+
+		if (err.responseText && typeof err.responseText === 'string') {
+			var text = err.responseText.replace(/^\uFEFF/, '').trim();
+			if (text === '-1' || text === '0' || text === '-1\n' || text === '0\n') {
+				return (
+					fallback +
+					' — ' +
+					'Security check failed. Hard-refresh this page and try again.'
+				);
+			}
 			try {
-				var parsed = JSON.parse(err.responseText);
-				if (parsed && parsed.data && parsed.data.message) {
-					return parsed.data.message;
+				var parsed = JSON.parse(text);
+				picked = rsesPickMessage(parsed) || rsesPickMessage(parsed && parsed.data);
+				if (picked) {
+					return picked;
 				}
 			} catch (e) {
-				/* ignore */
+				/* not JSON */
 			}
-			if (/permission|nonce|forbidden|not available/i.test(err.responseText)) {
-				return fallback + ' (' + (err.status || '?') + ')';
+			if (/permission|nonce|forbidden|not available|security check/i.test(text)) {
+				return fallback + ' (HTTP ' + (err.status || '?') + ')';
+			}
+			// Surface a short non-HTML preview so fatals/WAF pages are diagnosable.
+			var plain = text
+				.replace(/<script[\s\S]*?<\/script>/gi, ' ')
+				.replace(/<style[\s\S]*?<\/style>/gi, ' ')
+				.replace(/<[^>]+>/g, ' ')
+				.replace(/\s+/g, ' ')
+				.trim();
+			if (plain && plain.length > 8 && plain.length < 280) {
+				return fallback + ' — ' + plain;
+			}
+			if (plain && plain.length >= 280) {
+				return fallback + ' — ' + plain.slice(0, 240) + '…';
 			}
 		}
-		if (err.statusText && err.status) {
+
+		if (err.statusText === 'parsererror') {
+			return fallback + ' (invalid JSON from server — hard-refresh and retry)';
+		}
+		if (err.status) {
 			return fallback + ' (HTTP ' + err.status + ')';
 		}
 		return fallback;
+	}
+
+	/**
+	 * Parse admin-ajax responses without forcing jQuery dataType:json
+	 * (notices/HTML before JSON used to become opaque parsererrors).
+	 */
+	function rsesParseAjax(payload, xhr) {
+		if (payload && typeof payload === 'object') {
+			return payload;
+		}
+		var text =
+			(xhr && xhr.responseText) ||
+			(typeof payload === 'string' ? payload : '') ||
+			'';
+		text = String(text).replace(/^\uFEFF/, '').trim();
+		if (!text) {
+			return null;
+		}
+		// Strip leading PHP notices if a JSON object still follows.
+		var brace = text.indexOf('{');
+		if (brace > 0) {
+			text = text.slice(brace);
+		}
+		try {
+			return JSON.parse(text);
+		} catch (e) {
+			return null;
+		}
 	}
 
 	function rsesPost(action, data) {
@@ -79,9 +157,35 @@
 		return $.ajax({
 			url: cfg.ajaxUrl,
 			method: 'POST',
-			data: data,
-			dataType: 'json'
-		});
+			data: data
+		}).then(
+			function (payload, _text, xhr) {
+				var resp = rsesParseAjax(payload, xhr);
+				if (!resp) {
+					return $.Deferred()
+						.reject({
+							message: rsesErrorMessage(xhr, rsesFallbackError()),
+							status: null,
+							xhr: xhr
+						})
+						.promise();
+				}
+				return resp;
+			},
+			function (xhr) {
+				return $.Deferred()
+					.reject({
+						message: rsesErrorMessage(xhr, rsesFallbackError()),
+						status:
+							xhr &&
+							xhr.responseJSON &&
+							xhr.responseJSON.data &&
+							xhr.responseJSON.data.status,
+						xhr: xhr
+					})
+					.promise();
+			}
+		);
 	}
 
 	function rsesPostFormData(action, formData) {
@@ -93,9 +197,35 @@
 			method: 'POST',
 			data: formData,
 			processData: false,
-			contentType: false,
-			dataType: 'json'
-		});
+			contentType: false
+		}).then(
+			function (payload, _text, xhr) {
+				var resp = rsesParseAjax(payload, xhr);
+				if (!resp) {
+					return $.Deferred()
+						.reject({
+							message: rsesErrorMessage(xhr, rsesFallbackError()),
+							status: null,
+							xhr: xhr
+						})
+						.promise();
+				}
+				return resp;
+			},
+			function (xhr) {
+				return $.Deferred()
+					.reject({
+						message: rsesErrorMessage(xhr, rsesFallbackError()),
+						status:
+							xhr &&
+							xhr.responseJSON &&
+							xhr.responseJSON.data &&
+							xhr.responseJSON.data.status,
+						xhr: xhr
+					})
+					.promise();
+			}
+		);
 	}
 
 	function rsesSetProgress(status) {
@@ -222,13 +352,8 @@
 				}
 				window.setTimeout(rsesTickLoop, 40);
 			})
-			.fail(function (xhr) {
-				var st =
-					xhr &&
-					xhr.responseJSON &&
-					xhr.responseJSON.data &&
-					xhr.responseJSON.data.status;
-				rsesFail(rsesErrorMessage(xhr), st);
+			.fail(function (err) {
+				rsesFail(rsesErrorMessage(err), err && err.status);
 			});
 	}
 
@@ -262,15 +387,11 @@
 					index += 1;
 					return next();
 				},
-				function (xhr) {
+				function (err) {
 					return $.Deferred()
 						.reject({
-							message: rsesErrorMessage(xhr),
-							status:
-								xhr &&
-								xhr.responseJSON &&
-								xhr.responseJSON.data &&
-								xhr.responseJSON.data.status
+							message: rsesErrorMessage(err),
+							status: err && err.status
 						})
 						.promise();
 				}
@@ -291,7 +412,18 @@
 			rsesSetFormBusy(false);
 			return;
 		}
-		rsesFail(rsesFallbackError(), status);
+		rsesFail(
+			(status && status.message) || rsesFallbackError(),
+			status
+		);
+	}
+
+	function rsesSafeSingleLimit() {
+		var cfg = rsesCfg();
+		var phpMax = parseInt(cfg.phpUploadMax, 10) || 0;
+		// Keep headroom for multipart boundaries + nonce fields.
+		var fromPhp = phpMax > 0 ? Math.floor(phpMax * 0.7) : RSES_SINGLE_UPLOAD_CAP;
+		return Math.max(32 * 1024, Math.min(RSES_SINGLE_UPLOAD_CAP, fromPhp));
 	}
 
 	function rsesStartSingleUpload(file, updateExisting) {
@@ -319,19 +451,20 @@
 				}
 				rsesAfterReady(resp.data || {});
 			})
-			.fail(function (xhr) {
-				var st =
-					xhr &&
-					xhr.responseJSON &&
-					xhr.responseJSON.data &&
-					xhr.responseJSON.data.status;
-				rsesFail(rsesErrorMessage(xhr), st);
+			.fail(function (err) {
+				// Fall back to chunked upload when a single POST is rejected by PHP limits.
+				var msg = rsesErrorMessage(err);
+				if (/post_max_size|upload limit|partially received|No CSV file/i.test(msg)) {
+					rsesStartChunkedUpload(file, updateExisting);
+					return;
+				}
+				rsesFail(msg, err && err.status);
 			});
 	}
 
 	function rsesStartChunkedUpload(file, updateExisting) {
 		var cfg = rsesCfg();
-		var chunkBytes = cfg.chunkBytes || 262144;
+		var chunkBytes = cfg.chunkBytes || 131072;
 		var totalChunks = Math.max(1, Math.ceil(file.size / chunkBytes));
 
 		rsesSetProgress({
@@ -363,15 +496,11 @@
 					rsesSetProgress(resp.data || {});
 					return rsesUploadChunks(file, totalChunks, chunkBytes);
 				},
-				function (xhr) {
+				function (err) {
 					return $.Deferred()
 						.reject({
-							message: rsesErrorMessage(xhr),
-							status:
-								xhr &&
-								xhr.responseJSON &&
-								xhr.responseJSON.data &&
-								xhr.responseJSON.data.status
+							message: rsesErrorMessage(err),
+							status: err && err.status
 						})
 						.promise();
 				}
@@ -438,7 +567,9 @@
 		$('#rses-electoral-errors-live').attr('hidden', true).hide();
 		rsesSetFormBusy(true);
 
-		if (file.size <= RSES_SINGLE_UPLOAD_MAX) {
+		// Default to chunked for typical electoral rolls so PHP post_max_size
+		// cannot wipe $_POST/$_FILES and produce a generic failure.
+		if (file.size <= rsesSafeSingleLimit()) {
 			rsesStartSingleUpload(file, updateExisting);
 		} else {
 			rsesStartChunkedUpload(file, updateExisting);

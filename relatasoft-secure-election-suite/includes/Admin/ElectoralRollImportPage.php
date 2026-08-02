@@ -52,15 +52,92 @@ class ElectoralRollImportPage {
 	}
 
 	/**
-	 * Shared AJAX guard (JSON errors — never HTML wp_die).
+	 * PHP post/upload ceiling in bytes (0 = unknown/unlimited).
+	 */
+	public static function rses_php_upload_ceiling(): int {
+		$post   = wp_convert_hr_to_bytes( (string) ini_get( 'post_max_size' ) );
+		$upload = wp_convert_hr_to_bytes( (string) ini_get( 'upload_max_filesize' ) );
+		$vals   = array();
+		if ( $post > 0 ) {
+			$vals[] = $post;
+		}
+		if ( $upload > 0 ) {
+			$vals[] = $upload;
+		}
+		return $vals ? (int) min( $vals ) : 0;
+	}
+
+	/**
+	 * True when the raw body is larger than post_max_size (PHP empties $_POST/$_FILES).
+	 */
+	private static function rses_request_exceeds_post_max(): bool {
+		$cl = isset( $_SERVER['CONTENT_LENGTH'] ) ? (int) $_SERVER['CONTENT_LENGTH'] : 0;
+		if ( $cl < 1 ) {
+			return false;
+		}
+		$post_max = wp_convert_hr_to_bytes( (string) ini_get( 'post_max_size' ) );
+		return $post_max > 0 && $cl > $post_max;
+	}
+
+	/**
+	 * Human message for $_FILES error codes.
+	 */
+	private static function rses_upload_error_message( int $code ): string {
+		switch ( $code ) {
+			case UPLOAD_ERR_INI_SIZE:
+			case UPLOAD_ERR_FORM_SIZE:
+				return sprintf(
+					/* translators: %s: max size label */
+					__( 'The CSV exceeds the server upload limit (%s). Try again — the importer will send the file in smaller chunks.', 'relatasoft-secure-election-suite' ),
+					size_format( self::rses_php_upload_ceiling() ?: ElectoralRollImportJob::MAX_UPLOAD_BYTES )
+				);
+			case UPLOAD_ERR_PARTIAL:
+				return __( 'The CSV upload was only partially received. Please try again.', 'relatasoft-secure-election-suite' );
+			case UPLOAD_ERR_NO_FILE:
+				return __( 'No CSV file uploaded.', 'relatasoft-secure-election-suite' );
+			case UPLOAD_ERR_NO_TMP_DIR:
+				return __( 'Server temporary folder is missing; contact the host.', 'relatasoft-secure-election-suite' );
+			case UPLOAD_ERR_CANT_WRITE:
+				return __( 'Server could not write the uploaded CSV to disk.', 'relatasoft-secure-election-suite' );
+			case UPLOAD_ERR_EXTENSION:
+				return __( 'A PHP extension blocked the CSV upload.', 'relatasoft-secure-election-suite' );
+			default:
+				return __( 'Invalid upload.', 'relatasoft-secure-election-suite' );
+		}
+	}
+
+	/**
+	 * Shared AJAX guard (JSON errors — never HTML wp_die / check_ajax_referer).
 	 */
 	private static function rses_ajax_guard(): void {
-		if ( ! Capability::rses_can_manage_election() ) {
-			wp_send_json_error( array( 'message' => __( 'Permission denied.', 'relatasoft-secure-election-suite' ) ), 403 );
+		if ( self::rses_request_exceeds_post_max() ) {
+			$ceiling = self::rses_php_upload_ceiling();
+			wp_send_json_error(
+				array(
+					'message' => sprintf(
+						/* translators: %s: max size label */
+						__( 'Upload rejected: the request is larger than PHP post_max_size (%s). The importer will retry in smaller chunks — reload and try again, or ask the host to raise post_max_size / upload_max_filesize.', 'relatasoft-secure-election-suite' ),
+						$ceiling > 0 ? size_format( $ceiling ) : 'post_max_size'
+					),
+				)
+			);
 		}
-		check_ajax_referer( self::AJAX_NONCE_ACTION, 'nonce' );
+
+		if ( ! Capability::rses_can_manage_election() ) {
+			wp_send_json_error( array( 'message' => __( 'Permission denied.', 'relatasoft-secure-election-suite' ) ) );
+		}
+
+		$nonce = isset( $_POST['nonce'] ) ? sanitize_text_field( wp_unslash( (string) $_POST['nonce'] ) ) : '';
+		if ( ! wp_verify_nonce( $nonce, self::AJAX_NONCE_ACTION ) ) {
+			wp_send_json_error(
+				array(
+					'message' => __( 'Security check failed. Hard-refresh this page (Ctrl/Cmd+Shift+R) and try the import again.', 'relatasoft-secure-election-suite' ),
+				)
+			);
+		}
+
 		if ( ! ModeLock::rses_is_mode( ModeLock::RSES_MODE_VOTING ) ) {
-			wp_send_json_error( array( 'message' => __( 'Not available in this mode.', 'relatasoft-secure-election-suite' ) ), 403 );
+			wp_send_json_error( array( 'message' => __( 'Not available in this mode.', 'relatasoft-secure-election-suite' ) ) );
 		}
 	}
 
@@ -104,8 +181,15 @@ class ElectoralRollImportPage {
 		self::rses_ajax_guard();
 
 		$index = isset( $_POST['chunk_index'] ) ? absint( $_POST['chunk_index'] ) : -1;
-		if ( $index < 0 || empty( $_FILES['chunk']['tmp_name'] ) ) {
-			wp_send_json_error( array( 'message' => __( 'Invalid upload chunk.', 'relatasoft-secure-election-suite' ) ) );
+		$file_err = isset( $_FILES['chunk']['error'] ) ? (int) $_FILES['chunk']['error'] : UPLOAD_ERR_NO_FILE;
+		if ( $index < 0 || UPLOAD_ERR_OK !== $file_err || empty( $_FILES['chunk']['tmp_name'] ) ) {
+			wp_send_json_error(
+				array(
+					'message' => UPLOAD_ERR_OK !== $file_err
+						? self::rses_upload_error_message( $file_err )
+						: __( 'Invalid upload chunk.', 'relatasoft-secure-election-suite' ),
+				)
+			);
 		}
 
 		$tmp = (string) $_FILES['chunk']['tmp_name']; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
@@ -127,8 +211,9 @@ class ElectoralRollImportPage {
 	public static function rses_ajax_upload(): void {
 		self::rses_ajax_guard();
 
-		if ( empty( $_FILES['csv']['tmp_name'] ) ) {
-			wp_send_json_error( array( 'message' => __( 'No CSV file uploaded.', 'relatasoft-secure-election-suite' ) ) );
+		$file_err = isset( $_FILES['csv']['error'] ) ? (int) $_FILES['csv']['error'] : UPLOAD_ERR_NO_FILE;
+		if ( UPLOAD_ERR_OK !== $file_err || empty( $_FILES['csv']['tmp_name'] ) ) {
+			wp_send_json_error( array( 'message' => self::rses_upload_error_message( $file_err ) ) );
 		}
 
 		$tmp = (string) $_FILES['csv']['tmp_name']; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
@@ -433,7 +518,8 @@ class ElectoralRollImportPage {
 						data-rses-ajax-url="<?php echo esc_url( admin_url( 'admin-ajax.php' ) ); ?>"
 						data-rses-nonce="<?php echo esc_attr( wp_create_nonce( self::AJAX_NONCE_ACTION ) ); ?>"
 						data-rses-max-bytes="<?php echo esc_attr( (string) ElectoralRollImportJob::MAX_UPLOAD_BYTES ); ?>"
-						data-rses-chunk-bytes="262144"
+						data-rses-chunk-bytes="131072"
+						data-rses-php-upload-max="<?php echo esc_attr( (string) self::rses_php_upload_ceiling() ); ?>"
 					>
 						<?php Nonce::rses_field( Nonce::RSES_ACTION_ELECTORAL_ROLL_IMPORT ); ?>
 

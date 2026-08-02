@@ -659,5 +659,12 @@
   "Invalid upload chunk.": "Parte de upload inválida.",
   "Updated": "Atualizados",
   "Skipped": "Ignorados",
-  "Errors": "Erros"
+  "Errors": "Erros",
+  "Security check failed. Hard-refresh this page (Ctrl/Cmd+Shift+R) and try the import again.": "Falha na verificação de segurança. Atualize a página com Ctrl/Cmd+Shift+R e tente importar de novo.",
+  "Upload rejected: the request is larger than PHP post_max_size (%s). The importer will retry in smaller chunks — reload and try again, or ask the host to raise post_max_size / upload_max_filesize.": "Upload rejeitado: a requisição é maior que o post_max_size do PHP (%s). O importador tentará em partes menores — recarregue e tente de novo, ou peça ao provedor para aumentar post_max_size / upload_max_filesize.",
+  "The CSV exceeds the server upload limit (%s). Try again — the importer will send the file in smaller chunks.": "O CSV excede o limite de upload do servidor (%s). Tente de novo — o importador enviará o arquivo em partes menores.",
+  "The CSV upload was only partially received. Please try again.": "O upload do CSV foi recebido só parcialmente. Tente de novo.",
+  "Server temporary folder is missing; contact the host.": "Falta a pasta temporária do servidor; contate o provedor.",
+  "Server could not write the uploaded CSV to disk.": "O servidor não conseguiu gravar o CSV enviado no disco.",
+  "A PHP extension blocked the CSV upload.": "Uma extensão PHP bloqueou o upload do CSV."
 }

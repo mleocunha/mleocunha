@@ -2056,6 +2056,15 @@ body.rses-rtl .rses-screen,
 
 .rses-electoral-roll .rses-electoral-progress-inner > p {
 	margin: 0 0 0.65rem;
+	white-space: normal;
+	overflow-wrap: anywhere;
+	word-break: break-word;
+}
+
+#rses-electoral-message {
+	white-space: normal;
+	overflow-wrap: anywhere;
+	word-break: break-word;
 }
 
 .rses-electoral-roll .rses-electoral-bar {
