@@ -3,7 +3,7 @@ import multer from 'multer';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { runVotador, DEFAULTS } from './lib/runner.js';
+import { runVotador, DEFAULTS, VOTADOR_BUILD } from './lib/runner.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, '..');
@@ -176,7 +176,7 @@ function cleanupUpload(filePath) {
 
 app.listen(PORT, () => {
   // eslint-disable-next-line no-console
-  console.log(`Votador PoC → http://127.0.0.1:${PORT}`);
+  console.log(`Votador PoC [${VOTADOR_BUILD}] → http://127.0.0.1:${PORT}`);
   // eslint-disable-next-line no-console
   console.log(
     'No macOS: Ajustes do Sistema → Privacidade e Segurança → Autorizar Automação/Acessibilidade para o Terminal e o Google Chrome.'

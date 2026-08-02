@@ -436,13 +436,14 @@ async function selectBallotChoice(input) {
 
     // Radios: clear siblings in the same named group first.
     if (el.type === 'radio' && el.name) {
-      const form = el.form || el.ownerDocument;
-      const group = form.querySelectorAll(`input[type="radio"][name="${CSS.escape(el.name)}"]`);
+      const root = el.form || el.ownerDocument;
+      const group = Array.from(root.querySelectorAll('input[type="radio"]')).filter(
+        (sibling) => sibling instanceof HTMLInputElement && sibling.name === el.name
+      );
       group.forEach((sibling) => {
-        if (sibling instanceof HTMLInputElement && sibling !== el) {
+        if (sibling !== el) {
           sibling.checked = false;
-          const sibLabel = sibling.closest('label.rses-choice');
-          sibLabel?.classList.remove('is-checked');
+          sibling.closest('label.rses-choice')?.classList.remove('is-checked');
         }
       });
     }
