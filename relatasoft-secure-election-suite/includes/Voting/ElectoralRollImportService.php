@@ -73,6 +73,11 @@ class ElectoralRollImportService {
 	public const MAX_ROWS = 10000;
 
 	/**
+	 * Explicit CSV escape for PHP 8.4+ (historical default; must be passed).
+	 */
+	private const CSV_ESCAPE = '\\';
+
+	/**
 	 * Full expected header list: spreadsheet columns + password on the right.
 	 *
 	 * @return list<string>
@@ -142,7 +147,7 @@ class ElectoralRollImportService {
 		);
 
 		$out = fopen( 'php://temp', 'r+' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen
-		fputcsv( $out, $headers );
+		self::rses_fputcsv( $out, $headers );
 
 		for ( $i = 1; $i <= 10; $i++ ) {
 			$n     = sprintf( '%04d', $i );
@@ -156,7 +161,7 @@ class ElectoralRollImportService {
 			$street = 'Rua Exemplo ' . $i;
 			$comp   = ( 0 === $i % 2 ) ? 'Apto ' . $i : 'Casa ' . $i;
 
-			fputcsv(
+			self::rses_fputcsv(
 				$out,
 				array(
 					$login,
@@ -204,7 +209,7 @@ class ElectoralRollImportService {
 	 */
 	public static function rses_errors_csv( array $errors ): string {
 		$out = fopen( 'php://temp', 'r+' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen
-		fputcsv(
+		self::rses_fputcsv(
 			$out,
 			array(
 				'line',
@@ -218,7 +223,7 @@ class ElectoralRollImportService {
 			if ( preg_match( '/(?:Row|Linha)\s+(\d+)/u', $message, $m ) ) {
 				$line = $m[1];
 			}
-			fputcsv( $out, array( $line, $message ) );
+			self::rses_fputcsv( $out, array( $line, $message ) );
 		}
 
 		rewind( $out );
@@ -248,13 +253,19 @@ class ElectoralRollImportService {
 			return $result;
 		}
 
+		// Large rolls can exceed the default PHP max_execution_time (e.g. 300s).
+		if ( function_exists( 'set_time_limit' ) ) {
+			// phpcs:ignore Squiz.PHP.DiscouragedFunctions.Discouraged -- intentional for bulk import
+			@set_time_limit( 0 );
+		}
+
 		$handle = fopen( $file_path, 'rb' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen
 		if ( false === $handle ) {
 			$result['errors'][] = __( 'CSV file could not be opened.', 'relatasoft-secure-election-suite' );
 			return $result;
 		}
 
-		$raw_header = fgetcsv( $handle );
+		$raw_header = self::rses_fgetcsv( $handle );
 		if ( ! is_array( $raw_header ) || empty( $raw_header ) ) {
 			fclose( $handle ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
 			$result['errors'][] = __( 'CSV header row is missing.', 'relatasoft-secure-election-suite' );
@@ -275,7 +286,7 @@ class ElectoralRollImportService {
 		self::rses_begin_unquestioned_passwords();
 
 		$row_num = 1;
-		while ( ( $row = fgetcsv( $handle ) ) !== false ) {
+		while ( ( $row = self::rses_fgetcsv( $handle ) ) !== false ) {
 			++$row_num;
 
 			if ( ( $row_num - 1 ) > self::MAX_ROWS ) {
@@ -624,5 +635,26 @@ class ElectoralRollImportService {
 		$header = strtolower( $header );
 		$header = str_replace( array( ' ', '-' ), '_', $header );
 		return $header;
+	}
+
+	/**
+	 * fgetcsv with explicit escape (required on PHP 8.4+).
+	 *
+	 * @param resource $handle File handle.
+	 * @return array<int, string|null>|false
+	 */
+	private static function rses_fgetcsv( $handle ) {
+		return fgetcsv( $handle, 0, ',', '"', self::CSV_ESCAPE );
+	}
+
+	/**
+	 * fputcsv with explicit escape (required on PHP 8.4+).
+	 *
+	 * @param resource             $handle File handle.
+	 * @param array<int, mixed>    $fields Fields.
+	 * @return int|false
+	 */
+	private static function rses_fputcsv( $handle, array $fields ) {
+		return fputcsv( $handle, $fields, ',', '"', self::CSV_ESCAPE );
 	}
 }

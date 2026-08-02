@@ -28,10 +28,11 @@ class CsvExport {
 			wp_die( esc_html__( 'Failed to create CSV.', 'relatasoft-secure-election-suite' ) );
 		}
 
-		fputcsv( $rses_output, $headers );
+		// PHP 8.4+ requires an explicit $escape; keep the historical backslash default.
+		fputcsv( $rses_output, $headers, ',', '"', '\\' );
 
 		foreach ( $rows as $rses_row ) {
-			fputcsv( $rses_output, $rses_row );
+			fputcsv( $rses_output, $rses_row, ',', '"', '\\' );
 		}
 
 		rewind( $rses_output );
