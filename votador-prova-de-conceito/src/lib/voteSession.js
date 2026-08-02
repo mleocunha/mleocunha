@@ -373,7 +373,11 @@ async function castOneBallot(page, { elector, round, boothBase, logger }) {
 }
 
 async function fillRandomBallot(page) {
-  const questions = page.locator('fieldset.rses-question');
+  await page.locator('#rses-ballot-form').waitFor({ state: 'visible', timeout: 60000 });
+  // Let booth CSS/JS (is-checked sync) settle before interacting.
+  await page.waitForTimeout(150);
+
+  const questions = page.locator('#rses-ballot-form fieldset.rses-question');
   const qCount = await questions.count();
 
   for (let qi = 0; qi < qCount; qi += 1) {
@@ -398,7 +402,7 @@ async function fillRandomBallot(page) {
     const isMulti = (await inputs.first().getAttribute('type')) === 'checkbox';
     if (!isMulti) {
       const pick = Math.floor(Math.random() * n);
-      await inputs.nth(pick).check({ force: true });
+      await selectBallotChoice(inputs.nth(pick));
       continue;
     }
 
@@ -407,8 +411,43 @@ async function fillRandomBallot(page) {
     const take = randInt(need, Math.max(need, max));
     const idxs = shuffle([...Array(n).keys()]).slice(0, take);
     for (const idx of idxs) {
-      await inputs.nth(idx).check({ force: true });
+      await selectBallotChoice(inputs.nth(idx));
     }
+  }
+}
+
+/**
+ * Select a booth radio/checkbox. Custom CSS hides the input (opacity:0) and
+ * Playwright's locator.check({ force }) often clicks without leaving it checked.
+ * Prefer the visible label, then fall back to setting the DOM property.
+ *
+ * @param {import('playwright').Locator} input
+ */
+async function selectBallotChoice(input) {
+  if (await input.isChecked()) {
+    return;
+  }
+
+  const label = input.locator('xpath=ancestor::label[contains(@class,"rses-choice")][1]');
+  if (await label.count()) {
+    await label.click({ timeout: 15000 });
+  } else {
+    await input.click({ force: true, timeout: 15000 });
+  }
+
+  if (await input.isChecked()) {
+    return;
+  }
+
+  await input.evaluate((el) => {
+    el.checked = true;
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+
+  if (!(await input.isChecked())) {
+    const id = (await input.getAttribute('id')) || '?';
+    throw new Error(`Não foi possível marcar a opção do boletim (${id})`);
   }
 }
 
