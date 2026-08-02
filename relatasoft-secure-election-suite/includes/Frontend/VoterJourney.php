@@ -45,6 +45,12 @@ class VoterJourney {
 				'content' => self::rses_default_welcome_content(),
 				'meta'    => 'welcome',
 			),
+			'booth_page_id'     => array(
+				'title'   => __( 'Voting Booth', 'relatasoft-secure-election-suite' ),
+				'slug'    => 'voting-booth',
+				'content' => self::rses_default_booth_content(),
+				'meta'    => 'booth',
+			),
 			'thank_you_page_id' => array(
 				'title'   => __( 'Thank You for Voting', 'relatasoft-secure-election-suite' ),
 				'slug'    => 'thank-you-for-voting',
@@ -124,6 +130,16 @@ class VoterJourney {
 	 */
 	public static function rses_default_thank_you_content(): string {
 		return "<!-- wp:shortcode -->\n[rses_voter_thank_you]\n<!-- /wp:shortcode -->";
+	}
+
+	/**
+	 * Default voting booth page block content.
+	 *
+	 * election_id / round_id come from the query string override used by welcome
+	 * links and the Votador PoC (`?election_id=&round_id=`).
+	 */
+	public static function rses_default_booth_content(): string {
+		return "<!-- wp:shortcode -->\n[rses_voting_booth]\n<!-- /wp:shortcode -->";
 	}
 
 	/**

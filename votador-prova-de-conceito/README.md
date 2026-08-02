@@ -10,7 +10,7 @@ Credenciais de admin, senhas de eleitores e CSVs **não são commitados** — pe
 - Google Chrome instalado
 - Plataforma WordPress com o plugin RSES ≥ **1.0.19** (marcadores `data-rses-*`, JSON de eleições abertas, override `?election_id=&round_id=` na cabina)
 - Eleições com rodadas **open**
-- Página da cabina com `[rses_voting_booth]` e Redirecionamentos configurados
+- Página da cabina com `[rses_voting_booth]` e Redirecionamentos configurados (em Redirecionamentos → “Create welcome, booth & thank-you pages”)
 
 ### macOS (Tahoe / Apple Silicon)
 
@@ -38,7 +38,7 @@ Abra `http://127.0.0.1:3847` e preencha:
 | Campo | Descrição |
 |--------|-----------|
 | URL da plataforma | Sempre obrigatória |
-| Caminho de login | `/id.php`, `/wp-login.php` ou personalizado |
+| Caminho de login | `/id.php`, `/wp-login.php` ou personalizado (sucesso = sair do endpoint de login sem `#login_error`) |
 | Admin | Usuário/senha WP admin (só para descobrir eleições abertas; não é persistido) |
 | CSV | Mesmo formato do **Importador de cadastro eleitoral** (`password` como última coluna) |
 | Tentativas (x) | Máximo de eleitores pulados/registrados no teste (default 50) |

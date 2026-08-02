@@ -1,5 +1,6 @@
 import { boothUrlFor } from './urls.js';
 import { resetPasswordViaRoundcube } from './roundcubeReset.js';
+import { readLoginError, tryWpLogin } from './wpLogin.js';
 
 /**
  * Run one elector through all open rounds.
@@ -48,8 +49,7 @@ export async function voteElector(context, opts) {
     let journey = { ...journeyCache.current };
     if (!journey.welcome || !journey.booth) {
       journey = await discoverJourneyFromWelcome(page, journey, logger);
-      if (journey.welcome || journey.booth || journey.thank_you) {
-        journeyCache.current = { ...journeyCache.current, ...journey };
+      if (fillJourneyIfEmpty(journeyCache, journey)) {
         logger.info('URLs da jornada em cache', { journey: journeyCache.current });
       }
     } else if (journey.welcome) {
@@ -60,12 +60,9 @@ export async function voteElector(context, opts) {
     }
 
     // After password reset we may still be on welcome; ensure journey cache welcome.
-    if (!journeyCache.current.welcome && journey.welcome) {
-      journeyCache.current.welcome = journey.welcome;
-    }
-    if (auth.welcomeHint) {
-      journeyCache.current.welcome = auth.welcomeHint;
-    }
+    fillJourneyIfEmpty(journeyCache, {
+      welcome: auth.welcomeHint || journey.welcome || '',
+    });
 
     const rounds = await resolveRoundsForElector(page, openRounds, journey);
     if (!rounds.length) {
@@ -85,13 +82,12 @@ export async function voteElector(context, opts) {
       votes.push(result);
 
       if (result.thank_you_url) {
-        const ty = stripQuery(result.thank_you_url);
-        if (ty) {
-          journeyCache.current.thank_you = ty;
-        }
+        fillJourneyIfEmpty(journeyCache, {
+          thank_you: stripQuery(result.thank_you_url),
+        });
       }
       if (result.welcome_url) {
-        journeyCache.current.welcome = result.welcome_url;
+        fillJourneyIfEmpty(journeyCache, { welcome: result.welcome_url });
       }
 
       // Return to welcome between elections when available.
@@ -150,13 +146,11 @@ async function authenticateElector(page, opts) {
   if (!welcome) {
     const discovered = await discoverJourneyFromWelcome(page, {}, logger);
     welcome = discovered.welcome || stripQuery(page.url());
-    if (discovered.booth) {
-      journeyCache.current.booth = discovered.booth;
-    }
-    if (discovered.thank_you) {
-      journeyCache.current.thank_you = discovered.thank_you;
-    }
-    journeyCache.current.welcome = welcome;
+    fillJourneyIfEmpty(journeyCache, {
+      welcome,
+      booth: discovered.booth || '',
+      thank_you: discovered.thank_you || '',
+    });
   } else {
     await page.goto(welcome, { waitUntil: 'domcontentloaded', timeout: 60000 });
   }
@@ -186,21 +180,14 @@ async function authenticateElector(page, opts) {
 }
 
 async function tryLogin(page, loginUrl, userLogin, password) {
-  await page.goto(loginUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
-  await page.fill('#user_login', userLogin);
-  await page.fill('#user_pass', password);
-  await Promise.all([
-    page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 60000 }).catch(() => {}),
-    page.click('#wp-submit'),
-  ]);
-  return !/wp-login\.php/i.test(page.url());
+  return tryWpLogin(page, loginUrl, userLogin, password);
 }
 
 async function loginWithPassword(page, loginUrl, userLogin, password) {
   const ok = await tryLogin(page, loginUrl, userLogin, password);
   if (!ok) {
-    const err = await page.locator('#login_error').innerText().catch(() => '');
-    throw new Error(`Login falhou para ${userLogin}: ${err.trim() || 'credenciais inválidas'}`);
+    const err = await readLoginError(page);
+    throw new Error(`Login falhou para ${userLogin}: ${err || 'credenciais inválidas'}`);
   }
 }
 
@@ -228,7 +215,9 @@ async function discoverJourneyFromWelcome(page, seed, logger) {
     journey.welcome = stripQuery(page.url());
   }
 
-  const boothLink = page.locator('a.rses-open-election-link, a.rses-journey-btn--primary').first();
+  // Prefer explicit open-election links only — never generic primary CTAs
+  // (those may be "Sign in" or "Continue voting").
+  const boothLink = page.locator('a.rses-open-election-link').first();
   if (!journey.booth && (await boothLink.count())) {
     const href = await boothLink.getAttribute('href');
     if (href) {
@@ -237,6 +226,27 @@ async function discoverJourneyFromWelcome(page, seed, logger) {
   }
 
   return journey;
+}
+
+/**
+ * Fill missing journey URLs only (safe under concurrent workers).
+ * @param {{ current: Record<string,string> }} cache
+ * @param {Record<string,string>} patch
+ * @returns {boolean} true if any field was written
+ */
+function fillJourneyIfEmpty(cache, patch) {
+  let wrote = false;
+  if (!cache.current) {
+    cache.current = {};
+  }
+  for (const key of ['welcome', 'booth', 'thank_you']) {
+    const value = patch?.[key];
+    if (value && !cache.current[key]) {
+      cache.current[key] = value;
+      wrote = true;
+    }
+  }
+  return wrote;
 }
 
 async function resolveRoundsForElector(page, openRounds, journey) {

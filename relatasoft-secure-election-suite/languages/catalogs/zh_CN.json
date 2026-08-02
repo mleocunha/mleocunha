@@ -514,8 +514,8 @@
   "Optional. Leave empty to return electors to the welcome page.": "Optional. Leave empty to return electors to the welcome page.",
   "Save redirections": "Save redirections",
   "Create journey pages": "Create journey pages",
-  "Creates (or reuses) welcome and thank-you pages with default shortcode content. You can edit them in Pages afterward.": "Creates (or reuses) welcome and thank-you pages with default shortcode content. You can edit them in Pages afterward.",
-  "Create welcome & thank-you pages": "Create welcome & thank-you pages",
+  "Creates (or reuses) welcome, voting booth, and thank-you pages with default shortcode content. You can edit them in Pages afterward. For the password-change PoC, also add [enviar_redefinicao_senha] to the welcome page.": "Creates (or reuses) welcome, voting booth, and thank-you pages with default shortcode content. You can edit them in Pages afterward. For the password-change PoC, also add [enviar_redefinicao_senha] to the welcome page.",
+  "Create welcome, booth & thank-you pages": "Create welcome, booth & thank-you pages",
   "— Select —": "— Select —",
   "Elector journey & login": "Elector journey & login",
   "Brand wp-login.php, configure welcome and thank-you pages, and plan post-login redirects for electors.": "Brand wp-login.php, configure welcome and thank-you pages, and plan post-login redirects for electors.",
@@ -616,5 +616,6 @@
   "Continue voting": "继续投票",
   "Elector welcome and open-election links.": "选民欢迎页与已开放选举链接。",
   "Thank-you page with vote receipt hash.": "带有投票回执哈希的感谢页。",
-  "Sends a password-reset email to the currently logged-in user (plain text). Place on the welcome page for the Votador PoC password-change flow.": "向当前登录用户发送密码重置邮件（纯文本）。放在欢迎页上，供 Votador PoC 密码更换流程使用。"
+  "Sends a password-reset email to the currently logged-in user (plain text). Place on the welcome page for the Votador PoC password-change flow.": "向当前登录用户发送密码重置邮件（纯文本）。放在欢迎页上，供 Votador PoC 密码更换流程使用。",
+  "Voting Booth": "Voting Booth"
 }

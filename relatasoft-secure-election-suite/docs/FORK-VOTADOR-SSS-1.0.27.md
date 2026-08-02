@@ -1,7 +1,7 @@
 # Fork lab: Votador ↔ WordPress @ 1.0.27 (SSS)
 
 **Branch:** `cursor/votador-wp-sss-1.0.27-2eb1`  
-**Frozen plugin version:** `1.0.27` (commit `33fcc6a`)  
+**Frozen plugin version:** `1.0.27` (crypto baseline commit `33fcc6a`)  
 **Crypto:** plain Shamir (`modp-elgamal-shamir-v1` behaviour) — **no** Feldman VSS / ceremony wiring
 
 ## Purpose
@@ -21,3 +21,14 @@ Isolate work on the **Votador Prova de Conceito** and its relationship with Word
 - **No:** SSS-specific crypto “fixes” that fight Feldman; do not merge this branch wholesale into the VSS line.
 
 Prefer cherry-picks or documented findings over large merges.
+
+## Lab findings (integration)
+
+Cherry-pick candidates for the evolved line (no crypto):
+
+1. **Login success on `/id.php`** — Votador must treat “still on the configured login URL” (or `#login_error`) as failure, not only `wp-login.php`. Shared helper: `votador-prova-de-conceito/src/lib/wpLogin.js`.
+2. **Composite receipt hash** — Booth “already voted” used a single `vote_hash` row; cast receipt is `sha256(concat vote_hashes)`. Fixed in `EncryptedVoteRepository::rses_get_receipt_hash`.
+3. **Journey provision includes booth** — `VoterJourney::rses_provision_pages()` now creates the voting-booth page with `[rses_voting_booth]` (query override `?election_id=&round_id=`).
+4. **Journey cache / booth selectors** — Fill journey URLs only when empty under concurrency; discover booth from `a.rses-open-election-link` / JSON only (not generic primary CTAs).
+
+Password-change PoC still requires `[enviar_redefinicao_senha]` on the welcome page (documented in Redirections admin copy).

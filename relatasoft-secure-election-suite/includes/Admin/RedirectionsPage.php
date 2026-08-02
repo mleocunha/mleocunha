@@ -135,11 +135,11 @@ class RedirectionsPage {
 
 			<section class="rses-panel rses-panel-card">
 				<h2 class="rses-panel-title"><?php esc_html_e( 'Create journey pages', 'relatasoft-secure-election-suite' ); ?></h2>
-				<p><?php esc_html_e( 'Creates (or reuses) welcome and thank-you pages with default shortcode content. You can edit them in Pages afterward.', 'relatasoft-secure-election-suite' ); ?></p>
+				<p><?php esc_html_e( 'Creates (or reuses) welcome, voting booth, and thank-you pages with default shortcode content. You can edit them in Pages afterward. For the password-change PoC, also add [enviar_redefinicao_senha] to the welcome page.', 'relatasoft-secure-election-suite' ); ?></p>
 				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
 					<?php Nonce::rses_field( Nonce::RSES_ACTION_JOURNEY_PROVISION ); ?>
 					<input type="hidden" name="action" value="rses_provision_journey_pages" />
-					<?php submit_button( __( 'Create welcome & thank-you pages', 'relatasoft-secure-election-suite' ), 'secondary', 'submit', false ); ?>
+					<?php submit_button( __( 'Create welcome, booth & thank-you pages', 'relatasoft-secure-election-suite' ), 'secondary', 'submit', false ); ?>
 				</form>
 			</section>
 		</div>
@@ -191,7 +191,7 @@ class RedirectionsPage {
 	}
 
 	/**
-	 * Provision welcome and thank-you pages.
+	 * Provision welcome, booth, and thank-you pages.
 	 */
 	public static function rses_handle_provision(): void {
 		Capability::rses_require_admin();

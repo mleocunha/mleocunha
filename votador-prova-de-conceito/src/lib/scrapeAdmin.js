@@ -1,4 +1,5 @@
 import { joinUrl } from './urls.js';
+import { readLoginError, tryWpLogin } from './wpLogin.js';
 
 /**
  * Discover open elections via admin JSON dump (preferred) or embedded script.
@@ -46,17 +47,9 @@ export async function scrapeOpenElections(context, opts) {
 }
 
 async function loginAsAdmin(page, opts) {
-  await page.goto(opts.loginUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
-  await page.fill('#user_login', opts.adminUser);
-  await page.fill('#user_pass', opts.adminPassword);
-  await Promise.all([
-    page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 60000 }).catch(() => {}),
-    page.click('#wp-submit'),
-  ]);
-
-  const url = page.url();
-  if (/wp-login\.php/i.test(url) && (await page.locator('#login_error').count())) {
-    const err = (await page.locator('#login_error').innerText()).trim();
+  const ok = await tryWpLogin(page, opts.loginUrl, opts.adminUser, opts.adminPassword);
+  if (!ok) {
+    const err = await readLoginError(page);
     throw new Error(`Falha no login admin: ${err || 'credenciais inválidas'}`);
   }
 }

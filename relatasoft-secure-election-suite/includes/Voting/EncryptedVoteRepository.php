@@ -94,7 +94,11 @@ class EncryptedVoteRepository {
 	}
 
 	/**
-	 * Get voter receipt hash.
+	 * Get voter receipt hash for a round.
+	 *
+	 * Matches VoteEncryptionService cast receipt: sha256( concat of per-ciphertext
+	 * vote_hash values in cast/insert order ). A single vote_hash row is not the
+	 * elector-facing receipt when the ballot has multiple questions/options.
 	 *
 	 * @param int $voter_user_id Voter ID.
 	 * @param int $round_id      Round ID.
@@ -106,14 +110,18 @@ class EncryptedVoteRepository {
 		$rses_table = \RelataSoft\SecureElectionSuite\Database\Schema::rses_table( 'rses_encrypted_votes' );
 
 		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-		$rses_hash = $wpdb->get_var(
+		$rses_hashes = $wpdb->get_col(
 			$wpdb->prepare(
-				"SELECT vote_hash FROM {$rses_table} WHERE voter_user_id = %d AND round_id = %d LIMIT 1",
+				"SELECT vote_hash FROM {$rses_table} WHERE voter_user_id = %d AND round_id = %d ORDER BY id ASC",
 				$voter_user_id,
 				$round_id
 			)
 		);
 
-		return $rses_hash ? (string) $rses_hash : null;
+		if ( empty( $rses_hashes ) ) {
+			return null;
+		}
+
+		return HashService::rses_sha256( implode( '', $rses_hashes ) );
 	}
 }

@@ -1,3 +1,5 @@
+import { tryWpLogin } from './wpLogin.js';
+
 /**
  * Login as the first elector and read data-rses-user-locale for the batch.
  *
@@ -8,16 +10,11 @@ export async function discoverBatchLocale(context, opts) {
   const { loginUrl, elector, logger } = opts;
   const page = await context.newPage();
   try {
-    await page.goto(loginUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
-    await page.fill('#user_login', elector.user_login);
-    await page.fill('#user_pass', elector.password);
-    await Promise.all([
-      page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 60000 }).catch(() => {}),
-      page.click('#wp-submit'),
-    ]);
-
-    if (/wp-login\.php/i.test(page.url())) {
-      throw new Error(`Não foi possível autenticar o primeiro eleitor (${elector.user_login}) para descobrir o locale.`);
+    const ok = await tryWpLogin(page, loginUrl, elector.user_login, elector.password);
+    if (!ok) {
+      throw new Error(
+        `Não foi possível autenticar o primeiro eleitor (${elector.user_login}) para descobrir o locale.`
+      );
     }
 
     const loc = page.locator('[data-rses-user-locale]').first();

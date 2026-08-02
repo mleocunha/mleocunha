@@ -514,8 +514,8 @@
   "Optional. Leave empty to return electors to the welcome page.": "Optional. Leave empty to return electors to the welcome page.",
   "Save redirections": "Save redirections",
   "Create journey pages": "Create journey pages",
-  "Creates (or reuses) welcome and thank-you pages with default shortcode content. You can edit them in Pages afterward.": "Creates (or reuses) welcome and thank-you pages with default shortcode content. You can edit them in Pages afterward.",
-  "Create welcome & thank-you pages": "Create welcome & thank-you pages",
+  "Creates (or reuses) welcome, voting booth, and thank-you pages with default shortcode content. You can edit them in Pages afterward. For the password-change PoC, also add [enviar_redefinicao_senha] to the welcome page.": "Creates (or reuses) welcome, voting booth, and thank-you pages with default shortcode content. You can edit them in Pages afterward. For the password-change PoC, also add [enviar_redefinicao_senha] to the welcome page.",
+  "Create welcome, booth & thank-you pages": "Create welcome, booth & thank-you pages",
   "— Select —": "— Select —",
   "Elector journey & login": "Elector journey & login",
   "Brand wp-login.php, configure welcome and thank-you pages, and plan post-login redirects for electors.": "Brand wp-login.php, configure welcome and thank-you pages, and plan post-login redirects for electors.",
@@ -616,5 +616,6 @@
   "Continue voting": "Weiter abstimmen",
   "Elector welcome and open-election links.": "Wählerbegrüßung und Links zu offenen Wahlen.",
   "Thank-you page with vote receipt hash.": "Dankesseite mit Stimmenbeleg-Hash.",
-  "Sends a password-reset email to the currently logged-in user (plain text). Place on the welcome page for the Votador PoC password-change flow.": "Sendet eine Passwort-Reset-E-Mail an den angemeldeten Benutzer (Klartext). Auf der Willkommensseite für den Passwortwechsel-Flow des Votador PoC platzieren."
+  "Sends a password-reset email to the currently logged-in user (plain text). Place on the welcome page for the Votador PoC password-change flow.": "Sendet eine Passwort-Reset-E-Mail an den angemeldeten Benutzer (Klartext). Auf der Willkommensseite für den Passwortwechsel-Flow des Votador PoC platzieren.",
+  "Voting Booth": "Voting Booth"
 }

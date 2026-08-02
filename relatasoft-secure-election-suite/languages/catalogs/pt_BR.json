@@ -514,8 +514,8 @@
   "Optional. Leave empty to return electors to the welcome page.": "Opcional. Deixe em branco para retornar à página de boas-vindas.",
   "Save redirections": "Salvar redirecionamentos",
   "Create journey pages": "Criar páginas da jornada",
-  "Creates (or reuses) welcome and thank-you pages with default shortcode content. You can edit them in Pages afterward.": "Cria (ou reutiliza) páginas de boas-vindas e agradecimento com shortcodes padrão. Edite-as depois em Páginas.",
-  "Create welcome & thank-you pages": "Criar páginas de boas-vindas e agradecimento",
+  "Creates (or reuses) welcome, voting booth, and thank-you pages with default shortcode content. You can edit them in Pages afterward. For the password-change PoC, also add [enviar_redefinicao_senha] to the welcome page.": "Cria (ou reutiliza) páginas de boas-vindas, cabina e agradecimento com shortcodes padrão. Edite-as depois em Páginas. Para o PoC de troca de senha, adicione também [enviar_redefinicao_senha] na página de boas-vindas.",
+  "Create welcome, booth & thank-you pages": "Criar páginas de boas-vindas, cabina e agradecimento",
   "— Select —": "— Selecionar —",
   "Elector journey & login": "Jornada do eleitor e login",
   "Brand wp-login.php, configure welcome and thank-you pages, and plan post-login redirects for electors.": "Personalize wp-login.php, configure boas-vindas e agradecimento e planeje redirecionamentos pós-login.",
@@ -674,5 +674,6 @@
   "Failure": "Falha",
   "Cancelled": "Cancelado",
   "The uploaded CSV is no longer available on the server. Please start the import again.": "O CSV enviado não está mais disponível no servidor. Inicie a importação novamente.",
-  "The uploaded CSV is empty on the server. Please start the import again.": "O CSV enviado está vazio no servidor. Inicie a importação novamente."
+  "The uploaded CSV is empty on the server. Please start the import again.": "O CSV enviado está vazio no servidor. Inicie a importação novamente.",
+  "Voting Booth": "Cabina de votação"
 }
