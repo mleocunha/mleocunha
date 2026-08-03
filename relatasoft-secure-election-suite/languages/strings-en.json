@@ -173,6 +173,8 @@
   "ZIP export requires the ZipArchive PHP extension.",
   "ZIP Unavailable",
   "Failed to create temporary file.",
+  "Failed to write encrypted votes export.",
+  "Failed to read encrypted votes export.",
   "Failed to create ZIP archive.",
   "GMP extension required.",
   "A key generation job is already running. Cancel it first or wait for completion.",
