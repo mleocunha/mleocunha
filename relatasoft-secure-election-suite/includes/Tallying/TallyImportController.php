@@ -12,6 +12,7 @@ use RelataSoft\SecureElectionSuite\Exports\HashService;
 use RelataSoft\SecureElectionSuite\Security\AuditLogger;
 use RelataSoft\SecureElectionSuite\Security\Capability;
 use RelataSoft\SecureElectionSuite\Security\Nonce;
+use RelataSoft\SecureElectionSuite\Voting\EncryptedTallyService;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -110,7 +111,16 @@ class TallyImportController {
 			// Never persist the full ciphertext list — decryption does not need it.
 			unset( $rses_manifest['encrypted_votes'] );
 
+			$rses_manifest = self::rses_normalize_manifest( $rses_manifest );
+			$rses_manifest = self::rses_ensure_encrypted_tallies( $rses_manifest, $rses_tmp );
+
 			$rses_validation = self::rses_validate_import( $rses_manifest );
+			$rses_manifest['validation_errors'] = $rses_validation['errors'];
+			if ( ! empty( $rses_manifest['tallies_rebuilt'] ) ) {
+				$rses_manifest['validation_notes'] = array(
+					__( 'Encrypted tallies were rebuilt from encrypted-votes.json during import.', 'relatasoft-secure-election-suite' ),
+				);
+			}
 
 			$rses_manifest_json = wp_json_encode( $rses_manifest, JSON_UNESCAPED_SLASHES );
 			if ( false === $rses_manifest_json ) {
@@ -605,6 +615,150 @@ class TallyImportController {
 	}
 
 	/**
+	 * Normalize public_key / tally field aliases from older or nested packages.
+	 *
+	 * @param array<string,mixed> $manifest Manifest.
+	 * @return array<string,mixed>
+	 */
+	private static function rses_normalize_manifest( array $manifest ): array {
+		$rses_pk = $manifest['public_key'] ?? array();
+		if ( ! is_array( $rses_pk ) ) {
+			$rses_pk = array();
+		}
+		if ( isset( $rses_pk['public_key'] ) && is_array( $rses_pk['public_key'] ) ) {
+			$rses_pk = $rses_pk['public_key'];
+		}
+		foreach ( array(
+			'public_p' => 'p',
+			'public_q' => 'q',
+			'public_g' => 'g',
+			'public_y' => 'y',
+		) as $rses_from => $rses_to ) {
+			if ( empty( $rses_pk[ $rses_to ] ) && ! empty( $rses_pk[ $rses_from ] ) ) {
+				$rses_pk[ $rses_to ] = $rses_pk[ $rses_from ];
+			}
+		}
+		$manifest['public_key'] = $rses_pk;
+
+		if ( ! empty( $manifest['encrypted_tallies'] ) && is_array( $manifest['encrypted_tallies'] ) ) {
+			foreach ( $manifest['encrypted_tallies'] as $rses_idx => $rses_tally ) {
+				if ( ! is_array( $rses_tally ) ) {
+					continue;
+				}
+				if ( empty( $rses_tally['aggregate_alpha'] ) && ! empty( $rses_tally['alpha'] ) ) {
+					$rses_tally['aggregate_alpha'] = $rses_tally['alpha'];
+				}
+				if ( empty( $rses_tally['aggregate_beta'] ) && ! empty( $rses_tally['beta'] ) ) {
+					$rses_tally['aggregate_beta'] = $rses_tally['beta'];
+				}
+				$manifest['encrypted_tallies'][ $rses_idx ] = $rses_tally;
+			}
+		}
+
+		return $manifest;
+	}
+
+	/**
+	 * If tallies are missing, rebuild them by streaming encrypted-votes.json from the upload ZIP.
+	 *
+	 * @param array<string,mixed> $manifest Manifest.
+	 * @param string              $upload   Uploaded temp path.
+	 * @return array<string,mixed>
+	 */
+	private static function rses_ensure_encrypted_tallies( array $manifest, string $upload ): array {
+		$rses_tallies = $manifest['encrypted_tallies'] ?? null;
+		if ( is_array( $rses_tallies ) && ! empty( $rses_tallies ) ) {
+			return $manifest;
+		}
+
+		$rses_pk = $manifest['public_key'] ?? array();
+		if ( empty( $rses_pk['p'] ) || ! class_exists( 'ZipArchive' ) ) {
+			return $manifest;
+		}
+
+		$rses_votes_path = self::rses_extract_zip_member_to_temp( $upload, 'encrypted-votes.json' );
+		if ( ! $rses_votes_path ) {
+			return $manifest;
+		}
+
+		try {
+			$rses_built = EncryptedTallyService::rses_aggregate_from_votes_json_file(
+				$rses_votes_path,
+				(string) $rses_pk['p']
+			);
+		} finally {
+			if ( is_file( $rses_votes_path ) ) {
+				unlink( $rses_votes_path );
+			}
+		}
+
+		if ( ! empty( $rses_built ) ) {
+			$manifest['encrypted_tallies'] = $rses_built;
+			$manifest['tallies_rebuilt']   = true;
+			$manifest['encrypted_votes_meta'] = array_merge(
+				is_array( $manifest['encrypted_votes_meta'] ?? null ) ? $manifest['encrypted_votes_meta'] : array(),
+				array(
+					'present' => true,
+					'omitted' => true,
+					'source'  => 'rebuilt_tallies',
+				)
+			);
+		}
+
+		return $manifest;
+	}
+
+	/**
+	 * Extract one ZIP member (by basename) to a temp file via stream copy.
+	 *
+	 * @param string $zip_path ZIP path.
+	 * @param string $basename Member basename.
+	 */
+	private static function rses_extract_zip_member_to_temp( string $zip_path, string $basename ): ?string {
+		$rses_zip = new \ZipArchive();
+		if ( true !== $rses_zip->open( $zip_path ) ) {
+			return null;
+		}
+
+		$rses_index = self::rses_zip_index_by_basename( $rses_zip );
+		$rses_key   = strtolower( $basename );
+		if ( ! isset( $rses_index[ $rses_key ] ) ) {
+			$rses_zip->close();
+			return null;
+		}
+
+		$rses_name = (string) $rses_index[ $rses_key ]['name'];
+		$rses_stream = $rses_zip->getStream( $rses_name );
+		if ( false === $rses_stream ) {
+			$rses_zip->close();
+			return null;
+		}
+
+		$rses_tmp = wp_tempnam( 'rses-' . $basename );
+		if ( ! $rses_tmp ) {
+			fclose( $rses_stream );
+			$rses_zip->close();
+			return null;
+		}
+
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen
+		$rses_out = fopen( $rses_tmp, 'wb' );
+		if ( false === $rses_out ) {
+			fclose( $rses_stream );
+			$rses_zip->close();
+			unlink( $rses_tmp );
+			return null;
+		}
+
+		stream_copy_to_stream( $rses_stream, $rses_out );
+		fclose( $rses_stream );
+		fclose( $rses_out ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+		$rses_zip->close();
+
+		return $rses_tmp;
+	}
+
+	/**
 	 * Validate import manifest and checksums.
 	 *
 	 * @param array<string,mixed> $manifest Import data.
@@ -612,6 +766,7 @@ class TallyImportController {
 	 */
 	public static function rses_validate_import( array $manifest ): array {
 		$rses_errors = array();
+		$manifest    = self::rses_normalize_manifest( $manifest );
 
 		$rses_pk = $manifest['public_key'] ?? array();
 		foreach ( array( 'p', 'q', 'g', 'y' ) as $rses_field ) {
@@ -624,9 +779,9 @@ class TallyImportController {
 			}
 		}
 
-		$rses_tallies      = $manifest['encrypted_tallies'] ?? array();
-		$rses_votes_meta   = $manifest['encrypted_votes_meta'] ?? null;
-		$rses_votes_present = is_array( $rses_votes_meta ) && ! empty( $rses_votes_meta['present'] );
+		$rses_tallies       = $manifest['encrypted_tallies'] ?? array();
+		$rses_votes_meta    = $manifest['encrypted_votes_meta'] ?? null;
+		$rses_votes_present  = is_array( $rses_votes_meta ) && ! empty( $rses_votes_meta['present'] );
 		$rses_votes_embedded = ! empty( $manifest['encrypted_votes'] ) && is_array( $manifest['encrypted_votes'] );
 
 		if ( empty( $rses_tallies ) && ! $rses_votes_present && ! $rses_votes_embedded ) {
@@ -634,7 +789,7 @@ class TallyImportController {
 		}
 
 		if ( empty( $rses_tallies ) || ! is_array( $rses_tallies ) ) {
-			$rses_errors[] = __( 'Encrypted tallies are required for decryption. Re-export from the voting site after closing the round.', 'relatasoft-secure-election-suite' );
+			$rses_errors[] = __( 'Encrypted tallies are required for decryption. Re-export from the voting site after closing the round, or import a ZIP that still contains encrypted-votes.json so tallies can be rebuilt.', 'relatasoft-secure-election-suite' );
 		} else {
 			foreach ( $rses_tallies as $rses_idx => $rses_tally ) {
 				if ( ! is_array( $rses_tally ) || empty( $rses_tally['aggregate_alpha'] ) || empty( $rses_tally['aggregate_beta'] ) ) {

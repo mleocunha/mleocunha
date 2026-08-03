@@ -1,7 +1,7 @@
 # Fork lab: Votador ↔ WordPress @ 1.0.27 (SSS)
 
 **Branch:** `cursor/votador-wp-sss-1.0.27-2eb1`  
-**Frozen plugin version:** `1.0.27` crypto baseline (`33fcc6a`); lab patches through **`1.0.27.5`** (tally ZIP parse / entry names)  
+**Frozen plugin version:** `1.0.27` crypto baseline (`33fcc6a`); lab patches through **`1.0.27.6`** (tally rebuild on import / streaming close)  
 **Crypto:** plain Shamir (`modp-elgamal-shamir-v1` behaviour) — **no** Feldman VSS / ceremony wiring
 
 ## Purpose
@@ -40,5 +40,6 @@ Cherry-pick candidates for the evolved line (no crypto):
 12. **Voting export OOM (1.0.27.2)** — ZIP/JSON export loaded every ciphertext into RAM then pretty-printed (128M fatal). Votes stream to a temp file in compact JSON and ZIP attaches from disk.
 13. **Tally import white screen (1.0.27.3 / .4)** — Importação da apuração loaded `encrypted-votes.json` into PHP + LONGTEXT and exhausted 128M. Never read vote ZIP members into PHP; list imports without `import_manifest_json`; SQL-purge oversized manifests from failed earlier attempts; show plugin version on the import page.
 14. **Tally import “Failed to parse” (1.0.27.5)** — after raising PHP memory, ZIP opened but members were not found (subfolder / name mismatch / JSON-in-ZIP). Index by basename, strip BOM, keep stable ZIP entry names on export, surface entry list in the error.
+15. **Tally import rejected validation (1.0.27.6)** — empty `encrypted_tallies` after low-memory close. Stream tally compute on close/export; on import rebuild tallies from `encrypted-votes.json` when missing; normalize public_key aliases; persist validation errors in the stored manifest.
 
 Password-change PoC still requires `[enviar_redefinicao_senha]` on the welcome page (documented in Redirections admin copy).

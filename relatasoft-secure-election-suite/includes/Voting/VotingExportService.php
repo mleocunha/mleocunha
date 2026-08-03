@@ -54,7 +54,13 @@ class VotingExportService {
 			'y' => $rses_key->public_y,
 		) : array();
 
-		$rses_tallies   = EncryptedTallyService::rses_get_by_round( $round_id );
+		$rses_tallies = EncryptedTallyService::rses_get_by_round( $round_id );
+		if ( empty( $rses_tallies ) ) {
+			// Close may have skipped aggregation on low-memory hosts; compute now (streaming).
+			EncryptedTallyService::rses_compute_tallies( $round_id );
+			$rses_tallies = EncryptedTallyService::rses_get_by_round( $round_id );
+		}
+
 		$rses_questions = ElectionRepository::rses_get_questions( $round_id );
 
 		$rses_ballot = array();
@@ -97,6 +103,23 @@ class VotingExportService {
 		if ( $rses_vote_count < 0 ) {
 			unlink( $rses_votes_path );
 			wp_die( esc_html__( 'Failed to write encrypted votes export.', 'relatasoft-secure-election-suite' ) );
+		}
+
+		if ( empty( $rses_tallies_export ) && $rses_vote_count > 0 && ! empty( $rses_public_key['p'] ) ) {
+			$rses_tallies_export = EncryptedTallyService::rses_aggregate_from_votes_json_file(
+				$rses_votes_path,
+				(string) $rses_public_key['p']
+			);
+		}
+
+		if ( empty( $rses_tallies_export ) && $rses_vote_count > 0 ) {
+			unlink( $rses_votes_path );
+			wp_die(
+				esc_html__(
+					'This round has encrypted votes but no encrypted tallies. Close & tally the round (or update the plugin) and export again.',
+					'relatasoft-secure-election-suite'
+				)
+			);
 		}
 
 		AuditLogger::rses_log(

@@ -74,8 +74,18 @@ class TallyingViews {
 				if ( is_array( $rses_flash_data ) ) {
 					delete_transient( 'rses_tally_import_flash_' . $rses_flash_id );
 				}
+				$rses_flash_row    = $rses_flash_id ? TallyImportRepository::rses_get( $rses_flash_id ) : null;
 				$rses_flash_status = is_array( $rses_flash_data ) ? (string) ( $rses_flash_data['status'] ?? '' ) : '';
+				if ( '' === $rses_flash_status && $rses_flash_row ) {
+					$rses_flash_status = (string) $rses_flash_row->status;
+				}
 				$rses_flash_errors = is_array( $rses_flash_data ) && ! empty( $rses_flash_data['errors'] ) ? (array) $rses_flash_data['errors'] : array();
+				if ( empty( $rses_flash_errors ) && $rses_flash_row ) {
+					$rses_flash_manifest = TallyImportRepository::rses_get_manifest( $rses_flash_row );
+					if ( ! empty( $rses_flash_manifest['validation_errors'] ) && is_array( $rses_flash_manifest['validation_errors'] ) ) {
+						$rses_flash_errors = $rses_flash_manifest['validation_errors'];
+					}
+				}
 				if ( 'rejected' === $rses_flash_status ) :
 					?>
 				<div class="rses-panel rses-panel-danger notice notice-error">
@@ -86,6 +96,8 @@ class TallyingViews {
 								<li><?php echo esc_html( (string) $rses_err ); ?></li>
 							<?php endforeach; ?>
 						</ul>
+					<?php else : ?>
+						<p><?php esc_html_e( 'No detail was stored. Typical causes: missing public key fields (p/q/g/y) or empty encrypted tallies. Update both sites to 1.0.27.6+, close the round, re-export ZIP, and import again.', 'relatasoft-secure-election-suite' ); ?></p>
 					<?php endif; ?>
 				</div>
 				<?php else : ?>
