@@ -7,6 +7,11 @@ const loginPath = document.getElementById('loginPath');
 const customLoginWrap = document.getElementById('customLoginWrap');
 const macBanner = document.getElementById('macBanner');
 
+/** Only append SSE lines that belong to this run (null = show nothing yet). */
+let activeRunId = null;
+/** Ignore stale SSE traffic until /api/start returns the new runId. */
+let awaitingRunId = false;
+
 if (/Mac|iPhone|iPad/.test(navigator.platform) || navigator.userAgent.includes('Mac OS')) {
   macBanner.hidden = false;
 }
@@ -21,7 +26,14 @@ passwordChangePoc.addEventListener('change', () => {
   mailUrlWrap.classList.toggle('hidden', !passwordChangePoc.checked);
 });
 
+function clearLog() {
+  logEl.replaceChildren();
+}
+
 function appendLog(ev) {
+  if (!ev || ev.message === 'log_reset') {
+    return;
+  }
   const line = document.createElement('div');
   const level = ev.level || 'info';
   if (level === 'error') line.className = 'err';
@@ -41,10 +53,43 @@ function appendLog(ev) {
   logEl.scrollTop = logEl.scrollHeight;
 }
 
+function handleEvent(ev) {
+  if (!ev || typeof ev !== 'object') {
+    return;
+  }
+
+  if (ev.message === 'log_reset') {
+    clearLog();
+    activeRunId = ev.runId || null;
+    awaitingRunId = false;
+    return;
+  }
+
+  // While starting, drop everything until the server runId is known.
+  if (awaitingRunId) {
+    if (ev.runId) {
+      activeRunId = ev.runId;
+      awaitingRunId = false;
+      clearLog();
+    } else {
+      return;
+    }
+  }
+
+  if (!activeRunId) {
+    return;
+  }
+  if (ev.runId && ev.runId !== activeRunId) {
+    return;
+  }
+
+  appendLog(ev);
+}
+
 const es = new EventSource('/api/events');
 es.onmessage = (msg) => {
   try {
-    appendLog(JSON.parse(msg.data));
+    handleEvent(JSON.parse(msg.data));
   } catch {
     /* ignore */
   }
@@ -81,7 +126,9 @@ refreshStatus();
 
 form.addEventListener('submit', async (e) => {
   e.preventDefault();
-  logEl.textContent = '';
+  clearLog();
+  activeRunId = null;
+  awaitingRunId = true;
   const fd = new FormData(form);
   startBtn.disabled = true;
   stopBtn.disabled = false;
@@ -91,11 +138,20 @@ form.addEventListener('submit', async (e) => {
   const res = await fetch('/api/start', { method: 'POST', body: fd });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
+    awaitingRunId = false;
+    activeRunId = null;
     appendLog({ level: 'error', message: data.error || 'Falha ao iniciar' });
     startBtn.disabled = false;
     stopBtn.disabled = true;
     runState.textContent = 'erro';
     runState.className = 'pill error';
+    return;
+  }
+
+  if (data.runId) {
+    activeRunId = data.runId;
+    awaitingRunId = false;
+    clearLog();
   }
 });
 

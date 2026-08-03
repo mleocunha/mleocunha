@@ -18,11 +18,12 @@ const upload = multer({ dest: uploadsDir });
 const app = express();
 const PORT = Number(process.env.PORT || 3847);
 
-/** @type {{ running: boolean, summary: object|null, events: object[], abort?: AbortController }} */
+/** @type {{ running: boolean, summary: object|null, events: object[], runId: string|null, abort?: AbortController }} */
 const state = {
   running: false,
   summary: null,
   events: [],
+  runId: null,
   abort: undefined,
 };
 
@@ -49,8 +50,21 @@ app.get('/api/events', (req, res) => {
   res.setHeader('Connection', 'keep-alive');
   res.flushHeaders?.();
 
-  for (const ev of state.events.slice(-200)) {
-    res.write(`data: ${JSON.stringify(ev)}\n\n`);
+  // Tell the UI which run (if any) is current, then replay only that run.
+  res.write(
+    `data: ${JSON.stringify({
+      level: 'info',
+      message: 'log_reset',
+      runId: state.runId,
+      build: VOTADOR_BUILD,
+    })}\n\n`
+  );
+  if (state.runId) {
+    for (const ev of state.events.slice(-200)) {
+      if (ev.runId === state.runId) {
+        res.write(`data: ${JSON.stringify(ev)}\n\n`);
+      }
+    }
   }
 
   const timer = setInterval(() => {
@@ -71,13 +85,20 @@ app.get('/api/events', (req, res) => {
 const listeners = [];
 
 function pushEvent(ev) {
-  state.events.push(ev);
+  const stamped = {
+    ts: new Date().toISOString(),
+    runId: state.runId,
+    ...ev,
+  };
+  // Keep the active runId authoritative even if caller passed one.
+  stamped.runId = state.runId;
+  state.events.push(stamped);
   if (state.events.length > 2000) {
     state.events.splice(0, state.events.length - 2000);
   }
   for (const fn of listeners) {
     try {
-      fn(ev);
+      fn(stamped);
     } catch {
       /* ignore */
     }
@@ -89,6 +110,8 @@ app.get('/api/status', (_req, res) => {
     running: state.running,
     summary: state.summary,
     eventCount: state.events.length,
+    runId: state.runId,
+    build: VOTADOR_BUILD,
   });
 });
 
@@ -139,12 +162,22 @@ app.post('/api/start', upload.single('csv'), async (req, res) => {
     return;
   }
 
+  const runId = `run-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
   state.running = true;
   state.summary = null;
   state.events = [];
+  state.runId = runId;
   state.abort = new AbortController();
 
-  res.json({ ok: true, message: 'Execução iniciada.' });
+  // Drop previous-run lines from every open SSE client before new output.
+  pushEvent({
+    level: 'info',
+    message: 'log_reset',
+    runId,
+    build: VOTADOR_BUILD,
+  });
+
+  res.json({ ok: true, message: 'Execução iniciada.', runId, build: VOTADOR_BUILD });
 
   try {
     const summary = await runVotador(config, {
