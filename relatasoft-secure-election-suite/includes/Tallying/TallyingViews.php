@@ -47,17 +47,36 @@ class TallyingViews {
 				<p class="rses-hero-lead"><?php esc_html_e( 'Import sealed voting packages (ZIP or JSON) from the Voting site to begin share collection and decryption.', 'relatasoft-secure-election-suite' ); ?></p>
 			</header>
 
-			<?php if ( ! empty( $_GET['rses_imported'] ) ) : // phpcs:ignore WordPress.Security.NonceVerification.Recommended ?>
+			<?php
+			if ( ! empty( $_GET['rses_imported'] ) ) : // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+				$rses_flash_id = absint( $_GET['rses_imported'] ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+				$rses_flash    = $rses_flash_id ? TallyImportRepository::rses_get( $rses_flash_id ) : null;
+				if ( $rses_flash && 'rejected' === $rses_flash->status ) :
+					$rses_flash_manifest = TallyImportRepository::rses_get_manifest( $rses_flash );
+					$rses_flash_check    = TallyImportController::rses_validate_import( $rses_flash_manifest );
+					?>
+				<div class="rses-panel rses-panel-danger notice notice-error">
+					<p><?php esc_html_e( 'Import stored but rejected validation. Fix the package and try again.', 'relatasoft-secure-election-suite' ); ?></p>
+					<?php if ( ! empty( $rses_flash_check['errors'] ) ) : ?>
+						<ul>
+							<?php foreach ( $rses_flash_check['errors'] as $rses_err ) : ?>
+								<li><?php echo esc_html( (string) $rses_err ); ?></li>
+							<?php endforeach; ?>
+						</ul>
+					<?php endif; ?>
+				</div>
+				<?php else : ?>
 				<div class="rses-panel rses-panel-success">
 					<p><?php esc_html_e( 'Voting package imported successfully.', 'relatasoft-secure-election-suite' ); ?></p>
 				</div>
+				<?php endif; ?>
 			<?php endif; ?>
 
 			<section class="rses-panel rses-panel-card">
 				<header class="rses-panel-header">
 					<p class="rses-panel-kicker"><?php esc_html_e( 'Upload', 'relatasoft-secure-election-suite' ); ?></p>
 					<h2 class="rses-panel-title"><?php esc_html_e( 'Import voting export', 'relatasoft-secure-election-suite' ); ?></h2>
-					<p class="rses-panel-desc"><?php esc_html_e( 'Accepts the ZIP/JSON produced by Voting Export after a round is closed.', 'relatasoft-secure-election-suite' ); ?></p>
+					<p class="rses-panel-desc"><?php esc_html_e( 'Prefer the ZIP from Voting Export after the round is closed. Individual encrypted votes are verified by checksum and not loaded into memory (required for large elections on 128MB PHP hosts).', 'relatasoft-secure-election-suite' ); ?></p>
 				</header>
 
 				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" enctype="multipart/form-data" class="rses-form">
@@ -65,8 +84,8 @@ class TallyingViews {
 					<input type="hidden" name="action" value="rses_tally_import" />
 					<div class="rses-field-grid">
 						<div class="rses-field rses-field-full rses-file-field">
-							<label for="rses_import_file"><?php esc_html_e( 'Voting Export (ZIP or JSON)', 'relatasoft-secure-election-suite' ); ?></label>
-							<input type="file" name="rses_import_file" id="rses_import_file" accept=".zip,.json" required />
+							<label for="rses_import_file"><?php esc_html_e( 'Voting Export (ZIP recommended)', 'relatasoft-secure-election-suite' ); ?></label>
+							<input type="file" name="rses_import_file" id="rses_import_file" accept=".zip,.json,application/zip,application/json" required />
 						</div>
 					</div>
 					<p class="rses-form-actions">
