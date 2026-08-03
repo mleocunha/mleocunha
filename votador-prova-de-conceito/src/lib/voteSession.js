@@ -188,7 +188,10 @@ async function loginWithPassword(page, loginUrl, userLogin, password) {
   const ok = await tryLogin(page, loginUrl, userLogin, password);
   if (!ok) {
     const err = await readLoginError(page);
-    throw new Error(`Login falhou para ${userLogin}: ${err || 'credenciais inválidas'}`);
+    const detail = err || 'credenciais inválidas (ainda na página de login)';
+    throw new Error(
+      `Login falhou para ${userLogin}: ${detail} [senha_len=${String(password || '').length}]`
+    );
   }
 }
 

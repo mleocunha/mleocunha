@@ -635,11 +635,12 @@ class ElectoralRollImportService {
 				return '';
 			}
 			$i = $map[ $field ];
-			return isset( $row[ $i ] ) ? trim( (string) $row[ $i ] ) : '';
+			return isset( $row[ $i ] ) ? self::rses_normalize_csv_cell( (string) $row[ $i ] ) : '';
 		};
 
 		$login    = sanitize_user( $get( 'user_login' ), true );
 		$email    = sanitize_email( $get( 'user_email' ) );
+		// Passwords are accepted as-is except for spreadsheet whitespace/BOM noise.
 		$password = $get( self::PASSWORD_COLUMN );
 
 		if ( '' === $login ) {
@@ -702,8 +703,19 @@ class ElectoralRollImportService {
 		$existing = get_user_by( 'login', $data['user_login'] );
 		if ( ! $existing ) {
 			$by_email = get_user_by( 'email', $data['user_email'] );
-			if ( $by_email ) {
-				$existing = $by_email;
+			if ( $by_email instanceof \WP_User ) {
+				// Same email, different login: never silently rewrite another
+				// account's password — Votador would then fail with "invalid credentials".
+				return new \WP_Error(
+					'rses_email_collision',
+					sprintf(
+						/* translators: 1: existing login, 2: CSV login, 3: email */
+						__( 'Email %3$s already belongs to user “%1$s”, but this row uses user_login “%2$s”. Fix the CSV (unique emails) or rename the existing account.', 'relatasoft-secure-election-suite' ),
+						$by_email->user_login,
+						$data['user_login'],
+						$data['user_email']
+					)
+				);
 			}
 		}
 
@@ -821,11 +833,21 @@ class ElectoralRollImportService {
 	 * Normalize header labels to spreadsheet keys.
 	 */
 	private static function rses_normalize_header( string $header ): string {
-		$header = trim( $header );
-		$header = str_replace( array( "\xEF\xBB\xBF", '"' ), '', $header );
+		$header = self::rses_normalize_csv_cell( $header );
+		$header = str_replace( array( '"' ), '', $header );
 		$header = strtolower( $header );
 		$header = str_replace( array( ' ', '-' ), '_', $header );
 		return $header;
+	}
+
+	/**
+	 * Trim spreadsheet noise (BOM, NBSP, outer whitespace) without altering
+	 * intentional inner password characters.
+	 */
+	public static function rses_normalize_csv_cell( string $value ): string {
+		$value = preg_replace( '/^\xEF\xBB\xBF/', '', $value ) ?? $value;
+		$value = str_replace( "\xC2\xA0", ' ', $value ); // UTF-8 NBSP → space
+		return trim( $value );
 	}
 
 	/**
