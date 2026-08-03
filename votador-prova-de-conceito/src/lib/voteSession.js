@@ -463,9 +463,8 @@ function ballotForm(page, round, cells = []) {
   const rid = Number(round.round_id);
   const cell = findBoothCell(cells, round);
 
-  if (cell?.form_id) {
-    return page.locator(`form#${cssEscape(cell.form_id)}`);
-  }
+  // Prefer the discovered cell index — stable even when the page hosts several booths
+  // or when an older plugin build duplicated the same form id via GET override.
   if (cell && cell.has_form && Number.isInteger(cell.index)) {
     return page.locator('.rses-booth').nth(cell.index).locator('form.rses-ballot-form');
   }
@@ -477,11 +476,6 @@ function ballotForm(page, round, cells = []) {
       `form#rses-ballot-form-${rid}`,
     ].join(', ')
   );
-}
-
-function cssEscape(value) {
-  // Minimal escape for form ids like rses-ballot-form-12.
-  return String(value).replace(/[^a-zA-Z0-9_-]/g, '\\$&');
 }
 
 async function fillRandomBallot(page, round, cells = []) {
