@@ -1,7 +1,7 @@
 # Fork lab: Votador ↔ WordPress @ 1.0.27 (SSS)
 
 **Branch:** `cursor/votador-wp-sss-1.0.27-2eb1`  
-**Frozen plugin version:** `1.0.27` crypto baseline (`33fcc6a`); lab patch **`1.0.27.1`** (import chunk-dedupe only — not VSS 1.0.28)  
+**Frozen plugin version:** `1.0.27` crypto baseline (`33fcc6a`); lab patches **`1.0.27.1`** (import chunk-dedupe), **`1.0.27.2`** (streaming voting export)  
 **Crypto:** plain Shamir (`modp-elgamal-shamir-v1` behaviour) — **no** Feldman VSS / ceremony wiring
 
 ## Purpose
@@ -37,5 +37,6 @@ Cherry-pick candidates for the evolved line (no crypto):
 9. **macOS caffeinate -d** — Votador starts `caffeinate -d` at the beginning of each run so the display does not sleep mid-vote (`caffeinate-d-1`).
 10. **Electoral-roll false max-rows (1.0.27.1)** — double-submit / retried chunks can append the CSV twice (~5000×2 → “mais de 10000 linhas”). Idempotent chunk append, JS busy guard, truncate oversized assembly to declared size (same fix as evolved 1.0.28, version kept under SSS lab lineage).
 11. **WP login fill race (`login-fill-1`)** — headed Chrome autofill can put the saved password into `#user_login` after Playwright `fill()`. Credentials are now set via DOM + re-asserted before submit; PoC admin form uses `autocomplete=off`. Admin login at run start remains intentional (open-elections scrape only).
+12. **Voting export OOM (1.0.27.2)** — ZIP/JSON export loaded every ciphertext into RAM then pretty-printed (128M fatal). Votes stream to a temp file in compact JSON and ZIP attaches from disk.
 
 Password-change PoC still requires `[enviar_redefinicao_senha]` on the welcome page (documented in Redirections admin copy).

@@ -57,13 +57,18 @@ class ManifestBuilder {
 	/**
 	 * Build checksums for export files.
 	 *
-	 * @param array<string,string> $files File contents map.
+	 * @param array<string, string|array{path:string}> $files File contents map, or ['path' => absolute file].
 	 * @return array<string,string>
 	 */
 	public static function rses_build_checksums( array $files ): array {
 		$rses_checksums = array();
 
 		foreach ( $files as $rses_path => $rses_content ) {
+			if ( is_array( $rses_content ) && ! empty( $rses_content['path'] ) && is_readable( (string) $rses_content['path'] ) ) {
+				$rses_hash = hash_file( 'sha256', (string) $rses_content['path'] );
+				$rses_checksums[ $rses_path ] = is_string( $rses_hash ) ? $rses_hash : '';
+				continue;
+			}
 			$rses_checksums[ $rses_path ] = hash( 'sha256', (string) $rses_content );
 		}
 
