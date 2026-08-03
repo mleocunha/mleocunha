@@ -47,6 +47,11 @@ export async function scrapeOpenElections(context, opts) {
 }
 
 async function loginAsAdmin(page, opts) {
+  const log = opts.log || (() => {});
+  log({
+    level: 'info',
+    message: `Login admin (só para descobrir eleições): usuário="${opts.adminUser}"`,
+  });
   const ok = await tryWpLogin(page, opts.loginUrl, opts.adminUser, opts.adminPassword);
   if (!ok) {
     const err = await readLoginError(page);
