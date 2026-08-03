@@ -7,6 +7,7 @@
 
 namespace RelataSoft\SecureElectionSuite\Voting;
 
+use RelataSoft\SecureElectionSuite\KeyAuthority\KeyExportService;
 use RelataSoft\SecureElectionSuite\KeyAuthority\KeyRepository;
 use RelataSoft\SecureElectionSuite\Security\Capability;
 use RelataSoft\SecureElectionSuite\Security\Nonce;
@@ -262,6 +263,7 @@ class VotingViews {
 								<tr>
 									<th>ID</th>
 									<th><?php esc_html_e( 'Label', 'relatasoft-secure-election-suite' ); ?></th>
+									<th><?php esc_html_e( 'Linked elections', 'relatasoft-secure-election-suite' ); ?></th>
 									<th><?php esc_html_e( 'Size', 'relatasoft-secure-election-suite' ); ?></th>
 									<th>y</th>
 									<th><?php esc_html_e( 'Created', 'relatasoft-secure-election-suite' ); ?></th>
@@ -269,9 +271,19 @@ class VotingViews {
 							</thead>
 							<tbody>
 								<?php foreach ( $rses_keys as $rses_key ) : ?>
+									<?php $rses_linked = KeyExportService::rses_linked_election_labels( (int) $rses_key->id ); ?>
 									<tr>
 										<td><?php echo esc_html( (string) $rses_key->id ); ?></td>
 										<td><?php echo esc_html( $rses_key->key_label ); ?></td>
+										<td>
+											<?php
+											if ( empty( $rses_linked ) ) {
+												esc_html_e( 'None yet', 'relatasoft-secure-election-suite' );
+											} else {
+												echo esc_html( implode( '; ', $rses_linked ) );
+											}
+											?>
+										</td>
 										<td><?php echo esc_html( (string) $rses_key->key_size ); ?> bits</td>
 										<td><code class="rses-bigint"><?php echo esc_html( substr( $rses_key->public_y, 0, 40 ) . '…' ); ?></code></td>
 										<td><?php echo esc_html( $rses_key->created_at ); ?></td>
@@ -330,10 +342,14 @@ class VotingViews {
 					<h2 class="rses-panel-title"><?php esc_html_e( 'Voting booth shortcode', 'relatasoft-secure-election-suite' ); ?></h2>
 					<p class="rses-panel-desc">
 						<?php
+						$rses_editor_key = ! empty( $rses_round->key_id )
+							? KeyRepository::rses_get( (int) $rses_round->key_id )
+							: null;
 						printf(
-							/* translators: %s: public key id */
-							esc_html__( 'Public key ID: %s — paste the booth shortcode on a WordPress page once voting is open.', 'relatasoft-secure-election-suite' ),
-							esc_html( (string) ( $rses_round->key_id ?: '—' ) )
+							/* translators: 1: public key id, 2: key label */
+							esc_html__( 'Public key: #%1$s — %2$s. Paste the booth shortcode on a WordPress page once voting is open.', 'relatasoft-secure-election-suite' ),
+							esc_html( (string) ( $rses_round->key_id ?: '—' ) ),
+							esc_html( $rses_editor_key ? (string) $rses_editor_key->key_label : '—' )
 						);
 						?>
 					</p>
@@ -707,6 +723,7 @@ class VotingViews {
 							<thead>
 								<tr>
 									<th><?php esc_html_e( 'Election', 'relatasoft-secure-election-suite' ); ?></th>
+									<th><?php esc_html_e( 'Public key', 'relatasoft-secure-election-suite' ); ?></th>
 									<th><?php esc_html_e( 'Export', 'relatasoft-secure-election-suite' ); ?></th>
 								</tr>
 							</thead>
@@ -715,9 +732,27 @@ class VotingViews {
 									<?php
 									$rses_rounds = ElectionRepository::rses_get_rounds( (int) $rses_e->id );
 									foreach ( $rses_rounds as $rses_r ) :
+										$rses_export_key = ! empty( $rses_r->key_id )
+											? KeyRepository::rses_get( (int) $rses_r->key_id )
+											: null;
 										?>
 										<tr>
 											<td><?php echo esc_html( $rses_e->title . ' — ' . $rses_r->title ); ?></td>
+											<td>
+												<?php
+												if ( $rses_export_key ) {
+													echo esc_html(
+														sprintf(
+															'#%d — %s',
+															(int) $rses_export_key->id,
+															(string) $rses_export_key->key_label
+														)
+													);
+												} else {
+													echo esc_html( (string) ( $rses_r->key_id ?: '—' ) );
+												}
+												?>
+											</td>
 											<td>
 												<div class="rses-inline-actions">
 													<a class="button rses-btn-primary" href="<?php echo esc_url( Nonce::rses_url( admin_url( 'admin-post.php?action=rses_export_voting&election_id=' . $rses_e->id . '&round_id=' . $rses_r->id . '&format=zip' ), Nonce::RSES_ACTION_VOTING_EXPORT ) ); ?>">ZIP</a>

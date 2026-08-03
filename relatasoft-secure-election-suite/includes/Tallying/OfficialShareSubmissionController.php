@@ -11,6 +11,7 @@ use RelataSoft\SecureElectionSuite\Bootstrap\ModeLock;
 use RelataSoft\SecureElectionSuite\Crypto\ShamirSecretSharing;
 use RelataSoft\SecureElectionSuite\Database\Repository;
 use RelataSoft\SecureElectionSuite\Exports\HashService;
+use RelataSoft\SecureElectionSuite\KeyAuthority\KeyExportService;
 use RelataSoft\SecureElectionSuite\KeyAuthority\KeyRepository;
 use RelataSoft\SecureElectionSuite\KeyAuthority\ShareEncryptionService;
 use RelataSoft\SecureElectionSuite\Security\AuditLogger;
@@ -48,11 +49,13 @@ class OfficialShareSubmissionController {
 			? wp_unslash( $_POST['rses_share_json'] )
 			: '';
 
-		$rses_payload = Sanitizer::rses_json( $rses_share_json );
+		$rses_parsed = Sanitizer::rses_json( $rses_share_json );
 
-		if ( null === $rses_payload ) {
+		if ( null === $rses_parsed ) {
 			wp_die( esc_html__( 'Invalid share JSON.', 'relatasoft-secure-election-suite' ) );
 		}
+
+		$rses_payload = KeyExportService::rses_unwrap_share_payload( $rses_parsed );
 
 		try {
 			ShamirSecretSharing::validateSharePayload( $rses_payload );

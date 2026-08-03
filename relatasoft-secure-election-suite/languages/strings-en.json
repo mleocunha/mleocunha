@@ -653,5 +653,16 @@
   "Continue voting",
   "Elector welcome and open-election links.",
   "Thank-you page with vote receipt hash.",
-  "Sends a password-reset email to the currently logged-in user (plain text). Place on the welcome page for the Votador PoC password-change flow."
+  "Sends a password-reset email to the currently logged-in user (plain text). Place on the welcome page for the Votador PoC password-change flow.",
+  "Linked elections",
+  "No elections on this site use this key yet. On the Voting site, open Public Keys to see which elections are linked; match this key label when submitting on Tallying.",
+  "None on this site (assign this key when creating an election on the Voting platform).",
+  "%1$s (fraction %2$d)",
+  "None yet",
+  "Public key: #%1$s — %2$s. Paste the booth shortcode on a WordPress page once voting is open.",
+  "Public key",
+  "Key #%1$s — %2$s",
+  "Paste the Shamir fraction JSON whose key_label matches this election: #%1$s — %2$s",
+  "(label not in package — match by election name)",
+  "Paste this JSON on the Tallying site under Share Submission. Match key_label (and linked elections when shown) to the election card before submitting."
 ]

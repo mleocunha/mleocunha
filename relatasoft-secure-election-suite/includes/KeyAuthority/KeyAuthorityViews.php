@@ -267,11 +267,12 @@ class KeyAuthorityViews {
 					continue;
 				}
 				$rses_found   = true;
-				$rses_payload = KeyExportService::rses_get_own_share_payload( (int) $rses_key->id );
+				$rses_payload = KeyExportService::rses_package_own_share( (int) $rses_key->id );
 				$rses_json    = $rses_payload
 					? (string) wp_json_encode( $rses_payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES )
 					: '';
 				$rses_ta_id   = 'rses-own-share-' . (int) $rses_key->id;
+				$rses_linked  = KeyExportService::rses_linked_election_labels( (int) $rses_key->id );
 				?>
 				<section class="rses-panel rses-panel-card rses-key-card rses-official-share-card">
 					<header class="rses-panel-header">
@@ -289,6 +290,17 @@ class KeyAuthorityViews {
 							);
 							?>
 						</p>
+						<?php if ( ! empty( $rses_key->description ) ) : ?>
+							<p class="rses-panel-desc"><?php echo esc_html( (string) $rses_key->description ); ?></p>
+						<?php endif; ?>
+						<?php if ( ! empty( $rses_linked ) ) : ?>
+							<p class="rses-panel-desc">
+								<strong><?php esc_html_e( 'Linked elections', 'relatasoft-secure-election-suite' ); ?>:</strong>
+								<?php echo esc_html( implode( '; ', $rses_linked ) ); ?>
+							</p>
+						<?php else : ?>
+							<p class="rses-panel-desc"><?php esc_html_e( 'No elections on this site use this key yet. On the Voting site, open Public Keys to see which elections are linked; match this key label when submitting on Tallying.', 'relatasoft-secure-election-suite' ); ?></p>
+						<?php endif; ?>
 					</header>
 
 					<?php if ( '' !== $rses_json ) : ?>
@@ -342,6 +354,7 @@ class KeyAuthorityViews {
 	private static function rses_render_key_card( object $key, array $settings ): void {
 		$rses_shares      = KeyRepository::rses_get_shares( (int) $key->id );
 		$rses_attachments = json_decode( $key->attachments ?? '[]', true ) ?: array();
+		$rses_linked      = KeyExportService::rses_linked_election_labels( (int) $key->id );
 		?>
 		<article class="rses-key-card rses-export-card">
 			<header class="rses-key-card-header">
@@ -364,6 +377,20 @@ class KeyAuthorityViews {
 
 			<table class="rses-key-meta-table">
 				<tr><th><?php esc_html_e( 'Key Size', 'relatasoft-secure-election-suite' ); ?></th><td><?php echo esc_html( (string) $key->key_size ); ?> bits</td></tr>
+				<?php if ( ! empty( $key->description ) ) : ?>
+					<tr><th><?php esc_html_e( 'Description', 'relatasoft-secure-election-suite' ); ?></th><td><?php echo esc_html( (string) $key->description ); ?></td></tr>
+				<?php endif; ?>
+				<tr><th><?php esc_html_e( 'Linked elections', 'relatasoft-secure-election-suite' ); ?></th>
+					<td>
+						<?php
+						if ( empty( $rses_linked ) ) {
+							esc_html_e( 'None on this site (assign this key when creating an election on the Voting platform).', 'relatasoft-secure-election-suite' );
+						} else {
+							echo esc_html( implode( '; ', $rses_linked ) );
+						}
+						?>
+					</td>
+				</tr>
 				<tr><th>p</th><td><code class="rses-bigint"><?php echo esc_html( substr( $key->public_p, 0, 64 ) . '...' ); ?></code></td></tr>
 				<tr><th>q</th><td><code class="rses-bigint"><?php echo esc_html( substr( $key->public_q, 0, 64 ) . '...' ); ?></code></td></tr>
 				<tr><th>g</th><td><code class="rses-bigint"><?php echo esc_html( substr( $key->public_g, 0, 64 ) . '...' ); ?></code></td></tr>
@@ -377,7 +404,14 @@ class KeyAuthorityViews {
 						} else {
 							foreach ( $rses_shares as $rses_share ) {
 								$rses_user = get_userdata( (int) $rses_share->official_user_id );
-								echo esc_html( ( $rses_user ? $rses_user->display_name : '#' . $rses_share->official_user_id ) . ' (share ' . $rses_share->share_index . ')' );
+								echo esc_html(
+									sprintf(
+										/* translators: 1: official display name, 2: share index */
+										__( '%1$s (fraction %2$d)', 'relatasoft-secure-election-suite' ),
+										$rses_user ? $rses_user->display_name : '#' . $rses_share->official_user_id,
+										(int) $rses_share->share_index
+									)
+								);
 								echo '<br />';
 							}
 						}

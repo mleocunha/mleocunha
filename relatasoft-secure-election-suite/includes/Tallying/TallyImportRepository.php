@@ -90,12 +90,13 @@ class TallyImportRepository {
 	 * Extract denormalized election/round labels from a parsed manifest.
 	 *
 	 * @param array<string,mixed> $manifest Manifest.
-	 * @return array{election_title:string,round_title:string,ballot_count:int|null,election_external_id:string,round_external_id:string,source_site_url:?string}
+	 * @return array{election_title:string,round_title:string,ballot_count:int|null,election_external_id:string,round_external_id:string,source_site_url:?string,key_id:int,key_label:string}
 	 */
 	public static function rses_summary_from_manifest( array $manifest ): array {
-		$rses_election = is_array( $manifest['election'] ?? null ) ? $manifest['election'] : array();
-		$rses_round    = is_array( $manifest['round'] ?? null ) ? $manifest['round'] : array();
-		$rses_meta     = is_array( $manifest['manifest'] ?? null ) ? $manifest['manifest'] : array();
+		$rses_election   = is_array( $manifest['election'] ?? null ) ? $manifest['election'] : array();
+		$rses_round      = is_array( $manifest['round'] ?? null ) ? $manifest['round'] : array();
+		$rses_meta       = is_array( $manifest['manifest'] ?? null ) ? $manifest['manifest'] : array();
+		$rses_public_key = is_array( $manifest['public_key'] ?? null ) ? $manifest['public_key'] : array();
 
 		$rses_election_title = trim( (string) ( $rses_election['title'] ?? $rses_meta['election_title'] ?? '' ) );
 		$rses_round_title    = trim( (string) ( $rses_round['title'] ?? $rses_meta['round_title'] ?? '' ) );
@@ -112,6 +113,20 @@ class TallyImportRepository {
 			$rses_ballot = (int) $rses_meta['ballot_count'];
 		}
 
+		$rses_key_id = (int) (
+			$rses_meta['key_id']
+			?? $rses_round['key_id']
+			?? $rses_public_key['key_id']
+			?? 0
+		);
+		$rses_key_label = trim(
+			(string) (
+				$rses_meta['key_label']
+				?? $rses_public_key['key_label']
+				?? ''
+			)
+		);
+
 		return array(
 			'election_title'       => $rses_election_title,
 			'round_title'          => $rses_round_title,
@@ -119,6 +134,27 @@ class TallyImportRepository {
 			'election_external_id' => (string) ( $rses_election['id'] ?? $manifest['election_id'] ?? $rses_meta['election_id'] ?? '' ),
 			'round_external_id'    => (string) ( $rses_round['id'] ?? $manifest['round_id'] ?? $rses_meta['round_id'] ?? '' ),
 			'source_site_url'      => $rses_meta['source_site'] ?? $manifest['source_site'] ?? null,
+			'key_id'               => $rses_key_id,
+			'key_label'            => $rses_key_label,
+		);
+	}
+
+	/**
+	 * Resolve key identity for an import (from denormalized fields or manifest).
+	 *
+	 * @param object                   $import   Import row.
+	 * @param array<string,mixed>|null $manifest Optional preloaded manifest.
+	 * @return array{key_id:int,key_label:string}
+	 */
+	public static function rses_key_identity( object $import, ?array $manifest = null ): array {
+		if ( null === $manifest ) {
+			$manifest = self::rses_get_manifest( $import );
+		}
+		$rses_summary = is_array( $manifest ) ? self::rses_summary_from_manifest( $manifest ) : array();
+
+		return array(
+			'key_id'    => (int) ( $rses_summary['key_id'] ?? 0 ),
+			'key_label' => (string) ( $rses_summary['key_label'] ?? '' ),
 		);
 	}
 

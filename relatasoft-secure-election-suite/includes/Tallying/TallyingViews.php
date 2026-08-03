@@ -35,14 +35,25 @@ class TallyingViews {
 	 *
 	 * @param object $import Import row.
 	 */
-	private static function rses_import_election_meta_html( object $import ): string {
+	private static function rses_import_election_meta_html( object $import, ?array $manifest = null ): string {
 		$rses_election = TallyImportRepository::rses_display_election_title( $import );
 		$rses_round    = TallyImportRepository::rses_display_round_title( $import );
+		$rses_key      = TallyImportRepository::rses_key_identity( $import, $manifest );
 		$rses_bits     = array();
 
 		$rses_bits[] = '<strong class="rses-import-election-title">' . esc_html( $rses_election ) . '</strong>';
 		if ( '' !== $rses_round ) {
 			$rses_bits[] = esc_html( $rses_round );
+		}
+		if ( $rses_key['key_id'] > 0 || '' !== $rses_key['key_label'] ) {
+			$rses_bits[] = esc_html(
+				sprintf(
+					/* translators: 1: key id, 2: key label */
+					__( 'Key #%1$s — %2$s', 'relatasoft-secure-election-suite' ),
+					(string) ( $rses_key['key_id'] ?: '—' ),
+					'' !== $rses_key['key_label'] ? $rses_key['key_label'] : '—'
+				)
+			);
 		}
 		if ( isset( $import->ballot_count ) && null !== $import->ballot_count && '' !== (string) $import->ballot_count ) {
 			$rses_bits[] = esc_html(
@@ -312,12 +323,28 @@ class TallyingViews {
 				$rses_threshold  = (int) ( $rses_manifest['round']['threshold_t'] ?? 3 );
 				$rses_submitted  = OfficialShareSubmissionController::rses_get_submission_count( (int) $rses_imp->id );
 				$rses_pct        = min( 100, ( $rses_submitted / max( 1, $rses_threshold ) ) * 100 );
+				$rses_key        = TallyImportRepository::rses_key_identity( $rses_imp, $rses_manifest );
+				$rses_form_key   = $rses_key['key_id'] > 0
+					? $rses_key['key_id']
+					: (int) ( $rses_manifest['round']['key_id'] ?? 0 );
 				?>
 				<article class="rses-import-card">
 					<header class="rses-import-card-header">
 						<h3><?php echo esc_html( TallyImportRepository::rses_display_election_title( $rses_imp ) ); ?></h3>
-						<?php echo self::rses_import_election_meta_html( $rses_imp ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+						<?php echo self::rses_import_election_meta_html( $rses_imp, $rses_manifest ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
 						<p class="description"><?php esc_html_e( 'Import', 'relatasoft-secure-election-suite' ); ?> #<?php echo esc_html( (string) $rses_imp->id ); ?></p>
+						<p class="rses-panel-desc">
+							<?php
+							echo esc_html(
+								sprintf(
+									/* translators: 1: key id, 2: key label */
+									__( 'Paste the Shamir fraction JSON whose key_label matches this election: #%1$s — %2$s', 'relatasoft-secure-election-suite' ),
+									(string) ( $rses_form_key ?: '—' ),
+									'' !== $rses_key['key_label'] ? $rses_key['key_label'] : __( '(label not in package — match by election name)', 'relatasoft-secure-election-suite' )
+								)
+							);
+							?>
+						</p>
 					</header>
 					<div class="rses-import-card-body">
 						<div class="rses-threshold-meta">
@@ -332,12 +359,12 @@ class TallyingViews {
 							<?php Nonce::rses_field( Nonce::RSES_ACTION_SHARE_SUBMIT ); ?>
 							<input type="hidden" name="action" value="rses_submit_share" />
 							<input type="hidden" name="tally_import_id" value="<?php echo esc_attr( (string) $rses_imp->id ); ?>" />
-							<input type="hidden" name="key_id" value="<?php echo esc_attr( (string) ( $rses_manifest['round']['key_id'] ?? 0 ) ); ?>" />
+							<input type="hidden" name="key_id" value="<?php echo esc_attr( (string) $rses_form_key ); ?>" />
 							<input type="hidden" name="election_round_id" value="<?php echo esc_attr( (string) ( $rses_manifest['round']['id'] ?? 0 ) ); ?>" />
 							<div class="rses-field-grid">
 								<div class="rses-field rses-field-full">
 									<label for="rses_share_json_<?php echo esc_attr( (string) $rses_imp->id ); ?>"><?php esc_html_e( 'Your Share JSON', 'relatasoft-secure-election-suite' ); ?></label>
-									<textarea name="rses_share_json" id="rses_share_json_<?php echo esc_attr( (string) $rses_imp->id ); ?>" rows="8" class="rses-code-area" required></textarea>
+									<textarea name="rses_share_json" id="rses_share_json_<?php echo esc_attr( (string) $rses_imp->id ); ?>" rows="8" class="rses-code-area" required placeholder='{"rses_package":"shamir-share-v1","key_label":"…","share":{…}}'></textarea>
 								</div>
 							</div>
 							<p class="rses-form-actions">

@@ -203,7 +203,14 @@ class KeyAuthorityController {
 
 		// Accept nested public_key object from fuller export packages.
 		if ( isset( $rses_data['public_key'] ) && is_array( $rses_data['public_key'] ) ) {
+			if ( '' === $rses_label && ! empty( $rses_data['key_label'] ) ) {
+				$rses_label = Sanitizer::rses_text( (string) $rses_data['key_label'] );
+			}
 			$rses_data = $rses_data['public_key'];
+		}
+
+		if ( '' === $rses_label && ! empty( $rses_data['key_label'] ) ) {
+			$rses_label = Sanitizer::rses_text( (string) $rses_data['key_label'] );
 		}
 
 		try {

@@ -1,7 +1,7 @@
 # Fork lab: Votador ↔ WordPress @ 1.0.27 (SSS)
 
 **Branch:** `cursor/votador-wp-sss-1.0.27-2eb1`  
-**Frozen plugin version:** `1.0.27` crypto baseline (`33fcc6a`); lab patches through **`1.0.27.7`** (tally UI shows election/round labels)  
+**Frozen plugin version:** `1.0.27` crypto baseline (`33fcc6a`); lab patches through **`1.0.27.8`** (Shamir fractions show linked elections; pt_BR “frações”)  
 **Crypto:** plain Shamir (`modp-elgamal-shamir-v1` behaviour) — **no** Feldman VSS / ceremony wiring
 
 ## Purpose
@@ -42,5 +42,6 @@ Cherry-pick candidates for the evolved line (no crypto):
 14. **Tally import “Failed to parse” (1.0.27.5)** — after raising PHP memory, ZIP opened but members were not found (subfolder / name mismatch / JSON-in-ZIP). Index by basename, strip BOM, keep stable ZIP entry names on export, surface entry list in the error.
 15. **Tally import rejected validation (1.0.27.6)** — empty `encrypted_tallies` after low-memory close. Stream tally compute on close/export; on import rebuild tallies from `encrypted-votes.json` when missing; normalize public_key aliases; persist validation errors in the stored manifest.
 16. **Tally UI election identity (1.0.27.7)** — denormalize `election_title` / `round_title` / `ballot_count` on import; show them on Import, Share Submission, and Certification so multiple concurrent elections are distinguishable.
+17. **Shamir fractions ↔ elections (1.0.27.8)** — export/import UIs show which elections each key is linked to; share JSON packages include `key_label` + `linked_elections` (crypto `share` unchanged); Voting Public Keys / Export list key identity; pt_BR Shamir UI uses “fração/frações” instead of “parte(s)”.
 
 Password-change PoC still requires `[enviar_redefinicao_senha]` on the welcome page (documented in Redirections admin copy).
