@@ -377,35 +377,27 @@ async function castOneBallot(page, { elector, round, boothBase, logger }) {
 }
 
 /**
- * Booth root for this election/round. Pages sometimes embed [rses_voting_booth]
- * twice (duplicate shortcode / theme), which duplicates #rses-ballot-form.
+ * Ballot form for this election/round.
+ * Live pages may embed [rses_voting_booth] twice, which duplicated #rses-ballot-form
+ * and tripped Playwright strict mode.
  *
  * @param {import('playwright').Page} page
  * @param {{ election_id: number, round_id: number }} round
  */
-function ballotRoot(page, round) {
+function ballotForm(page, round) {
+  const eid = Number(round.election_id);
+  const rid = Number(round.round_id);
   return page
     .locator(
-      `.rses-booth[data-rses-booth="ballot"][data-rses-election-id="${round.election_id}"][data-rses-round-id="${round.round_id}"]`
+      [
+        `.rses-booth[data-rses-booth="ballot"][data-rses-election-id="${eid}"][data-rses-round-id="${rid}"] form.rses-ballot-form`,
+        `form.rses-ballot-form[data-rses-election-id="${eid}"][data-rses-round-id="${rid}"]`,
+        `form#rses-ballot-form-${rid}`,
+        'form.rses-ballot-form',
+        'form#rses-ballot-form',
+      ].join(', ')
     )
-    .or(
-      page.locator(
-        `.rses-booth[data-rses-booth="ballot"][data-rses-round-id="${round.round_id}"]`
-      )
-    )
-    .or(page.locator('.rses-booth[data-rses-booth="ballot"]'))
     .first();
-}
-
-/**
- * @param {import('playwright').Page} page
- * @param {{ election_id: number, round_id: number }} round
- */
-function ballotForm(page, round) {
-  return ballotRoot(page, round)
-    .locator('form.rses-ballot-form, form#rses-ballot-form, form[id^="rses-ballot-form"]')
-    .first()
-    .or(page.locator('form.rses-ballot-form, form#rses-ballot-form').first());
 }
 
 async function fillRandomBallot(page, round) {
