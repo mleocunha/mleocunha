@@ -187,6 +187,8 @@
   "Import stored but rejected validation. Fix the package and try again.",
   "Prefer the ZIP from Voting Export after the round is closed. Individual encrypted votes are verified by checksum and not loaded into memory (required for large elections on 128MB PHP hosts).",
   "Voting Export (ZIP recommended)",
+  "ZIP entry “%1$s” is too large to load (%2$s bytes). Re-export with plugin 1.0.27.2+ or contact support.",
+  "Cleared %d oversized import record(s) that were exhausting PHP memory. Please import the ZIP again with this plugin version.",
   "Failed to create ZIP archive.",
   "GMP extension required.",
   "A key generation job is already running. Cancel it first or wait for completion.",

@@ -693,5 +693,7 @@
   "encrypted-votes.json failed its checksum.": "encrypted-votes.json falhou na verificação do checksum.",
   "Import stored but rejected validation. Fix the package and try again.": "Importação gravada, mas rejeitada na validação. Corrija o pacote e tente de novo.",
   "Prefer the ZIP from Voting Export after the round is closed. Individual encrypted votes are verified by checksum and not loaded into memory (required for large elections on 128MB PHP hosts).": "Prefira o ZIP da Exportação da votação após fechar a rodada. Os votos criptografados individuais são verificados por checksum e não são carregados na memória (necessário em eleições grandes com PHP de 128 MB).",
-  "Voting Export (ZIP recommended)": "Exportação da votação (ZIP recomendado)"
+  "Voting Export (ZIP recommended)": "Exportação da votação (ZIP recomendado)",
+  "ZIP entry “%1$s” is too large to load (%2$s bytes). Re-export with plugin 1.0.27.2+ or contact support.": "A entrada ZIP “%1$s” é grande demais para carregar (%2$s bytes). Reexporte com o plugin 1.0.27.2+ ou contate o suporte.",
+  "Cleared %d oversized import record(s) that were exhausting PHP memory. Please import the ZIP again with this plugin version.": "Foram limpos %d registro(s) de importação grandes demais que esgotavam a memória do PHP. Importe o ZIP de novo com esta versão do plugin."
 }
