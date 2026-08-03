@@ -409,8 +409,9 @@ class ElectoralRollImportService {
 				return new \WP_Error(
 					'rses_csv_max',
 					sprintf(
-						/* translators: %d: max rows */
-						__( 'Import stopped: more than %d data rows.', 'relatasoft-secure-election-suite' ),
+						/* translators: 1: found rows (at least), 2: max rows */
+						__( 'Import stopped: the CSV has more than %1$d data rows (limit is %2$d). Split the spreadsheet or remove duplicate content and try again.', 'relatasoft-secure-election-suite' ),
+						self::MAX_ROWS,
 						self::MAX_ROWS
 					)
 				);

@@ -594,20 +594,30 @@
 			e.stopPropagation();
 		}
 
+		// Synchronous guard — must run before any await/XHR so a double-click
+		// cannot start two chunked uploads that append the same CSV twice.
+		if (rsesBusy) {
+			return;
+		}
+		rsesBusy = true;
+
 		var cfg = rsesCfg();
 		var input = document.getElementById('rses_electoral_roll_csv');
 		var file = input && input.files && input.files[0];
 		var updateExisting = $('#rses_update_existing').is(':checked');
 
 		if (!file) {
+			rsesBusy = false;
 			rsesFail((cfg.i18n && cfg.i18n.noFile) || 'Choose a CSV file first.');
 			return;
 		}
 		if (cfg.maxBytes && file.size > cfg.maxBytes) {
+			rsesBusy = false;
 			rsesFail((cfg.i18n && cfg.i18n.tooLarge) || 'CSV file is too large.');
 			return;
 		}
 		if (!cfg.ajaxUrl || !cfg.nonce) {
+			rsesBusy = false;
 			rsesFail((cfg.i18n && cfg.i18n.noJs) || 'JavaScript failed to start the import.');
 			return;
 		}
