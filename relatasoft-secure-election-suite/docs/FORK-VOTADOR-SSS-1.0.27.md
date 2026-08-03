@@ -32,6 +32,7 @@ Cherry-pick candidates for the evolved line (no crypto):
 4. **Journey cache / booth selectors** — Fill journey URLs only when empty under concurrency; discover booth from `a.rses-open-election-link` / JSON only (not generic primary CTAs).
 5. **Ballot choice selection** — Failures looking like “Chrome too fast / wrong password” were actually Playwright `locator.check()` on opacity-0 radios (`.rses-choice-input`). Fix: set `input.checked` in-page (never `locator.check`).
 6. **UI log replay** — SSE `/api/events` replayed the last 200 events on every connect, so old `locator.check` failures looked like the current run. Fix: per-run `runId`, `log_reset` on start, UI ignores other runs.
-7. **Multi-booth page cells** — a cabina page may host two pinned shortcodes (one open, one not yet). GET `?election_id=&round_id=` must **not** override pinned shortcode attrs (only fill blanks). Votador discovers booth cells on the first elector and votes only in the matching votable cell (`build: booth-cells-1`).
+7. **Multi-booth page cells** — GET must not override pinned shortcodes; Votador discovers booth cells on first elector (`booth-cells-1`).
+8. **Login / CSV parity** — importer and Votador now share cell normalization (trim/BOM/NBSP); login waits for real success/#login_error under parallel load; email≠login collisions no longer silently rewrite another WP user (`login-csv-parity-1`). Re-import the CSV with “update existing” after deploying the plugin fix.
 
 Password-change PoC still requires `[enviar_redefinicao_senha]` on the welcome page (documented in Redirections admin copy).

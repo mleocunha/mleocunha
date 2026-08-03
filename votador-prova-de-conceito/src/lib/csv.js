@@ -146,6 +146,6 @@ function normalizeHeader(value) {
  */
 export function sanitizeUserLogin(login) {
   return String(login || '')
-    .replace(/[^\w.@-]/g, '')
-    .replace(/^[.\s]+|[.\s]+$/g, '');
+    .replace(/[^a-zA-Z0-9 _.\-@]/g, '')
+    .trim();
 }
