@@ -14,7 +14,7 @@ defined( 'ABSPATH' ) || exit;
  */
 class Schema {
 
-	public const RSES_DB_VERSION = '1.0.0';
+	public const RSES_DB_VERSION = '1.0.1';
 
 	/**
 	 * Get all table creation SQL statements.
@@ -188,6 +188,9 @@ class Schema {
 				source_site_url VARCHAR(255) NULL,
 				election_external_id VARCHAR(255) NULL,
 				round_external_id VARCHAR(255) NULL,
+				election_title VARCHAR(255) NULL,
+				round_title VARCHAR(255) NULL,
+				ballot_count INT NULL,
 				import_manifest_json LONGTEXT NOT NULL,
 				import_hash CHAR(64) NOT NULL,
 				imported_by BIGINT UNSIGNED NOT NULL,

@@ -127,11 +127,16 @@ class TallyImportController {
 				wp_die( esc_html__( 'Failed to encode import manifest for storage.', 'relatasoft-secure-election-suite' ) );
 			}
 
+			$rses_summary = TallyImportRepository::rses_summary_from_manifest( $rses_manifest );
+
 			$rses_import_id = TallyImportRepository::rses_create(
 				array(
-					'source_site_url'      => $rses_manifest['manifest']['source_site'] ?? $rses_manifest['source_site'] ?? null,
-					'election_external_id' => (string) ( $rses_manifest['election']['id'] ?? $rses_manifest['election_id'] ?? '' ),
-					'round_external_id'    => (string) ( $rses_manifest['round']['id'] ?? $rses_manifest['round_id'] ?? '' ),
+					'source_site_url'      => $rses_summary['source_site_url'] ?: ( $rses_manifest['manifest']['source_site'] ?? $rses_manifest['source_site'] ?? null ),
+					'election_external_id' => $rses_summary['election_external_id'],
+					'round_external_id'    => $rses_summary['round_external_id'],
+					'election_title'       => $rses_summary['election_title'] ?: null,
+					'round_title'          => $rses_summary['round_title'] ?: null,
+					'ballot_count'         => $rses_summary['ballot_count'],
 					'import_manifest_json' => $rses_manifest_json,
 					'import_hash'          => HashService::rses_hash_json( $rses_manifest ),
 					'status'               => $rses_validation['valid'] ? 'verified' : 'rejected',
@@ -155,9 +160,13 @@ class TallyImportController {
 			set_transient(
 				'rses_tally_import_flash_' . $rses_import_id,
 				array(
-					'status' => $rses_validation['valid'] ? 'verified' : 'rejected',
-					'errors' => $rses_validation['errors'],
-					'plugin' => RSES_VERSION,
+					'status'         => $rses_validation['valid'] ? 'verified' : 'rejected',
+					'errors'         => $rses_validation['errors'],
+					'plugin'         => RSES_VERSION,
+					'election_title' => $rses_summary['election_title'],
+					'round_title'    => $rses_summary['round_title'],
+					'ballot_count'   => $rses_summary['ballot_count'],
+					'source_site'    => $rses_summary['source_site_url'],
 				),
 				10 * MINUTE_IN_SECONDS
 			);

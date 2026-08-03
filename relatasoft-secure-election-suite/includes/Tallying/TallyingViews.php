@@ -31,6 +31,46 @@ class TallyingViews {
 	}
 
 	/**
+	 * Election/round subtitle for import cards and tables.
+	 *
+	 * @param object $import Import row.
+	 */
+	private static function rses_import_election_meta_html( object $import ): string {
+		$rses_election = TallyImportRepository::rses_display_election_title( $import );
+		$rses_round    = TallyImportRepository::rses_display_round_title( $import );
+		$rses_bits     = array();
+
+		$rses_bits[] = '<strong class="rses-import-election-title">' . esc_html( $rses_election ) . '</strong>';
+		if ( '' !== $rses_round ) {
+			$rses_bits[] = esc_html( $rses_round );
+		}
+		if ( isset( $import->ballot_count ) && null !== $import->ballot_count && '' !== (string) $import->ballot_count ) {
+			$rses_bits[] = esc_html(
+				sprintf(
+					/* translators: %d: ballot count */
+					__( '%d ballots', 'relatasoft-secure-election-suite' ),
+					(int) $import->ballot_count
+				)
+			);
+		}
+		if ( ! empty( $import->election_external_id ) || ! empty( $import->round_external_id ) ) {
+			$rses_bits[] = esc_html(
+				sprintf(
+					/* translators: 1: election id, 2: round id */
+					__( 'IDs %1$s / %2$s', 'relatasoft-secure-election-suite' ),
+					(string) ( $import->election_external_id ?: '—' ),
+					(string) ( $import->round_external_id ?: '—' )
+				)
+			);
+		}
+		if ( ! empty( $import->source_site_url ) ) {
+			$rses_bits[] = esc_html( (string) $import->source_site_url );
+		}
+
+		return '<p class="rses-panel-desc rses-import-election-meta">' . implode( ' · ', $rses_bits ) . '</p>';
+	}
+
+	/**
 	 * Render tally import page.
 	 */
 	public static function rses_render_import_page(): void {
@@ -38,6 +78,7 @@ class TallyingViews {
 
 		// Recover from older imports that stored full encrypted_votes (white screen on list).
 		$rses_purged = TallyImportRepository::rses_purge_oversized_manifests();
+		TallyImportRepository::rses_backfill_summaries();
 
 		$rses_imports = TallyImportRepository::rses_list();
 		?>
@@ -86,10 +127,31 @@ class TallyingViews {
 						$rses_flash_errors = $rses_flash_manifest['validation_errors'];
 					}
 				}
+				$rses_flash_election = '';
+				if ( is_array( $rses_flash_data ) && ! empty( $rses_flash_data['election_title'] ) ) {
+					$rses_flash_election = (string) $rses_flash_data['election_title'];
+				} elseif ( $rses_flash_row ) {
+					$rses_flash_election = TallyImportRepository::rses_display_election_title( $rses_flash_row );
+				}
+				$rses_flash_round = '';
+				if ( is_array( $rses_flash_data ) && ! empty( $rses_flash_data['round_title'] ) ) {
+					$rses_flash_round = (string) $rses_flash_data['round_title'];
+				} elseif ( $rses_flash_row ) {
+					$rses_flash_round = TallyImportRepository::rses_display_round_title( $rses_flash_row );
+				}
+
 				if ( 'rejected' === $rses_flash_status ) :
 					?>
 				<div class="rses-panel rses-panel-danger notice notice-error">
 					<p><?php esc_html_e( 'Import stored but rejected validation. Fix the package and try again.', 'relatasoft-secure-election-suite' ); ?></p>
+					<?php if ( '' !== $rses_flash_election ) : ?>
+						<p>
+							<strong><?php echo esc_html( $rses_flash_election ); ?></strong>
+							<?php if ( '' !== $rses_flash_round ) : ?>
+								— <?php echo esc_html( $rses_flash_round ); ?>
+							<?php endif; ?>
+						</p>
+					<?php endif; ?>
 					<?php if ( ! empty( $rses_flash_errors ) ) : ?>
 						<ul>
 							<?php foreach ( $rses_flash_errors as $rses_err ) : ?>
@@ -103,6 +165,15 @@ class TallyingViews {
 				<?php else : ?>
 				<div class="rses-panel rses-panel-success">
 					<p><?php esc_html_e( 'Voting package imported successfully.', 'relatasoft-secure-election-suite' ); ?></p>
+					<?php if ( '' !== $rses_flash_election ) : ?>
+						<p>
+							<?php esc_html_e( 'Election:', 'relatasoft-secure-election-suite' ); ?>
+							<strong><?php echo esc_html( $rses_flash_election ); ?></strong>
+							<?php if ( '' !== $rses_flash_round ) : ?>
+								— <?php echo esc_html( $rses_flash_round ); ?>
+							<?php endif; ?>
+						</p>
+					<?php endif; ?>
 				</div>
 				<?php endif; ?>
 			<?php endif; ?>
@@ -133,7 +204,7 @@ class TallyingViews {
 				<header class="rses-panel-header">
 					<p class="rses-panel-kicker"><?php esc_html_e( 'Library', 'relatasoft-secure-election-suite' ); ?></p>
 					<h2 class="rses-panel-title"><?php esc_html_e( 'Imports', 'relatasoft-secure-election-suite' ); ?></h2>
-					<p class="rses-panel-desc"><?php esc_html_e( 'Verified packages appear on Share Submission for officials.', 'relatasoft-secure-election-suite' ); ?></p>
+					<p class="rses-panel-desc"><?php esc_html_e( 'Each row is one closed election/round package. Verified packages appear on Share Submission for officials.', 'relatasoft-secure-election-suite' ); ?></p>
 				</header>
 
 				<?php if ( empty( $rses_imports ) ) : ?>
@@ -146,6 +217,9 @@ class TallyingViews {
 							<thead>
 								<tr>
 									<th>ID</th>
+									<th><?php esc_html_e( 'Election', 'relatasoft-secure-election-suite' ); ?></th>
+									<th><?php esc_html_e( 'Round', 'relatasoft-secure-election-suite' ); ?></th>
+									<th><?php esc_html_e( 'Ballots', 'relatasoft-secure-election-suite' ); ?></th>
 									<th><?php esc_html_e( 'Source', 'relatasoft-secure-election-suite' ); ?></th>
 									<th><?php esc_html_e( 'Status', 'relatasoft-secure-election-suite' ); ?></th>
 									<th><?php esc_html_e( 'Imported', 'relatasoft-secure-election-suite' ); ?></th>
@@ -155,7 +229,29 @@ class TallyingViews {
 								<?php foreach ( $rses_imports as $rses_imp ) : ?>
 									<tr>
 										<td><?php echo esc_html( (string) $rses_imp->id ); ?></td>
-										<td><?php echo esc_html( $rses_imp->source_site_url ?? '-' ); ?></td>
+										<td>
+											<strong><?php echo esc_html( TallyImportRepository::rses_display_election_title( $rses_imp ) ); ?></strong>
+											<?php if ( ! empty( $rses_imp->election_external_id ) ) : ?>
+												<br /><span class="description">#<?php echo esc_html( (string) $rses_imp->election_external_id ); ?></span>
+											<?php endif; ?>
+										</td>
+										<td>
+											<?php
+											$rses_round_label = TallyImportRepository::rses_display_round_title( $rses_imp );
+											echo esc_html( '' !== $rses_round_label ? $rses_round_label : '—' );
+											?>
+											<?php if ( ! empty( $rses_imp->round_external_id ) ) : ?>
+												<br /><span class="description">#<?php echo esc_html( (string) $rses_imp->round_external_id ); ?></span>
+											<?php endif; ?>
+										</td>
+										<td>
+											<?php
+											echo isset( $rses_imp->ballot_count ) && null !== $rses_imp->ballot_count
+												? esc_html( (string) (int) $rses_imp->ballot_count )
+												: '—';
+											?>
+										</td>
+										<td><?php echo esc_html( $rses_imp->source_site_url ?? '—' ); ?></td>
 										<td><?php echo self::rses_status_pill( (string) $rses_imp->status ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></td>
 										<td><?php echo esc_html( $rses_imp->imported_at ); ?></td>
 									</tr>
@@ -175,6 +271,7 @@ class TallyingViews {
 	public static function rses_render_share_submission_page(): void {
 		Capability::rses_require_official();
 
+		TallyImportRepository::rses_backfill_summaries();
 		$rses_imports = TallyImportRepository::rses_list();
 		?>
 		<div class="wrap rses-wrap rses-screen" <?php echo Translator::rses_html_attrs(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
@@ -218,8 +315,9 @@ class TallyingViews {
 				?>
 				<article class="rses-import-card">
 					<header class="rses-import-card-header">
-						<h3><?php esc_html_e( 'Import', 'relatasoft-secure-election-suite' ); ?> #<?php echo esc_html( (string) $rses_imp->id ); ?></h3>
-						<p class="rses-panel-desc"><?php echo esc_html( $rses_imp->source_site_url ?? '' ); ?></p>
+						<h3><?php echo esc_html( TallyImportRepository::rses_display_election_title( $rses_imp ) ); ?></h3>
+						<?php echo self::rses_import_election_meta_html( $rses_imp ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+						<p class="description"><?php esc_html_e( 'Import', 'relatasoft-secure-election-suite' ); ?> #<?php echo esc_html( (string) $rses_imp->id ); ?></p>
 					</header>
 					<div class="rses-import-card-body">
 						<div class="rses-threshold-meta">
@@ -278,6 +376,7 @@ class TallyingViews {
 	public static function rses_render_certification_page(): void {
 		Capability::rses_require_tally_admin();
 
+		TallyImportRepository::rses_backfill_summaries();
 		$rses_imports = TallyImportRepository::rses_list();
 		?>
 		<div class="wrap rses-wrap rses-screen" <?php echo Translator::rses_html_attrs(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
@@ -306,12 +405,11 @@ class TallyingViews {
 				?>
 				<article class="rses-cert-card">
 					<header class="rses-cert-card-header">
-						<h3><?php esc_html_e( 'Import', 'relatasoft-secure-election-suite' ); ?> #<?php echo esc_html( (string) $rses_imp->id ); ?></h3>
+						<h3><?php echo esc_html( TallyImportRepository::rses_display_election_title( $rses_imp ) ); ?></h3>
+						<?php echo self::rses_import_election_meta_html( $rses_imp ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
 						<p class="rses-panel-desc">
 							<?php echo self::rses_status_pill( (string) $rses_imp->status ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
-							<?php if ( ! empty( $rses_imp->source_site_url ) ) : ?>
-								— <?php echo esc_html( $rses_imp->source_site_url ); ?>
-							<?php endif; ?>
+							<span class="description"> · <?php esc_html_e( 'Import', 'relatasoft-secure-election-suite' ); ?> #<?php echo esc_html( (string) $rses_imp->id ); ?></span>
 						</p>
 					</header>
 					<div class="rses-cert-card-body">

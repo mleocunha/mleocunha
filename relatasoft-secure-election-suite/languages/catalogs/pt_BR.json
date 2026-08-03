@@ -702,5 +702,14 @@
   "Encrypted tallies were rebuilt from encrypted-votes.json during import.": "Totais criptografados foram reconstruídos a partir de encrypted-votes.json durante a importação.",
   "This round has encrypted votes but no encrypted tallies. Close & tally the round (or update the plugin) and export again.": "Esta rodada tem votos criptografados, mas não tem totais criptografados. Feche e apure a rodada (ou atualize o plugin) e exporte de novo.",
   "Encrypted tallies are required for decryption. Re-export from the voting site after closing the round, or import a ZIP that still contains encrypted-votes.json so tallies can be rebuilt.": "Totais criptografados são necessários para a descriptografia. Reexporte no site de votação após fechar a rodada, ou importe um ZIP que ainda contenha encrypted-votes.json para reconstruir os totais.",
-  "No detail was stored. Typical causes: missing public key fields (p/q/g/y) or empty encrypted tallies. Update both sites to 1.0.27.6+, close the round, re-export ZIP, and import again.": "Nenhum detalhe foi gravado. Causas típicas: faltam campos da chave pública (p/q/g/y) ou totais criptografados vazios. Atualize os dois sites para 1.0.27.6+, feche a rodada, reexporte o ZIP e importe de novo."
+  "No detail was stored. Typical causes: missing public key fields (p/q/g/y) or empty encrypted tallies. Update both sites to 1.0.27.6+, close the round, re-export ZIP, and import again.": "Nenhum detalhe foi gravado. Causas típicas: faltam campos da chave pública (p/q/g/y) ou totais criptografados vazios. Atualize os dois sites para 1.0.27.6+, feche a rodada, reexporte o ZIP e importe de novo.",
+  "Round %d": "Rodada %d",
+  "Election #%s": "Eleição #%s",
+  "Import #%d": "Importação #%d",
+  "Round #%s": "Rodada #%s",
+  "%d ballots": "%d cédulas",
+  "IDs %1$s / %2$s": "IDs %1$s / %2$s",
+  "Each row is one closed election/round package. Verified packages appear on Share Submission for officials.": "Cada linha é um pacote de eleição/rodada fechada. Pacotes verificados aparecem em Envio de shares para as autoridades.",
+  "Round": "Rodada",
+  "Ballots": "Cédulas"
 }

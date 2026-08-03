@@ -90,7 +90,10 @@ class VotingExportService {
 			$election_id,
 			$round_id,
 			array(
-				'ballot_count' => EncryptedVoteRepository::rses_count_distinct_voters( $round_id ),
+				'ballot_count'   => EncryptedVoteRepository::rses_count_distinct_voters( $round_id ),
+				'election_title' => (string) ( $rses_election->title ?? '' ),
+				'round_title'    => (string) ( $rses_round->title ?? '' ),
+				'round_number'   => isset( $rses_round->round_number ) ? (int) $rses_round->round_number : null,
 			)
 		);
 

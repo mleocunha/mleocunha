@@ -1431,6 +1431,16 @@
 	background: linear-gradient(180deg, var(--rses-soft) 0%, var(--rses-white) 100%);
 }
 
+.rses-screen .rses-import-election-meta {
+	margin: 0.35rem 0 0;
+	line-height: 1.45;
+}
+
+.rses-screen .rses-import-election-title {
+	font-weight: 700;
+	color: inherit;
+}
+
 .rses-screen .rses-import-card-header h3,
 .rses-screen .rses-cert-card-header h3 {
 	margin: 0 0 0.25rem;
