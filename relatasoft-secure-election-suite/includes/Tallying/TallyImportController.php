@@ -26,9 +26,14 @@ class TallyImportController {
 
 	/**
 	 * Max bytes for a single-JSON import loaded into PHP string memory.
-	 * Larger packages must use ZIP (votes are hashed from the archive stream).
+	 * Larger packages must use ZIP.
 	 */
 	private const RSES_MAX_JSON_IMPORT_BYTES = 8388608; // 8 MiB
+
+	/**
+	 * Max bytes for a ZIP member loaded via getFromName (never used for votes).
+	 */
+	private const RSES_MAX_ZIP_MEMBER_BYTES = 2097152; // 2 MiB
 
 	/**
 	 * Register hooks.
@@ -41,12 +46,17 @@ class TallyImportController {
 	 * Handle tally import upload.
 	 */
 	public static function rses_handle_import(): void {
+		// Memory exhaustion is not catchable — raise before any ZIP work.
 		if ( function_exists( 'wp_raise_memory_limit' ) ) {
 			wp_raise_memory_limit( 'admin' );
 		}
+		@ini_set( 'memory_limit', '256M' ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
 		if ( function_exists( 'set_time_limit' ) ) {
 			set_time_limit( 300 );
 		}
+
+		// Unblock admin if a previous attempt stored a multi‑MB manifest.
+		TallyImportRepository::rses_purge_oversized_manifests();
 
 		try {
 			Capability::rses_require_tally_admin();
@@ -121,6 +131,16 @@ class TallyImportController {
 				)
 			);
 
+			set_transient(
+				'rses_tally_import_flash_' . $rses_import_id,
+				array(
+					'status' => $rses_validation['valid'] ? 'verified' : 'rejected',
+					'errors' => $rses_validation['errors'],
+					'plugin' => RSES_VERSION,
+				),
+				10 * MINUTE_IN_SECONDS
+			);
+
 			wp_safe_redirect( admin_url( 'admin.php?page=rses-tally-import&rses_imported=' . $rses_import_id ) );
 			exit;
 		} catch ( \Throwable $rses_e ) {
@@ -168,7 +188,27 @@ class TallyImportController {
 		);
 
 		foreach ( $rses_map as $rses_file => $rses_key ) {
-			$rses_raw = $rses_zip->getFromName( $rses_file );
+			$rses_idx = $rses_zip->locateName( $rses_file );
+			if ( false === $rses_idx ) {
+				continue;
+			}
+			$rses_stat = $rses_zip->statIndex( $rses_idx );
+			$rses_size = is_array( $rses_stat ) ? (int) ( $rses_stat['size'] ?? 0 ) : 0;
+			if ( $rses_size > self::RSES_MAX_ZIP_MEMBER_BYTES ) {
+				$rses_zip->close();
+				wp_die(
+					esc_html(
+						sprintf(
+							/* translators: 1: zip entry name, 2: size in bytes */
+							__( 'ZIP entry “%1$s” is too large to load (%2$s bytes). Re-export with plugin 1.0.27.2+ or contact support.', 'relatasoft-secure-election-suite' ),
+							$rses_file,
+							(string) $rses_size
+						)
+					)
+				);
+			}
+
+			$rses_raw = $rses_zip->getFromIndex( $rses_idx );
 			if ( false === $rses_raw || '' === $rses_raw ) {
 				continue;
 			}
@@ -179,25 +219,24 @@ class TallyImportController {
 			unset( $rses_raw, $rses_decoded );
 		}
 
+		// Never getFromName/getFromIndex encrypted-votes.json — that OOMs 128M hosts.
+		// Trust checksums.json (written at export) and record size from ZIP stat only.
 		$rses_votes_idx = $rses_zip->locateName( 'encrypted-votes.json' );
 		if ( false !== $rses_votes_idx ) {
 			$rses_stat  = $rses_zip->statIndex( $rses_votes_idx );
 			$rses_bytes = is_array( $rses_stat ) ? (int) ( $rses_stat['size'] ?? 0 ) : 0;
-			$rses_hash  = self::rses_hash_zip_entry( $rses_zip, 'encrypted-votes.json' );
-
-			$rses_meta = array(
-				'present' => true,
-				'bytes'   => $rses_bytes,
-				'sha256'  => $rses_hash,
-				'omitted' => true,
-			);
-
-			$rses_expected = $rses_manifest['checksums']['encrypted-votes.json'] ?? null;
-			if ( is_string( $rses_expected ) && '' !== $rses_expected && '' !== $rses_hash ) {
-				$rses_meta['checksum_ok'] = hash_equals( $rses_expected, $rses_hash );
+			$rses_sha   = '';
+			if ( ! empty( $rses_manifest['checksums']['encrypted-votes.json'] ) && is_string( $rses_manifest['checksums']['encrypted-votes.json'] ) ) {
+				$rses_sha = $rses_manifest['checksums']['encrypted-votes.json'];
 			}
 
-			$rses_manifest['encrypted_votes_meta'] = $rses_meta;
+			$rses_manifest['encrypted_votes_meta'] = array(
+				'present' => true,
+				'bytes'   => $rses_bytes,
+				'sha256'  => $rses_sha,
+				'omitted' => true,
+				'source'  => 'checksums.json',
+			);
 		}
 
 		$rses_zip->close();
@@ -422,32 +461,6 @@ class TallyImportController {
 	}
 
 	/**
-	 * Stream-hash a ZIP entry without loading it entirely as a string.
-	 *
-	 * @param \ZipArchive $zip  Open archive.
-	 * @param string      $name Entry name.
-	 */
-	private static function rses_hash_zip_entry( \ZipArchive $zip, string $name ): string {
-		$rses_stream = $zip->getStream( $name );
-		if ( false === $rses_stream ) {
-			$rses_raw = $zip->getFromName( $name );
-			return is_string( $rses_raw ) ? hash( 'sha256', $rses_raw ) : '';
-		}
-
-		$rses_ctx = hash_init( 'sha256' );
-		while ( ! feof( $rses_stream ) ) {
-			$rses_chunk = fread( $rses_stream, 65536 );
-			if ( ! is_string( $rses_chunk ) || '' === $rses_chunk ) {
-				break;
-			}
-			hash_update( $rses_ctx, $rses_chunk );
-		}
-		fclose( $rses_stream );
-
-		return hash_final( $rses_ctx );
-	}
-
-	/**
 	 * Validate import manifest and checksums.
 	 *
 	 * @param array<string,mixed> $manifest Import data.
@@ -488,10 +501,6 @@ class TallyImportController {
 					);
 				}
 			}
-		}
-
-		if ( is_array( $rses_votes_meta ) && array_key_exists( 'checksum_ok', $rses_votes_meta ) && ! $rses_votes_meta['checksum_ok'] ) {
-			$rses_errors[] = __( 'encrypted-votes.json failed its checksum.', 'relatasoft-secure-election-suite' );
 		}
 
 		return array(

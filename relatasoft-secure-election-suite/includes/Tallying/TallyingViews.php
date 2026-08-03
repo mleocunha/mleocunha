@@ -36,6 +36,9 @@ class TallyingViews {
 	public static function rses_render_import_page(): void {
 		Capability::rses_require_tally_admin();
 
+		// Recover from older imports that stored full encrypted_votes (white screen on list).
+		$rses_purged = TallyImportRepository::rses_purge_oversized_manifests();
+
 		$rses_imports = TallyImportRepository::rses_list();
 		?>
 		<div class="wrap rses-wrap rses-screen" <?php echo Translator::rses_html_attrs(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
@@ -45,21 +48,41 @@ class TallyingViews {
 				<p class="rses-hero-kicker"><?php esc_html_e( 'Tallying', 'relatasoft-secure-election-suite' ); ?></p>
 				<h1 class="rses-hero-title"><?php esc_html_e( 'Tally Import', 'relatasoft-secure-election-suite' ); ?></h1>
 				<p class="rses-hero-lead"><?php esc_html_e( 'Import sealed voting packages (ZIP or JSON) from the Voting site to begin share collection and decryption.', 'relatasoft-secure-election-suite' ); ?></p>
+				<p class="rses-hero-lead"><code><?php echo esc_html( 'plugin ' . RSES_VERSION ); ?></code></p>
 			</header>
+
+			<?php if ( $rses_purged > 0 ) : ?>
+				<div class="rses-panel notice notice-warning">
+					<p>
+						<?php
+						echo esc_html(
+							sprintf(
+								/* translators: %d: number of rows */
+								__( 'Cleared %d oversized import record(s) that were exhausting PHP memory. Please import the ZIP again with this plugin version.', 'relatasoft-secure-election-suite' ),
+								$rses_purged
+							)
+						);
+						?>
+					</p>
+				</div>
+			<?php endif; ?>
 
 			<?php
 			if ( ! empty( $_GET['rses_imported'] ) ) : // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-				$rses_flash_id = absint( $_GET['rses_imported'] ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-				$rses_flash    = $rses_flash_id ? TallyImportRepository::rses_get( $rses_flash_id ) : null;
-				if ( $rses_flash && 'rejected' === $rses_flash->status ) :
-					$rses_flash_manifest = TallyImportRepository::rses_get_manifest( $rses_flash );
-					$rses_flash_check    = TallyImportController::rses_validate_import( $rses_flash_manifest );
+				$rses_flash_id   = absint( $_GET['rses_imported'] ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+				$rses_flash_data = $rses_flash_id ? get_transient( 'rses_tally_import_flash_' . $rses_flash_id ) : false;
+				if ( is_array( $rses_flash_data ) ) {
+					delete_transient( 'rses_tally_import_flash_' . $rses_flash_id );
+				}
+				$rses_flash_status = is_array( $rses_flash_data ) ? (string) ( $rses_flash_data['status'] ?? '' ) : '';
+				$rses_flash_errors = is_array( $rses_flash_data ) && ! empty( $rses_flash_data['errors'] ) ? (array) $rses_flash_data['errors'] : array();
+				if ( 'rejected' === $rses_flash_status ) :
 					?>
 				<div class="rses-panel rses-panel-danger notice notice-error">
 					<p><?php esc_html_e( 'Import stored but rejected validation. Fix the package and try again.', 'relatasoft-secure-election-suite' ); ?></p>
-					<?php if ( ! empty( $rses_flash_check['errors'] ) ) : ?>
+					<?php if ( ! empty( $rses_flash_errors ) ) : ?>
 						<ul>
-							<?php foreach ( $rses_flash_check['errors'] as $rses_err ) : ?>
+							<?php foreach ( $rses_flash_errors as $rses_err ) : ?>
 								<li><?php echo esc_html( (string) $rses_err ); ?></li>
 							<?php endforeach; ?>
 						</ul>
