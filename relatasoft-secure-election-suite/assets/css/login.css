@@ -1,0 +1,123 @@
+/**
+ * WordPress login / logout screen (TotalPoll-inspired, voting mode).
+ */
+
+@import url("https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600;700&family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&display=swap");
+
+body.login.rses-login-screen {
+	--rses-primary: #0c7c9c;
+	--rses-primary-dark: #095e77;
+	--rses-ink: #1c2a32;
+	--rses-muted: #5a6b75;
+	--rses-line: #c9d6dc;
+	--rses-soft: #eef5f8;
+	--rses-radius: 10px;
+	--rses-font: "Source Sans 3", "Segoe UI", sans-serif;
+	--rses-display: "Source Serif 4", Georgia, serif;
+
+	background:
+		radial-gradient(120% 80% at 0% 0%, rgba(12, 124, 156, 0.1), transparent 55%),
+		radial-gradient(90% 70% at 100% 0%, rgba(9, 94, 119, 0.08), transparent 50%),
+		linear-gradient(180deg, #f7fbfc, #ffffff 45%);
+	color: var(--rses-ink);
+	font-family: var(--rses-font);
+}
+
+body.login.rses-login-screen #login {
+	width: min(24rem, 92vw);
+	padding: 2rem 0 1.5rem;
+}
+
+body.login.rses-login-screen #login h1 a {
+	border-radius: calc(var(--rses-radius) + 4px);
+	box-shadow: 0 8px 24px rgba(12, 124, 156, 0.12);
+	background-color: #fff;
+	background-position: center;
+	background-repeat: no-repeat;
+}
+
+body.login.rses-login-screen #loginform,
+body.login.rses-login-screen #lostpasswordform,
+body.login.rses-login-screen #registerform {
+	margin-top: 0;
+	padding: 1.5rem 1.35rem 1.25rem;
+	border: 1px solid var(--rses-line);
+	border-radius: calc(var(--rses-radius) + 2px);
+	box-shadow: 0 12px 32px rgba(28, 42, 50, 0.06);
+	background: #fff;
+}
+
+body.login.rses-login-screen label {
+	color: var(--rses-ink);
+	font-weight: 600;
+	font-size: 0.92rem;
+}
+
+body.login.rses-login-screen .input,
+body.login.rses-login-screen input[type="text"],
+body.login.rses-login-screen input[type="password"] {
+	border: 1px solid var(--rses-line);
+	border-radius: var(--rses-radius);
+	padding: 0.55rem 0.75rem;
+	font-size: 1rem;
+	box-shadow: inset 0 1px 2px rgba(28, 42, 50, 0.04);
+}
+
+body.login.rses-login-screen .input:focus,
+body.login.rses-login-screen input[type="text"]:focus,
+body.login.rses-login-screen input[type="password"]:focus {
+	border-color: var(--rses-primary);
+	box-shadow: 0 0 0 3px rgba(12, 124, 156, 0.18);
+}
+
+body.login.rses-login-screen .wp-core-ui .button-primary {
+	background: linear-gradient(180deg, var(--rses-primary), var(--rses-primary-dark));
+	border: none;
+	border-radius: var(--rses-radius);
+	box-shadow: 0 4px 14px rgba(12, 124, 156, 0.28);
+	text-shadow: none;
+	font-weight: 700;
+	padding: 0.35rem 1rem;
+	height: auto;
+	line-height: 1.6;
+}
+
+body.login.rses-login-screen .wp-core-ui .button-primary:hover,
+body.login.rses-login-screen .wp-core-ui .button-primary:focus {
+	background: linear-gradient(180deg, #0e8eb2, var(--rses-primary-dark));
+}
+
+body.login.rses-login-screen #nav a,
+body.login.rses-login-screen #backtoblog a {
+	color: var(--rses-primary-dark);
+}
+
+body.login.rses-login-screen #nav a:hover,
+body.login.rses-login-screen #backtoblog a:hover {
+	color: var(--rses-primary);
+}
+
+body.login.rses-login-screen .message,
+body.login.rses-login-screen .success,
+body.login.rses-login-screen #login_error {
+	border-left: 4px solid var(--rses-primary);
+	border-radius: var(--rses-radius);
+	box-shadow: 0 4px 16px rgba(28, 42, 50, 0.05);
+}
+
+body.login.rses-login-screen #login_error {
+	border-left-color: #c0392b;
+}
+
+body.login.rses-login-screen .rses-login-footnote {
+	margin: 1rem auto 0;
+	max-width: 24rem;
+	text-align: center;
+	color: var(--rses-muted);
+	font-size: 0.85rem;
+	line-height: 1.45;
+}
+
+body.login.rses-login-screen .language-switcher {
+	margin-top: 0.75rem;
+}

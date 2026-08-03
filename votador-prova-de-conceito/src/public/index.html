@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Votador — Prova de Conceito</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="shell">
+    <header class="hero">
+      <p class="brand">Votador</p>
+      <h1>Prova de Conceito</h1>
+      <p class="lead">Stress de votação com Google Chrome real (Playwright headed). Credenciais e CSV ficam só nesta máquina.</p>
+    </header>
+
+    <aside class="mac-banner" id="macBanner" hidden>
+      <strong>macOS:</strong> em <em>Ajustes do Sistema → Privacidade e Segurança</em>, autorize
+      <em>Automação</em> e/ou <em>Acessibilidade</em> para o Terminal (ou Cursor) e o Google Chrome antes de iniciar.
+    </aside>
+
+    <form id="runForm" class="form" enctype="multipart/form-data">
+      <section class="block">
+        <h2>Plataforma</h2>
+        <label>
+          URL da plataforma
+          <input name="platformUrl" type="url" required placeholder="https://votacao.exemplo.gov.br" autocomplete="off" />
+        </label>
+        <div class="row">
+          <label>
+            Caminho de login
+            <select name="loginPath" id="loginPath">
+              <option value="/id.php">/id.php</option>
+              <option value="/wp-login.php" selected>/wp-login.php</option>
+              <option value="custom">Personalizado…</option>
+            </select>
+          </label>
+          <label id="customLoginWrap" class="hidden">
+            Caminho personalizado
+            <input name="loginPathCustom" type="text" placeholder="/minha-entrada.php" autocomplete="off" />
+          </label>
+        </div>
+      </section>
+
+      <section class="block">
+        <h2>Administração (descoberta de eleições)</h2>
+        <p class="hint">Usado só para ler o JSON de eleições abertas. A senha não é gravada em disco.</p>
+        <div class="row">
+          <label>
+            Usuário admin
+            <input name="adminUser" type="text" required autocomplete="off" autocapitalize="off" spellcheck="false" />
+          </label>
+          <label>
+            Senha admin
+            <input name="adminPassword" type="password" required autocomplete="off" />
+          </label>
+        </div>
+      </section>
+
+      <section class="block">
+        <h2>Cadastro eleitoral</h2>
+        <label>
+          CSV (mesmo formato do Importador de cadastro eleitoral)
+          <input name="csv" type="file" accept=".csv,text/csv" required />
+        </label>
+      </section>
+
+      <section class="block">
+        <h2>PoC com troca de senha</h2>
+        <label class="check">
+          <input name="passwordChangePoc" id="passwordChangePoc" type="checkbox" value="1" />
+          PoC com troca de senha
+        </label>
+        <p class="hint">
+          Quando marcado: cada aba completa reset (shortcode na boas-vindas → Roundcube → nova senha WP) e só então vota.
+          Senhas geradas ficam em <code>credentials/generated-passwords.csv</code> (reutilizadas nas próximas corridas).
+          Insira <code>[enviar_redefinicao_senha]</code> na página de boas-vindas do plugin.
+        </p>
+        <label id="mailUrlWrap" class="hidden">
+          URL do Roundcube
+          <input name="mailUrl" type="url" value="https://relatasoft.com.br/mail/" autocomplete="off" />
+        </label>
+      </section>
+
+      <section class="block">
+        <h2>Paralelismo e resiliência</h2>
+        <div class="row triple">
+          <label>
+            Janelas Chrome
+            <input name="windows" type="number" min="1" max="10" value="5" />
+          </label>
+          <label>
+            Contextos / janela
+            <input name="tabsPerWindow" type="number" min="1" max="10" value="5" />
+          </label>
+          <label class="check">
+            <input name="ignoreHTTPSErrors" type="checkbox" value="1" />
+            Ignorar erro de certificado HTTPS
+          </label>
+        </div>
+        <div class="row triple">
+          <label>
+            Tentativas
+            <input name="tentativas" type="number" min="1" value="50" title="Máximo de eleitores pulados/registrados no teste inteiro (x)" />
+          </label>
+          <label>
+            Insistências
+            <input name="insistencias" type="number" min="1" value="3" title="Retentativas por cada falha de eleitor (n)" />
+          </label>
+          <label>
+            Limite máximo de retentativas
+            <input name="limiteRetentativas" type="number" min="1" value="3" title="Teto por falha (y): se as insistências daquela falha chegarem a y, o teste para" />
+          </label>
+        </div>
+        <p class="hint">
+          Pula e registra até <strong>Tentativas</strong> falhas; retenta até <strong>Insistências</strong> por falha;
+          se as insistências de uma falha atingirem o <strong>Limite máximo de retentativas</strong>, o teste inteiro para.
+        </p>
+        <label>
+          Caminho do Google Chrome (opcional)
+          <input name="chromePath" type="text" placeholder="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" autocomplete="off" />
+        </label>
+      </section>
+
+      <div class="actions">
+        <button type="submit" id="startBtn" class="primary">Iniciar votação</button>
+        <button type="button" id="stopBtn" class="ghost" disabled>Parar</button>
+      </div>
+    </form>
+
+    <section class="block log-block">
+      <div class="log-head">
+        <h2>Progresso</h2>
+        <span id="runState" class="pill">ocioso</span>
+      </div>
+      <pre id="log" class="log" aria-live="polite"></pre>
+    </section>
+  </div>
+  <script src="/app.js" type="module"></script>
+</body>
+</html>
