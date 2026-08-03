@@ -32,6 +32,6 @@ Cherry-pick candidates for the evolved line (no crypto):
 4. **Journey cache / booth selectors** — Fill journey URLs only when empty under concurrency; discover booth from `a.rses-open-election-link` / JSON only (not generic primary CTAs).
 5. **Ballot choice selection** — Failures looking like “Chrome too fast / wrong password” were actually Playwright `locator.check()` on opacity-0 radios (`.rses-choice-input`). Fix: set `input.checked` in-page (never `locator.check`).
 6. **UI log replay** — SSE `/api/events` replayed the last 200 events on every connect, so old `locator.check` failures looked like the current run. Fix: per-run `runId`, `log_reset` on start, UI ignores other runs.
-7. **Duplicate booth forms** — live site had two `#rses-ballot-form` on the cabina page (strict-mode Playwright error). Votador scopes to `.rses-booth[data-rses-*]`; plugin form id is now `rses-ballot-form-{round_id}` (`build: ballot-scope-1`). Also check the WP page for a duplicated `[rses_voting_booth]` shortcode.
+7. **Multi-booth page cells** — a cabina page may host two pinned shortcodes (one open, one not yet). GET `?election_id=&round_id=` must **not** override pinned shortcode attrs (only fill blanks). Votador discovers booth cells on the first elector and votes only in the matching votable cell (`build: booth-cells-1`).
 
 Password-change PoC still requires `[enviar_redefinicao_senha]` on the welcome page (documented in Redirections admin copy).

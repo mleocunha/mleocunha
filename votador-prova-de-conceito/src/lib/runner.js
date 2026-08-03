@@ -10,7 +10,7 @@ import { createPasswordStore } from './passwordStore.js';
 import { discoverBatchLocale } from './discoverLocale.js';
 
 /** Bumped when PoC runtime behaviour changes — look for this in startup logs. */
-export const VOTADOR_BUILD = 'ballot-scope-1';
+export const VOTADOR_BUILD = 'booth-cells-1';
 
 export const DEFAULTS = {
   windows: 5,
@@ -137,6 +137,7 @@ export async function runVotador(config, hooks = {}) {
         welcome: snapshot.journey.welcome || '',
         booth: snapshot.journey.booth || '',
         thank_you: snapshot.journey.thank_you || '',
+        boothCells: [],
       },
     };
 

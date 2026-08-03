@@ -77,6 +77,7 @@ export async function voteElector(context, opts) {
         elector,
         round,
         boothBase: journey.booth || journeyCache.current.booth,
+        journeyCache,
         logger,
       });
       votes.push(result);
@@ -279,7 +280,7 @@ async function resolveRoundsForElector(page, openRounds, journey) {
   }));
 }
 
-async function castOneBallot(page, { elector, round, boothBase, logger }) {
+async function castOneBallot(page, { elector, round, boothBase, journeyCache, logger }) {
   if (!boothBase) {
     throw new Error('URL da cabina (booth) desconhecida — configure Redirecionamentos no plugin.');
   }
@@ -287,13 +288,36 @@ async function castOneBallot(page, { elector, round, boothBase, logger }) {
   const url = boothUrlFor(boothBase, round.election_id, round.round_id);
   await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
 
-  // Already voted → collect receipt if shown.
-  const scopedReceipt = page
-    .locator(
-      `[data-rses-booth="receipt"][data-rses-election-id="${round.election_id}"][data-rses-round-id="${round.round_id}"]`
-    )
-    .or(page.locator('[data-rses-booth="receipt"]').first());
-  if (await page.locator('[data-rses-booth="receipt"]').count()) {
+  // First elector maps every booth cell on the page (open ballot vs closed/not-yet).
+  let cells = journeyCache?.current?.boothCells;
+  if (!Array.isArray(cells) || !cells.length) {
+    cells = await discoverBoothCells(page);
+    if (journeyCache?.current) {
+      journeyCache.current.boothCells = cells;
+    }
+    logger.info('Células da cabina descobertas', {
+      cells: cells.map((c) => ({
+        index: c.index,
+        kind: c.kind,
+        election_id: c.election_id,
+        round_id: c.round_id,
+        has_form: c.has_form,
+      })),
+    });
+  }
+
+  const cell = findBoothCell(cells, round);
+  if (cell && (cell.kind === 'closed' || cell.kind === 'empty') && !cell.has_form) {
+    throw new Error(
+      `Célula da cabina ainda não está aberta para votar (election=${round.election_id}, round=${round.round_id}, kind=${cell.kind})`
+    );
+  }
+
+  // Already voted → collect receipt if shown for this round.
+  const scopedReceipt = page.locator(
+    `[data-rses-booth="receipt"][data-rses-election-id="${round.election_id}"][data-rses-round-id="${round.round_id}"]`
+  );
+  if (await scopedReceipt.count()) {
     const hash =
       (await scopedReceipt.locator('[data-rses-receipt-hash], .rses-receipt-hash').first().textContent()) ||
       '';
@@ -313,14 +337,14 @@ async function castOneBallot(page, { elector, round, boothBase, logger }) {
     };
   }
 
-  const form = ballotForm(page, round);
+  const form = ballotForm(page, round, cells);
   if (!(await form.count())) {
     throw new Error(
-      `Cabina sem boletim (election=${round.election_id}, round=${round.round_id})`
+      `Cabina sem boletim votável para election=${round.election_id}, round=${round.round_id}. Células: ${JSON.stringify(cells)}`
     );
   }
 
-  await fillRandomBallot(page, round);
+  await fillRandomBallot(page, round, cells);
   await form.locator('.rses-submit-vote').click();
 
   // Wait for thank-you or booth receipt.
@@ -377,31 +401,91 @@ async function castOneBallot(page, { elector, round, boothBase, logger }) {
 }
 
 /**
- * Ballot form for this election/round.
- * Live pages may embed [rses_voting_booth] twice, which duplicated #rses-ballot-form
- * and tripped Playwright strict mode.
+ * Inspect all booth cells currently on the page.
+ * @param {import('playwright').Page} page
+ */
+async function discoverBoothCells(page) {
+  return page.evaluate(() => {
+    const cells = [];
+    document.querySelectorAll('.rses-booth').forEach((el, index) => {
+      const form = el.querySelector('form.rses-ballot-form');
+      const kindAttr = el.getAttribute('data-rses-booth') || '';
+      let kind = kindAttr;
+      if (!kind) {
+        kind = form ? 'ballot' : el.querySelector('.rses-message') ? 'message' : 'unknown';
+      }
+      const eid =
+        Number(el.getAttribute('data-rses-election-id')) ||
+        Number(form?.getAttribute('data-rses-election-id')) ||
+        Number(form?.querySelector('input[name="election_id"]')?.value) ||
+        0;
+      const rid =
+        Number(el.getAttribute('data-rses-round-id')) ||
+        Number(form?.getAttribute('data-rses-round-id')) ||
+        Number(form?.querySelector('input[name="round_id"]')?.value) ||
+        0;
+      cells.push({
+        index,
+        kind,
+        election_id: eid,
+        round_id: rid,
+        has_form: Boolean(form),
+        form_id: form?.id || '',
+      });
+    });
+    return cells;
+  });
+}
+
+/**
+ * @param {Array<object>} cells
+ * @param {{ election_id: number, round_id: number }} round
+ */
+function findBoothCell(cells, round) {
+  const eid = Number(round.election_id);
+  const rid = Number(round.round_id);
+  return (
+    (cells || []).find((c) => c.election_id === eid && c.round_id === rid) ||
+    (cells || []).find((c) => c.round_id === rid) ||
+    null
+  );
+}
+
+/**
+ * Ballot form for this election/round cell only — never grab another booth on the page.
  *
  * @param {import('playwright').Page} page
  * @param {{ election_id: number, round_id: number }} round
+ * @param {Array<object>} [cells]
  */
-function ballotForm(page, round) {
+function ballotForm(page, round, cells = []) {
   const eid = Number(round.election_id);
   const rid = Number(round.round_id);
-  return page
-    .locator(
-      [
-        `.rses-booth[data-rses-booth="ballot"][data-rses-election-id="${eid}"][data-rses-round-id="${rid}"] form.rses-ballot-form`,
-        `form.rses-ballot-form[data-rses-election-id="${eid}"][data-rses-round-id="${rid}"]`,
-        `form#rses-ballot-form-${rid}`,
-        'form.rses-ballot-form',
-        'form#rses-ballot-form',
-      ].join(', ')
-    )
-    .first();
+  const cell = findBoothCell(cells, round);
+
+  if (cell?.form_id) {
+    return page.locator(`form#${cssEscape(cell.form_id)}`);
+  }
+  if (cell && cell.has_form && Number.isInteger(cell.index)) {
+    return page.locator('.rses-booth').nth(cell.index).locator('form.rses-ballot-form');
+  }
+
+  return page.locator(
+    [
+      `.rses-booth[data-rses-booth="ballot"][data-rses-election-id="${eid}"][data-rses-round-id="${rid}"] form.rses-ballot-form`,
+      `form.rses-ballot-form[data-rses-election-id="${eid}"][data-rses-round-id="${rid}"]`,
+      `form#rses-ballot-form-${rid}`,
+    ].join(', ')
+  );
 }
 
-async function fillRandomBallot(page, round) {
-  const form = ballotForm(page, round);
+function cssEscape(value) {
+  // Minimal escape for form ids like rses-ballot-form-12.
+  return String(value).replace(/[^a-zA-Z0-9_-]/g, '\\$&');
+}
+
+async function fillRandomBallot(page, round, cells = []) {
+  const form = ballotForm(page, round, cells);
   await form.waitFor({ state: 'visible', timeout: 60000 });
   // Let booth CSS/JS (is-checked sync) settle before interacting.
   await page.waitForTimeout(150);

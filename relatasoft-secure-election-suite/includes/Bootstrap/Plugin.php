@@ -329,20 +329,21 @@ class Plugin {
 			'rses_voting_booth'
 		);
 
-		// Query args override shortcode attributes so one booth page can serve every open round.
-		$rses_election_id = isset( $_GET['election_id'] ) // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		$rses_attr_election = absint( $atts['election_id'] );
+		$rses_attr_round    = absint( $atts['round_id'] );
+
+		// Query args only fill blank shortcode attributes. A page may host several
+		// pinned booths (one open, one not yet open); GET must not force every
+		// shortcode onto the same election/round.
+		$rses_get_election = isset( $_GET['election_id'] ) // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 			? absint( $_GET['election_id'] )
 			: 0;
-		$rses_round_id    = isset( $_GET['round_id'] ) // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		$rses_get_round    = isset( $_GET['round_id'] ) // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 			? absint( $_GET['round_id'] )
 			: 0;
 
-		if ( $rses_election_id < 1 ) {
-			$rses_election_id = absint( $atts['election_id'] );
-		}
-		if ( $rses_round_id < 1 ) {
-			$rses_round_id = absint( $atts['round_id'] );
-		}
+		$rses_election_id = $rses_attr_election > 0 ? $rses_attr_election : $rses_get_election;
+		$rses_round_id    = $rses_attr_round > 0 ? $rses_attr_round : $rses_get_round;
 
 		ob_start();
 		\RelataSoft\SecureElectionSuite\Voting\VotingViews::rses_render_voting_booth(

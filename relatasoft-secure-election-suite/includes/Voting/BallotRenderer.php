@@ -28,14 +28,24 @@ class BallotRenderer {
 		$rses_round = ElectionRepository::rses_get_round( $round_id );
 
 		if ( ! $rses_round || 'open' !== $rses_round->status ) {
-			return '<div class="rses-booth" ' . Translator::rses_html_attrs() . '><div class="rses-message rses-message-warning">' . esc_html__( 'Voting is not currently open.', 'relatasoft-secure-election-suite' ) . '</div></div>';
+			return self::rses_render_status_booth(
+				$election_id,
+				$round_id,
+				'closed',
+				__( 'Voting is not currently open.', 'relatasoft-secure-election-suite' )
+			);
 		}
 
 		$rses_election  = ElectionRepository::rses_get( $election_id );
 		$rses_questions = ElectionRepository::rses_get_questions( $round_id );
 
 		if ( empty( $rses_questions ) ) {
-			return '<div class="rses-booth" ' . Translator::rses_html_attrs() . '><div class="rses-message rses-message-warning">' . esc_html__( 'No ballot questions configured.', 'relatasoft-secure-election-suite' ) . '</div></div>';
+			return self::rses_render_status_booth(
+				$election_id,
+				$round_id,
+				'empty',
+				__( 'No ballot questions configured.', 'relatasoft-secure-election-suite' )
+			);
 		}
 
 		ob_start();
@@ -151,5 +161,24 @@ class BallotRenderer {
 		</div>
 		<?php
 		return (string) ob_get_clean();
+	}
+
+	/**
+	 * Status booth cell (closed / empty) with stable data attributes for scrapers.
+	 *
+	 * @param int    $election_id Election ID.
+	 * @param int    $round_id    Round ID.
+	 * @param string $status      Machine status (closed|empty).
+	 * @param string $message     Human message.
+	 */
+	private static function rses_render_status_booth( int $election_id, int $round_id, string $status, string $message ): string {
+		return sprintf(
+			'<div class="rses-booth rses-booth-%1$s" data-rses-booth="%1$s" data-rses-election-id="%2$d" data-rses-round-id="%3$d" %4$s><div class="rses-message rses-message-warning">%5$s</div></div>',
+			esc_attr( $status ),
+			$election_id,
+			$round_id,
+			Translator::rses_html_attrs(),
+			esc_html( $message )
+		);
 	}
 }
