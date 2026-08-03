@@ -681,5 +681,17 @@
   "Removed duplicated upload bytes; validating CSV…": "Bytes duplicados do upload removidos; validando CSV…",
   "Import stopped: the CSV has more than %1$d data rows (limit is %2$d). Split the spreadsheet or remove duplicate content and try again.": "Importação interrompida: o CSV tem mais de %1$d linhas de dados (limite %2$d). Divida a planilha ou remova conteúdo duplicado e tente de novo.",
   "Failed to write encrypted votes export.": "Falha ao gravar a exportação dos votos criptografados.",
-  "Failed to read encrypted votes export.": "Falha ao ler a exportação dos votos criptografados."
+  "Failed to read encrypted votes export.": "Falha ao ler a exportação dos votos criptografados.",
+  "Upload failed (PHP error code %d). Check upload_max_filesize / post_max_size.": "Falha no upload (código de erro PHP %d). Verifique upload_max_filesize / post_max_size.",
+  "Failed to encode import manifest for storage.": "Falha ao codificar o manifesto de importação para armazenamento.",
+  "Failed to store tally import in the database.": "Falha ao gravar a importação da apuração no banco de dados.",
+  "Tally import failed: %s": "Falha na importação da apuração: %s",
+  "Tally Import Error": "Erro na importação da apuração",
+  "Failed to open ZIP import file.": "Falha ao abrir o arquivo ZIP de importação.",
+  "This JSON export is too large to import safely on this server. Use the ZIP export from Voting Export instead (recommended).": "Este JSON é grande demais para importar com segurança neste servidor. Use a exportação ZIP em Exportação da votação (recomendado).",
+  "Encrypted tallies are required for decryption. Re-export from the voting site after closing the round.": "Totais criptografados são necessários para a descriptografia. Reexporte no site de votação após fechar a rodada.",
+  "encrypted-votes.json failed its checksum.": "encrypted-votes.json falhou na verificação do checksum.",
+  "Import stored but rejected validation. Fix the package and try again.": "Importação gravada, mas rejeitada na validação. Corrija o pacote e tente de novo.",
+  "Prefer the ZIP from Voting Export after the round is closed. Individual encrypted votes are verified by checksum and not loaded into memory (required for large elections on 128MB PHP hosts).": "Prefira o ZIP da Exportação da votação após fechar a rodada. Os votos criptografados individuais são verificados por checksum e não são carregados na memória (necessário em eleições grandes com PHP de 128 MB).",
+  "Voting Export (ZIP recommended)": "Exportação da votação (ZIP recomendado)"
 }
