@@ -86,14 +86,25 @@ class TallyImportController {
 
 			if ( str_ends_with( $rses_lower, '.zip' ) ) {
 				$rses_manifest = self::rses_parse_zip_import( $rses_tmp );
+				// Some browsers save a JSON package with a .zip extension; try JSON if ZIP had no known members.
+				if ( empty( $rses_manifest['public_key'] ) && empty( $rses_manifest['encrypted_tallies'] ) && empty( $rses_manifest['manifest'] ) ) {
+					$rses_head = (string) file_get_contents( $rses_tmp, false, null, 0, 1 );
+					if ( '{' === $rses_head ) {
+						$rses_manifest = self::rses_parse_json_import( $rses_tmp );
+					}
+				}
 			} elseif ( str_ends_with( $rses_lower, '.json' ) ) {
 				$rses_manifest = self::rses_parse_json_import( $rses_tmp );
 			} else {
 				wp_die( esc_html__( 'Unsupported file format. Use ZIP or JSON.', 'relatasoft-secure-election-suite' ) );
 			}
 
-			if ( empty( $rses_manifest ) ) {
-				wp_die( esc_html__( 'Failed to parse import file.', 'relatasoft-secure-election-suite' ) );
+			if ( empty( $rses_manifest['public_key'] ) && empty( $rses_manifest['encrypted_tallies'] ) && empty( $rses_manifest['manifest'] ) ) {
+				wp_die(
+					esc_html__( 'Failed to parse import file. The upload is not a Voting Export package (missing manifest/public-key/tallies). Re-download ZIP from Voting Export.', 'relatasoft-secure-election-suite' ),
+					esc_html__( 'Tally Import Error', 'relatasoft-secure-election-suite' ),
+					array( 'response' => 400 )
+				);
 			}
 
 			// Never persist the full ciphertext list — decryption does not need it.
@@ -170,9 +181,21 @@ class TallyImportController {
 		}
 
 		$rses_zip = new \ZipArchive();
-		if ( true !== $rses_zip->open( $tmp_path ) ) {
-			wp_die( esc_html__( 'Failed to open ZIP import file.', 'relatasoft-secure-election-suite' ) );
+		$rses_open = $rses_zip->open( $tmp_path );
+		if ( true !== $rses_open ) {
+			wp_die(
+				esc_html(
+					sprintf(
+						/* translators: %s: ZipArchive open error code */
+						__( 'Failed to open ZIP import file (ZipArchive code %s).', 'relatasoft-secure-election-suite' ),
+						(string) $rses_open
+					)
+				)
+			);
 		}
+
+		$rses_by_base = self::rses_zip_index_by_basename( $rses_zip );
+		$rses_names   = array_keys( $rses_by_base );
 
 		$rses_manifest = array();
 
@@ -188,12 +211,14 @@ class TallyImportController {
 		);
 
 		foreach ( $rses_map as $rses_file => $rses_key ) {
-			$rses_idx = $rses_zip->locateName( $rses_file );
-			if ( false === $rses_idx ) {
+			$rses_base = strtolower( $rses_file );
+			if ( ! isset( $rses_by_base[ $rses_base ] ) ) {
 				continue;
 			}
-			$rses_stat = $rses_zip->statIndex( $rses_idx );
-			$rses_size = is_array( $rses_stat ) ? (int) ( $rses_stat['size'] ?? 0 ) : 0;
+			$rses_idx  = (int) $rses_by_base[ $rses_base ]['index'];
+			$rses_size = (int) $rses_by_base[ $rses_base ]['size'];
+			$rses_path = (string) $rses_by_base[ $rses_base ]['name'];
+
 			if ( $rses_size > self::RSES_MAX_ZIP_MEMBER_BYTES ) {
 				$rses_zip->close();
 				wp_die(
@@ -201,7 +226,7 @@ class TallyImportController {
 						sprintf(
 							/* translators: 1: zip entry name, 2: size in bytes */
 							__( 'ZIP entry “%1$s” is too large to load (%2$s bytes). Re-export with plugin 1.0.27.2+ or contact support.', 'relatasoft-secure-election-suite' ),
-							$rses_file,
+							$rses_path,
 							(string) $rses_size
 						)
 					)
@@ -212,19 +237,19 @@ class TallyImportController {
 			if ( false === $rses_raw || '' === $rses_raw ) {
 				continue;
 			}
+			$rses_raw = self::rses_strip_utf8_bom( (string) $rses_raw );
 			$rses_decoded = json_decode( $rses_raw, true );
 			if ( is_array( $rses_decoded ) ) {
 				$rses_manifest[ $rses_key ] = $rses_decoded;
+			} else {
+				$rses_manifest['_json_errors'][ $rses_path ] = function_exists( 'json_last_error_msg' ) ? json_last_error_msg() : 'json_error';
 			}
 			unset( $rses_raw, $rses_decoded );
 		}
 
-		// Never getFromName/getFromIndex encrypted-votes.json — that OOMs 128M hosts.
-		// Trust checksums.json (written at export) and record size from ZIP stat only.
-		$rses_votes_idx = $rses_zip->locateName( 'encrypted-votes.json' );
-		if ( false !== $rses_votes_idx ) {
-			$rses_stat  = $rses_zip->statIndex( $rses_votes_idx );
-			$rses_bytes = is_array( $rses_stat ) ? (int) ( $rses_stat['size'] ?? 0 ) : 0;
+		// Never load encrypted-votes.json into PHP — size + checksums.json only.
+		if ( isset( $rses_by_base['encrypted-votes.json'] ) ) {
+			$rses_bytes = (int) $rses_by_base['encrypted-votes.json']['size'];
 			$rses_sha   = '';
 			if ( ! empty( $rses_manifest['checksums']['encrypted-votes.json'] ) && is_string( $rses_manifest['checksums']['encrypted-votes.json'] ) ) {
 				$rses_sha = $rses_manifest['checksums']['encrypted-votes.json'];
@@ -239,9 +264,128 @@ class TallyImportController {
 			);
 		}
 
+		// Single JSON package stored inside a ZIP (manual re-pack).
+		if ( empty( $rses_manifest['public_key'] ) && empty( $rses_manifest['encrypted_tallies'] ) ) {
+			foreach ( $rses_by_base as $rses_base => $rses_info ) {
+				if ( ! str_ends_with( $rses_base, '.json' ) || 'encrypted-votes.json' === $rses_base ) {
+					continue;
+				}
+				if ( (int) $rses_info['size'] > self::RSES_MAX_JSON_IMPORT_BYTES ) {
+					continue;
+				}
+				$rses_raw = $rses_zip->getFromIndex( (int) $rses_info['index'] );
+				if ( ! is_string( $rses_raw ) || '' === $rses_raw ) {
+					continue;
+				}
+				$rses_raw = self::rses_strip_utf8_bom( $rses_raw );
+				if ( ! str_starts_with( ltrim( $rses_raw ), '{' ) ) {
+					continue;
+				}
+				$rses_stripped = self::rses_strip_top_level_json_key( $rses_raw, 'encrypted_votes' );
+				unset( $rses_raw );
+				if ( null === $rses_stripped ) {
+					continue;
+				}
+				$rses_nested = json_decode( $rses_stripped['json'], true );
+				if ( ! is_array( $rses_nested ) ) {
+					continue;
+				}
+				if ( ! empty( $rses_stripped['present'] ) ) {
+					$rses_nested['encrypted_votes_meta'] = array(
+						'present' => true,
+						'bytes'   => (int) $rses_stripped['bytes'],
+						'sha256'  => (string) $rses_stripped['sha256'],
+						'omitted' => true,
+					);
+				}
+				unset( $rses_nested['encrypted_votes'], $rses_stripped );
+				if ( ! empty( $rses_nested['public_key'] ) || ! empty( $rses_nested['encrypted_tallies'] ) ) {
+					$rses_manifest = $rses_nested;
+					break;
+				}
+			}
+		}
+
 		$rses_zip->close();
 
+		if ( empty( $rses_manifest['public_key'] ) && empty( $rses_manifest['encrypted_tallies'] ) && empty( $rses_manifest['manifest'] ) ) {
+			$rses_list = ! empty( $rses_names ) ? implode( ', ', array_slice( $rses_names, 0, 40 ) ) : '(empty archive)';
+			$rses_json_errs = '';
+			if ( ! empty( $rses_manifest['_json_errors'] ) && is_array( $rses_manifest['_json_errors'] ) ) {
+				$rses_json_errs = ' JSON: ' . wp_json_encode( $rses_manifest['_json_errors'] );
+			}
+			wp_die(
+				esc_html(
+					sprintf(
+						/* translators: 1: number of zip entries, 2: entry name list */
+						__( 'Failed to parse import file. ZIP has %1$d entries but no Voting Export members (manifest.json, public-key.json, encrypted-tallies.json). Found: %2$s', 'relatasoft-secure-election-suite' ),
+						count( $rses_names ),
+						$rses_list
+					) . $rses_json_errs
+				),
+				esc_html__( 'Tally Import Error', 'relatasoft-secure-election-suite' ),
+				array( 'response' => 400 )
+			);
+		}
+
+		unset( $rses_manifest['_json_errors'] );
+
 		return $rses_manifest;
+	}
+
+	/**
+	 * Index ZIP members by lowercased basename (supports subfolders / odd paths).
+	 *
+	 * @param \ZipArchive $zip Open archive.
+	 * @return array<string,array{index:int,size:int,name:string}>
+	 */
+	private static function rses_zip_index_by_basename( \ZipArchive $zip ): array {
+		$rses_out = array();
+		$rses_n   = (int) $zip->numFiles;
+
+		for ( $rses_i = 0; $rses_i < $rses_n; $rses_i++ ) {
+			$rses_stat = $zip->statIndex( $rses_i );
+			if ( ! is_array( $rses_stat ) || empty( $rses_stat['name'] ) ) {
+				continue;
+			}
+			$rses_name = str_replace( '\\', '/', (string) $rses_stat['name'] );
+			if ( str_ends_with( $rses_name, '/' ) ) {
+				continue;
+			}
+			// Skip macOS resource forks.
+			if ( str_contains( $rses_name, '__MACOSX/' ) || str_starts_with( basename( $rses_name ), '._' ) ) {
+				continue;
+			}
+			$rses_base = strtolower( basename( $rses_name ) );
+			if ( '' === $rses_base ) {
+				continue;
+			}
+			// Prefer shallowest path if duplicates.
+			if ( isset( $rses_out[ $rses_base ] ) ) {
+				$rses_prev = substr_count( (string) $rses_out[ $rses_base ]['name'], '/' );
+				$rses_cur  = substr_count( $rses_name, '/' );
+				if ( $rses_cur >= $rses_prev ) {
+					continue;
+				}
+			}
+			$rses_out[ $rses_base ] = array(
+				'index' => $rses_i,
+				'size'  => (int) ( $rses_stat['size'] ?? 0 ),
+				'name'  => $rses_name,
+			);
+		}
+
+		return $rses_out;
+	}
+
+	/**
+	 * @param string $raw Raw bytes.
+	 */
+	private static function rses_strip_utf8_bom( string $raw ): string {
+		if ( str_starts_with( $raw, "\xEF\xBB\xBF" ) ) {
+			return substr( $raw, 3 );
+		}
+		return $raw;
 	}
 
 	/**

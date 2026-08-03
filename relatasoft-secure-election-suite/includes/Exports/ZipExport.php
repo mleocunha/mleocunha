@@ -44,7 +44,9 @@ class ZipExport {
 		$rses_cleanup = array();
 
 		foreach ( $files as $rses_path => $rses_content ) {
-			$rses_name = sanitize_file_name( $rses_path );
+			// Keep stable entry names (do not run through sanitize_file_name — it can
+			// alter hyphens/dots depending on filters and break tally import lookups).
+			$rses_name = self::rses_entry_name( (string) $rses_path );
 
 			if ( is_array( $rses_content ) && ! empty( $rses_content['path'] ) && is_readable( (string) $rses_content['path'] ) ) {
 				$rses_abs = (string) $rses_content['path'];
@@ -72,5 +74,20 @@ class ZipExport {
 			}
 		}
 		exit;
+	}
+
+	/**
+	 * Stable ZIP entry basename for voting-export members.
+	 *
+	 * @param string $path Logical path / filename.
+	 */
+	private static function rses_entry_name( string $path ): string {
+		$rses_base = basename( str_replace( '\\', '/', $path ) );
+		$rses_base = strtolower( $rses_base );
+		$rses_base = preg_replace( '/[^a-z0-9._-]/', '', $rses_base ) ?? '';
+		if ( '' === $rses_base ) {
+			$rses_base = 'file.bin';
+		}
+		return $rses_base;
 	}
 }
