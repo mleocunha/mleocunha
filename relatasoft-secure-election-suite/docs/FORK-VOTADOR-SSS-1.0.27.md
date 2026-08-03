@@ -33,6 +33,7 @@ Cherry-pick candidates for the evolved line (no crypto):
 5. **Ballot choice selection** — Failures looking like “Chrome too fast / wrong password” were actually Playwright `locator.check()` on opacity-0 radios (`.rses-choice-input`). Fix: set `input.checked` in-page (never `locator.check`).
 6. **UI log replay** — SSE `/api/events` replayed the last 200 events on every connect, so old `locator.check` failures looked like the current run. Fix: per-run `runId`, `log_reset` on start, UI ignores other runs.
 7. **Multi-booth page cells** — GET must not override pinned shortcodes; Votador discovers booth cells on first elector (`booth-cells-1`).
-8. **Login / CSV parity** — importer and Votador now share cell normalization (trim/BOM/NBSP); login waits for real success/#login_error under parallel load; email≠login collisions no longer silently rewrite another WP user (`login-csv-parity-1`). Re-import the CSV with “update existing” after deploying the plugin fix.
+8. **Login / CSV parity** — importer and Votador share cell normalization; hardened parallel login; email≠login collisions refused (`login-csv-parity-1`).
+9. **macOS caffeinate -d** — Votador starts `caffeinate -d` at the beginning of each run so the display does not sleep mid-vote (`caffeinate-d-1`).
 
 Password-change PoC still requires `[enviar_redefinicao_senha]` on the welcome page (documented in Redirections admin copy).

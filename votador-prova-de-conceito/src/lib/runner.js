@@ -8,9 +8,10 @@ import { resolveLoginUrl } from './urls.js';
 import { voteElector } from './voteSession.js';
 import { createPasswordStore } from './passwordStore.js';
 import { discoverBatchLocale } from './discoverLocale.js';
+import { startDisplayCaffeinate } from './caffeinate.js';
 
 /** Bumped when PoC runtime behaviour changes — look for this in startup logs. */
-export const VOTADOR_BUILD = 'login-csv-parity-1';
+export const VOTADOR_BUILD = 'caffeinate-d-1';
 
 export const DEFAULTS = {
   windows: 5,
@@ -69,8 +70,13 @@ export async function runVotador(config, hooks = {}) {
   const mailUrl = String(cfg.mailUrl || DEFAULTS.mailUrl).trim() || DEFAULTS.mailUrl;
   const passwordStore = createPasswordStore();
 
+  // macOS: keep the display awake for the whole run (headed Chrome stalls when
+  // the screen blanks). Must start before launching browsers.
+  const caffeinate = startDisplayCaffeinate(logger);
+
   logger.info(`Iniciando Votador PoC [${VOTADOR_BUILD}]`, {
     build: VOTADOR_BUILD,
+    caffeinate: caffeinate.active,
     electors: electors.length,
     concurrency,
     windows: cfg.windows,
@@ -334,6 +340,7 @@ export async function runVotador(config, hooks = {}) {
     for (const browser of browsers) {
       await browser.close().catch(() => {});
     }
+    caffeinate.stop();
   }
 }
 

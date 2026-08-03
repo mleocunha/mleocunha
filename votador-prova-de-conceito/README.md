@@ -20,6 +20,8 @@ Credenciais de admin, senhas de eleitores e CSVs **não são commitados** — pe
 
    `/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`
 
+4. Em cada execução o Votador sobe `caffeinate -d` automaticamente para a tela não apagar (Chrome headed trava quando o display dorme). O processo encerra ao terminar a corrida.
+
 ## Instalação
 
 ```bash
