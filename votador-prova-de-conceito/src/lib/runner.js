@@ -10,7 +10,7 @@ import { createPasswordStore } from './passwordStore.js';
 import { discoverBatchLocale } from './discoverLocale.js';
 
 /** Bumped when PoC runtime behaviour changes — look for this in startup logs. */
-export const VOTADOR_BUILD = 'log-reset-1';
+export const VOTADOR_BUILD = 'ballot-scope-1';
 
 export const DEFAULTS = {
   windows: 5,

@@ -31,18 +31,19 @@
 	}
 
 	$(function () {
-		var $form = $('#rses-ballot-form');
+		// Support multiple booths on one page (duplicate shortcode / archives).
+		var $forms = $('.rses-ballot-form');
 
-		$form.find('.rses-choice').each(function () {
+		$forms.find('.rses-choice').each(function () {
 			rsesSyncChoiceState($(this));
 		});
 
-		$form.on('change', '.rses-choice-input', function () {
+		$forms.on('change', '.rses-choice-input', function () {
 			var $question = $(this).closest('.rses-question');
 			rsesSyncQuestion($question);
 		});
 
-		$form.on('keydown', '.rses-choice', function (e) {
+		$forms.on('keydown', '.rses-choice', function (e) {
 			if ($(e.target).closest('.rses-option-media').length) {
 				return;
 			}
@@ -54,11 +55,11 @@
 		});
 
 		// Keep audio/video controls from fighting keyboard choice activation.
-		$form.on('click', '.rses-option-media--audio, .rses-option-media--video', function (e) {
+		$forms.on('click', '.rses-option-media--audio, .rses-option-media--video', function (e) {
 			e.stopPropagation();
 		});
 
-		$form.on('submit', function (e) {
+		$forms.on('submit', function (e) {
 			var msg =
 				(window.rsesVoting && window.rsesVoting.i18n && window.rsesVoting.i18n.confirm) ||
 				'Submit your encrypted vote? This cannot be undone.';

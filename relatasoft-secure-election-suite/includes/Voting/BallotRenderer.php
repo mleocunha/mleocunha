@@ -57,7 +57,15 @@ class BallotRenderer {
 				<p class="rses-booth-lead"><?php esc_html_e( 'Select your choices below. Your ballot is encrypted on the server; plaintext selections are never stored.', 'relatasoft-secure-election-suite' ); ?></p>
 			</header>
 
-			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="rses-ballot-form" id="rses-ballot-form">
+			<form
+				method="post"
+				action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>"
+				class="rses-ballot-form"
+				id="<?php echo esc_attr( 'rses-ballot-form-' . (int) $round_id ); ?>"
+				data-rses-ballot-form="1"
+				data-rses-election-id="<?php echo esc_attr( (string) $election_id ); ?>"
+				data-rses-round-id="<?php echo esc_attr( (string) $round_id ); ?>"
+			>
 				<?php Nonce::rses_field( Nonce::RSES_ACTION_VOTE_CAST ); ?>
 				<input type="hidden" name="action" value="rses_cast_vote" />
 				<input type="hidden" name="election_id" value="<?php echo esc_attr( (string) $election_id ); ?>" />
