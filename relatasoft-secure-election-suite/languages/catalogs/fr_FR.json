@@ -252,7 +252,7 @@
   "Permission Denied": "Autorisation refusée",
   "No Shamir share is assigned to your account for this key.": "Aucun partage Shamir n'est attribué à votre compte pour cette clé.",
   "Stored share payload is invalid.": "La charge utile du partage stocké n’est pas valide.",
-  "RelataSoft Secure Election Suite - Key Export Package": "RelataSoftSecure Election Suite - Package d'exportation de clés",
+  "RelataSoft Secure Election Suite - Key Export Package": "RelataSoft Secure Election Suite - Package d'exportation de clés",
   "Starting safe prime search…": "Démarrage de la recherche principale sécurisée…",
   "Key generation job not found.": "Tâche de génération de clé introuvable.",
   "Unknown key generation stage.": "Étape de génération de clé inconnue.",
