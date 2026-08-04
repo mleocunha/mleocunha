@@ -569,27 +569,47 @@ class TallyingViews {
 			<?php endif; ?>
 
 			<?php
-			$rses_any = false;
+			$rses_any  = false;
+			$rses_sort = DecryptedResultsPresenter::rses_normalize_sort(
+				isset( $_GET['rses_results_sort'] ) // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+					? sanitize_key( wp_unslash( (string) $_GET['rses_results_sort'] ) ) // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+					: DecryptedResultsPresenter::RSES_SORT_COUNT_DESC
+			);
 			foreach ( $rses_imports as $rses_imp ) :
 				if ( 'verified' !== $rses_imp->status ) {
 					continue;
 				}
-				$rses_any    = true;
-				$rses_result = get_transient( 'rses_decryption_result_' . $rses_imp->id );
+				$rses_any      = true;
+				$rses_result   = get_transient( 'rses_decryption_result_' . $rses_imp->id );
+				$rses_manifest = $rses_result ? TallyImportRepository::rses_get_manifest( $rses_imp ) : array();
+				$rses_humanized = null;
+				if ( $rses_result ) {
+					$rses_humanized = DecryptedResultsPresenter::rses_humanize(
+						is_array( $rses_result['decrypted_results'] ?? null ) ? $rses_result['decrypted_results'] : array(),
+						is_array( $rses_manifest['ballot'] ?? null ) ? $rses_manifest['ballot'] : array(),
+						$rses_sort
+					);
+				}
 				?>
-				<article class="rses-cert-card">
+				<article class="rses-cert-card" id="rses-cert-<?php echo esc_attr( (string) $rses_imp->id ); ?>">
 					<header class="rses-cert-card-header">
 						<h3><?php echo esc_html( TallyImportRepository::rses_display_election_title( $rses_imp ) ); ?></h3>
-						<?php echo self::rses_import_election_meta_html( $rses_imp ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+						<?php echo self::rses_import_election_meta_html( $rses_imp, $rses_manifest ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
 						<p class="rses-panel-desc">
 							<?php echo self::rses_status_pill( (string) $rses_imp->status ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
 							<span class="description"> · <?php esc_html_e( 'Import', 'relatasoft-secure-election-suite' ); ?> #<?php echo esc_html( (string) $rses_imp->id ); ?></span>
 						</p>
 					</header>
 					<div class="rses-cert-card-body">
-						<?php if ( $rses_result ) : ?>
-							<p class="rses-field-label"><?php esc_html_e( 'Decrypted Results', 'relatasoft-secure-election-suite' ); ?></p>
-							<pre class="rses-decrypted-results"><?php echo esc_html( wp_json_encode( $rses_result['decrypted_results'], JSON_PRETTY_PRINT ) ); ?></pre>
+						<?php if ( $rses_result && is_array( $rses_humanized ) ) : ?>
+							<p class="rses-field-label"><?php esc_html_e( 'Results', 'relatasoft-secure-election-suite' ); ?></p>
+							<?php DecryptedResultsPresenter::rses_render_html( $rses_humanized, (string) (int) $rses_imp->id ); ?>
+
+							<details class="rses-raw-results">
+								<summary><?php esc_html_e( 'Raw decrypted JSON (technical)', 'relatasoft-secure-election-suite' ); ?></summary>
+								<p class="description"><?php esc_html_e( 'Shown for audit credibility. The tables above and the PDF use ballot labels with votes sorted as selected.', 'relatasoft-secure-election-suite' ); ?></p>
+								<pre class="rses-decrypted-results"><?php echo esc_html( wp_json_encode( $rses_result['decrypted_results'], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE ) ); ?></pre>
+							</details>
 
 							<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="rses-form">
 								<?php Nonce::rses_field( Nonce::RSES_ACTION_CERTIFICATION ); ?>

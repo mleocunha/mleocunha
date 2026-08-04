@@ -65,10 +65,18 @@ class CertificationService {
 			);
 		}
 
+		$rses_ballot = is_array( $rses_manifest['ballot'] ?? null ) ? $rses_manifest['ballot'] : array();
+		$rses_humanized = DecryptedResultsPresenter::rses_humanize(
+			is_array( $rses_result['decrypted_results'] ?? null ) ? $rses_result['decrypted_results'] : array(),
+			$rses_ballot,
+			DecryptedResultsPresenter::RSES_SORT_COUNT_DESC
+		);
+
 		$rses_report = array(
-			'election_title'        => $rses_manifest['election']['title'] ?? '',
+			'election_title'        => $rses_manifest['election']['title'] ?? TallyImportRepository::rses_display_election_title( $rses_import ),
+			'round_title'           => $rses_manifest['round']['title'] ?? TallyImportRepository::rses_display_round_title( $rses_import ),
 			'round_number'          => $rses_manifest['round']['round_number'] ?? 1,
-			'source_imports'      => array( $rses_import_id ),
+			'source_imports'        => array( $rses_import_id ),
 			'source_site_urls'      => array( $rses_import->source_site_url ),
 			'manifest_hash'         => $rses_import->import_hash,
 			'public_key_hash'       => $rses_public_key_hash,
@@ -80,7 +88,9 @@ class CertificationService {
 			'verification_status'   => 'certified',
 			'certified_at'          => gmdate( 'c' ),
 			'certified_by'          => get_current_user_id(),
+			'ballot'                => $rses_ballot,
 			'decrypted_results'     => $rses_result['decrypted_results'],
+			'humanized_results'     => $rses_humanized,
 		);
 
 		$rses_cert_id = Repository::rses_insert(
@@ -117,9 +127,12 @@ class CertificationService {
 		$rses_format    = sanitize_text_field( wp_unslash( $_GET['format'] ?? 'zip' ) );
 
 		$rses_report = get_transient( 'rses_certification_' . $rses_import_id );
+		if ( ! is_array( $rses_report ) ) {
+			$rses_report = self::rses_report_from_decryption( $rses_import_id );
+		}
 
-		if ( ! $rses_report ) {
-			wp_die( esc_html__( 'Certification report not found.', 'relatasoft-secure-election-suite' ) );
+		if ( ! is_array( $rses_report ) ) {
+			wp_die( esc_html__( 'Certification report not found. Decrypt the tally (and preferably generate certification) first.', 'relatasoft-secure-election-suite' ) );
 		}
 
 		if ( 'pdf' === $rses_format ) {
@@ -127,5 +140,43 @@ class CertificationService {
 		}
 
 		CertificationReportService::rses_export_zip( $rses_report, $rses_import_id );
+	}
+
+	/**
+	 * Build a provisional report from a decryption transient (pre-certification export).
+	 *
+	 * @param int $import_id Import ID.
+	 * @return array<string,mixed>|null
+	 */
+	private static function rses_report_from_decryption( int $import_id ): ?array {
+		$rses_result = get_transient( 'rses_decryption_result_' . $import_id );
+		$rses_import = TallyImportRepository::rses_get( $import_id );
+		if ( ! is_array( $rses_result ) || ! $rses_import ) {
+			return null;
+		}
+
+		$rses_manifest = TallyImportRepository::rses_get_manifest( $rses_import );
+		$rses_ballot   = is_array( $rses_manifest['ballot'] ?? null ) ? $rses_manifest['ballot'] : array();
+		$rses_raw      = is_array( $rses_result['decrypted_results'] ?? null ) ? $rses_result['decrypted_results'] : array();
+
+		return array(
+			'election_title'        => TallyImportRepository::rses_display_election_title( $rses_import ),
+			'round_title'           => TallyImportRepository::rses_display_round_title( $rses_import ),
+			'round_number'          => $rses_manifest['round']['round_number'] ?? 1,
+			'public_key_hash'       => HashService::rses_hash_json( $rses_manifest['public_key'] ?? array() ),
+			'encrypted_sum_hash'    => HashService::rses_hash_json( $rses_manifest['encrypted_tallies'] ?? array() ),
+			'decrypted_result_hash' => HashService::rses_hash_json( $rses_raw ),
+			'ballot_count'          => $rses_manifest['manifest']['ballot_count'] ?? ( $rses_import->ballot_count ?? 0 ),
+			'threshold'             => $rses_result['threshold'] ?? 0,
+			'verification_status'   => 'decrypted',
+			'certified_at'          => '',
+			'ballot'                => $rses_ballot,
+			'decrypted_results'     => $rses_raw,
+			'humanized_results'     => DecryptedResultsPresenter::rses_humanize(
+				$rses_raw,
+				$rses_ballot,
+				DecryptedResultsPresenter::RSES_SORT_COUNT_DESC
+			),
+		);
 	}
 }
