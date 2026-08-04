@@ -633,5 +633,8 @@
   "Key “%s” was permanently deleted (Shamir fractions for that key included).": "Schlüssel „%s“ wurde dauerhaft gelöscht (einschließlich Shamir-Anteile dieses Schlüssels).",
   "Key was permanently deleted.": "Schlüssel wurde dauerhaft gelöscht.",
   "Permanently delete key “%1$s”, including assigned Shamir fractions on this site. Type %2$s to confirm.": "Schlüssel „%1$s“ dauerhaft löschen, einschließlich zugewiesener Shamir-Anteile auf dieser Website. Geben Sie %2$s zur Bestätigung ein.",
-  "Delete key": "Schlüssel löschen"
+  "Delete key": "Schlüssel löschen",
+  "1. Key Authority": "1. Schlüsselautorität",
+  "1. My Shamir Shares": "1. Meine Shamir-Anteile",
+  "1. Submit Your Shamir Share": "1. Senden Sie Ihren Shamir-Anteil"
 }

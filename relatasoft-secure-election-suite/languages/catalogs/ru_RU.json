@@ -633,5 +633,8 @@
   "Key “%s” was permanently deleted (Shamir fractions for that key included).": "Ключ «%s» окончательно удалён (включая доли Шамира этого ключа).",
   "Key was permanently deleted.": "Ключ окончательно удалён.",
   "Permanently delete key “%1$s”, including assigned Shamir fractions on this site. Type %2$s to confirm.": "Окончательно удалить ключ «%1$s», включая назначенные доли Шамира на этом сайте. Введите %2$s для подтверждения.",
-  "Delete key": "Удалить ключ"
+  "Delete key": "Удалить ключ",
+  "1. Key Authority": "1. Центр ключей",
+  "1. My Shamir Shares": "1. Мои доли Shamir",
+  "1. Submit Your Shamir Share": "1. Отправить вашу долю Shamir"
 }

@@ -637,5 +637,8 @@
   "Signed results JSON": "JSON de resultados firmados",
   "Not an election-results signed package (expected v1 or v2).": "No es un paquete firmado de resultados electorales (se esperaba v1 o v2).",
   "Missing pdf_signature / documents.pdf_sha256 (incomplete v2 package).": "Faltan pdf_signature / documents.pdf_sha256 (paquete v2 incompleto).",
-  "PDF Schnorr signature verification failed under the embedded public key.": "Falló la verificación de la firma Schnorr del PDF con la clave pública incrustada."
+  "PDF Schnorr signature verification failed under the embedded public key.": "Falló la verificación de la firma Schnorr del PDF con la clave pública incrustada.",
+  "1. Key Authority": "1. Autoridad de claves",
+  "1. My Shamir Shares": "1. Mis fracciones Shamir",
+  "1. Submit Your Shamir Share": "1. Envíe su fracción Shamir"
 }

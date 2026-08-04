@@ -243,7 +243,7 @@ class AdminMenu {
 				<?php if ( ModeLock::rses_is_mode( ModeLock::RSES_MODE_KEY_AUTHORITY ) ) : ?>
 					<div class="rses-dashboard-card">
 						<?php if ( Capability::rses_can_manage_election() ) : ?>
-							<h2><?php esc_html_e( 'Key Authority', 'relatasoft-secure-election-suite' ); ?></h2>
+							<h2><?php esc_html_e( '1. Key Authority', 'relatasoft-secure-election-suite' ); ?></h2>
 							<p><?php esc_html_e( 'Generate ElGamal keys, split private exponents with Shamir Secret Sharing, and export public keys / shares.', 'relatasoft-secure-election-suite' ); ?></p>
 							<p>
 								<a class="button button-primary" href="<?php echo esc_url( admin_url( 'admin.php?page=rses-key-authority' ) ); ?>">
@@ -251,7 +251,7 @@ class AdminMenu {
 								</a>
 							</p>
 						<?php else : ?>
-							<h2><?php esc_html_e( 'My Shamir Shares', 'relatasoft-secure-election-suite' ); ?></h2>
+							<h2><?php esc_html_e( '1. My Shamir Shares', 'relatasoft-secure-election-suite' ); ?></h2>
 							<p><?php
 								echo esc_html(
 									sprintf(
@@ -344,7 +344,7 @@ class AdminMenu {
 						</div>
 					<?php endif; ?>
 					<div class="rses-dashboard-card">
-						<h2><?php echo Capability::rses_can_manage_election() ? esc_html__( '2. Collect Official Shares', 'relatasoft-secure-election-suite' ) : esc_html__( 'Submit Your Shamir Share', 'relatasoft-secure-election-suite' ); ?></h2>
+						<h2><?php echo Capability::rses_can_manage_election() ? esc_html__( '2. Collect Official Shares', 'relatasoft-secure-election-suite' ) : esc_html__( '1. Submit Your Shamir Share', 'relatasoft-secure-election-suite' ); ?></h2>
 						<p><?php
 							echo esc_html(
 								sprintf(

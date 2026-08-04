@@ -633,5 +633,8 @@
   "Key “%s” was permanently deleted (Shamir fractions for that key included).": "La clau “%s” s’ha eliminat permanentment (incloses les fraccions Shamir d’aquesta clau).",
   "Key was permanently deleted.": "La clau s’ha eliminat permanentment.",
   "Permanently delete key “%1$s”, including assigned Shamir fractions on this site. Type %2$s to confirm.": "Eliminar permanentment la clau “%1$s”, incloses les fraccions Shamir assignades en aquest lloc. Escriviu %2$s per confirmar.",
-  "Delete key": "Eliminar clau"
+  "Delete key": "Eliminar clau",
+  "1. Key Authority": "1. Autoritat de claus",
+  "1. My Shamir Shares": "1. Les meves fraccions Shamir",
+  "1. Submit Your Shamir Share": "1. Envia la teva fracció Shamir"
 }

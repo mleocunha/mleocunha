@@ -640,5 +640,8 @@
   "Signed package not available yet. Showing unsigned raw decrypted tally for reference.": "Pacote assinado ainda não disponível. A mostrar o total desencriptado bruto (sem assinatura) só para referência.",
   "Not an election-results signed package (expected v1 or v2).": "Não é um pacote assinado de resultados eleitorais (esperado v1 ou v2).",
   "Missing pdf_signature / documents.pdf_sha256 (incomplete v2 package).": "Faltam pdf_signature / documents.pdf_sha256 (pacote v2 incompleto).",
-  "PDF Schnorr signature verification failed under the embedded public key.": "A verificação da assinatura Schnorr do PDF falhou com a chave pública embutida."
+  "PDF Schnorr signature verification failed under the embedded public key.": "A verificação da assinatura Schnorr do PDF falhou com a chave pública embutida.",
+  "1. Key Authority": "1. Autoridade de Chaves",
+  "1. My Shamir Shares": "1. As minhas frações Shamir",
+  "1. Submit Your Shamir Share": "1. Submeter a sua fração Shamir"
 }

@@ -633,5 +633,8 @@
   "Key “%s” was permanently deleted (Shamir fractions for that key included).": "حُذف المفتاح “%s” نهائيًا (يشمل حصص شامير لهذا المفتاح).",
   "Key was permanently deleted.": "حُذف المفتاح نهائيًا.",
   "Permanently delete key “%1$s”, including assigned Shamir fractions on this site. Type %2$s to confirm.": "احذف نهائيًا المفتاح “%1$s”، بما في ذلك حصص شامير المعيّنة في هذا الموقع. اكتب %2$s للتأكيد.",
-  "Delete key": "حذف المفتاح"
+  "Delete key": "حذف المفتاح",
+  "1. Key Authority": "1. سلطة المفاتيح",
+  "1. My Shamir Shares": "1. حصصي من Shamir",
+  "1. Submit Your Shamir Share": "1. تقديم حصة Shamir الخاصة بك"
 }
