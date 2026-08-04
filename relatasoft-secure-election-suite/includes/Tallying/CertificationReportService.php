@@ -119,7 +119,7 @@ class CertificationReportService {
 				JSON_PRETTY_PRINT
 			),
 			'certification-report.pdf'  => $rses_pdf_bytes,
-			'README.txt'                => __( 'RelataSoft Secure Election Suite - Certification Export. Prefer signed-results.json for independent Schnorr verification with the election public key. humanized-results.json and the PDF use ballot labels; decrypted-results.json is the raw technical tally.', 'relatasoft-secure-election-suite' ),
+			'README.txt'                => __( 'RelataSoft Secure Election Suite - Certification Export. Prefer signed-results.json for independent Schnorr verification with the election public key. The signed PDF contains humanized results followed by the results-signed JSON; documents.pdf_sha256 + pdf_signature bind the full PDF. humanized-results.json uses ballot labels; decrypted-results.json is the raw technical tally.', 'relatasoft-secure-election-suite' ),
 		);
 
 		if ( is_array( $rses_signed ) ) {

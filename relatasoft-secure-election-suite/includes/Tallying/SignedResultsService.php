@@ -23,7 +23,13 @@ defined( 'ABSPATH' ) || exit;
  */
 class SignedResultsService {
 
-	public const RSES_PACKAGE = 'election-results-v1';
+	/** Legacy single-signature package (results + PDF hashes in one message). */
+	public const RSES_PACKAGE_V1 = 'election-results-v1';
+
+	/** Current package: results signature embedded in PDF; separate PDF-binding signature. */
+	public const RSES_PACKAGE = 'election-results-v2';
+
+	public const RSES_PDF_BIND = 'election-results-pdf-v2';
 
 	/**
 	 * Register download / verify hooks.
@@ -130,26 +136,11 @@ class SignedResultsService {
 
 		$rses_results_sha = HashService::rses_hash_json( $rses_results );
 
-		$rses_pdf_lines = DecryptedResultsPresenter::rses_pdf_lines( $rses_report_meta, $rses_humanized );
-		$rses_pdf_lines[] = '';
-		$rses_pdf_lines[] = __( 'Digital signature', 'relatasoft-secure-election-suite' );
-		$rses_pdf_lines[] = str_repeat( '-', 40 );
-		$rses_pdf_lines[] = __( 'Signed with the election private key (Schnorr). Verify using signed-results.json and this file’s SHA-256.', 'relatasoft-secure-election-suite' );
-		$rses_pdf_lines[] = __( 'Public-key fingerprint:', 'relatasoft-secure-election-suite' ) . ' ' . TallyImportRepository::rses_public_key_fingerprint( $rses_public );
-		$rses_pdf_lines[] = __( 'Scheme:', 'relatasoft-secure-election-suite' ) . ' ' . SchnorrSignature::RSES_SCHEME;
-		$rses_pdf_lines[] = __( 'Results SHA-256:', 'relatasoft-secure-election-suite' ) . ' ' . $rses_results_sha;
+		// 1) Sign results first (no PDF hash — avoids circular embed).
+		$rses_results_message = self::rses_results_signature_message( $rses_results_sha, $import_id, $rses_election );
+		$rses_results_sig     = SchnorrSignature::sign( $rses_results_message, $p, $q, $g, $x, $y );
 
-		$rses_pdf     = PdfReport::rses_generate( $rses_pdf_lines );
-		$rses_pdf_sha = hash( 'sha256', $rses_pdf );
-
-		$rses_documents = array(
-			'results_sha256' => $rses_results_sha,
-			'pdf_sha256'     => $rses_pdf_sha,
-		);
-		$rses_message   = self::rses_signature_message( $rses_documents, $import_id, $rses_election );
-		$rses_signature = SchnorrSignature::sign( $rses_message, $p, $q, $g, $x, $y );
-
-		$rses_package = array(
+		$rses_package_embed = array(
 			'rses_signed_package'    => self::RSES_PACKAGE,
 			'scheme'                 => SchnorrSignature::RSES_SCHEME,
 			'signed_at'              => gmdate( 'c' ),
@@ -161,13 +152,38 @@ class SignedResultsService {
 			'public_key'             => $rses_public,
 			'public_key_fingerprint' => TallyImportRepository::rses_public_key_fingerprint( $rses_public ),
 			'results'                => $rses_results,
-			'documents'              => $rses_documents,
-			'signature_message'      => $rses_message,
-			'signature'              => $rses_signature,
+			'documents'              => array(
+				'results_sha256' => $rses_results_sha,
+			),
+			'signature_message'      => $rses_results_message,
+			'signature'              => $rses_results_sig,
 			'verify_note'            => __(
-				'Anyone with this file can verify authenticity using only the embedded public_key: recompute documents hashes from results / PDF, rebuild signature_message, and check the Schnorr signature.',
+				'Results are Schnorr-signed under the election public key. The downloadable signed-results.json also includes documents.pdf_sha256 and pdf_signature binding the full PDF bytes.',
 				'relatasoft-secure-election-suite'
 			),
+		);
+
+		// 2) PDF = humanized results + embedded results-signed JSON.
+		$rses_pdf_lines = DecryptedResultsPresenter::rses_pdf_lines( $rses_report_meta, $rses_humanized, false );
+		$rses_pdf_lines = DecryptedResultsPresenter::rses_pdf_append_signed_json( $rses_pdf_lines, $rses_package_embed );
+		$rses_pdf       = PdfReport::rses_generate( $rses_pdf_lines );
+		$rses_pdf_sha   = hash( 'sha256', $rses_pdf );
+
+		// 3) Bind the whole PDF with a second Schnorr signature.
+		$rses_documents = array(
+			'results_sha256' => $rses_results_sha,
+			'pdf_sha256'     => $rses_pdf_sha,
+		);
+		$rses_pdf_message = self::rses_pdf_signature_message( $rses_documents, $import_id, $rses_election );
+		$rses_pdf_sig     = SchnorrSignature::sign( $rses_pdf_message, $p, $q, $g, $x, $y );
+
+		$rses_package = $rses_package_embed;
+		$rses_package['documents']              = $rses_documents;
+		$rses_package['pdf_signature_message']  = $rses_pdf_message;
+		$rses_package['pdf_signature']          = $rses_pdf_sig;
+		$rses_package['verify_note']            = __(
+			'Anyone with this file can verify authenticity using only the embedded public_key: (1) check signature over results_sha256; (2) check pdf_signature over results_sha256 + pdf_sha256 against the PDF bytes. The PDF itself embeds the results-signed JSON after the humanized tally.',
+			'relatasoft-secure-election-suite'
 		);
 
 		set_transient( self::rses_package_transient_key( $import_id ), $rses_package, WEEK_IN_SECONDS );
@@ -180,17 +196,58 @@ class SignedResultsService {
 	}
 
 	/**
-	 * Canonical message signed by Schnorr.
+	 * Canonical message for results-only Schnorr (v2, embedded in PDF).
+	 *
+	 * @param string $results_sha Results document hash.
+	 * @param int    $import_id   Import ID.
+	 * @param string $election    Election title.
+	 */
+	public static function rses_results_signature_message( string $results_sha, int $import_id, string $election ): string {
+		return implode(
+			"\n",
+			array(
+				self::RSES_PACKAGE,
+				SchnorrSignature::RSES_SCHEME,
+				(string) $import_id,
+				$election,
+				$results_sha,
+			)
+		);
+	}
+
+	/**
+	 * Canonical message binding PDF bytes (v2).
 	 *
 	 * @param array{results_sha256:string,pdf_sha256:string} $documents Document hashes.
 	 * @param int                                            $import_id Import ID.
 	 * @param string                                         $election  Election title.
 	 */
+	public static function rses_pdf_signature_message( array $documents, int $import_id, string $election ): string {
+		return implode(
+			"\n",
+			array(
+				self::RSES_PDF_BIND,
+				SchnorrSignature::RSES_SCHEME,
+				(string) $import_id,
+				$election,
+				(string) ( $documents['results_sha256'] ?? '' ),
+				(string) ( $documents['pdf_sha256'] ?? '' ),
+			)
+		);
+	}
+
+	/**
+	 * Legacy v1 message (results + PDF hashes in one signature).
+	 *
+	 * @param array{results_sha256?:string,pdf_sha256?:string} $documents Document hashes.
+	 * @param int                                              $import_id Import ID.
+	 * @param string                                           $election  Election title.
+	 */
 	public static function rses_signature_message( array $documents, int $import_id, string $election ): string {
 		return implode(
 			"\n",
 			array(
-				self::RSES_PACKAGE,
+				self::RSES_PACKAGE_V1,
 				SchnorrSignature::RSES_SCHEME,
 				(string) $import_id,
 				$election,
@@ -210,9 +267,10 @@ class SignedResultsService {
 	public static function rses_verify_package( array $package, ?string $pdf = null ): array {
 		$rses_errors  = array();
 		$rses_details = array();
+		$rses_kind    = (string) ( $package['rses_signed_package'] ?? '' );
 
-		if ( ( $package['rses_signed_package'] ?? '' ) !== self::RSES_PACKAGE ) {
-			$rses_errors[] = __( 'Not an election-results-v1 signed package.', 'relatasoft-secure-election-suite' );
+		if ( self::RSES_PACKAGE !== $rses_kind && self::RSES_PACKAGE_V1 !== $rses_kind ) {
+			$rses_errors[] = __( 'Not an election-results signed package (expected v1 or v2).', 'relatasoft-secure-election-suite' );
 		}
 
 		$rses_public = is_array( $package['public_key'] ?? null ) ? $package['public_key'] : array();
@@ -238,21 +296,15 @@ class SignedResultsService {
 				$rses_errors[] = __( 'Results content does not match documents.results_sha256 (package may have been altered).', 'relatasoft-secure-election-suite' );
 			}
 
-			$rses_message = self::rses_signature_message(
-				array(
-					'results_sha256' => (string) ( $rses_docs['results_sha256'] ?? '' ),
-					'pdf_sha256'     => (string) ( $rses_docs['pdf_sha256'] ?? '' ),
-				),
-				(int) ( $package['import_id'] ?? 0 ),
-				(string) ( $package['election_title'] ?? '' )
-			);
-			$rses_details['signature_message'] = $rses_message;
+			$rses_import_id = (int) ( $package['import_id'] ?? 0 );
+			$rses_election  = (string) ( $package['election_title'] ?? '' );
 
 			if ( is_string( $pdf ) ) {
 				$rses_pdf_sha = hash( 'sha256', $pdf );
 				$rses_details['pdf_sha256_computed'] = $rses_pdf_sha;
 				$rses_details['pdf_sha256_claimed']  = (string) ( $rses_docs['pdf_sha256'] ?? '' );
-				if ( ! hash_equals( (string) ( $rses_docs['pdf_sha256'] ?? '' ), $rses_pdf_sha ) ) {
+				if ( '' !== (string) ( $rses_docs['pdf_sha256'] ?? '' )
+					&& ! hash_equals( (string) $rses_docs['pdf_sha256'], $rses_pdf_sha ) ) {
 					$rses_errors[] = __( 'PDF bytes do not match documents.pdf_sha256.', 'relatasoft-secure-election-suite' );
 				}
 			}
@@ -262,10 +314,55 @@ class SignedResultsService {
 				$rses_q = BigInt::fromDecimalString( (string) $rses_public['q'] );
 				$rses_g = BigInt::fromDecimalString( (string) $rses_public['g'] );
 				$rses_y = BigInt::fromDecimalString( (string) $rses_public['y'] );
-				$rses_ok = SchnorrSignature::verify( $rses_message, $rses_sig, $rses_p, $rses_q, $rses_g, $rses_y );
-				$rses_details['signature_valid'] = $rses_ok;
-				if ( ! $rses_ok ) {
-					$rses_errors[] = __( 'Schnorr signature verification failed under the embedded public key.', 'relatasoft-secure-election-suite' );
+
+				if ( self::RSES_PACKAGE === $rses_kind ) {
+					$rses_message = self::rses_results_signature_message(
+						(string) ( $rses_docs['results_sha256'] ?? '' ),
+						$rses_import_id,
+						$rses_election
+					);
+					$rses_details['signature_message'] = $rses_message;
+					$rses_ok = SchnorrSignature::verify( $rses_message, $rses_sig, $rses_p, $rses_q, $rses_g, $rses_y );
+					$rses_details['signature_valid'] = $rses_ok;
+					if ( ! $rses_ok ) {
+						$rses_errors[] = __( 'Schnorr signature verification failed under the embedded public key.', 'relatasoft-secure-election-suite' );
+					}
+
+					$rses_pdf_sig = is_array( $package['pdf_signature'] ?? null ) ? $package['pdf_signature'] : array();
+					if ( empty( $rses_pdf_sig ) || empty( $rses_docs['pdf_sha256'] ) ) {
+						$rses_errors[] = __( 'Missing pdf_signature / documents.pdf_sha256 (incomplete v2 package).', 'relatasoft-secure-election-suite' );
+					} else {
+						$rses_pdf_message = self::rses_pdf_signature_message(
+							array(
+								'results_sha256' => (string) ( $rses_docs['results_sha256'] ?? '' ),
+								'pdf_sha256'     => (string) ( $rses_docs['pdf_sha256'] ?? '' ),
+							),
+							$rses_import_id,
+							$rses_election
+						);
+						$rses_details['pdf_signature_message'] = $rses_pdf_message;
+						$rses_pdf_ok = SchnorrSignature::verify( $rses_pdf_message, $rses_pdf_sig, $rses_p, $rses_q, $rses_g, $rses_y );
+						$rses_details['pdf_signature_valid'] = $rses_pdf_ok;
+						if ( ! $rses_pdf_ok ) {
+							$rses_errors[] = __( 'PDF Schnorr signature verification failed under the embedded public key.', 'relatasoft-secure-election-suite' );
+						}
+					}
+				} else {
+					// Legacy v1: one signature over results_sha256 + pdf_sha256.
+					$rses_message = self::rses_signature_message(
+						array(
+							'results_sha256' => (string) ( $rses_docs['results_sha256'] ?? '' ),
+							'pdf_sha256'     => (string) ( $rses_docs['pdf_sha256'] ?? '' ),
+						),
+						$rses_import_id,
+						$rses_election
+					);
+					$rses_details['signature_message'] = $rses_message;
+					$rses_ok = SchnorrSignature::verify( $rses_message, $rses_sig, $rses_p, $rses_q, $rses_g, $rses_y );
+					$rses_details['signature_valid'] = $rses_ok;
+					if ( ! $rses_ok ) {
+						$rses_errors[] = __( 'Schnorr signature verification failed under the embedded public key.', 'relatasoft-secure-election-suite' );
+					}
 				}
 			} catch ( CryptoException $rses_e ) {
 				$rses_errors[] = $rses_e->getMessage();

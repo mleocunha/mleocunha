@@ -282,11 +282,12 @@ class DecryptedResultsPresenter {
 	/**
 	 * Build PDF text lines from a humanized result set.
 	 *
-	 * @param array<string,mixed> $report    Certification / display report meta.
-	 * @param array<string,mixed> $humanized Humanized structure from rses_humanize().
+	 * @param array<string,mixed> $report       Certification / display report meta.
+	 * @param array<string,mixed> $humanized    Humanized structure from rses_humanize().
+	 * @param bool                $include_raw  Append raw technical id/count lines (legacy).
 	 * @return array<int,string>
 	 */
-	public static function rses_pdf_lines( array $report, array $humanized ): array {
+	public static function rses_pdf_lines( array $report, array $humanized, bool $include_raw = true ): array {
 		$rses_modes = self::rses_sort_modes();
 		$rses_sort  = (string) ( $humanized['sort'] ?? self::RSES_SORT_COUNT_DESC );
 
@@ -335,22 +336,51 @@ class DecryptedResultsPresenter {
 			}
 		}
 
-		$rses_lines[] = '';
-		$rses_lines[] = __( 'Raw decrypted results (technical)', 'relatasoft-secure-election-suite' );
-		$rses_lines[] = str_repeat( '-', 40 );
-		foreach ( $report['decrypted_results'] ?? array() as $rses_raw ) {
-			if ( ! is_array( $rses_raw ) ) {
-				continue;
+		if ( $include_raw ) {
+			$rses_lines[] = '';
+			$rses_lines[] = __( 'Raw decrypted results (technical)', 'relatasoft-secure-election-suite' );
+			$rses_lines[] = str_repeat( '-', 40 );
+			foreach ( $report['decrypted_results'] ?? array() as $rses_raw ) {
+				if ( ! is_array( $rses_raw ) ) {
+					continue;
+				}
+				$rses_lines[] = sprintf(
+					'question_id=%s option_id=%s count=%d',
+					(string) ( $rses_raw['question_id'] ?? '-' ),
+					null !== ( $rses_raw['option_id'] ?? null ) ? (string) $rses_raw['option_id'] : '-',
+					(int) ( $rses_raw['count'] ?? 0 )
+				);
 			}
-			$rses_lines[] = sprintf(
-				'question_id=%s option_id=%s count=%d',
-				(string) ( $rses_raw['question_id'] ?? '-' ),
-				null !== ( $rses_raw['option_id'] ?? null ) ? (string) $rses_raw['option_id'] : '-',
-				(int) ( $rses_raw['count'] ?? 0 )
-			);
 		}
 
 		return $rses_lines;
+	}
+
+	/**
+	 * Append a signed-results JSON dump to PDF text lines.
+	 *
+	 * @param array<int,string>   $lines   Existing lines.
+	 * @param array<string,mixed> $package Signed package (typically results-signed embed).
+	 * @return array<int,string>
+	 */
+	public static function rses_pdf_append_signed_json( array $lines, array $package ): array {
+		$lines[] = '';
+		$lines[] = __( 'Signed results JSON', 'relatasoft-secure-election-suite' );
+		$lines[] = str_repeat( '-', 40 );
+		$lines[] = __( 'Schnorr-signed package (results). The downloadable signed-results.json also binds this PDF’s SHA-256.', 'relatasoft-secure-election-suite' );
+		$lines[] = '';
+
+		$rses_json = wp_json_encode( $package, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE );
+		if ( ! is_string( $rses_json ) ) {
+			$lines[] = '{}';
+			return $lines;
+		}
+
+		foreach ( explode( "\n", $rses_json ) as $rses_json_line ) {
+			$lines[] = $rses_json_line;
+		}
+
+		return $lines;
 	}
 
 	/**

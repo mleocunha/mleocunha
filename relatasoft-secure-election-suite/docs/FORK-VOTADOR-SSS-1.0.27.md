@@ -1,7 +1,7 @@
 # Fork lab: Votador ↔ WordPress @ 1.0.27 (SSS)
 
 **Branch:** `cursor/votador-wp-sss-1.0.27-2eb1`  
-**Frozen plugin version:** `1.0.27` crypto baseline (`33fcc6a`); lab patches through **`1.0.27.14`** (admin delete keys / imports with typed locale confirm word)  
+**Frozen plugin version:** `1.0.27` crypto baseline (`33fcc6a`); lab patches through **`1.0.27.15`** (signed results v2: PDF = humanized + signed JSON; PDF-binding Schnorr)  
 **Crypto:** plain Shamir (`modp-elgamal-shamir-v1` behaviour) — **no** Feldman VSS / ceremony wiring
 
 ## Purpose
@@ -49,5 +49,6 @@ Cherry-pick candidates for the evolved line (no crypto):
 21. **Schnorr-signed results (1.0.27.12)** — After threshold decryption, results JSON + PDF are signed with the reconstructed election private key (`schnorr-sha256-modpq-v1`); anyone with `signed-results.json` (embedded public key) can verify independently; shortcode `[rses_verify_signed_results]`.
 22. **Admin delete imported election (1.0.27.13)** — On Tally Import, administrators can permanently delete an import (fractions, certifications, decryption/signed caches) after typing the locale confirm word (`confirm` → pt_BR `confirmo`).
 23. **Admin delete generated keys (1.0.27.14)** — On Key Authority, administrators can permanently delete a generated ElGamal key (and its Shamir fractions) after typing the locale confirm word; blocked while the key is linked to an election on this site. pt_BR mode label: **Autoridade de Chaves / Gestor de Chaves ElGamal**.
+24. **Signed results v2 (1.0.27.15)** — Certification shows the **signed JSON** (not unsigned raw). PDF = humanized tally + embedded results-signed JSON; downloadable package adds `pdf_sha256` + `pdf_signature` so the whole PDF is Schnorr-bound (`election-results-v2`). Multi-page PDF renderer.
 
 Password-change PoC still requires `[enviar_redefinicao_senha]` on the welcome page (documented in Redirections admin copy).

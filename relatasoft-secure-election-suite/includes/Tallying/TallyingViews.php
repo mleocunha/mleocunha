@@ -740,17 +740,22 @@ class TallyingViews {
 								</div>
 							<?php else : ?>
 								<div class="rses-panel rses-panel-warning">
-									<p><?php esc_html_e( 'Results are decrypted but not signed yet. Clear fractions and decrypt again with plugin 1.0.27.12+ to produce a Schnorr signature.', 'relatasoft-secure-election-suite' ); ?></p>
+									<p><?php esc_html_e( 'Results are decrypted but not signed yet. Clear fractions and decrypt again with plugin 1.0.27.15+ to produce a Schnorr-signed JSON/PDF package.', 'relatasoft-secure-election-suite' ); ?></p>
 								</div>
 							<?php endif; ?>
 
 							<p class="rses-field-label"><?php esc_html_e( 'Results', 'relatasoft-secure-election-suite' ); ?></p>
 							<?php DecryptedResultsPresenter::rses_render_html( $rses_humanized, (string) (int) $rses_imp->id ); ?>
 
-							<details class="rses-raw-results">
-								<summary><?php esc_html_e( 'Raw decrypted JSON (technical)', 'relatasoft-secure-election-suite' ); ?></summary>
-								<p class="description"><?php esc_html_e( 'Shown for audit credibility. Prefer the signed JSON download — unsigned raw JSON can be forged by hand.', 'relatasoft-secure-election-suite' ); ?></p>
-								<pre class="rses-decrypted-results"><?php echo esc_html( wp_json_encode( $rses_result['decrypted_results'], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE ) ); ?></pre>
+							<details class="rses-raw-results" open>
+								<summary><?php esc_html_e( 'Signed results JSON', 'relatasoft-secure-election-suite' ); ?></summary>
+								<?php if ( is_array( $rses_signed_pkg ) ) : ?>
+									<p class="description"><?php esc_html_e( 'Schnorr-signed package under the election public key (includes humanized results, document hashes, and PDF-binding signature). Same content as Download signed JSON.', 'relatasoft-secure-election-suite' ); ?></p>
+									<pre class="rses-decrypted-results"><?php echo esc_html( wp_json_encode( $rses_signed_pkg, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE ) ); ?></pre>
+								<?php else : ?>
+									<p class="description"><?php esc_html_e( 'Signed package not available yet. Showing unsigned raw decrypted tally for reference.', 'relatasoft-secure-election-suite' ); ?></p>
+									<pre class="rses-decrypted-results"><?php echo esc_html( wp_json_encode( $rses_result['decrypted_results'], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE ) ); ?></pre>
+								<?php endif; ?>
 							</details>
 
 							<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="rses-form">

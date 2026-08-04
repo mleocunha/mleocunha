@@ -760,5 +760,15 @@
   "Key “%s” was permanently deleted (Shamir fractions for that key included).",
   "Key was permanently deleted.",
   "Permanently delete key “%1$s”, including assigned Shamir fractions on this site. Type %2$s to confirm.",
-  "Delete key"
+  "Delete key",
+  "Schnorr-signed package (results). The downloadable signed-results.json also binds this PDF’s SHA-256.",
+  "Results are Schnorr-signed under the election public key. The downloadable signed-results.json also includes documents.pdf_sha256 and pdf_signature binding the full PDF bytes.",
+  "Anyone with this file can verify authenticity using only the embedded public_key: (1) check signature over results_sha256; (2) check pdf_signature over results_sha256 + pdf_sha256 against the PDF bytes. The PDF itself embeds the results-signed JSON after the humanized tally.",
+  "Not an election-results signed package (expected v1 or v2).",
+  "Missing pdf_signature / documents.pdf_sha256 (incomplete v2 package).",
+  "PDF Schnorr signature verification failed under the embedded public key.",
+  "Results are decrypted but not signed yet. Clear fractions and decrypt again with plugin 1.0.27.15+ to produce a Schnorr-signed JSON/PDF package.",
+  "Schnorr-signed package under the election public key (includes humanized results, document hashes, and PDF-binding signature). Same content as Download signed JSON.",
+  "Signed package not available yet. Showing unsigned raw decrypted tally for reference.",
+  "RelataSoft Secure Election Suite - Certification Export. Prefer signed-results.json for independent Schnorr verification with the election public key. The signed PDF contains humanized results followed by the results-signed JSON; documents.pdf_sha256 + pdf_signature bind the full PDF. humanized-results.json uses ballot labels; decrypted-results.json is the raw technical tally."
 ]

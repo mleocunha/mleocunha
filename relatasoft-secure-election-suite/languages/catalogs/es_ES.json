@@ -633,5 +633,9 @@
   "Key “%s” was permanently deleted (Shamir fractions for that key included).": "La clave “%s” se eliminó permanentemente (incluidas las fracciones Shamir de esa clave).",
   "Key was permanently deleted.": "La clave se eliminó permanentemente.",
   "Permanently delete key “%1$s”, including assigned Shamir fractions on this site. Type %2$s to confirm.": "Eliminar permanentemente la clave “%1$s”, incluidas las fracciones Shamir asignadas en este sitio. Escriba %2$s para confirmar.",
-  "Delete key": "Eliminar clave"
+  "Delete key": "Eliminar clave",
+  "Signed results JSON": "JSON de resultados firmados",
+  "Not an election-results signed package (expected v1 or v2).": "No es un paquete firmado de resultados electorales (se esperaba v1 o v2).",
+  "Missing pdf_signature / documents.pdf_sha256 (incomplete v2 package).": "Faltan pdf_signature / documents.pdf_sha256 (paquete v2 incompleto).",
+  "PDF Schnorr signature verification failed under the embedded public key.": "Falló la verificación de la firma Schnorr del PDF con la clave pública incrustada."
 }
