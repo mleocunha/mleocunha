@@ -1,7 +1,7 @@
 # Fork lab: Votador ↔ WordPress @ 1.0.27 (SSS)
 
 **Branch:** `cursor/votador-wp-sss-1.0.27-2eb1`  
-**Frozen plugin version:** `1.0.27` crypto baseline (`33fcc6a`); lab patches through **`1.0.27.16`** (PDF WinAnsi/Portuguese encoding fix)  
+**Frozen plugin version:** `1.0.27` crypto baseline (`33fcc6a`); lab patches through **`1.0.27.17`** (PDF UTF-8 via embedded DejaVu Sans)  
 **Crypto:** plain Shamir (`modp-elgamal-shamir-v1` behaviour) — **no** Feldman VSS / ceremony wiring
 
 ## Purpose
@@ -50,6 +50,7 @@ Cherry-pick candidates for the evolved line (no crypto):
 22. **Admin delete imported election (1.0.27.13)** — On Tally Import, administrators can permanently delete an import (fractions, certifications, decryption/signed caches) after typing the locale confirm word (`confirm` → pt_BR `confirmo`).
 23. **Admin delete generated keys (1.0.27.14)** — On Key Authority, administrators can permanently delete a generated ElGamal key (and its Shamir fractions) after typing the locale confirm word; blocked while the key is linked to an election on this site. pt_BR mode label: **Autoridade de Chaves / Gestor de Chaves ElGamal**.
 24. **Signed results v2 (1.0.27.15)** — Certification shows the **signed JSON** (not unsigned raw). PDF = humanized tally + embedded results-signed JSON; downloadable package adds `pdf_sha256` + `pdf_signature` so the whole PDF is Schnorr-bound (`election-results-v2`). Multi-page PDF renderer.
-25. **PDF Portuguese encoding (1.0.27.16)** — PDF uses Helvetica + `/WinAnsiEncoding` (UTF-8 → Windows-1252) so accents render; embedded signed JSON is ASCII (`\uXXXX`) to avoid corruption.
+25. **PDF Portuguese encoding (1.0.27.16)** — interim WinAnsi fix (superseded).
+26. **PDF UTF-8 (1.0.27.17)** — Certification PDF embeds **DejaVu Sans** (Identity-H / CIDFontType2) so UTF-8 text (Relatório, Eleição, Gestão, …) and UTF-8 signed JSON render correctly; ToUnicode CMap for copy/paste.
 
 Password-change PoC still requires `[enviar_redefinicao_senha]` on the welcome page (documented in Redirections admin copy).
