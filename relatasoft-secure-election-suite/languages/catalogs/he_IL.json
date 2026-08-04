@@ -626,5 +626,12 @@
   "Delete…": "מחיקה…",
   "Permanently delete “%1$s”, including submitted fractions and certifications for this import. Type %2$s to confirm.": "מחק לצמיתות את “%1$s”, כולל חלקים שהוגשו והסמכות של ייבוא זה. הקלידו %2$s לאישור.",
   "Type %s to confirm deletion": "הקלידו %s לאישור המחיקה",
-  "Delete imported election": "מחק בחירות מיובאות"
+  "Delete imported election": "מחק בחירות מיובאות",
+  "This key is still linked to an election on this site. Remove or reassign that election before deleting the key.": "מפתח זה עדיין מקושר לבחירות באתר זה. הסירו או הקצו מחדש את הבחירות לפני מחיקת המפתח.",
+  "Could not delete this key.": "לא ניתן למחוק מפתח זה.",
+  "Deletion cancelled. Type “%s” exactly to confirm permanently deleting this key.": "המחיקה בוטלה. הקלידו בדיוק “%s” כדי לאשר מחיקה סופית של מפתח זה.",
+  "Key “%s” was permanently deleted (Shamir fractions for that key included).": "המפתח “%s” נמחק לצמיתות (כולל חלקי שמיר של מפתח זה).",
+  "Key was permanently deleted.": "המפתח נמחק לצמיתות.",
+  "Permanently delete key “%1$s”, including assigned Shamir fractions on this site. Type %2$s to confirm.": "מחק לצמיתות את המפתח “%1$s”, כולל חלקי שמיר שהוקצו באתר זה. הקלידו %2$s לאישור.",
+  "Delete key": "מחק מפתח"
 }

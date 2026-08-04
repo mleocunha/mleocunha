@@ -626,5 +626,12 @@
   "Delete…": "Eliminar…",
   "Permanently delete “%1$s”, including submitted fractions and certifications for this import. Type %2$s to confirm.": "Eliminar permanentemente “%1$s”, incluidas las fracciones enviadas y certificaciones de esta importación. Escriba %2$s para confirmar.",
   "Type %s to confirm deletion": "Escriba %s para confirmar la eliminación",
-  "Delete imported election": "Eliminar elección importada"
+  "Delete imported election": "Eliminar elección importada",
+  "This key is still linked to an election on this site. Remove or reassign that election before deleting the key.": "Esta clave sigue vinculada a una elección en este sitio. Elimine o reasigne esa elección antes de borrar la clave.",
+  "Could not delete this key.": "No se pudo eliminar esta clave.",
+  "Deletion cancelled. Type “%s” exactly to confirm permanently deleting this key.": "Eliminación cancelada. Escriba “%s” exactamente para confirmar la eliminación permanente de esta clave.",
+  "Key “%s” was permanently deleted (Shamir fractions for that key included).": "La clave “%s” se eliminó permanentemente (incluidas las fracciones Shamir de esa clave).",
+  "Key was permanently deleted.": "La clave se eliminó permanentemente.",
+  "Permanently delete key “%1$s”, including assigned Shamir fractions on this site. Type %2$s to confirm.": "Eliminar permanentemente la clave “%1$s”, incluidas las fracciones Shamir asignadas en este sitio. Escriba %2$s para confirmar.",
+  "Delete key": "Eliminar clave"
 }

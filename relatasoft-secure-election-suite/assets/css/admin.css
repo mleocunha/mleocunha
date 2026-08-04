@@ -882,6 +882,42 @@
 	margin: 0;
 }
 
+.rses-ka .rses-key-delete {
+	margin: 0 1.15rem 1.1rem;
+	max-width: 28rem;
+}
+
+.rses-ka .rses-key-delete-summary {
+	cursor: pointer;
+	color: #b32d2e;
+	font-weight: 600;
+	list-style: none;
+}
+
+.rses-ka .rses-key-delete-summary::-webkit-details-marker {
+	display: none;
+}
+
+.rses-ka .rses-key-delete-form,
+.rses-ka .rses-key-delete-blocked {
+	margin-top: 0.65rem;
+	padding: 0.75rem 0.85rem;
+	border: 1px solid #f0b7b8;
+	background: #fcf0f1;
+}
+
+.rses-ka .rses-key-delete-form .description,
+.rses-ka .rses-key-delete-blocked {
+	margin: 0 0 0.55rem;
+	color: #5c2b2b;
+}
+
+.rses-ka .rses-key-delete-form input.regular-text {
+	width: 100%;
+	max-width: 100%;
+	margin-bottom: 0.45rem;
+}
+
 .rses-ka .rses-official-share-card .rses-code-area ,
 .rses-screen .rses-official-share-card .rses-code-area {
 	margin-bottom: 0.85rem;

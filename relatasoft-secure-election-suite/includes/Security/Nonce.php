@@ -22,6 +22,7 @@ class Nonce {
 	public const RSES_ACTION_KEY_GENERATE       = 'rses_key_generate';
 	public const RSES_ACTION_KEY_IMPORT         = 'rses_key_import';
 	public const RSES_ACTION_KEY_EXPORT         = 'rses_key_export';
+	public const RSES_ACTION_KEY_DELETE         = 'rses_key_delete';
 	public const RSES_ACTION_SHARE_EXPORT       = 'rses_share_export';
 	public const RSES_ACTION_MEDIA_ATTACH       = 'rses_media_attach';
 	public const RSES_ACTION_ELECTION_SAVE      = 'rses_election_save';

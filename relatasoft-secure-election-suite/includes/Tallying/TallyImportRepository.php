@@ -10,6 +10,7 @@ namespace RelataSoft\SecureElectionSuite\Tallying;
 use RelataSoft\SecureElectionSuite\Database\Repository;
 use RelataSoft\SecureElectionSuite\Database\Schema;
 use RelataSoft\SecureElectionSuite\Exports\HashService;
+use RelataSoft\SecureElectionSuite\Security\ConfirmWord;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -364,7 +365,7 @@ class TallyImportRepository {
 	 * English source is “confirm”; catalogs map it (e.g. pt_BR → “confirmo”).
 	 */
 	public static function rses_delete_confirm_word(): string {
-		return (string) __( 'confirm', 'relatasoft-secure-election-suite' );
+		return ConfirmWord::rses_word();
 	}
 
 	/**
@@ -373,12 +374,7 @@ class TallyImportRepository {
 	 * @param string $typed User input.
 	 */
 	public static function rses_confirm_word_matches( string $typed ): bool {
-		$rses_expected = self::rses_delete_confirm_word();
-		$rses_typed    = trim( wp_unslash( $typed ) );
-		if ( '' === $rses_expected || '' === $rses_typed ) {
-			return false;
-		}
-		return 0 === strcasecmp( $rses_typed, $rses_expected );
+		return ConfirmWord::rses_matches( $typed );
 	}
 
 	/**

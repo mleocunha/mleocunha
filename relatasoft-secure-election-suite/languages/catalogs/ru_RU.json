@@ -626,5 +626,12 @@
   "Delete…": "Удалить…",
   "Permanently delete “%1$s”, including submitted fractions and certifications for this import. Type %2$s to confirm.": "Окончательно удалить «%1$s», включая отправленные доли и сертификации этого импорта. Введите %2$s для подтверждения.",
   "Type %s to confirm deletion": "Введите %s для подтверждения удаления",
-  "Delete imported election": "Удалить импортированное голосование"
+  "Delete imported election": "Удалить импортированное голосование",
+  "This key is still linked to an election on this site. Remove or reassign that election before deleting the key.": "Этот ключ всё ещё связан с голосованием на этом сайте. Удалите или переназначьте это голосование перед удалением ключа.",
+  "Could not delete this key.": "Не удалось удалить этот ключ.",
+  "Deletion cancelled. Type “%s” exactly to confirm permanently deleting this key.": "Удаление отменено. Введите точно «%s», чтобы подтвердить окончательное удаление этого ключа.",
+  "Key “%s” was permanently deleted (Shamir fractions for that key included).": "Ключ «%s» окончательно удалён (включая доли Шамира этого ключа).",
+  "Key was permanently deleted.": "Ключ окончательно удалён.",
+  "Permanently delete key “%1$s”, including assigned Shamir fractions on this site. Type %2$s to confirm.": "Окончательно удалить ключ «%1$s», включая назначенные доли Шамира на этом сайте. Введите %2$s для подтверждения.",
+  "Delete key": "Удалить ключ"
 }

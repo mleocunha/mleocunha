@@ -9,6 +9,7 @@ namespace RelataSoft\SecureElectionSuite\KeyAuthority;
 
 use RelataSoft\SecureElectionSuite\Bootstrap\Plugin;
 use RelataSoft\SecureElectionSuite\Security\Capability;
+use RelataSoft\SecureElectionSuite\Security\ConfirmWord;
 use RelataSoft\SecureElectionSuite\Security\Escaper;
 use RelataSoft\SecureElectionSuite\Security\Nonce;
 use RelataSoft\SecureElectionSuite\I18n\RoleLabels;
@@ -53,6 +54,27 @@ class KeyAuthorityViews {
 					);
 				?></p>
 			</header>
+
+			<?php if ( ! empty( $_GET['rses_key_deleted'] ) ) : // phpcs:ignore WordPress.Security.NonceVerification.Recommended ?>
+				<div class="rses-panel rses-panel-success">
+					<p>
+						<?php
+						$rses_deleted_label = isset( $_GET['label'] ) // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+							? sanitize_text_field( wp_unslash( (string) $_GET['label'] ) ) // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+							: '';
+						echo esc_html(
+							'' !== $rses_deleted_label
+								? sprintf(
+									/* translators: %s: key label */
+									__( 'Key “%s” was permanently deleted (Shamir fractions for that key included).', 'relatasoft-secure-election-suite' ),
+									$rses_deleted_label
+								)
+								: __( 'Key was permanently deleted.', 'relatasoft-secure-election-suite' )
+						);
+						?>
+					</p>
+				</div>
+			<?php endif; ?>
 
 			<?php if ( ! empty( $_GET['rses_mode_set'] ) || ! empty( $_GET['rses_key_created'] ) ) : // phpcs:ignore WordPress.Security.NonceVerification.Recommended ?>
 				<div class="rses-panel rses-panel-success">
@@ -459,14 +481,72 @@ class KeyAuthorityViews {
 						<?php esc_html_e( 'Full Export (Admin)', 'relatasoft-secure-election-suite' ); ?>
 					</a>
 				<?php endif; ?>
-				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="rses-inline-form">
-					<?php Nonce::rses_field( Nonce::RSES_ACTION_KEY_EXPORT ); ?>
-					<input type="hidden" name="action" value="rses_key_action" />
-					<input type="hidden" name="key_id" value="<?php echo esc_attr( (string) $key->id ); ?>" />
-					<input type="hidden" name="rses_key_action" value="trash" />
-					<?php submit_button( __( 'Trash', 'relatasoft-secure-election-suite' ), 'delete small', 'submit', false ); ?>
-				</form>
 			</div>
+
+			<?php
+			$rses_confirm_word = ConfirmWord::rses_word();
+			$rses_linked_block = ! empty( $rses_linked );
+			?>
+			<details class="rses-key-delete">
+				<summary class="rses-key-delete-summary"><?php esc_html_e( 'Delete…', 'relatasoft-secure-election-suite' ); ?></summary>
+				<?php if ( $rses_linked_block ) : ?>
+					<p class="description rses-key-delete-blocked">
+						<?php esc_html_e( 'This key is still linked to an election on this site. Remove or reassign that election before deleting the key.', 'relatasoft-secure-election-suite' ); ?>
+					</p>
+				<?php else : ?>
+					<form
+						method="post"
+						action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>"
+						class="rses-form rses-key-delete-form"
+					>
+						<?php Nonce::rses_field( Nonce::RSES_ACTION_KEY_DELETE ); ?>
+						<input type="hidden" name="action" value="rses_key_delete" />
+						<input type="hidden" name="key_id" value="<?php echo esc_attr( (string) $key->id ); ?>" />
+						<p class="description">
+							<?php
+							echo esc_html(
+								sprintf(
+									/* translators: 1: key label, 2: confirmation word in active locale */
+									__( 'Permanently delete key “%1$s”, including assigned Shamir fractions on this site. Type %2$s to confirm.', 'relatasoft-secure-election-suite' ),
+									(string) $key->key_label,
+									$rses_confirm_word
+								)
+							);
+							?>
+						</p>
+						<label class="screen-reader-text" for="rses_delete_confirm_key_<?php echo esc_attr( (string) $key->id ); ?>">
+							<?php
+							echo esc_html(
+								sprintf(
+									/* translators: %s: confirmation word */
+									__( 'Type %s to confirm deletion', 'relatasoft-secure-election-suite' ),
+									$rses_confirm_word
+								)
+							);
+							?>
+						</label>
+						<input
+							type="text"
+							name="rses_delete_confirm"
+							id="rses_delete_confirm_key_<?php echo esc_attr( (string) $key->id ); ?>"
+							class="regular-text"
+							autocomplete="off"
+							required
+							placeholder="<?php echo esc_attr( $rses_confirm_word ); ?>"
+						/>
+						<p class="rses-form-actions">
+							<?php
+							submit_button(
+								__( 'Delete key', 'relatasoft-secure-election-suite' ),
+								'delete',
+								'submit',
+								false
+							);
+							?>
+						</p>
+					</form>
+				<?php endif; ?>
+			</details>
 		</article>
 		<?php
 	}

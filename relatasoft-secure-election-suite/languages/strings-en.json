@@ -753,5 +753,12 @@
   "Delete…",
   "Permanently delete “%1$s”, including submitted fractions and certifications for this import. Type %2$s to confirm.",
   "Type %s to confirm deletion",
-  "Delete imported election"
+  "Delete imported election",
+  "This key is still linked to an election on this site. Remove or reassign that election before deleting the key.",
+  "Could not delete this key.",
+  "Deletion cancelled. Type “%s” exactly to confirm permanently deleting this key.",
+  "Key “%s” was permanently deleted (Shamir fractions for that key included).",
+  "Key was permanently deleted.",
+  "Permanently delete key “%1$s”, including assigned Shamir fractions on this site. Type %2$s to confirm.",
+  "Delete key"
 ]

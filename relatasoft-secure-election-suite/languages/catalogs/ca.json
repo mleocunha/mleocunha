@@ -247,7 +247,7 @@
   "WARNING: This exports the full private key. Continue?": "ADVERTIMENT: això exporta la clau privada completa. Continuar?",
   "Full Export (Admin)": "Exportació completa (administrador)",
   "Trash": "Paperera",
-  "Key not found.": "No s'ha trobat la clau.",
+  "Key not found.": "Clau no trobada.",
   "Only election officials may export their Shamir share.": "Només els funcionaris electorals poden exportar la seva quota Shamir.",
   "Permission Denied": "Permís denegat",
   "No Shamir share is assigned to your account for this key.": "No s'ha assignat cap quota Shamir al vostre compte per a aquesta clau.",
@@ -626,5 +626,12 @@
   "Delete…": "Eliminar…",
   "Permanently delete “%1$s”, including submitted fractions and certifications for this import. Type %2$s to confirm.": "Eliminar permanentment “%1$s”, incloses les fraccions enviades i les certificacions d’aquesta importació. Escriviu %2$s per confirmar.",
   "Type %s to confirm deletion": "Escriviu %s per confirmar l’eliminació",
-  "Delete imported election": "Eliminar elecció importada"
+  "Delete imported election": "Eliminar elecció importada",
+  "This key is still linked to an election on this site. Remove or reassign that election before deleting the key.": "Aquesta clau encara està vinculada a una elecció en aquest lloc. Elimineu o reassigneu aquesta elecció abans d’esborrar la clau.",
+  "Could not delete this key.": "No s’ha pogut eliminar aquesta clau.",
+  "Deletion cancelled. Type “%s” exactly to confirm permanently deleting this key.": "Eliminació cancel·lada. Escriviu “%s” exactament per confirmar l’eliminació permanent d’aquesta clau.",
+  "Key “%s” was permanently deleted (Shamir fractions for that key included).": "La clau “%s” s’ha eliminat permanentment (incloses les fraccions Shamir d’aquesta clau).",
+  "Key was permanently deleted.": "La clau s’ha eliminat permanentment.",
+  "Permanently delete key “%1$s”, including assigned Shamir fractions on this site. Type %2$s to confirm.": "Eliminar permanentment la clau “%1$s”, incloses les fraccions Shamir assignades en aquest lloc. Escriviu %2$s per confirmar.",
+  "Delete key": "Eliminar clau"
 }

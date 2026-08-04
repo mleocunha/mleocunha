@@ -626,5 +626,12 @@
   "Delete…": "删除…",
   "Permanently delete “%1$s”, including submitted fractions and certifications for this import. Type %2$s to confirm.": "永久删除“%1$s”，包括此导入已提交的份额和认证。输入 %2$s 以确认。",
   "Type %s to confirm deletion": "输入 %s 以确认删除",
-  "Delete imported election": "删除导入的选举"
+  "Delete imported election": "删除导入的选举",
+  "This key is still linked to an election on this site. Remove or reassign that election before deleting the key.": "此密钥仍关联到本站点上的一场选举。请先移除或重新指定该选举，然后再删除密钥。",
+  "Could not delete this key.": "无法删除此密钥。",
+  "Deletion cancelled. Type “%s” exactly to confirm permanently deleting this key.": "已取消删除。请准确输入“%s”以确认永久删除此密钥。",
+  "Key “%s” was permanently deleted (Shamir fractions for that key included).": "已永久删除密钥“%s”（包括该密钥的 Shamir 份额）。",
+  "Key was permanently deleted.": "已永久删除密钥。",
+  "Permanently delete key “%1$s”, including assigned Shamir fractions on this site. Type %2$s to confirm.": "永久删除密钥“%1$s”，包括本站点上已分配的 Shamir 份额。输入 %2$s 以确认。",
+  "Delete key": "删除密钥"
 }
