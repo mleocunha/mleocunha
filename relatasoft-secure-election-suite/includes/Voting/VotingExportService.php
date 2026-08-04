@@ -48,10 +48,13 @@ class VotingExportService {
 		$rses_key = KeyRepository::rses_get( (int) $rses_round->key_id );
 
 		$rses_public_key = $rses_key ? array(
-			'p' => $rses_key->public_p,
-			'q' => $rses_key->public_q,
-			'g' => $rses_key->public_g,
-			'y' => $rses_key->public_y,
+			'p'           => $rses_key->public_p,
+			'q'           => $rses_key->public_q,
+			'g'           => $rses_key->public_g,
+			'y'           => $rses_key->public_y,
+			'keySizeBits' => (int) $rses_key->key_size,
+			'key_id'      => (int) $rses_key->id,
+			'key_label'   => (string) $rses_key->key_label,
 		) : array();
 
 		$rses_tallies = EncryptedTallyService::rses_get_by_round( $round_id );
@@ -94,6 +97,8 @@ class VotingExportService {
 				'election_title' => (string) ( $rses_election->title ?? '' ),
 				'round_title'    => (string) ( $rses_round->title ?? '' ),
 				'round_number'   => isset( $rses_round->round_number ) ? (int) $rses_round->round_number : null,
+				'key_id'         => $rses_key ? (int) $rses_key->id : (int) ( $rses_round->key_id ?? 0 ),
+				'key_label'      => $rses_key ? (string) $rses_key->key_label : '',
 			)
 		);
 

@@ -20,6 +20,7 @@ use RelataSoft\SecureElectionSuite\I18n\Translator;
 use RelataSoft\SecureElectionSuite\KeyAuthority\KeyAuthorityController;
 use RelataSoft\SecureElectionSuite\Tallying\CertificationService;
 use RelataSoft\SecureElectionSuite\Tallying\OfficialShareSubmissionController;
+use RelataSoft\SecureElectionSuite\Tallying\SignedResultsService;
 use RelataSoft\SecureElectionSuite\Tallying\TallyImportController;
 use RelataSoft\SecureElectionSuite\Admin\RedirectionsPage;
 use RelataSoft\SecureElectionSuite\Admin\ElectoralRollImportPage;
@@ -69,6 +70,7 @@ class Plugin {
 		SettingsPage::register();
 		AuditLogPage::register();
 		CertificationService::register();
+		SignedResultsService::register();
 		AjaxRouter::register();
 		KeyAuthorityController::register();
 		ElectionController::register();

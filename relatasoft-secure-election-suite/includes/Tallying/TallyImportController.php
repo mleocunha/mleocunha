@@ -12,6 +12,7 @@ use RelataSoft\SecureElectionSuite\Exports\HashService;
 use RelataSoft\SecureElectionSuite\Security\AuditLogger;
 use RelataSoft\SecureElectionSuite\Security\Capability;
 use RelataSoft\SecureElectionSuite\Security\Nonce;
+use RelataSoft\SecureElectionSuite\Security\Sanitizer;
 use RelataSoft\SecureElectionSuite\Voting\EncryptedTallyService;
 
 defined( 'ABSPATH' ) || exit;
@@ -41,6 +42,62 @@ class TallyImportController {
 	 */
 	public static function register(): void {
 		add_action( 'admin_post_rses_tally_import', array( self::class, 'rses_handle_import' ) );
+		add_action( 'admin_post_rses_tally_import_delete', array( self::class, 'rses_handle_delete' ) );
+	}
+
+	/**
+	 * Admin: permanently delete an imported election package.
+	 */
+	public static function rses_handle_delete(): void {
+		Capability::rses_require_tally_admin();
+		Nonce::rses_verify_or_die( Nonce::RSES_ACTION_TALLY_IMPORT_DELETE );
+		ModeLock::rses_require_mode( ModeLock::RSES_MODE_TALLYING );
+
+		$rses_import_id = Sanitizer::rses_post_id( 'tally_import_id' );
+		$rses_typed     = isset( $_POST['rses_delete_confirm'] )
+			? sanitize_text_field( wp_unslash( (string) $_POST['rses_delete_confirm'] ) )
+			: '';
+
+		$rses_import = TallyImportRepository::rses_get( $rses_import_id );
+		if ( ! $rses_import ) {
+			wp_die( esc_html__( 'Import not found.', 'relatasoft-secure-election-suite' ) );
+		}
+
+		if ( ! TallyImportRepository::rses_confirm_word_matches( $rses_typed ) ) {
+			wp_die(
+				esc_html(
+					sprintf(
+						/* translators: %s: required confirmation word in the active locale */
+						__( 'Deletion cancelled. Type “%s” exactly to confirm permanently deleting this imported election.', 'relatasoft-secure-election-suite' ),
+						TallyImportRepository::rses_delete_confirm_word()
+					)
+				)
+			);
+		}
+
+		$rses_title = TallyImportRepository::rses_display_election_title( $rses_import );
+		$rses_ok    = TallyImportRepository::rses_delete( $rses_import_id );
+
+		if ( ! $rses_ok ) {
+			wp_die( esc_html__( 'Could not delete this imported election.', 'relatasoft-secure-election-suite' ) );
+		}
+
+		AuditLogger::rses_log(
+			'tally_import_deleted',
+			'tally_import',
+			$rses_import_id,
+			array(
+				'election_title' => $rses_title,
+				'deleted_by'     => get_current_user_id(),
+			)
+		);
+
+		wp_safe_redirect(
+			admin_url(
+				'admin.php?page=rses-tally-import&rses_import_deleted=1&title=' . rawurlencode( $rses_title )
+			)
+		);
+		exit;
 	}
 
 	/**

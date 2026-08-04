@@ -1,7 +1,7 @@
 # Fork lab: Votador ↔ WordPress @ 1.0.27 (SSS)
 
 **Branch:** `cursor/votador-wp-sss-1.0.27-2eb1`  
-**Frozen plugin version:** `1.0.27` crypto baseline (`33fcc6a`); lab patches through **`1.0.27.7`** (tally UI shows election/round labels)  
+**Frozen plugin version:** `1.0.27` crypto baseline (`33fcc6a`); lab patches through **`1.0.27.19`** (styled certification PDF)  
 **Crypto:** plain Shamir (`modp-elgamal-shamir-v1` behaviour) — **no** Feldman VSS / ceremony wiring
 
 ## Purpose
@@ -42,5 +42,17 @@ Cherry-pick candidates for the evolved line (no crypto):
 14. **Tally import “Failed to parse” (1.0.27.5)** — after raising PHP memory, ZIP opened but members were not found (subfolder / name mismatch / JSON-in-ZIP). Index by basename, strip BOM, keep stable ZIP entry names on export, surface entry list in the error.
 15. **Tally import rejected validation (1.0.27.6)** — empty `encrypted_tallies` after low-memory close. Stream tally compute on close/export; on import rebuild tallies from `encrypted-votes.json` when missing; normalize public_key aliases; persist validation errors in the stored manifest.
 16. **Tally UI election identity (1.0.27.7)** — denormalize `election_title` / `round_title` / `ballot_count` on import; show them on Import, Share Submission, and Certification so multiple concurrent elections are distinguishable.
+17. **Shamir fractions ↔ elections (1.0.27.8)** — export/import UIs show which elections each key is linked to; share JSON packages include `key_label` + `linked_elections` (crypto `share` unchanged); Voting Public Keys / Export list key identity; pt_BR Shamir UI uses “fração/frações” instead of “parte(s)”.
+18. **Fraction submit bound to imported election (1.0.27.9)** — Tallying Share Submission only lists verified imports; each card is one election; submit validates share `public_key` against that import (fingerprint), rejects wrong-election pastes even when key labels collide across servers; one fraction per official per election.
+19. **Admin clear fractions (1.0.27.10)** — Administrators can clear all submitted Shamir fractions for one imported election (with confirm), discarding cached decryption so mistaken submissions can be corrected.
+20. **Humanized decrypted results (1.0.27.11)** — Certification shows ballot question/option labels with default sort by most votes; raw JSON remains for audit; PDF/ZIP use the humanized view (`humanized-results.json`).
+21. **Schnorr-signed results (1.0.27.12)** — After threshold decryption, results JSON + PDF are signed with the reconstructed election private key (`schnorr-sha256-modpq-v1`); anyone with `signed-results.json` (embedded public key) can verify independently; shortcode `[rses_verify_signed_results]`.
+22. **Admin delete imported election (1.0.27.13)** — On Tally Import, administrators can permanently delete an import (fractions, certifications, decryption/signed caches) after typing the locale confirm word (`confirm` → pt_BR `confirmo`).
+23. **Admin delete generated keys (1.0.27.14)** — On Key Authority, administrators can permanently delete a generated ElGamal key (and its Shamir fractions) after typing the locale confirm word; blocked while the key is linked to an election on this site. pt_BR mode label: **Autoridade de Chaves / Gestor de Chaves ElGamal**.
+24. **Signed results v2 (1.0.27.15)** — Certification shows the **signed JSON** (not unsigned raw). PDF = humanized tally + embedded results-signed JSON; downloadable package adds `pdf_sha256` + `pdf_signature` so the whole PDF is Schnorr-bound (`election-results-v2`). Multi-page PDF renderer.
+25. **PDF Portuguese encoding (1.0.27.16)** — interim WinAnsi fix (superseded).
+26. **PDF UTF-8 (1.0.27.17)** — Certification PDF embeds **DejaVu Sans** (Identity-H / CIDFontType2) so UTF-8 text (Relatório, Eleição, Gestão, …) and UTF-8 signed JSON render correctly; ToUnicode CMap for copy/paste.
+27. **Dashboard step numbering (1.0.27.18)** — Key Authority / official tally cards use consistent `1.` prefixes so workflow steps align with numbered Crypto Self Test cards.
+28. **Styled certification PDF (1.0.27.19)** — Human-readable PDF matches Certification UI (navy hero, signed banner, election card, result tables with vote bars); ends with localized **Completed at** + site-timezone datetime; full site language via catalogs; signed JSON appendix retained. Re-decrypt after upgrade to regenerate signed PDF artifacts.
 
 Password-change PoC still requires `[enviar_redefinicao_senha]` on the welcome page (documented in Redirections admin copy).

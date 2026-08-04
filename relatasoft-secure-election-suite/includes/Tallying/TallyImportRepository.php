@@ -10,6 +10,7 @@ namespace RelataSoft\SecureElectionSuite\Tallying;
 use RelataSoft\SecureElectionSuite\Database\Repository;
 use RelataSoft\SecureElectionSuite\Database\Schema;
 use RelataSoft\SecureElectionSuite\Exports\HashService;
+use RelataSoft\SecureElectionSuite\Security\ConfirmWord;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -90,12 +91,13 @@ class TallyImportRepository {
 	 * Extract denormalized election/round labels from a parsed manifest.
 	 *
 	 * @param array<string,mixed> $manifest Manifest.
-	 * @return array{election_title:string,round_title:string,ballot_count:int|null,election_external_id:string,round_external_id:string,source_site_url:?string}
+	 * @return array{election_title:string,round_title:string,ballot_count:int|null,election_external_id:string,round_external_id:string,source_site_url:?string,key_id:int,key_label:string}
 	 */
 	public static function rses_summary_from_manifest( array $manifest ): array {
-		$rses_election = is_array( $manifest['election'] ?? null ) ? $manifest['election'] : array();
-		$rses_round    = is_array( $manifest['round'] ?? null ) ? $manifest['round'] : array();
-		$rses_meta     = is_array( $manifest['manifest'] ?? null ) ? $manifest['manifest'] : array();
+		$rses_election   = is_array( $manifest['election'] ?? null ) ? $manifest['election'] : array();
+		$rses_round      = is_array( $manifest['round'] ?? null ) ? $manifest['round'] : array();
+		$rses_meta       = is_array( $manifest['manifest'] ?? null ) ? $manifest['manifest'] : array();
+		$rses_public_key = is_array( $manifest['public_key'] ?? null ) ? $manifest['public_key'] : array();
 
 		$rses_election_title = trim( (string) ( $rses_election['title'] ?? $rses_meta['election_title'] ?? '' ) );
 		$rses_round_title    = trim( (string) ( $rses_round['title'] ?? $rses_meta['round_title'] ?? '' ) );
@@ -112,6 +114,20 @@ class TallyImportRepository {
 			$rses_ballot = (int) $rses_meta['ballot_count'];
 		}
 
+		$rses_key_id = (int) (
+			$rses_meta['key_id']
+			?? $rses_round['key_id']
+			?? $rses_public_key['key_id']
+			?? 0
+		);
+		$rses_key_label = trim(
+			(string) (
+				$rses_meta['key_label']
+				?? $rses_public_key['key_label']
+				?? ''
+			)
+		);
+
 		return array(
 			'election_title'       => $rses_election_title,
 			'round_title'          => $rses_round_title,
@@ -119,7 +135,69 @@ class TallyImportRepository {
 			'election_external_id' => (string) ( $rses_election['id'] ?? $manifest['election_id'] ?? $rses_meta['election_id'] ?? '' ),
 			'round_external_id'    => (string) ( $rses_round['id'] ?? $manifest['round_id'] ?? $rses_meta['round_id'] ?? '' ),
 			'source_site_url'      => $rses_meta['source_site'] ?? $manifest['source_site'] ?? null,
+			'key_id'               => $rses_key_id,
+			'key_label'            => $rses_key_label,
 		);
+	}
+
+	/**
+	 * Resolve key identity for an import (from denormalized fields or manifest).
+	 *
+	 * @param object                   $import   Import row.
+	 * @param array<string,mixed>|null $manifest Optional preloaded manifest.
+	 * @return array{key_id:int,key_label:string,fingerprint:string,public_y_prefix:string,source_site_url:string}
+	 */
+	public static function rses_key_identity( object $import, ?array $manifest = null ): array {
+		if ( null === $manifest ) {
+			$manifest = self::rses_get_manifest( $import );
+		}
+		$rses_summary = is_array( $manifest ) ? self::rses_summary_from_manifest( $manifest ) : array();
+		$rses_public  = is_array( $manifest['public_key'] ?? null ) ? $manifest['public_key'] : array();
+		$rses_y       = (string) ( $rses_public['y'] ?? '' );
+
+		$rses_source = (string) ( $rses_summary['source_site_url'] ?? $import->source_site_url ?? '' );
+
+		return array(
+			'key_id'           => (int) ( $rses_summary['key_id'] ?? 0 ),
+			'key_label'        => (string) ( $rses_summary['key_label'] ?? '' ),
+			'fingerprint'      => self::rses_public_key_fingerprint( $rses_public ),
+			'public_y_prefix'  => '' !== $rses_y ? substr( $rses_y, 0, 20 ) : '',
+			'source_site_url'  => $rses_source,
+		);
+	}
+
+	/**
+	 * Short fingerprint of a public key (stable across sites; labels may collide).
+	 *
+	 * @param array<string,mixed> $public_key Public key fields.
+	 */
+	public static function rses_public_key_fingerprint( array $public_key ): string {
+		$rses_y = (string) ( $public_key['y'] ?? '' );
+		if ( '' === $rses_y ) {
+			return '';
+		}
+		return substr( hash( 'sha256', $rses_y ), 0, 12 );
+	}
+
+	/**
+	 * Whether share public_key matches the imported election package.
+	 *
+	 * @param array<string,mixed> $share_payload Cryptographic share payload.
+	 * @param array<string,mixed> $manifest      Import manifest.
+	 */
+	public static function rses_share_matches_import_public_key( array $share_payload, array $manifest ): bool {
+		$rses_expected = is_array( $manifest['public_key'] ?? null ) ? $manifest['public_key'] : array();
+		$rses_share_pk = is_array( $share_payload['public_key'] ?? null ) ? $share_payload['public_key'] : array();
+
+		foreach ( array( 'p', 'q', 'g', 'y' ) as $rses_field ) {
+			$rses_a = (string) ( $rses_expected[ $rses_field ] ?? '' );
+			$rses_b = (string) ( $rses_share_pk[ $rses_field ] ?? '' );
+			if ( '' === $rses_a || '' === $rses_b || ! hash_equals( $rses_a, $rses_b ) ) {
+				return false;
+			}
+		}
+
+		return true;
 	}
 
 	/**
@@ -279,6 +357,62 @@ class TallyImportRepository {
 			array( '%s' ),
 			array( '%d' )
 		);
+	}
+
+	/**
+	 * Locale-specific word an administrator must type to delete an import.
+	 *
+	 * English source is “confirm”; catalogs map it (e.g. pt_BR → “confirmo”).
+	 */
+	public static function rses_delete_confirm_word(): string {
+		return ConfirmWord::rses_word();
+	}
+
+	/**
+	 * Whether typed text matches the required confirmation word.
+	 *
+	 * @param string $typed User input.
+	 */
+	public static function rses_confirm_word_matches( string $typed ): bool {
+		return ConfirmWord::rses_matches( $typed );
+	}
+
+	/**
+	 * Permanently delete an imported election and related tally data.
+	 *
+	 * Removes share submissions, certifications, signed/decryption caches, and the import row.
+	 *
+	 * @param int $import_id Import ID.
+	 * @return bool
+	 */
+	public static function rses_delete( int $import_id ): bool {
+		global $wpdb;
+
+		if ( $import_id < 1 ) {
+			return false;
+		}
+
+		$rses_import = self::rses_get( $import_id );
+		if ( ! $rses_import ) {
+			return false;
+		}
+
+		OfficialShareSubmissionController::rses_clear_submissions_for_import( $import_id );
+
+		$rses_cert_table = Schema::rses_table( 'rses_certifications' );
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+		$wpdb->delete(
+			$rses_cert_table,
+			array( 'tally_import_id' => $import_id ),
+			array( '%d' )
+		);
+
+		delete_transient( 'rses_certification_' . $import_id );
+		delete_transient( 'rses_decryption_result_' . $import_id );
+		delete_transient( 'rses_tally_import_flash_' . $import_id );
+		SignedResultsService::rses_clear( $import_id );
+
+		return Repository::rses_delete_by_id( 'rses_tally_imports', $import_id );
 	}
 
 	/**
