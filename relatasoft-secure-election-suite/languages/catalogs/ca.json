@@ -617,5 +617,14 @@
   "Elector welcome and open-election links.": "Benvinguda de l’elector i enllaços d’eleccions obertes.",
   "Thank-you page with vote receipt hash.": "Pàgina d’agraïment amb l’hash del rebut de vot.",
   "Sends a password-reset email to the currently logged-in user (plain text). Place on the welcome page for the Votador PoC password-change flow.": "Envia un correu de restabliment a l’usuari autenticat (text pla). Poseu-lo a la pàgina de benvinguda per al flux de canvi de contrasenya del Votador PoC.",
-  "Voting Booth": "Voting Booth"
+  "Voting Booth": "Voting Booth",
+  "confirm": "confirmo",
+  "Deletion cancelled. Type “%s” exactly to confirm permanently deleting this imported election.": "Eliminació cancel·lada. Escriviu “%s” exactament per confirmar l’eliminació permanent d’aquesta elecció importada.",
+  "Could not delete this imported election.": "No s’ha pogut eliminar aquesta elecció importada.",
+  "Imported election “%s” was permanently deleted (shares, decryption cache, and certifications for that import included).": "L’elecció importada “%s” s’ha eliminat permanentment (incloses fraccions, memòria cau de desxifratge i certificacions d’aquesta importació).",
+  "Imported election was permanently deleted.": "L’elecció importada s’ha eliminat permanentment.",
+  "Delete…": "Eliminar…",
+  "Permanently delete “%1$s”, including submitted fractions and certifications for this import. Type %2$s to confirm.": "Eliminar permanentment “%1$s”, incloses les fraccions enviades i les certificacions d’aquesta importació. Escriviu %2$s per confirmar.",
+  "Type %s to confirm deletion": "Escriviu %s per confirmar l’eliminació",
+  "Delete imported election": "Eliminar elecció importada"
 }

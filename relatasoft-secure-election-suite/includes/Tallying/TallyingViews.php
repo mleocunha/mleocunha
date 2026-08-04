@@ -120,6 +120,27 @@ class TallyingViews {
 				</div>
 			<?php endif; ?>
 
+			<?php if ( ! empty( $_GET['rses_import_deleted'] ) ) : // phpcs:ignore WordPress.Security.NonceVerification.Recommended ?>
+				<div class="rses-panel rses-panel-success">
+					<p>
+						<?php
+						$rses_deleted_title = isset( $_GET['title'] ) // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+							? sanitize_text_field( wp_unslash( (string) $_GET['title'] ) ) // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+							: '';
+						echo esc_html(
+							'' !== $rses_deleted_title
+								? sprintf(
+									/* translators: %s: election title */
+									__( 'Imported election “%s” was permanently deleted (shares, decryption cache, and certifications for that import included).', 'relatasoft-secure-election-suite' ),
+									$rses_deleted_title
+								)
+								: __( 'Imported election was permanently deleted.', 'relatasoft-secure-election-suite' )
+						);
+						?>
+					</p>
+				</div>
+			<?php endif; ?>
+
 			<?php
 			if ( ! empty( $_GET['rses_imported'] ) ) : // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 				$rses_flash_id   = absint( $_GET['rses_imported'] ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
@@ -224,6 +245,7 @@ class TallyingViews {
 						<p class="rses-empty"><?php esc_html_e( 'No imports yet.', 'relatasoft-secure-election-suite' ); ?></p>
 					</div>
 				<?php else : ?>
+					<?php $rses_confirm_word = TallyImportRepository::rses_delete_confirm_word(); ?>
 					<div class="rses-table-wrap">
 						<table class="rses-table">
 							<thead>
@@ -235,14 +257,16 @@ class TallyingViews {
 									<th><?php esc_html_e( 'Source', 'relatasoft-secure-election-suite' ); ?></th>
 									<th><?php esc_html_e( 'Status', 'relatasoft-secure-election-suite' ); ?></th>
 									<th><?php esc_html_e( 'Imported', 'relatasoft-secure-election-suite' ); ?></th>
+									<th><?php esc_html_e( 'Actions', 'relatasoft-secure-election-suite' ); ?></th>
 								</tr>
 							</thead>
 							<tbody>
 								<?php foreach ( $rses_imports as $rses_imp ) : ?>
+									<?php $rses_imp_title = TallyImportRepository::rses_display_election_title( $rses_imp ); ?>
 									<tr>
 										<td><?php echo esc_html( (string) $rses_imp->id ); ?></td>
 										<td>
-											<strong><?php echo esc_html( TallyImportRepository::rses_display_election_title( $rses_imp ) ); ?></strong>
+											<strong><?php echo esc_html( $rses_imp_title ); ?></strong>
 											<?php if ( ! empty( $rses_imp->election_external_id ) ) : ?>
 												<br /><span class="description">#<?php echo esc_html( (string) $rses_imp->election_external_id ); ?></span>
 											<?php endif; ?>
@@ -266,6 +290,62 @@ class TallyingViews {
 										<td><?php echo esc_html( $rses_imp->source_site_url ?? '—' ); ?></td>
 										<td><?php echo self::rses_status_pill( (string) $rses_imp->status ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></td>
 										<td><?php echo esc_html( $rses_imp->imported_at ); ?></td>
+										<td>
+											<details class="rses-import-delete">
+												<summary class="rses-import-delete-summary"><?php esc_html_e( 'Delete…', 'relatasoft-secure-election-suite' ); ?></summary>
+												<form
+													method="post"
+													action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>"
+													class="rses-form rses-import-delete-form"
+												>
+													<?php Nonce::rses_field( Nonce::RSES_ACTION_TALLY_IMPORT_DELETE ); ?>
+													<input type="hidden" name="action" value="rses_tally_import_delete" />
+													<input type="hidden" name="tally_import_id" value="<?php echo esc_attr( (string) $rses_imp->id ); ?>" />
+													<p class="description">
+														<?php
+														echo esc_html(
+															sprintf(
+																/* translators: 1: election title, 2: confirmation word in active locale */
+																__( 'Permanently delete “%1$s”, including submitted fractions and certifications for this import. Type %2$s to confirm.', 'relatasoft-secure-election-suite' ),
+																$rses_imp_title,
+																$rses_confirm_word
+															)
+														);
+														?>
+													</p>
+													<label class="screen-reader-text" for="rses_delete_confirm_<?php echo esc_attr( (string) $rses_imp->id ); ?>">
+														<?php
+														echo esc_html(
+															sprintf(
+																/* translators: %s: confirmation word */
+																__( 'Type %s to confirm deletion', 'relatasoft-secure-election-suite' ),
+																$rses_confirm_word
+															)
+														);
+														?>
+													</label>
+													<input
+														type="text"
+														name="rses_delete_confirm"
+														id="rses_delete_confirm_<?php echo esc_attr( (string) $rses_imp->id ); ?>"
+														class="regular-text"
+														autocomplete="off"
+														required
+														placeholder="<?php echo esc_attr( $rses_confirm_word ); ?>"
+													/>
+													<p class="rses-form-actions">
+														<?php
+														submit_button(
+															__( 'Delete imported election', 'relatasoft-secure-election-suite' ),
+															'delete',
+															'submit',
+															false
+														);
+														?>
+													</p>
+												</form>
+											</details>
+										</td>
 									</tr>
 								<?php endforeach; ?>
 							</tbody>

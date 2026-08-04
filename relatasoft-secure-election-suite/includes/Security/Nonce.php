@@ -28,6 +28,7 @@ class Nonce {
 	public const RSES_ACTION_ELECTION_DELETE    = 'rses_election_delete';
 	public const RSES_ACTION_VOTE_CAST          = 'rses_vote_cast';
 	public const RSES_ACTION_TALLY_IMPORT       = 'rses_tally_import';
+	public const RSES_ACTION_TALLY_IMPORT_DELETE = 'rses_tally_import_delete';
 	public const RSES_ACTION_SHARE_SUBMIT       = 'rses_share_submit';
 	public const RSES_ACTION_SHARE_CLEAR        = 'rses_share_clear';
 	public const RSES_ACTION_DECRYPTION         = 'rses_decryption';

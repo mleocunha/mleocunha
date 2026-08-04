@@ -617,5 +617,14 @@
   "Elector welcome and open-election links.": "Приветствие избирателя и ссылки на открытые выборы.",
   "Thank-you page with vote receipt hash.": "Страница благодарности с хэшем квитанции о голосовании.",
   "Sends a password-reset email to the currently logged-in user (plain text). Place on the welcome page for the Votador PoC password-change flow.": "Отправляет письмо для сброса пароля текущему пользователю (простой текст). Разместите на странице приветствия для потока смены пароля Votador PoC.",
-  "Voting Booth": "Voting Booth"
+  "Voting Booth": "Voting Booth",
+  "confirm": "подтверждаю",
+  "Deletion cancelled. Type “%s” exactly to confirm permanently deleting this imported election.": "Удаление отменено. Введите точно «%s», чтобы подтвердить окончательное удаление этого импортированного голосования.",
+  "Could not delete this imported election.": "Не удалось удалить это импортированное голосование.",
+  "Imported election “%s” was permanently deleted (shares, decryption cache, and certifications for that import included).": "Импортированное голосование «%s» окончательно удалено (включая доли, кэш расшифровки и сертификации этого импорта).",
+  "Imported election was permanently deleted.": "Импортированное голосование окончательно удалено.",
+  "Delete…": "Удалить…",
+  "Permanently delete “%1$s”, including submitted fractions and certifications for this import. Type %2$s to confirm.": "Окончательно удалить «%1$s», включая отправленные доли и сертификации этого импорта. Введите %2$s для подтверждения.",
+  "Type %s to confirm deletion": "Введите %s для подтверждения удаления",
+  "Delete imported election": "Удалить импортированное голосование"
 }

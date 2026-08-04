@@ -617,5 +617,14 @@
   "Elector welcome and open-election links.": "ברוכים הבאים לבוחר וקישורים לבחירות פתוחות.",
   "Thank-you page with vote receipt hash.": "עמוד תודה עם גיבוב קבלה על ההצבעה.",
   "Sends a password-reset email to the currently logged-in user (plain text). Place on the welcome page for the Votador PoC password-change flow.": "שולח דוא״ל לאיפוס סיסמה למשתמש המחובר (טקסט פשוט). יש להציב בעמוד הפתיחה עבור זרימת החלפת הסיסמה של Votador PoC.",
-  "Voting Booth": "Voting Booth"
+  "Voting Booth": "Voting Booth",
+  "confirm": "מאשר",
+  "Deletion cancelled. Type “%s” exactly to confirm permanently deleting this imported election.": "המחיקה בוטלה. הקלידו בדיוק “%s” כדי לאשר מחיקה סופית של בחירות מיובאות אלה.",
+  "Could not delete this imported election.": "לא ניתן למחוק את הבחירות המיובאות האלה.",
+  "Imported election “%s” was permanently deleted (shares, decryption cache, and certifications for that import included).": "הבחירות המיובאות “%s” נמחקו לצמיתות (כולל חלקים, מטמון פענוח והסמכות של ייבוא זה).",
+  "Imported election was permanently deleted.": "הבחירות המיובאות נמחקו לצמיתות.",
+  "Delete…": "מחיקה…",
+  "Permanently delete “%1$s”, including submitted fractions and certifications for this import. Type %2$s to confirm.": "מחק לצמיתות את “%1$s”, כולל חלקים שהוגשו והסמכות של ייבוא זה. הקלידו %2$s לאישור.",
+  "Type %s to confirm deletion": "הקלידו %s לאישור המחיקה",
+  "Delete imported election": "מחק בחירות מיובאות"
 }

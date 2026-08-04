@@ -617,5 +617,14 @@
   "Elector welcome and open-election links.": "Welkom voor de kiezer en links naar open verkiezingen.",
   "Thank-you page with vote receipt hash.": "Bedankpagina met hash van het stemontvangstbewijs.",
   "Sends a password-reset email to the currently logged-in user (plain text). Place on the welcome page for the Votador PoC password-change flow.": "Stuurt een wachtwoordherstelmail naar de ingelogde gebruiker (platte tekst). Plaats op de welkomstpagina voor de wachtwoordwissel-flow van de Votador PoC.",
-  "Voting Booth": "Voting Booth"
+  "Voting Booth": "Voting Booth",
+  "confirm": "bevestig",
+  "Deletion cancelled. Type “%s” exactly to confirm permanently deleting this imported election.": "Verwijderen geannuleerd. Typ precies “%s” om het permanent verwijderen van deze geïmporteerde verkiezing te bevestigen.",
+  "Could not delete this imported election.": "Kon deze geïmporteerde verkiezing niet verwijderen.",
+  "Imported election “%s” was permanently deleted (shares, decryption cache, and certifications for that import included).": "Geïmporteerde verkiezing “%s” is permanent verwijderd (inclusief aandelen, decryptiecache en certificeringen van die import).",
+  "Imported election was permanently deleted.": "Geïmporteerde verkiezing is permanent verwijderd.",
+  "Delete…": "Verwijderen…",
+  "Permanently delete “%1$s”, including submitted fractions and certifications for this import. Type %2$s to confirm.": "Verwijder “%1$s” permanent, inclusief ingediende aandelen en certificeringen van deze import. Typ %2$s om te bevestigen.",
+  "Type %s to confirm deletion": "Typ %s om verwijderen te bevestigen",
+  "Delete imported election": "Geïmporteerde verkiezing verwijderen"
 }

@@ -359,6 +359,67 @@ class TallyImportRepository {
 	}
 
 	/**
+	 * Locale-specific word an administrator must type to delete an import.
+	 *
+	 * English source is “confirm”; catalogs map it (e.g. pt_BR → “confirmo”).
+	 */
+	public static function rses_delete_confirm_word(): string {
+		return (string) __( 'confirm', 'relatasoft-secure-election-suite' );
+	}
+
+	/**
+	 * Whether typed text matches the required confirmation word.
+	 *
+	 * @param string $typed User input.
+	 */
+	public static function rses_confirm_word_matches( string $typed ): bool {
+		$rses_expected = self::rses_delete_confirm_word();
+		$rses_typed    = trim( wp_unslash( $typed ) );
+		if ( '' === $rses_expected || '' === $rses_typed ) {
+			return false;
+		}
+		return 0 === strcasecmp( $rses_typed, $rses_expected );
+	}
+
+	/**
+	 * Permanently delete an imported election and related tally data.
+	 *
+	 * Removes share submissions, certifications, signed/decryption caches, and the import row.
+	 *
+	 * @param int $import_id Import ID.
+	 * @return bool
+	 */
+	public static function rses_delete( int $import_id ): bool {
+		global $wpdb;
+
+		if ( $import_id < 1 ) {
+			return false;
+		}
+
+		$rses_import = self::rses_get( $import_id );
+		if ( ! $rses_import ) {
+			return false;
+		}
+
+		OfficialShareSubmissionController::rses_clear_submissions_for_import( $import_id );
+
+		$rses_cert_table = Schema::rses_table( 'rses_certifications' );
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+		$wpdb->delete(
+			$rses_cert_table,
+			array( 'tally_import_id' => $import_id ),
+			array( '%d' )
+		);
+
+		delete_transient( 'rses_certification_' . $import_id );
+		delete_transient( 'rses_decryption_result_' . $import_id );
+		delete_transient( 'rses_tally_import_flash_' . $import_id );
+		SignedResultsService::rses_clear( $import_id );
+
+		return Repository::rses_delete_by_id( 'rses_tally_imports', $import_id );
+	}
+
+	/**
 	 * Get manifest as array (refuses to decode oversized JSON).
 	 *
 	 * @param object $import Import row (full or list stub).

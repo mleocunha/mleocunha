@@ -1,7 +1,7 @@
 # Fork lab: Votador ↔ WordPress @ 1.0.27 (SSS)
 
 **Branch:** `cursor/votador-wp-sss-1.0.27-2eb1`  
-**Frozen plugin version:** `1.0.27` crypto baseline (`33fcc6a`); lab patches through **`1.0.27.12`** (Schnorr-signed results JSON/PDF after threshold)  
+**Frozen plugin version:** `1.0.27` crypto baseline (`33fcc6a`); lab patches through **`1.0.27.13`** (admin delete imported elections with typed locale confirm word)  
 **Crypto:** plain Shamir (`modp-elgamal-shamir-v1` behaviour) — **no** Feldman VSS / ceremony wiring
 
 ## Purpose
@@ -47,5 +47,6 @@ Cherry-pick candidates for the evolved line (no crypto):
 19. **Admin clear fractions (1.0.27.10)** — Administrators can clear all submitted Shamir fractions for one imported election (with confirm), discarding cached decryption so mistaken submissions can be corrected.
 20. **Humanized decrypted results (1.0.27.11)** — Certification shows ballot question/option labels with default sort by most votes; raw JSON remains for audit; PDF/ZIP use the humanized view (`humanized-results.json`).
 21. **Schnorr-signed results (1.0.27.12)** — After threshold decryption, results JSON + PDF are signed with the reconstructed election private key (`schnorr-sha256-modpq-v1`); anyone with `signed-results.json` (embedded public key) can verify independently; shortcode `[rses_verify_signed_results]`.
+22. **Admin delete imported election (1.0.27.13)** — On Tally Import, administrators can permanently delete an import (fractions, certifications, decryption/signed caches) after typing the locale confirm word (`confirm` → pt_BR `confirmo`).
 
 Password-change PoC still requires `[enviar_redefinicao_senha]` on the welcome page (documented in Redirections admin copy).

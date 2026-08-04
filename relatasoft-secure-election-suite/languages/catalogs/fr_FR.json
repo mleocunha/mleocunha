@@ -617,5 +617,14 @@
   "Elector welcome and open-election links.": "Accueil de l’électeur et liens des élections ouvertes.",
   "Thank-you page with vote receipt hash.": "Page de remerciement avec le hachage du reçu de vote.",
   "Sends a password-reset email to the currently logged-in user (plain text). Place on the welcome page for the Votador PoC password-change flow.": "Envoie un e-mail de réinitialisation au utilisateur connecté (texte brut). À placer sur la page d’accueil pour le flux de changement de mot de passe du Votador PoC.",
-  "Voting Booth": "Voting Booth"
+  "Voting Booth": "Voting Booth",
+  "confirm": "confirmer",
+  "Deletion cancelled. Type “%s” exactly to confirm permanently deleting this imported election.": "Suppression annulée. Tapez exactement « %s » pour confirmer la suppression définitive de cette élection importée.",
+  "Could not delete this imported election.": "Impossible de supprimer cette élection importée.",
+  "Imported election “%s” was permanently deleted (shares, decryption cache, and certifications for that import included).": "L’élection importée « %s » a été définitivement supprimée (parts, cache de déchiffrement et certifications de cet import inclus).",
+  "Imported election was permanently deleted.": "L’élection importée a été définitivement supprimée.",
+  "Delete…": "Supprimer…",
+  "Permanently delete “%1$s”, including submitted fractions and certifications for this import. Type %2$s to confirm.": "Supprimer définitivement « %1$s », y compris les parts soumises et les certifications de cet import. Tapez %2$s pour confirmer.",
+  "Type %s to confirm deletion": "Tapez %s pour confirmer la suppression",
+  "Delete imported election": "Supprimer l’élection importée"
 }

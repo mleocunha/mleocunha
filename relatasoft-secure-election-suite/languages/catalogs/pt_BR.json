@@ -802,5 +802,14 @@
   "PDF bytes do not match documents.pdf_sha256.": "Os bytes do PDF não correspondem a documents.pdf_sha256.",
   "Schnorr signature verification failed under the embedded public key.": "A verificação da assinatura Schnorr falhou com a chave pública embutida.",
   "Anyone with this file can verify authenticity using only the embedded public_key: recompute documents hashes from results / PDF, rebuild signature_message, and check the Schnorr signature.": "Qualquer pessoa com este arquivo pode verificar a autenticidade só com a public_key embutida: recalcule os hashes em documents a partir dos results / PDF, reconstrua signature_message e confira a assinatura Schnorr.",
-  "RelataSoft Secure Election Suite - Certification Export. Prefer signed-results.json for independent Schnorr verification with the election public key. humanized-results.json and the PDF use ballot labels; decrypted-results.json is the raw technical tally.": "RelataSoft Secure Election Suite - Exportação de certificação. Prefira signed-results.json para verificação Schnorr independente com a chave pública da eleição. humanized-results.json e o PDF usam rótulos da cédula; decrypted-results.json é o total técnico bruto."
+  "RelataSoft Secure Election Suite - Certification Export. Prefer signed-results.json for independent Schnorr verification with the election public key. humanized-results.json and the PDF use ballot labels; decrypted-results.json is the raw technical tally.": "RelataSoft Secure Election Suite - Exportação de certificação. Prefira signed-results.json para verificação Schnorr independente com a chave pública da eleição. humanized-results.json e o PDF usam rótulos da cédula; decrypted-results.json é o total técnico bruto.",
+  "confirm": "confirmo",
+  "Deletion cancelled. Type “%s” exactly to confirm permanently deleting this imported election.": "Exclusão cancelada. Digite “%s” exatamente para confirmar a exclusão permanente desta eleição importada.",
+  "Could not delete this imported election.": "Não foi possível apagar esta eleição importada.",
+  "Imported election “%s” was permanently deleted (shares, decryption cache, and certifications for that import included).": "A eleição importada “%s” foi apagada permanentemente (frações, cache de descriptografia e certificações desta importação incluídos).",
+  "Imported election was permanently deleted.": "A eleição importada foi apagada permanentemente.",
+  "Delete…": "Apagar…",
+  "Permanently delete “%1$s”, including submitted fractions and certifications for this import. Type %2$s to confirm.": "Apagar permanentemente “%1$s”, incluindo frações enviadas e certificações desta importação. Digite %2$s para confirmar.",
+  "Type %s to confirm deletion": "Digite %s para confirmar a exclusão",
+  "Delete imported election": "Apagar eleição importada"
 }

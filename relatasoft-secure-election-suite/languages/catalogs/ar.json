@@ -617,5 +617,14 @@
   "Elector welcome and open-election links.": "ترحيب الناخب وروابط الانتخابات المفتوحة.",
   "Thank-you page with vote receipt hash.": "صفحة الشكر مع تجزئة إيصال التصويت.",
   "Sends a password-reset email to the currently logged-in user (plain text). Place on the welcome page for the Votador PoC password-change flow.": "يرسل بريد إعادة تعيين كلمة المرور إلى المستخدم المسجّل دخوله (نص عادي). ضعه في صفحة الترحيب لمسار تغيير كلمة المرور في Votador PoC.",
-  "Voting Booth": "Voting Booth"
+  "Voting Booth": "Voting Booth",
+  "confirm": "أؤكد",
+  "Deletion cancelled. Type “%s” exactly to confirm permanently deleting this imported election.": "أُلغي الحذف. اكتب “%s” تمامًا لتأكيد الحذف النهائي لهذه الانتخابات المستوردة.",
+  "Could not delete this imported election.": "تعذّر حذف هذه الانتخابات المستوردة.",
+  "Imported election “%s” was permanently deleted (shares, decryption cache, and certifications for that import included).": "حُذفت الانتخابات المستوردة “%s” نهائيًا (يشمل الحصص وذاكرة فك التشفير والشهادات لهذا الاستيراد).",
+  "Imported election was permanently deleted.": "حُذفت الانتخابات المستوردة نهائيًا.",
+  "Delete…": "حذف…",
+  "Permanently delete “%1$s”, including submitted fractions and certifications for this import. Type %2$s to confirm.": "احذف نهائيًا “%1$s”، بما في ذلك الحصص المُرسلة وشهادات هذا الاستيراد. اكتب %2$s للتأكيد.",
+  "Type %s to confirm deletion": "اكتب %s لتأكيد الحذف",
+  "Delete imported election": "حذف الانتخابات المستوردة"
 }

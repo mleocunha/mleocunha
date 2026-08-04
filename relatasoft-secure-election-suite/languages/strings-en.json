@@ -744,5 +744,14 @@
   "PDF bytes do not match documents.pdf_sha256.",
   "Schnorr signature verification failed under the embedded public key.",
   "Anyone with this file can verify authenticity using only the embedded public_key: recompute documents hashes from results / PDF, rebuild signature_message, and check the Schnorr signature.",
-  "RelataSoft Secure Election Suite - Certification Export. Prefer signed-results.json for independent Schnorr verification with the election public key. humanized-results.json and the PDF use ballot labels; decrypted-results.json is the raw technical tally."
+  "RelataSoft Secure Election Suite - Certification Export. Prefer signed-results.json for independent Schnorr verification with the election public key. humanized-results.json and the PDF use ballot labels; decrypted-results.json is the raw technical tally.",
+  "confirm",
+  "Deletion cancelled. Type “%s” exactly to confirm permanently deleting this imported election.",
+  "Could not delete this imported election.",
+  "Imported election “%s” was permanently deleted (shares, decryption cache, and certifications for that import included).",
+  "Imported election was permanently deleted.",
+  "Delete…",
+  "Permanently delete “%1$s”, including submitted fractions and certifications for this import. Type %2$s to confirm.",
+  "Type %s to confirm deletion",
+  "Delete imported election"
 ]

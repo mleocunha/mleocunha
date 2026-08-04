@@ -617,5 +617,14 @@
   "Elector welcome and open-election links.": "选民欢迎页与已开放选举链接。",
   "Thank-you page with vote receipt hash.": "带有投票回执哈希的感谢页。",
   "Sends a password-reset email to the currently logged-in user (plain text). Place on the welcome page for the Votador PoC password-change flow.": "向当前登录用户发送密码重置邮件（纯文本）。放在欢迎页上，供 Votador PoC 密码更换流程使用。",
-  "Voting Booth": "Voting Booth"
+  "Voting Booth": "Voting Booth",
+  "confirm": "确认",
+  "Deletion cancelled. Type “%s” exactly to confirm permanently deleting this imported election.": "已取消删除。请准确输入“%s”以确认永久删除此导入的选举。",
+  "Could not delete this imported election.": "无法删除此导入的选举。",
+  "Imported election “%s” was permanently deleted (shares, decryption cache, and certifications for that import included).": "已永久删除导入的选举“%s”（包括该导入的份额、解密缓存和认证）。",
+  "Imported election was permanently deleted.": "已永久删除导入的选举。",
+  "Delete…": "删除…",
+  "Permanently delete “%1$s”, including submitted fractions and certifications for this import. Type %2$s to confirm.": "永久删除“%1$s”，包括此导入已提交的份额和认证。输入 %2$s 以确认。",
+  "Type %s to confirm deletion": "输入 %s 以确认删除",
+  "Delete imported election": "删除导入的选举"
 }
