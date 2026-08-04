@@ -328,6 +328,27 @@ class TallyingViews {
 				</div>
 			<?php endif; ?>
 
+			<?php if ( ! empty( $_GET['rses_shares_cleared'] ) ) : // phpcs:ignore WordPress.Security.NonceVerification.Recommended ?>
+				<div class="rses-panel rses-panel-success">
+					<p>
+						<?php
+						$rses_cleared_count = isset( $_GET['count'] ) ? absint( $_GET['count'] ) : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+						$rses_cleared_row   = $rses_flash_import > 0 ? TallyImportRepository::rses_get( $rses_flash_import ) : null;
+						echo esc_html(
+							sprintf(
+								/* translators: 1: number of fractions cleared, 2: election title */
+								__( 'Cleared %1$d submitted Shamir fraction(s) for “%2$s”. Officials may submit again for this election.', 'relatasoft-secure-election-suite' ),
+								$rses_cleared_count,
+								$rses_cleared_row
+									? TallyImportRepository::rses_display_election_title( $rses_cleared_row )
+									: ( $rses_flash_import > 0 ? '#' . $rses_flash_import : __( 'this election', 'relatasoft-secure-election-suite' ) )
+							)
+						);
+						?>
+					</p>
+				</div>
+			<?php endif; ?>
+
 			<div class="rses-panel rses-panel-info">
 				<p><?php esc_html_e( 'Only verified imported election packages appear below. Open the card for the correct election, compare fingerprint / source site with your fraction JSON, then paste. Never paste another official’s fraction, and never reuse a fraction from a different election.', 'relatasoft-secure-election-suite' ); ?></p>
 			</div>
@@ -481,6 +502,34 @@ class TallyingViews {
 							</form>
 						<?php elseif ( $rses_submitted >= $rses_threshold ) : ?>
 							<p class="description"><?php esc_html_e( 'Threshold met. An Administrator must run tally decryption and certification.', 'relatasoft-secure-election-suite' ); ?></p>
+						<?php endif; ?>
+
+						<?php if ( $rses_submitted > 0 && Capability::rses_can_tally_and_certify() ) : ?>
+							<form
+								method="post"
+								action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>"
+								class="rses-form rses-clear-shares-form"
+								onsubmit="return confirm('<?php echo esc_js( sprintf( __( 'Clear all %1$d submitted Shamir fraction(s) for “%2$s”? Officials will need to submit again. Cached decryption for this election will also be discarded.', 'relatasoft-secure-election-suite' ), $rses_submitted, $rses_title ) ); ?>');"
+							>
+								<?php Nonce::rses_field( Nonce::RSES_ACTION_SHARE_CLEAR ); ?>
+								<input type="hidden" name="action" value="rses_clear_shares" />
+								<input type="hidden" name="tally_import_id" value="<?php echo esc_attr( (string) $rses_imp->id ); ?>" />
+								<p class="rses-form-actions">
+									<?php
+									submit_button(
+										sprintf(
+											/* translators: %s: election title */
+											__( 'Clear all fractions for “%s”', 'relatasoft-secure-election-suite' ),
+											$rses_title
+										),
+										'delete',
+										'submit',
+										false
+									);
+									?>
+								</p>
+								<p class="description"><?php esc_html_e( 'Administrators only. Use this to undo mistaken submissions for this imported election.', 'relatasoft-secure-election-suite' ); ?></p>
+							</form>
 						<?php endif; ?>
 					</div>
 				</article>

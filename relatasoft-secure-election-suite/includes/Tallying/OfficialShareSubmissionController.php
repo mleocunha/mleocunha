@@ -10,6 +10,7 @@ namespace RelataSoft\SecureElectionSuite\Tallying;
 use RelataSoft\SecureElectionSuite\Bootstrap\ModeLock;
 use RelataSoft\SecureElectionSuite\Crypto\ShamirSecretSharing;
 use RelataSoft\SecureElectionSuite\Database\Repository;
+use RelataSoft\SecureElectionSuite\Database\Schema;
 use RelataSoft\SecureElectionSuite\Exports\HashService;
 use RelataSoft\SecureElectionSuite\KeyAuthority\KeyExportService;
 use RelataSoft\SecureElectionSuite\KeyAuthority\ShareEncryptionService;
@@ -34,6 +35,7 @@ class OfficialShareSubmissionController {
 	 */
 	public static function register(): void {
 		add_action( 'admin_post_rses_submit_share', array( self::class, 'rses_handle_submit' ) );
+		add_action( 'admin_post_rses_clear_shares', array( self::class, 'rses_handle_clear' ) );
 		add_action( 'admin_post_rses_run_decryption', array( self::class, 'rses_handle_decryption' ) );
 	}
 
@@ -162,6 +164,70 @@ class OfficialShareSubmissionController {
 
 		wp_safe_redirect( admin_url( 'admin.php?page=rses-share-submission&rses_submitted=1&import=' . $rses_import_id ) );
 		exit;
+	}
+
+	/**
+	 * Admin: clear all submitted fractions for one imported election.
+	 */
+	public static function rses_handle_clear(): void {
+		Capability::rses_require_tally_admin();
+		Nonce::rses_verify_or_die( Nonce::RSES_ACTION_SHARE_CLEAR );
+		ModeLock::rses_require_mode( ModeLock::RSES_MODE_TALLYING );
+
+		$rses_import_id = Sanitizer::rses_post_id( 'tally_import_id' );
+		$rses_import    = TallyImportRepository::rses_get( $rses_import_id );
+
+		if ( ! $rses_import ) {
+			wp_die( esc_html__( 'Import not found.', 'relatasoft-secure-election-suite' ) );
+		}
+
+		$rses_deleted = self::rses_clear_submissions_for_import( $rses_import_id );
+
+		AuditLogger::rses_log(
+			'share_submissions_cleared',
+			'tally_import',
+			$rses_import_id,
+			array(
+				'deleted'         => $rses_deleted,
+				'election_title'  => TallyImportRepository::rses_display_election_title( $rses_import ),
+				'cleared_by'      => get_current_user_id(),
+			)
+		);
+
+		wp_safe_redirect(
+			admin_url(
+				'admin.php?page=rses-share-submission&rses_shares_cleared=1&import=' . $rses_import_id . '&count=' . (int) $rses_deleted
+			)
+		);
+		exit;
+	}
+
+	/**
+	 * Delete all official share submissions for an import and drop decryption cache.
+	 *
+	 * @param int $import_id Import ID.
+	 * @return int Number of rows deleted.
+	 */
+	public static function rses_clear_submissions_for_import( int $import_id ): int {
+		global $wpdb;
+
+		if ( $import_id < 1 ) {
+			return 0;
+		}
+
+		$rses_before = self::rses_get_submission_count( $import_id );
+		$rses_table  = Schema::rses_table( 'rses_official_share_submissions' );
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+		$wpdb->delete(
+			$rses_table,
+			array( 'tally_import_id' => $import_id ),
+			array( '%d' )
+		);
+
+		delete_transient( 'rses_decryption_result_' . $import_id );
+
+		return $rses_before;
 	}
 
 	/**

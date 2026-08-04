@@ -686,5 +686,11 @@
   "You already submitted a Shamir fraction for “%s”. Each official submits one fraction per imported election.",
   "Share index already submitted for this election.",
   "Key #%1$s — %2$s (fp %3$s)",
-  "On Tallying, paste this JSON into the card for the matching imported election. Match by public_key_fingerprint and source_site — key labels may be identical across servers. Submit one fraction per election."
+  "On Tallying, paste this JSON into the card for the matching imported election. Match by public_key_fingerprint and source_site — key labels may be identical across servers. Submit one fraction per election.",
+  "Cleared %1$d submitted Shamir fraction(s) for “%2$s”. Officials may submit again for this election.",
+  "this election",
+  "Clear all %1$d submitted Shamir fraction(s) for “%2$s”? Officials will need to submit again. Cached decryption for this election will also be discarded.",
+  "Clear all fractions for “%s”",
+  "Administrators only. Use this to undo mistaken submissions for this imported election.",
+  "Import not found."
 ]

@@ -744,5 +744,11 @@
   "You already submitted a Shamir fraction for “%s”. Each official submits one fraction per imported election.": "Você já enviou uma fração Shamir para “%s”. Cada autoridade envia uma fração por eleição importada.",
   "Share index already submitted for this election.": "Índice de fração já enviado para esta eleição.",
   "Key #%1$s — %2$s (fp %3$s)": "Chave #%1$s — %2$s (fp %3$s)",
-  "On Tallying, paste this JSON into the card for the matching imported election. Match by public_key_fingerprint and source_site — key labels may be identical across servers. Submit one fraction per election.": "Na Apuração, cole este JSON no cartão da eleição importada correspondente. Associe por public_key_fingerprint e source_site — rótulos de chave podem ser iguais entre servidores. Envie uma fração por eleição."
+  "On Tallying, paste this JSON into the card for the matching imported election. Match by public_key_fingerprint and source_site — key labels may be identical across servers. Submit one fraction per election.": "Na Apuração, cole este JSON no cartão da eleição importada correspondente. Associe por public_key_fingerprint e source_site — rótulos de chave podem ser iguais entre servidores. Envie uma fração por eleição.",
+  "Cleared %1$d submitted Shamir fraction(s) for “%2$s”. Officials may submit again for this election.": "Foram removidas %1$d fração(ões) Shamir enviadas para “%2$s”. As autoridades podem enviar novamente para esta eleição.",
+  "this election": "esta eleição",
+  "Clear all %1$d submitted Shamir fraction(s) for “%2$s”? Officials will need to submit again. Cached decryption for this election will also be discarded.": "Limpar todas as %1$d fração(ões) Shamir enviadas para “%2$s”? As autoridades precisarão enviar novamente. A descriptografia em cache desta eleição também será descartada.",
+  "Clear all fractions for “%s”": "Limpar todas as frações de “%s”",
+  "Administrators only. Use this to undo mistaken submissions for this imported election.": "Somente administradores. Use isto para desfazer envios equivocados nesta eleição importada.",
+  "Import not found.": "Importação não encontrada."
 }

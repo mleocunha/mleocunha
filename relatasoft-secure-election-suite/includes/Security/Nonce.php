@@ -29,6 +29,7 @@ class Nonce {
 	public const RSES_ACTION_VOTE_CAST          = 'rses_vote_cast';
 	public const RSES_ACTION_TALLY_IMPORT       = 'rses_tally_import';
 	public const RSES_ACTION_SHARE_SUBMIT       = 'rses_share_submit';
+	public const RSES_ACTION_SHARE_CLEAR        = 'rses_share_clear';
 	public const RSES_ACTION_DECRYPTION         = 'rses_decryption';
 	public const RSES_ACTION_CERTIFICATION      = 'rses_certification';
 	public const RSES_ACTION_CRYPTO_SELF_TEST   = 'rses_crypto_self_test';
