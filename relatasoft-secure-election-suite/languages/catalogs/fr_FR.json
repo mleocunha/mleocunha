@@ -636,5 +636,9 @@
   "Delete key": "Supprimer la clé",
   "1. Key Authority": "1. Autorité de clés",
   "1. My Shamir Shares": "1. Mes parts Shamir",
-  "1. Submit Your Shamir Share": "1. Soumettez votre part Shamir"
+  "1. Submit Your Shamir Share": "1. Soumettez votre part Shamir",
+  "Completed at": "Terminé le",
+  "Site timezone: %s": "Fuseau horaire du site : %s",
+  "Verified": "Vérifié",
+  "Rejected": "Rejeté"
 }

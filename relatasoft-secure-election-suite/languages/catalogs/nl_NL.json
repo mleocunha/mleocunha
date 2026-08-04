@@ -636,5 +636,9 @@
   "Delete key": "Sleutel verwijderen",
   "1. Key Authority": "1. Sleutelautoriteit",
   "1. My Shamir Shares": "1. Mijn Shamir-aandelen",
-  "1. Submit Your Shamir Share": "1. Dien uw Shamir-aandeel in"
+  "1. Submit Your Shamir Share": "1. Dien uw Shamir-aandeel in",
+  "Completed at": "Voltooid op",
+  "Site timezone: %s": "Site-tijdzone: %s",
+  "Verified": "Geverifieerd",
+  "Rejected": "Afgewezen"
 }

@@ -119,6 +119,53 @@ class PdfTrueTypeFont {
 	}
 
 	/**
+	 * Approximate rendered width of UTF-8 text at a font size (PDF points).
+	 *
+	 * @param string $utf8      UTF-8 text.
+	 * @param float  $font_size Font size in points.
+	 */
+	public function rses_text_width( string $utf8, float $font_size ): float {
+		$rses_units = 0;
+		foreach ( self::rses_utf8_codepoints( $utf8 ) as $rses_cp ) {
+			if ( 0xA === $rses_cp || 0xD === $rses_cp ) {
+				continue;
+			}
+			$rses_gid    = $this->rses_cmap[ $rses_cp ] ?? ( $this->rses_cmap[ 0x3F ] ?? 0 );
+			$rses_units += $this->rses_widths[ $rses_gid ] ?? $this->rses_missing_width;
+		}
+		return ( $rses_units * $font_size ) / 1000.0;
+	}
+
+	/**
+	 * Truncate UTF-8 text to fit a max width, appending an ellipsis when needed.
+	 *
+	 * @param string $utf8      UTF-8 text.
+	 * @param float  $font_size Font size.
+	 * @param float  $max_width Max width in points.
+	 */
+	public function rses_fit_text( string $utf8, float $font_size, float $max_width ): string {
+		if ( $this->rses_text_width( $utf8, $font_size ) <= $max_width ) {
+			return $utf8;
+		}
+		$rses_ellipsis = '…';
+		$rses_chars    = function_exists( 'mb_str_split' )
+			? mb_str_split( $utf8, 1, 'UTF-8' )
+			: preg_split( '//u', $utf8, -1, PREG_SPLIT_NO_EMPTY );
+		if ( ! is_array( $rses_chars ) ) {
+			return $utf8;
+		}
+		$rses_out = '';
+		foreach ( $rses_chars as $rses_ch ) {
+			$rses_try = $rses_out . $rses_ch . $rses_ellipsis;
+			if ( $this->rses_text_width( $rses_try, $font_size ) > $max_width ) {
+				break;
+			}
+			$rses_out .= $rses_ch;
+		}
+		return $rses_out . $rses_ellipsis;
+	}
+
+	/**
 	 * Build /W array entries for glyphs used by the given UTF-8 lines.
 	 *
 	 * @param array<int,string> $lines UTF-8 lines.

@@ -636,5 +636,9 @@
   "Delete key": "Удалить ключ",
   "1. Key Authority": "1. Центр ключей",
   "1. My Shamir Shares": "1. Мои доли Shamir",
-  "1. Submit Your Shamir Share": "1. Отправить вашу долю Shamir"
+  "1. Submit Your Shamir Share": "1. Отправить вашу долю Shamir",
+  "Completed at": "Завершено",
+  "Site timezone: %s": "Часовой пояс сайта: %s",
+  "Verified": "Проверено",
+  "Rejected": "Отклонено"
 }

@@ -831,5 +831,9 @@
   "RelataSoft Secure Election Suite - Certification Export. Prefer signed-results.json for independent Schnorr verification with the election public key. The signed PDF contains humanized results followed by the results-signed JSON; documents.pdf_sha256 + pdf_signature bind the full PDF. humanized-results.json uses ballot labels; decrypted-results.json is the raw technical tally.": "RelataSoft Secure Election Suite - Exportação de certificação. Prefira signed-results.json para verificação Schnorr independente com a chave pública da eleição. O PDF assinado contém os resultados humanizados seguidos do JSON assinado; documents.pdf_sha256 + pdf_signature vinculam o PDF completo. humanized-results.json usa rótulos da cédula; decrypted-results.json é o total técnico bruto.",
   "1. Key Authority": "1. Autoridade de Chaves",
   "1. My Shamir Shares": "1. Minhas frações Shamir",
-  "1. Submit Your Shamir Share": "1. Envie sua fração Shamir"
+  "1. Submit Your Shamir Share": "1. Envie sua fração Shamir",
+  "Completed at": "Concluído em",
+  "Site timezone: %s": "Fuso horário do site: %s",
+  "Verified": "Verificado",
+  "Rejected": "Rejeitado"
 }

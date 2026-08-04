@@ -7,8 +7,8 @@
 
 namespace RelataSoft\SecureElectionSuite\Tallying;
 
+use RelataSoft\SecureElectionSuite\Exports\CertificationPdf;
 use RelataSoft\SecureElectionSuite\Exports\ManifestBuilder;
-use RelataSoft\SecureElectionSuite\Exports\PdfReport;
 use RelataSoft\SecureElectionSuite\Exports\ZipExport;
 
 defined( 'ABSPATH' ) || exit;
@@ -75,12 +75,21 @@ class CertificationReportService {
 			exit;
 		}
 
-		$rses_lines = DecryptedResultsPresenter::rses_pdf_lines(
+		$rses_signed = is_array( $rses_report['signed_results'] ?? null )
+			? $rses_report['signed_results']
+			: SignedResultsService::rses_get_package( $import_id );
+		$rses_pdf    = CertificationPdf::rses_generate(
 			$rses_report,
-			is_array( $rses_report['humanized_results'] ) ? $rses_report['humanized_results'] : array()
+			is_array( $rses_report['humanized_results'] ) ? $rses_report['humanized_results'] : array(),
+			is_array( $rses_signed ) ? $rses_signed : null
 		);
 
-		PdfReport::rses_send_download( 'certification-report-' . $import_id . '.pdf', $rses_lines );
+		header( 'Content-Type: application/pdf' );
+		header( 'Content-Disposition: attachment; filename="' . sanitize_file_name( 'certification-report-' . $import_id . '.pdf' ) . '"' );
+		header( 'Content-Length: ' . strlen( $rses_pdf ) );
+		header( 'Cache-Control: no-cache, no-store, must-revalidate' );
+		echo $rses_pdf; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+		exit;
 	}
 
 	/**
@@ -94,16 +103,17 @@ class CertificationReportService {
 		$rses_manifest = $rses_import ? TallyImportRepository::rses_get_manifest( $rses_import ) : array();
 		$rses_report   = self::rses_with_humanized( $report, $rses_manifest );
 
-		$rses_pdf_lines = DecryptedResultsPresenter::rses_pdf_lines(
-			$rses_report,
-			is_array( $rses_report['humanized_results'] ) ? $rses_report['humanized_results'] : array()
-		);
-
 		$rses_signed = is_array( $rses_report['signed_results'] ?? null )
 			? $rses_report['signed_results']
 			: SignedResultsService::rses_get_package( $import_id );
 		$rses_signed_pdf = SignedResultsService::rses_get_pdf( $import_id );
-		$rses_pdf_bytes  = is_string( $rses_signed_pdf ) ? $rses_signed_pdf : PdfReport::rses_generate( $rses_pdf_lines );
+		$rses_pdf_bytes  = is_string( $rses_signed_pdf ) && '' !== $rses_signed_pdf
+			? $rses_signed_pdf
+			: CertificationPdf::rses_generate(
+				$rses_report,
+				is_array( $rses_report['humanized_results'] ) ? $rses_report['humanized_results'] : array(),
+				is_array( $rses_signed ) ? $rses_signed : null
+			);
 
 		$rses_files = array(
 			'certification-report.json' => wp_json_encode( $rses_report, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES ),

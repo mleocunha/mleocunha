@@ -636,5 +636,9 @@
   "Delete key": "מחק מפתח",
   "1. Key Authority": "1. רשות מפתחות",
   "1. My Shamir Shares": "1. החלקים שלי ב-Shamir",
-  "1. Submit Your Shamir Share": "1. הגש את חלק ה-Shamir שלך"
+  "1. Submit Your Shamir Share": "1. הגש את חלק ה-Shamir שלך",
+  "Completed at": "הושלם ב־",
+  "Site timezone: %s": "אזור הזמן של האתר: %s",
+  "Verified": "מאומת",
+  "Rejected": "נדחה"
 }

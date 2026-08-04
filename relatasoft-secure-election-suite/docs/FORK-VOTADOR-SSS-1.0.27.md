@@ -1,7 +1,7 @@
 # Fork lab: Votador ↔ WordPress @ 1.0.27 (SSS)
 
 **Branch:** `cursor/votador-wp-sss-1.0.27-2eb1`  
-**Frozen plugin version:** `1.0.27` crypto baseline (`33fcc6a`); lab patches through **`1.0.27.17`** (PDF UTF-8 via embedded DejaVu Sans)  
+**Frozen plugin version:** `1.0.27` crypto baseline (`33fcc6a`); lab patches through **`1.0.27.19`** (styled certification PDF)  
 **Crypto:** plain Shamir (`modp-elgamal-shamir-v1` behaviour) — **no** Feldman VSS / ceremony wiring
 
 ## Purpose
@@ -52,5 +52,7 @@ Cherry-pick candidates for the evolved line (no crypto):
 24. **Signed results v2 (1.0.27.15)** — Certification shows the **signed JSON** (not unsigned raw). PDF = humanized tally + embedded results-signed JSON; downloadable package adds `pdf_sha256` + `pdf_signature` so the whole PDF is Schnorr-bound (`election-results-v2`). Multi-page PDF renderer.
 25. **PDF Portuguese encoding (1.0.27.16)** — interim WinAnsi fix (superseded).
 26. **PDF UTF-8 (1.0.27.17)** — Certification PDF embeds **DejaVu Sans** (Identity-H / CIDFontType2) so UTF-8 text (Relatório, Eleição, Gestão, …) and UTF-8 signed JSON render correctly; ToUnicode CMap for copy/paste.
+27. **Dashboard step numbering (1.0.27.18)** — Key Authority / official tally cards use consistent `1.` prefixes so workflow steps align with numbered Crypto Self Test cards.
+28. **Styled certification PDF (1.0.27.19)** — Human-readable PDF matches Certification UI (navy hero, signed banner, election card, result tables with vote bars); ends with localized **Completed at** + site-timezone datetime; full site language via catalogs; signed JSON appendix retained. Re-decrypt after upgrade to regenerate signed PDF artifacts.
 
 Password-change PoC still requires `[enviar_redefinicao_senha]` on the welcome page (documented in Redirections admin copy).

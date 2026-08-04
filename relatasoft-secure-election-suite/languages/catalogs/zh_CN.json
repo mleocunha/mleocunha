@@ -636,5 +636,9 @@
   "Delete key": "删除密钥",
   "1. Key Authority": "1. 密钥授权机构",
   "1. My Shamir Shares": "1. 我的 Shamir 份额",
-  "1. Submit Your Shamir Share": "1. 提交您的 Shamir 份额"
+  "1. Submit Your Shamir Share": "1. 提交您的 Shamir 份额",
+  "Completed at": "完成于",
+  "Site timezone: %s": "站点时区：%s",
+  "Verified": "已验证",
+  "Rejected": "已拒绝"
 }

@@ -10,9 +10,9 @@ namespace RelataSoft\SecureElectionSuite\Tallying;
 use RelataSoft\SecureElectionSuite\Crypto\BigInt;
 use RelataSoft\SecureElectionSuite\Crypto\CryptoException;
 use RelataSoft\SecureElectionSuite\Crypto\SchnorrSignature;
+use RelataSoft\SecureElectionSuite\Exports\CertificationPdf;
 use RelataSoft\SecureElectionSuite\Exports\HashService;
 use RelataSoft\SecureElectionSuite\Exports\JsonExport;
-use RelataSoft\SecureElectionSuite\Exports\PdfReport;
 use RelataSoft\SecureElectionSuite\Security\Capability;
 use RelataSoft\SecureElectionSuite\Security\Nonce;
 
@@ -121,17 +121,20 @@ class SignedResultsService {
 			'submissions'       => (int) ( $decrypted['submissions'] ?? 0 ),
 		);
 
+		$rses_fingerprint = TallyImportRepository::rses_public_key_fingerprint( $rses_public );
 		$rses_report_meta = array(
-			'election_title'        => $rses_election,
-			'round_title'           => $rses_round,
-			'round_number'          => $manifest['round']['round_number'] ?? null,
-			'verification_status'   => 'decrypted-signed',
-			'certified_at'          => '',
-			'public_key_hash'       => HashService::rses_hash_json( $rses_public ),
-			'decrypted_result_hash' => HashService::rses_hash_json( $rses_raw ),
-			'ballot_count'          => $rses_results['ballot_count'],
-			'threshold'             => $rses_results['threshold'],
-			'decrypted_results'     => $rses_raw,
+			'election_title'           => $rses_election,
+			'round_title'              => $rses_round,
+			'round_number'             => $manifest['round']['round_number'] ?? null,
+			'verification_status'      => 'decrypted-signed',
+			'certified_at'             => '',
+			'public_key_hash'          => HashService::rses_hash_json( $rses_public ),
+			'public_key_fingerprint'   => $rses_fingerprint,
+			'signature_scheme'         => SchnorrSignature::RSES_SCHEME,
+			'decrypted_result_hash'    => HashService::rses_hash_json( $rses_raw ),
+			'ballot_count'             => $rses_results['ballot_count'],
+			'threshold'                => $rses_results['threshold'],
+			'decrypted_results'        => $rses_raw,
 		);
 
 		$rses_results_sha = HashService::rses_hash_json( $rses_results );
@@ -150,7 +153,7 @@ class SignedResultsService {
 			'round_title'            => $rses_round,
 			'source_site'            => $manifest['manifest']['source_site'] ?? ( $rses_import->source_site_url ?? null ),
 			'public_key'             => $rses_public,
-			'public_key_fingerprint' => TallyImportRepository::rses_public_key_fingerprint( $rses_public ),
+			'public_key_fingerprint' => $rses_fingerprint,
 			'results'                => $rses_results,
 			'documents'              => array(
 				'results_sha256' => $rses_results_sha,
@@ -163,11 +166,9 @@ class SignedResultsService {
 			),
 		);
 
-		// 2) PDF = humanized results + embedded results-signed JSON.
-		$rses_pdf_lines = DecryptedResultsPresenter::rses_pdf_lines( $rses_report_meta, $rses_humanized, false );
-		$rses_pdf_lines = DecryptedResultsPresenter::rses_pdf_append_signed_json( $rses_pdf_lines, $rses_package_embed );
-		$rses_pdf       = PdfReport::rses_generate( $rses_pdf_lines );
-		$rses_pdf_sha   = hash( 'sha256', $rses_pdf );
+		// 2) Styled humanized PDF + embedded results-signed JSON (site language / UTF-8).
+		$rses_pdf     = CertificationPdf::rses_generate( $rses_report_meta, $rses_humanized, $rses_package_embed );
+		$rses_pdf_sha = hash( 'sha256', $rses_pdf );
 
 		// 3) Bind the whole PDF with a second Schnorr signature.
 		$rses_documents = array(

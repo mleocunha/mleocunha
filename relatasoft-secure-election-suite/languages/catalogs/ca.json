@@ -636,5 +636,9 @@
   "Delete key": "Eliminar clau",
   "1. Key Authority": "1. Autoritat de claus",
   "1. My Shamir Shares": "1. Les meves fraccions Shamir",
-  "1. Submit Your Shamir Share": "1. Envia la teva fracció Shamir"
+  "1. Submit Your Shamir Share": "1. Envia la teva fracció Shamir",
+  "Completed at": "Completat el",
+  "Site timezone: %s": "Fus horari del lloc: %s",
+  "Verified": "Verificat",
+  "Rejected": "Rebutjat"
 }

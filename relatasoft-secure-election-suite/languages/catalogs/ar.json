@@ -636,5 +636,9 @@
   "Delete key": "حذف المفتاح",
   "1. Key Authority": "1. سلطة المفاتيح",
   "1. My Shamir Shares": "1. حصصي من Shamir",
-  "1. Submit Your Shamir Share": "1. تقديم حصة Shamir الخاصة بك"
+  "1. Submit Your Shamir Share": "1. تقديم حصة Shamir الخاصة بك",
+  "Completed at": "اكتمل في",
+  "Site timezone: %s": "المنطقة الزمنية للموقع: %s",
+  "Verified": "تم التحقق",
+  "Rejected": "مرفوض"
 }

@@ -640,5 +640,9 @@
   "PDF Schnorr signature verification failed under the embedded public key.": "Falló la verificación de la firma Schnorr del PDF con la clave pública incrustada.",
   "1. Key Authority": "1. Autoridad de claves",
   "1. My Shamir Shares": "1. Mis fracciones Shamir",
-  "1. Submit Your Shamir Share": "1. Envíe su fracción Shamir"
+  "1. Submit Your Shamir Share": "1. Envíe su fracción Shamir",
+  "Completed at": "Completado el",
+  "Site timezone: %s": "Zona horaria del sitio: %s",
+  "Verified": "Verificado",
+  "Rejected": "Rechazado"
 }
