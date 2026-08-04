@@ -1,6 +1,6 @@
 <?php
 /**
- * Simple PDF report generator.
+ * Unicode PDF report generator (UTF-8 text via embedded TrueType).
  *
  * @package RelataSoft\SecureElectionSuite\Exports
  */
@@ -10,20 +10,17 @@ namespace RelataSoft\SecureElectionSuite\Exports;
 defined( 'ABSPATH' ) || exit;
 
 /**
- * Generates basic PDF certification reports without external dependencies.
- *
- * Text is encoded as Windows-1252 (WinAnsiEncoding) so Portuguese accents
- * render correctly with built-in Helvetica.
+ * Generates multi-page PDF certification reports with full UTF-8 support.
  */
 class PdfReport {
 
 	/**
-	 * Lines per page (Helvetica 10pt ≈ 14pt leading on US Letter).
+	 * Lines per page (10pt, 14pt leading on US Letter).
 	 */
 	private const RSES_LINES_PER_PAGE = 58;
 
 	/**
-	 * Approx. characters per line at 10pt Helvetica with 50pt margins.
+	 * Approx. characters per line at 10pt with 50pt margins.
 	 */
 	private const RSES_CHARS_PER_LINE = 90;
 
@@ -38,8 +35,7 @@ class PdfReport {
 		foreach ( $lines as $rses_line ) {
 			$rses_line = str_replace( array( "\r\n", "\r" ), "\n", (string) $rses_line );
 			foreach ( explode( "\n", $rses_line ) as $rses_part ) {
-				$rses_win = self::rses_utf8_to_winansi( (string) $rses_part );
-				foreach ( self::rses_wrap_winansi( $rses_win, self::RSES_CHARS_PER_LINE ) as $rses_wrapped ) {
+				foreach ( self::rses_wrap_utf8( (string) $rses_part, self::RSES_CHARS_PER_LINE ) as $rses_wrapped ) {
 					$rses_normalized[] = $rses_wrapped;
 				}
 			}
@@ -49,25 +45,73 @@ class PdfReport {
 			$rses_normalized = array( '' );
 		}
 
+		try {
+			$rses_font = PdfTrueTypeFont::rses_load_default();
+		} catch ( \Throwable $rses_e ) {
+			// Last-resort ASCII PDF if the bundled font is missing.
+			return self::rses_generate_ascii_fallback( $rses_normalized );
+		}
+
 		$rses_pages      = array_chunk( $rses_normalized, self::RSES_LINES_PER_PAGE );
 		$rses_page_count = count( $rses_pages );
+		$rses_ps_name    = $rses_font->rses_postscript_name();
+		$rses_bbox       = $rses_font->rses_bbox();
+		$rses_widths     = $rses_font->rses_widths_array_for_lines( $rses_normalized );
+		$rses_tounicode  = $rses_font->rses_tounicode_cmap( $rses_normalized );
+		$rses_font_bytes = $rses_font->rses_font_bytes();
+		$rses_font_z     = gzcompress( $rses_font_bytes );
+		if ( false === $rses_font_z ) {
+			$rses_font_z = $rses_font_bytes;
+			$rses_font_filter = '';
+		} else {
+			$rses_font_filter = '/Filter /FlateDecode ';
+		}
 
-		// Object layout: 1=Catalog, 2=Pages, 3=Font, then pairs (Page, Content) per page.
+		/*
+		 * Object map:
+		 * 1 Catalog, 2 Pages, 3 Type0 Font, 4 CIDFont, 5 FontDescriptor,
+		 * 6 FontFile2, 7 ToUnicode, then page/content pairs.
+		 */
 		$rses_objects    = array();
 		$rses_objects[1] = '<< /Type /Catalog /Pages 2 0 R >>';
-		$rses_kids       = array();
-		$rses_next_id    = 4;
 
-		$page_ids    = array();
-		$content_ids = array();
-		foreach ( $rses_pages as $rses_idx => $rses_page_lines ) {
+		$rses_kids    = array();
+		$rses_next_id = 8;
+		$page_ids     = array();
+		$content_ids  = array();
+		foreach ( $rses_pages as $rses_idx => $_page ) {
 			$page_ids[ $rses_idx ]    = $rses_next_id++;
 			$content_ids[ $rses_idx ] = $rses_next_id++;
 			$rses_kids[]              = $page_ids[ $rses_idx ] . ' 0 R';
 		}
 
 		$rses_objects[2] = '<< /Type /Pages /Kids [' . implode( ' ', $rses_kids ) . '] /Count ' . $rses_page_count . ' >>';
-		$rses_objects[3] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>';
+
+		$rses_objects[3] = '<< /Type /Font /Subtype /Type0 /BaseFont /' . $rses_ps_name
+			. ' /Encoding /Identity-H /DescendantFonts [4 0 R] /ToUnicode 7 0 R >>';
+
+		$rses_objects[4] = '<< /Type /Font /Subtype /CIDFontType2 /BaseFont /' . $rses_ps_name
+			. ' /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >>'
+			. ' /FontDescriptor 5 0 R /DW ' . (int) $rses_font->rses_missing_width()
+			. ' /W ' . $rses_widths
+			. ' /CIDToGIDMap /Identity >>';
+
+		$rses_objects[5] = '<< /Type /FontDescriptor /FontName /' . $rses_ps_name
+			. ' /Flags 32'
+			. ' /FontBBox [' . implode( ' ', $rses_bbox ) . ']'
+			. ' /ItalicAngle 0'
+			. ' /Ascent ' . (int) $rses_font->rses_ascent()
+			. ' /Descent ' . (int) $rses_font->rses_descent()
+			. ' /CapHeight ' . (int) $rses_font->rses_ascent()
+			. ' /StemV 80'
+			. ' /FontFile2 6 0 R >>';
+
+		$rses_objects[6] = '<< ' . $rses_font_filter . '/Length ' . strlen( $rses_font_z )
+			. ' /Length1 ' . strlen( $rses_font_bytes ) . " >> stream\n"
+			. $rses_font_z . "\nendstream";
+
+		$rses_objects[7] = '<< /Length ' . strlen( $rses_tounicode ) . " >> stream\n"
+			. $rses_tounicode . "\nendstream";
 
 		foreach ( $rses_pages as $rses_idx => $rses_page_lines ) {
 			$rses_pid = $page_ids[ $rses_idx ];
@@ -78,29 +122,121 @@ class PdfReport {
 
 			$rses_stream = "BT /F1 10 Tf 14 TL 50 750 Td\n";
 			foreach ( $rses_page_lines as $rses_i => $rses_text_line ) {
-				$rses_esc = self::rses_escape_pdf_string( $rses_text_line );
+				$rses_hex = $rses_font->rses_encode_text( $rses_text_line );
 				if ( 0 === $rses_i ) {
-					$rses_stream .= "({$rses_esc}) Tj\n";
+					$rses_stream .= $rses_hex . " Tj\n";
 				} else {
-					$rses_stream .= "T* ({$rses_esc}) Tj\n";
+					$rses_stream .= 'T* ' . $rses_hex . " Tj\n";
 				}
 			}
 			$rses_stream                 .= 'ET';
 			$rses_objects[ $rses_cid ] = '<< /Length ' . strlen( $rses_stream ) . " >> stream\n{$rses_stream}\nendstream";
 		}
 
-		ksort( $rses_objects, SORT_NUMERIC );
+		return self::rses_assemble_pdf( $rses_objects );
+	}
 
-		$rses_pdf     = "%PDF-1.4\n";
+	/**
+	 * Soft-wrap UTF-8 by character count, preferring spaces.
+	 *
+	 * @param string $text  UTF-8 text.
+	 * @param int    $width Max characters.
+	 * @return array<int,string>
+	 */
+	private static function rses_wrap_utf8( string $text, int $width ): array {
+		if ( function_exists( 'mb_strlen' ) && function_exists( 'mb_substr' ) ) {
+			if ( mb_strlen( $text, 'UTF-8' ) <= $width ) {
+				return array( $text );
+			}
+			$rses_out = array();
+			while ( mb_strlen( $text, 'UTF-8' ) > $width ) {
+				$rses_chunk = mb_substr( $text, 0, $width, 'UTF-8' );
+				$rses_break = mb_strrpos( $rses_chunk, ' ', 0, 'UTF-8' );
+				if ( false !== $rses_break && $rses_break >= (int) ( $width * 0.6 ) ) {
+					$rses_out[] = mb_substr( $text, 0, $rses_break, 'UTF-8' );
+					$text       = ltrim( mb_substr( $text, $rses_break + 1, null, 'UTF-8' ) );
+				} else {
+					$rses_out[] = $rses_chunk;
+					$text       = mb_substr( $text, $width, null, 'UTF-8' );
+				}
+			}
+			if ( '' !== $text ) {
+				$rses_out[] = $text;
+			}
+			return $rses_out;
+		}
+
+		// Byte fallback (ASCII-ish).
+		if ( strlen( $text ) <= $width ) {
+			return array( $text );
+		}
+		$rses_out = array();
+		while ( strlen( $text ) > $width ) {
+			$rses_out[] = substr( $text, 0, $width );
+			$text       = substr( $text, $width );
+		}
+		if ( '' !== $text ) {
+			$rses_out[] = $text;
+		}
+		return $rses_out;
+	}
+
+	/**
+	 * ASCII-only Helvetica fallback when the TTF cannot be loaded.
+	 *
+	 * @param array<int,string> $lines Lines (already wrapped).
+	 */
+	private static function rses_generate_ascii_fallback( array $lines ): string {
+		$rses_pages      = array_chunk( $lines, self::RSES_LINES_PER_PAGE );
+		$rses_page_count = count( $rses_pages );
+		$rses_objects    = array();
+		$rses_objects[1] = '<< /Type /Catalog /Pages 2 0 R >>';
+		$rses_kids       = array();
+		$rses_next_id    = 4;
+		$page_ids        = array();
+		$content_ids     = array();
+		foreach ( $rses_pages as $rses_idx => $_p ) {
+			$page_ids[ $rses_idx ]    = $rses_next_id++;
+			$content_ids[ $rses_idx ] = $rses_next_id++;
+			$rses_kids[]              = $page_ids[ $rses_idx ] . ' 0 R';
+		}
+		$rses_objects[2] = '<< /Type /Pages /Kids [' . implode( ' ', $rses_kids ) . '] /Count ' . $rses_page_count . ' >>';
+		$rses_objects[3] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>';
+
+		foreach ( $rses_pages as $rses_idx => $rses_page_lines ) {
+			$rses_pid = $page_ids[ $rses_idx ];
+			$rses_cid = $content_ids[ $rses_idx ];
+			$rses_objects[ $rses_pid ] = '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents '
+				. $rses_cid . ' 0 R /Resources << /Font << /F1 3 0 R >> >> >>';
+			$rses_stream = "BT /F1 10 Tf 14 TL 50 750 Td\n";
+			foreach ( $rses_page_lines as $rses_i => $rses_text_line ) {
+				$rses_ascii = preg_replace( '/[^\x09\x20-\x7E]/', '?', $rses_text_line );
+				$rses_ascii = is_string( $rses_ascii ) ? $rses_ascii : $rses_text_line;
+				$rses_esc   = str_replace( array( '\\', '(', ')' ), array( '\\\\', '\\(', '\\)' ), $rses_ascii );
+				$rses_stream .= ( 0 === $rses_i ? '' : 'T* ' ) . "({$rses_esc}) Tj\n";
+			}
+			$rses_stream                 .= 'ET';
+			$rses_objects[ $rses_cid ] = '<< /Length ' . strlen( $rses_stream ) . " >> stream\n{$rses_stream}\nendstream";
+		}
+
+		return self::rses_assemble_pdf( $rses_objects );
+	}
+
+	/**
+	 * @param array<int,string> $objects Object id => body (without obj/endobj).
+	 */
+	private static function rses_assemble_pdf( array $objects ): string {
+		ksort( $objects, SORT_NUMERIC );
+		$rses_pdf     = "%PDF-1.4\n%\xE2\xE3\xCF\xD3\n"; // Binary marker encourages binary treatment.
 		$rses_offsets = array();
-		$rses_max_id  = max( array_keys( $rses_objects ) );
+		$rses_max_id  = max( array_keys( $objects ) );
 
 		for ( $rses_id = 1; $rses_id <= $rses_max_id; ++$rses_id ) {
-			if ( ! isset( $rses_objects[ $rses_id ] ) ) {
+			if ( ! isset( $objects[ $rses_id ] ) ) {
 				continue;
 			}
 			$rses_offsets[ $rses_id ] = strlen( $rses_pdf );
-			$rses_pdf                .= $rses_id . ' 0 obj ' . $rses_objects[ $rses_id ] . " endobj\n";
+			$rses_pdf                .= $rses_id . ' 0 obj ' . $objects[ $rses_id ] . " endobj\n";
 		}
 
 		$rses_xref_pos = strlen( $rses_pdf );
@@ -119,87 +255,6 @@ class PdfReport {
 		$rses_pdf .= "startxref\n{$rses_xref_pos}\n%%EOF";
 
 		return $rses_pdf;
-	}
-
-	/**
-	 * Convert UTF-8 to Windows-1252 for WinAnsiEncoding.
-	 *
-	 * @param string $text UTF-8 text.
-	 */
-	private static function rses_utf8_to_winansi( string $text ): string {
-		if ( '' === $text ) {
-			return '';
-		}
-
-		// Normalize a few characters that TRANSLIT may mangle oddly.
-		$rses_map = array(
-			"\u{2014}" => "\x97", // em dash —
-			"\u{2013}" => "\x96", // en dash –
-			"\u{2018}" => "\x91", // ‘
-			"\u{2019}" => "\x92", // ’
-			"\u{201C}" => "\x93", // “
-			"\u{201D}" => "\x94", // ”
-			"\u{2026}" => "\x85", // …
-			"\u{00A0}" => ' ',    // nbsp
-		);
-		$text = strtr( $text, $rses_map );
-
-		if ( function_exists( 'iconv' ) ) {
-			$rses_converted = @iconv( 'UTF-8', 'Windows-1252//TRANSLIT', $text ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
-			if ( false !== $rses_converted && is_string( $rses_converted ) ) {
-				return $rses_converted;
-			}
-		}
-
-		if ( function_exists( 'mb_convert_encoding' ) ) {
-			$rses_converted = @mb_convert_encoding( $text, 'Windows-1252', 'UTF-8' ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
-			if ( is_string( $rses_converted ) ) {
-				return $rses_converted;
-			}
-		}
-
-		$rses_fallback = preg_replace( '/[^\x09\x20-\x7E]/', '?', $text );
-		return is_string( $rses_fallback ) ? $rses_fallback : $text;
-	}
-
-	/**
-	 * Soft-wrap a WinAnsi string, preferring breaks at spaces.
-	 *
-	 * @param string $text WinAnsi bytes.
-	 * @param int    $width Max chars per line.
-	 * @return array<int,string>
-	 */
-	private static function rses_wrap_winansi( string $text, int $width ): array {
-		if ( strlen( $text ) <= $width ) {
-			return array( $text );
-		}
-
-		$rses_out = array();
-		while ( strlen( $text ) > $width ) {
-			$rses_chunk = substr( $text, 0, $width );
-			$rses_break = strrpos( $rses_chunk, ' ' );
-			if ( false !== $rses_break && $rses_break >= (int) ( $width * 0.6 ) ) {
-				$rses_out[] = substr( $text, 0, $rses_break );
-				$text       = ltrim( substr( $text, $rses_break + 1 ) );
-			} else {
-				$rses_out[] = $rses_chunk;
-				$text       = substr( $text, $width );
-			}
-		}
-		if ( '' !== $text ) {
-			$rses_out[] = $text;
-		}
-
-		return $rses_out;
-	}
-
-	/**
-	 * Escape a WinAnsi string for PDF literal parentheses syntax.
-	 *
-	 * @param string $text Already WinAnsi-encoded text.
-	 */
-	private static function rses_escape_pdf_string( string $text ): string {
-		return str_replace( array( '\\', '(', ')' ), array( '\\\\', '\\(', '\\)' ), $text );
 	}
 
 	/**

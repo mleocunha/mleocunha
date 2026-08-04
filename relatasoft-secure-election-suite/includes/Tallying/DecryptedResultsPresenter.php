@@ -370,8 +370,8 @@ class DecryptedResultsPresenter {
 		$lines[] = __( 'Schnorr-signed package (results). The downloadable signed-results.json also binds this PDF’s SHA-256.', 'relatasoft-secure-election-suite' );
 		$lines[] = '';
 
-		// ASCII JSON (\uXXXX for non-ASCII) so PDF WinAnsi encoding cannot corrupt the dump.
-		$rses_json = wp_json_encode( $package, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES );
+		// UTF-8 JSON (PDF embeds Unicode TrueType, so accents stay readable).
+		$rses_json = wp_json_encode( $package, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE );
 		if ( ! is_string( $rses_json ) ) {
 			$lines[] = '{}';
 			return $lines;
