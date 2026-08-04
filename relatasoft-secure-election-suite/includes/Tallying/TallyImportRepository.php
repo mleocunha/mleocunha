@@ -144,18 +144,59 @@ class TallyImportRepository {
 	 *
 	 * @param object                   $import   Import row.
 	 * @param array<string,mixed>|null $manifest Optional preloaded manifest.
-	 * @return array{key_id:int,key_label:string}
+	 * @return array{key_id:int,key_label:string,fingerprint:string,public_y_prefix:string,source_site_url:string}
 	 */
 	public static function rses_key_identity( object $import, ?array $manifest = null ): array {
 		if ( null === $manifest ) {
 			$manifest = self::rses_get_manifest( $import );
 		}
 		$rses_summary = is_array( $manifest ) ? self::rses_summary_from_manifest( $manifest ) : array();
+		$rses_public  = is_array( $manifest['public_key'] ?? null ) ? $manifest['public_key'] : array();
+		$rses_y       = (string) ( $rses_public['y'] ?? '' );
+
+		$rses_source = (string) ( $rses_summary['source_site_url'] ?? $import->source_site_url ?? '' );
 
 		return array(
-			'key_id'    => (int) ( $rses_summary['key_id'] ?? 0 ),
-			'key_label' => (string) ( $rses_summary['key_label'] ?? '' ),
+			'key_id'           => (int) ( $rses_summary['key_id'] ?? 0 ),
+			'key_label'        => (string) ( $rses_summary['key_label'] ?? '' ),
+			'fingerprint'      => self::rses_public_key_fingerprint( $rses_public ),
+			'public_y_prefix'  => '' !== $rses_y ? substr( $rses_y, 0, 20 ) : '',
+			'source_site_url'  => $rses_source,
 		);
+	}
+
+	/**
+	 * Short fingerprint of a public key (stable across sites; labels may collide).
+	 *
+	 * @param array<string,mixed> $public_key Public key fields.
+	 */
+	public static function rses_public_key_fingerprint( array $public_key ): string {
+		$rses_y = (string) ( $public_key['y'] ?? '' );
+		if ( '' === $rses_y ) {
+			return '';
+		}
+		return substr( hash( 'sha256', $rses_y ), 0, 12 );
+	}
+
+	/**
+	 * Whether share public_key matches the imported election package.
+	 *
+	 * @param array<string,mixed> $share_payload Cryptographic share payload.
+	 * @param array<string,mixed> $manifest      Import manifest.
+	 */
+	public static function rses_share_matches_import_public_key( array $share_payload, array $manifest ): bool {
+		$rses_expected = is_array( $manifest['public_key'] ?? null ) ? $manifest['public_key'] : array();
+		$rses_share_pk = is_array( $share_payload['public_key'] ?? null ) ? $share_payload['public_key'] : array();
+
+		foreach ( array( 'p', 'q', 'g', 'y' ) as $rses_field ) {
+			$rses_a = (string) ( $rses_expected[ $rses_field ] ?? '' );
+			$rses_b = (string) ( $rses_share_pk[ $rses_field ] ?? '' );
+			if ( '' === $rses_a || '' === $rses_b || ! hash_equals( $rses_a, $rses_b ) ) {
+				return false;
+			}
+		}
+
+		return true;
 	}
 
 	/**

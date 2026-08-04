@@ -145,21 +145,25 @@ class KeyExportService {
 			);
 		}
 
+		$rses_y = (string) $rses_key->public_y;
+
 		return array(
-			'rses_package'     => self::RSES_SHARE_PACKAGE,
-			'key_id'           => (int) $rses_key->id,
-			'key_label'        => (string) $rses_key->key_label,
-			'key_description'  => (string) ( $rses_key->description ?? '' ),
-			'public_y_prefix'  => substr( (string) $rses_key->public_y, 0, 20 ),
-			'share_index'      => (int) ( $rses_payload['share_index'] ?? 0 ),
-			'threshold_t'      => (int) ( $rses_key->threshold_t ?? $rses_payload['threshold_t'] ?? 0 ),
-			'total_n'          => (int) ( $rses_key->total_n ?? $rses_payload['total_n'] ?? 0 ),
-			'linked_elections' => $rses_linked,
-			'note'             => __(
-				'Paste this JSON on the Tallying site under Share Submission. Match key_label (and linked elections when shown) to the election card before submitting.',
+			'rses_package'           => self::RSES_SHARE_PACKAGE,
+			'key_id'                 => (int) $rses_key->id,
+			'key_label'              => (string) $rses_key->key_label,
+			'key_description'        => (string) ( $rses_key->description ?? '' ),
+			'source_site'            => get_site_url(),
+			'public_key_fingerprint' => substr( hash( 'sha256', $rses_y ), 0, 12 ),
+			'public_y_prefix'        => substr( $rses_y, 0, 20 ),
+			'share_index'            => (int) ( $rses_payload['share_index'] ?? 0 ),
+			'threshold_t'            => (int) ( $rses_key->threshold_t ?? $rses_payload['threshold_t'] ?? 0 ),
+			'total_n'                => (int) ( $rses_key->total_n ?? $rses_payload['total_n'] ?? 0 ),
+			'linked_elections'       => $rses_linked,
+			'note'                   => __(
+				'On Tallying, paste this JSON into the card for the matching imported election. Match by public_key_fingerprint and source_site — key labels may be identical across servers. Submit one fraction per election.',
 				'relatasoft-secure-election-suite'
 			),
-			'share'            => $rses_payload,
+			'share'                  => $rses_payload,
 		);
 	}
 

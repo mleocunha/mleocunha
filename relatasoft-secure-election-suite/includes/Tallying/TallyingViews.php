@@ -45,13 +45,14 @@ class TallyingViews {
 		if ( '' !== $rses_round ) {
 			$rses_bits[] = esc_html( $rses_round );
 		}
-		if ( $rses_key['key_id'] > 0 || '' !== $rses_key['key_label'] ) {
+		if ( $rses_key['key_id'] > 0 || '' !== $rses_key['key_label'] || '' !== $rses_key['fingerprint'] ) {
 			$rses_bits[] = esc_html(
 				sprintf(
-					/* translators: 1: key id, 2: key label */
-					__( 'Key #%1$s — %2$s', 'relatasoft-secure-election-suite' ),
+					/* translators: 1: key id, 2: key label, 3: fingerprint */
+					__( 'Key #%1$s — %2$s (fp %3$s)', 'relatasoft-secure-election-suite' ),
 					(string) ( $rses_key['key_id'] ?: '—' ),
-					'' !== $rses_key['key_label'] ? $rses_key['key_label'] : '—'
+					'' !== $rses_key['key_label'] ? $rses_key['key_label'] : '—',
+					'' !== $rses_key['fingerprint'] ? $rses_key['fingerprint'] : '—'
 				)
 			);
 		}
@@ -284,6 +285,8 @@ class TallyingViews {
 
 		TallyImportRepository::rses_backfill_summaries();
 		$rses_imports = TallyImportRepository::rses_list();
+		$rses_user_id = get_current_user_id();
+		$rses_flash_import = isset( $_GET['import'] ) ? absint( $_GET['import'] ) : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 		?>
 		<div class="wrap rses-wrap rses-screen" <?php echo Translator::rses_html_attrs(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
 			<header class="rses-hero">
@@ -295,7 +298,7 @@ class TallyingViews {
 					echo esc_html(
 						sprintf(
 							/* translators: %s: electoral authority role label (singular) */
-							__( 'Paste the share JSON from Key Authority. Each %s submits independently; only an Administrator can decrypt after the threshold is met.', 'relatasoft-secure-election-suite' ),
+							__( 'Each imported election has its own card. Every %s pastes one Shamir fraction per election (N elections ⇒ N fractions). Fractions are matched by public-key fingerprint and source site — key labels may be identical across servers.', 'relatasoft-secure-election-suite' ),
 							RoleLabels::rses_editor_singular()
 						)
 					);
@@ -304,12 +307,29 @@ class TallyingViews {
 
 			<?php if ( ! empty( $_GET['rses_submitted'] ) ) : // phpcs:ignore WordPress.Security.NonceVerification.Recommended ?>
 				<div class="rses-panel rses-panel-success">
-					<p><?php esc_html_e( 'Your Shamir share was submitted successfully.', 'relatasoft-secure-election-suite' ); ?></p>
+					<p>
+						<?php
+						if ( $rses_flash_import > 0 ) {
+							$rses_flash_row = TallyImportRepository::rses_get( $rses_flash_import );
+							echo esc_html(
+								sprintf(
+									/* translators: %s: election title */
+									__( 'Your Shamir fraction for “%s” was submitted successfully.', 'relatasoft-secure-election-suite' ),
+									$rses_flash_row
+										? TallyImportRepository::rses_display_election_title( $rses_flash_row )
+										: ( '#' . $rses_flash_import )
+								)
+							);
+						} else {
+							esc_html_e( 'Your Shamir share was submitted successfully.', 'relatasoft-secure-election-suite' );
+						}
+						?>
+					</p>
 				</div>
 			<?php endif; ?>
 
 			<div class="rses-panel rses-panel-info">
-				<p><?php esc_html_e( 'Use the same share JSON you copied or downloaded under My Shamir Shares on the Key Authority site. Never paste another official’s share.', 'relatasoft-secure-election-suite' ); ?></p>
+				<p><?php esc_html_e( 'Only verified imported election packages appear below. Open the card for the correct election, compare fingerprint / source site with your fraction JSON, then paste. Never paste another official’s fraction, and never reuse a fraction from a different election.', 'relatasoft-secure-election-suite' ); ?></p>
 			</div>
 
 			<?php
@@ -320,57 +340,135 @@ class TallyingViews {
 				}
 				$rses_any        = true;
 				$rses_manifest   = TallyImportRepository::rses_get_manifest( $rses_imp );
-				$rses_threshold  = (int) ( $rses_manifest['round']['threshold_t'] ?? 3 );
+				$rses_threshold  = (int) ( $rses_manifest['round']['threshold_t'] ?? $rses_manifest['manifest']['threshold_t'] ?? 3 );
 				$rses_submitted  = OfficialShareSubmissionController::rses_get_submission_count( (int) $rses_imp->id );
 				$rses_pct        = min( 100, ( $rses_submitted / max( 1, $rses_threshold ) ) * 100 );
 				$rses_key        = TallyImportRepository::rses_key_identity( $rses_imp, $rses_manifest );
 				$rses_form_key   = $rses_key['key_id'] > 0
 					? $rses_key['key_id']
 					: (int) ( $rses_manifest['round']['key_id'] ?? 0 );
+				$rses_mine       = OfficialShareSubmissionController::rses_get_official_submission( (int) $rses_imp->id, $rses_user_id );
+				$rses_title      = TallyImportRepository::rses_display_election_title( $rses_imp );
+				$rses_round      = TallyImportRepository::rses_display_round_title( $rses_imp );
 				?>
-				<article class="rses-import-card">
+				<article class="rses-import-card" id="rses-share-election-<?php echo esc_attr( (string) $rses_imp->id ); ?>">
 					<header class="rses-import-card-header">
-						<h3><?php echo esc_html( TallyImportRepository::rses_display_election_title( $rses_imp ) ); ?></h3>
+						<p class="rses-panel-kicker"><?php esc_html_e( 'Imported election', 'relatasoft-secure-election-suite' ); ?></p>
+						<h3><?php echo esc_html( $rses_title ); ?></h3>
+						<?php if ( '' !== $rses_round ) : ?>
+							<p class="rses-panel-desc"><strong><?php echo esc_html( $rses_round ); ?></strong></p>
+						<?php endif; ?>
 						<?php echo self::rses_import_election_meta_html( $rses_imp, $rses_manifest ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
-						<p class="description"><?php esc_html_e( 'Import', 'relatasoft-secure-election-suite' ); ?> #<?php echo esc_html( (string) $rses_imp->id ); ?></p>
-						<p class="rses-panel-desc">
-							<?php
-							echo esc_html(
-								sprintf(
-									/* translators: 1: key id, 2: key label */
-									__( 'Paste the Shamir fraction JSON whose key_label matches this election: #%1$s — %2$s', 'relatasoft-secure-election-suite' ),
-									(string) ( $rses_form_key ?: '—' ),
-									'' !== $rses_key['key_label'] ? $rses_key['key_label'] : __( '(label not in package — match by election name)', 'relatasoft-secure-election-suite' )
-								)
-							);
-							?>
-						</p>
+						<ul class="rses-panel-desc rses-share-bind-list">
+							<li>
+								<strong><?php esc_html_e( 'Import', 'relatasoft-secure-election-suite' ); ?>:</strong>
+								#<?php echo esc_html( (string) $rses_imp->id ); ?>
+							</li>
+							<li>
+								<strong><?php esc_html_e( 'Source site', 'relatasoft-secure-election-suite' ); ?>:</strong>
+								<?php echo esc_html( $rses_key['source_site_url'] !== '' ? $rses_key['source_site_url'] : '—' ); ?>
+							</li>
+							<li>
+								<strong><?php esc_html_e( 'Public-key fingerprint', 'relatasoft-secure-election-suite' ); ?>:</strong>
+								<code><?php echo esc_html( $rses_key['fingerprint'] !== '' ? $rses_key['fingerprint'] : '—' ); ?></code>
+								<?php if ( '' !== $rses_key['public_y_prefix'] ) : ?>
+									<span class="description">(y <?php echo esc_html( $rses_key['public_y_prefix'] ); ?>…)</span>
+								<?php endif; ?>
+							</li>
+							<li>
+								<strong><?php esc_html_e( 'Key label', 'relatasoft-secure-election-suite' ); ?>:</strong>
+								<?php
+								echo esc_html(
+									'' !== $rses_key['key_label']
+										? $rses_key['key_label']
+										: __( '(not in package)', 'relatasoft-secure-election-suite' )
+								);
+								?>
+								<span class="description">— <?php esc_html_e( 'labels may repeat across servers; do not match by label alone', 'relatasoft-secure-election-suite' ); ?></span>
+							</li>
+						</ul>
 					</header>
 					<div class="rses-import-card-body">
 						<div class="rses-threshold-meta">
-							<span><?php esc_html_e( 'Threshold progress', 'relatasoft-secure-election-suite' ); ?></span>
+							<span><?php esc_html_e( 'Threshold progress for this election', 'relatasoft-secure-election-suite' ); ?></span>
 							<strong><?php echo esc_html( (string) $rses_submitted ); ?> / <?php echo esc_html( (string) $rses_threshold ); ?></strong>
 						</div>
 						<div class="rses-progress-bar" role="progressbar" aria-valuenow="<?php echo esc_attr( (string) (int) $rses_pct ); ?>" aria-valuemin="0" aria-valuemax="100">
 							<div class="rses-progress-fill" style="width: <?php echo esc_attr( (string) $rses_pct ); ?>%"></div>
 						</div>
 
-						<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="rses-form">
-							<?php Nonce::rses_field( Nonce::RSES_ACTION_SHARE_SUBMIT ); ?>
-							<input type="hidden" name="action" value="rses_submit_share" />
-							<input type="hidden" name="tally_import_id" value="<?php echo esc_attr( (string) $rses_imp->id ); ?>" />
-							<input type="hidden" name="key_id" value="<?php echo esc_attr( (string) $rses_form_key ); ?>" />
-							<input type="hidden" name="election_round_id" value="<?php echo esc_attr( (string) ( $rses_manifest['round']['id'] ?? 0 ) ); ?>" />
-							<div class="rses-field-grid">
-								<div class="rses-field rses-field-full">
-									<label for="rses_share_json_<?php echo esc_attr( (string) $rses_imp->id ); ?>"><?php esc_html_e( 'Your Share JSON', 'relatasoft-secure-election-suite' ); ?></label>
-									<textarea name="rses_share_json" id="rses_share_json_<?php echo esc_attr( (string) $rses_imp->id ); ?>" rows="8" class="rses-code-area" required placeholder='{"rses_package":"shamir-share-v1","key_label":"…","share":{…}}'></textarea>
-								</div>
+						<?php if ( $rses_mine ) : ?>
+							<div class="rses-panel rses-panel-success">
+								<p>
+									<?php
+									echo esc_html(
+										sprintf(
+											/* translators: 1: election title, 2: share index */
+											__( 'You already submitted fraction index %2$d for “%1$s”. Submit a different fraction under another election card if you hold more.', 'relatasoft-secure-election-suite' ),
+											$rses_title,
+											(int) $rses_mine->share_index
+										)
+									);
+									?>
+								</p>
 							</div>
-							<p class="rses-form-actions">
-								<?php submit_button( __( 'Submit Share', 'relatasoft-secure-election-suite' ), 'primary rses-btn-primary', 'submit', false ); ?>
-							</p>
-						</form>
+						<?php else : ?>
+							<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="rses-form">
+								<?php Nonce::rses_field( Nonce::RSES_ACTION_SHARE_SUBMIT ); ?>
+								<input type="hidden" name="action" value="rses_submit_share" />
+								<input type="hidden" name="tally_import_id" value="<?php echo esc_attr( (string) $rses_imp->id ); ?>" />
+								<input type="hidden" name="key_id" value="<?php echo esc_attr( (string) $rses_form_key ); ?>" />
+								<input type="hidden" name="election_round_id" value="<?php echo esc_attr( (string) ( $rses_manifest['round']['id'] ?? 0 ) ); ?>" />
+								<div class="rses-field-grid">
+									<div class="rses-field rses-field-full">
+										<label for="rses_share_json_<?php echo esc_attr( (string) $rses_imp->id ); ?>">
+											<?php
+											echo esc_html(
+												sprintf(
+													/* translators: %s: election title */
+													__( 'Shamir fraction JSON for “%s”', 'relatasoft-secure-election-suite' ),
+													$rses_title
+												)
+											);
+											?>
+										</label>
+										<textarea
+											name="rses_share_json"
+											id="rses_share_json_<?php echo esc_attr( (string) $rses_imp->id ); ?>"
+											rows="8"
+											class="rses-code-area"
+											required
+											placeholder='{"rses_package":"shamir-share-v1","public_key_fingerprint":"…","source_site":"…","share":{…}}'
+										></textarea>
+										<p class="description">
+											<?php
+											echo esc_html(
+												sprintf(
+													/* translators: %s: fingerprint */
+													__( 'Must match fingerprint %s for this imported election. Wrong election ⇒ rejected.', 'relatasoft-secure-election-suite' ),
+													$rses_key['fingerprint'] !== '' ? $rses_key['fingerprint'] : '—'
+												)
+											);
+											?>
+										</p>
+									</div>
+								</div>
+								<p class="rses-form-actions">
+									<?php
+									submit_button(
+										sprintf(
+											/* translators: %s: election title */
+											__( 'Submit fraction for “%s”', 'relatasoft-secure-election-suite' ),
+											$rses_title
+										),
+										'primary rses-btn-primary',
+										'submit',
+										false
+									);
+									?>
+								</p>
+							</form>
+						<?php endif; ?>
 
 						<?php if ( $rses_submitted >= $rses_threshold && Capability::rses_can_tally_and_certify() ) : ?>
 							<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="rses-form">
@@ -390,7 +488,7 @@ class TallyingViews {
 
 			<?php if ( ! $rses_any ) : ?>
 				<div class="rses-panel rses-panel-info">
-					<p><?php esc_html_e( 'No verified imports yet. Ask an Administrator to import a voting package first.', 'relatasoft-secure-election-suite' ); ?></p>
+					<p><?php esc_html_e( 'No verified imports yet. Ask an Administrator to import a voting package first — fraction submission is only available for loaded elections.', 'relatasoft-secure-election-suite' ); ?></p>
 				</div>
 			<?php endif; ?>
 		</div>
