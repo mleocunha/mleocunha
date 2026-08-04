@@ -1,7 +1,7 @@
 # Fork lab: Votador ↔ WordPress @ 1.0.27 (SSS)
 
 **Branch:** `cursor/votador-wp-sss-1.0.27-2eb1`  
-**Frozen plugin version:** `1.0.27` crypto baseline (`33fcc6a`); lab patches through **`1.0.27.9`** (fraction submit bound to imported election + public-key fingerprint)  
+**Frozen plugin version:** `1.0.27` crypto baseline (`33fcc6a`); lab patches through **`1.0.27.10`** (admin can clear submitted fractions per election)  
 **Crypto:** plain Shamir (`modp-elgamal-shamir-v1` behaviour) — **no** Feldman VSS / ceremony wiring
 
 ## Purpose
@@ -44,5 +44,6 @@ Cherry-pick candidates for the evolved line (no crypto):
 16. **Tally UI election identity (1.0.27.7)** — denormalize `election_title` / `round_title` / `ballot_count` on import; show them on Import, Share Submission, and Certification so multiple concurrent elections are distinguishable.
 17. **Shamir fractions ↔ elections (1.0.27.8)** — export/import UIs show which elections each key is linked to; share JSON packages include `key_label` + `linked_elections` (crypto `share` unchanged); Voting Public Keys / Export list key identity; pt_BR Shamir UI uses “fração/frações” instead of “parte(s)”.
 18. **Fraction submit bound to imported election (1.0.27.9)** — Tallying Share Submission only lists verified imports; each card is one election; submit validates share `public_key` against that import (fingerprint), rejects wrong-election pastes even when key labels collide across servers; one fraction per official per election.
+19. **Admin clear fractions (1.0.27.10)** — Administrators can clear all submitted Shamir fractions for one imported election (with confirm), discarding cached decryption so mistaken submissions can be corrected.
 
 Password-change PoC still requires `[enviar_redefinicao_senha]` on the welcome page (documented in Redirections admin copy).
