@@ -564,8 +564,35 @@ class TallyingViews {
 
 			<?php if ( ! empty( $_GET['rses_decrypted'] ) ) : // phpcs:ignore WordPress.Security.NonceVerification.Recommended ?>
 				<div class="rses-panel rses-panel-success">
-					<p><?php esc_html_e( 'Tally decrypted successfully. Review results below and generate certification.', 'relatasoft-secure-election-suite' ); ?></p>
+					<p><?php esc_html_e( 'Tally decrypted and digitally signed with the election private key. Review results below, download the signed package, or generate certification.', 'relatasoft-secure-election-suite' ); ?></p>
 				</div>
+			<?php endif; ?>
+
+			<?php if ( isset( $_GET['rses_verify'] ) ) : // phpcs:ignore WordPress.Security.NonceVerification.Recommended ?>
+				<?php
+				$rses_verify_flash = get_transient( 'rses_verify_flash_' . get_current_user_id() );
+				delete_transient( 'rses_verify_flash_' . get_current_user_id() );
+				?>
+				<?php if ( is_array( $rses_verify_flash ) ) : ?>
+					<div class="rses-panel <?php echo ! empty( $rses_verify_flash['valid'] ) ? 'rses-panel-success' : 'rses-panel-warning'; ?>">
+						<p>
+							<strong>
+								<?php
+								echo ! empty( $rses_verify_flash['valid'] )
+									? esc_html__( 'Signature VALID — results match the election public key.', 'relatasoft-secure-election-suite' )
+									: esc_html__( 'Signature INVALID or package inconsistent.', 'relatasoft-secure-election-suite' );
+								?>
+							</strong>
+						</p>
+						<?php if ( ! empty( $rses_verify_flash['errors'] ) && is_array( $rses_verify_flash['errors'] ) ) : ?>
+							<ul>
+								<?php foreach ( $rses_verify_flash['errors'] as $rses_verr ) : ?>
+									<li><?php echo esc_html( (string) $rses_verr ); ?></li>
+								<?php endforeach; ?>
+							</ul>
+						<?php endif; ?>
+					</div>
+				<?php endif; ?>
 			<?php endif; ?>
 
 			<?php
@@ -602,12 +629,47 @@ class TallyingViews {
 					</header>
 					<div class="rses-cert-card-body">
 						<?php if ( $rses_result && is_array( $rses_humanized ) ) : ?>
+							<?php
+							$rses_signed_pkg = SignedResultsService::rses_get_package( (int) $rses_imp->id )
+								?? ( is_array( $rses_result['signed_package'] ?? null ) ? $rses_result['signed_package'] : null );
+							?>
+							<?php if ( is_array( $rses_signed_pkg ) ) : ?>
+								<div class="rses-panel rses-panel-success rses-signed-banner">
+									<p>
+										<strong><?php esc_html_e( 'Digitally signed', 'relatasoft-secure-election-suite' ); ?></strong>
+										—
+										<?php
+										echo esc_html(
+											sprintf(
+												/* translators: 1: fingerprint, 2: scheme */
+												__( 'Schnorr signature under election public key (fp %1$s), scheme %2$s. Anyone with the signed JSON can verify without trusting this server.', 'relatasoft-secure-election-suite' ),
+												(string) ( $rses_signed_pkg['public_key_fingerprint'] ?? '—' ),
+												(string) ( $rses_signed_pkg['scheme'] ?? '—' )
+											)
+										);
+										?>
+									</p>
+									<div class="rses-inline-actions">
+										<a class="button button-primary rses-btn-primary" href="<?php echo esc_url( Nonce::rses_url( admin_url( 'admin-post.php?action=rses_download_signed_results&import_id=' . $rses_imp->id ), Nonce::RSES_ACTION_CERTIFICATION ) ); ?>">
+											<?php esc_html_e( 'Download signed JSON', 'relatasoft-secure-election-suite' ); ?>
+										</a>
+										<a class="button rses-btn-secondary" href="<?php echo esc_url( Nonce::rses_url( admin_url( 'admin-post.php?action=rses_download_signed_pdf&import_id=' . $rses_imp->id ), Nonce::RSES_ACTION_CERTIFICATION ) ); ?>">
+											<?php esc_html_e( 'Download signed PDF', 'relatasoft-secure-election-suite' ); ?>
+										</a>
+									</div>
+								</div>
+							<?php else : ?>
+								<div class="rses-panel rses-panel-warning">
+									<p><?php esc_html_e( 'Results are decrypted but not signed yet. Clear fractions and decrypt again with plugin 1.0.27.12+ to produce a Schnorr signature.', 'relatasoft-secure-election-suite' ); ?></p>
+								</div>
+							<?php endif; ?>
+
 							<p class="rses-field-label"><?php esc_html_e( 'Results', 'relatasoft-secure-election-suite' ); ?></p>
 							<?php DecryptedResultsPresenter::rses_render_html( $rses_humanized, (string) (int) $rses_imp->id ); ?>
 
 							<details class="rses-raw-results">
 								<summary><?php esc_html_e( 'Raw decrypted JSON (technical)', 'relatasoft-secure-election-suite' ); ?></summary>
-								<p class="description"><?php esc_html_e( 'Shown for audit credibility. The tables above and the PDF use ballot labels with votes sorted as selected.', 'relatasoft-secure-election-suite' ); ?></p>
+								<p class="description"><?php esc_html_e( 'Shown for audit credibility. Prefer the signed JSON download — unsigned raw JSON can be forged by hand.', 'relatasoft-secure-election-suite' ); ?></p>
 								<pre class="rses-decrypted-results"><?php echo esc_html( wp_json_encode( $rses_result['decrypted_results'], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE ) ); ?></pre>
 							</details>
 
@@ -624,6 +686,27 @@ class TallyingViews {
 								<a class="button rses-btn-secondary" href="<?php echo esc_url( Nonce::rses_url( admin_url( 'admin-post.php?action=rses_export_certification&import_id=' . $rses_imp->id . '&format=zip' ), Nonce::RSES_ACTION_CERTIFICATION ) ); ?>"><?php esc_html_e( 'Export ZIP', 'relatasoft-secure-election-suite' ); ?></a>
 								<a class="button rses-btn-secondary" href="<?php echo esc_url( Nonce::rses_url( admin_url( 'admin-post.php?action=rses_export_certification&import_id=' . $rses_imp->id . '&format=pdf' ), Nonce::RSES_ACTION_CERTIFICATION ) ); ?>"><?php esc_html_e( 'Export PDF', 'relatasoft-secure-election-suite' ); ?></a>
 							</div>
+
+							<section class="rses-verify-box">
+								<header class="rses-panel-header">
+									<p class="rses-panel-kicker"><?php esc_html_e( 'Independent verification', 'relatasoft-secure-election-suite' ); ?></p>
+									<h4 class="rses-panel-title"><?php esc_html_e( 'Verify a signed-results.json', 'relatasoft-secure-election-suite' ); ?></h4>
+									<p class="rses-panel-desc"><?php esc_html_e( 'Paste any signed package to check the Schnorr signature against its embedded public key. Public pages can use the shortcode [rses_verify_signed_results].', 'relatasoft-secure-election-suite' ); ?></p>
+								</header>
+								<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="rses-form">
+									<?php Nonce::rses_field( Nonce::RSES_ACTION_CERTIFICATION ); ?>
+									<input type="hidden" name="action" value="rses_verify_signed_results" />
+									<div class="rses-field-grid">
+										<div class="rses-field rses-field-full">
+											<label for="rses_signed_json_<?php echo esc_attr( (string) $rses_imp->id ); ?>"><?php esc_html_e( 'Signed results JSON', 'relatasoft-secure-election-suite' ); ?></label>
+											<textarea name="rses_signed_json" id="rses_signed_json_<?php echo esc_attr( (string) $rses_imp->id ); ?>" rows="8" class="rses-code-area" required></textarea>
+										</div>
+									</div>
+									<p class="rses-form-actions">
+										<?php submit_button( __( 'Verify signature', 'relatasoft-secure-election-suite' ), 'secondary rses-btn-secondary', 'submit', false ); ?>
+									</p>
+								</form>
+							</section>
 						<?php else : ?>
 							<p class="rses-empty"><?php esc_html_e( 'Awaiting threshold share submissions and decryption.', 'relatasoft-secure-election-suite' ); ?></p>
 						<?php endif; ?>

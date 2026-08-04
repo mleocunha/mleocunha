@@ -226,6 +226,7 @@ class OfficialShareSubmissionController {
 		);
 
 		delete_transient( 'rses_decryption_result_' . $import_id );
+		SignedResultsService::rses_clear( $import_id );
 
 		return $rses_before;
 	}

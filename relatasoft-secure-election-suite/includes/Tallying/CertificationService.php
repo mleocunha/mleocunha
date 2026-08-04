@@ -91,6 +91,8 @@ class CertificationService {
 			'ballot'                => $rses_ballot,
 			'decrypted_results'     => $rses_result['decrypted_results'],
 			'humanized_results'     => $rses_humanized,
+			'signed_results'        => SignedResultsService::rses_get_package( $rses_import_id )
+				?? ( is_array( $rses_result['signed_package'] ?? null ) ? $rses_result['signed_package'] : null ),
 		);
 
 		$rses_cert_id = Repository::rses_insert(

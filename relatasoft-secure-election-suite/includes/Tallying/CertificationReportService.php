@@ -65,6 +65,16 @@ class CertificationReportService {
 			$rses_report['round_title'] = TallyImportRepository::rses_display_round_title( $rses_import );
 		}
 
+		$rses_signed_pdf = SignedResultsService::rses_get_pdf( $import_id );
+		if ( is_string( $rses_signed_pdf ) && '' !== $rses_signed_pdf ) {
+			header( 'Content-Type: application/pdf' );
+			header( 'Content-Disposition: attachment; filename="' . sanitize_file_name( 'signed-results-import-' . $import_id . '.pdf' ) . '"' );
+			header( 'Content-Length: ' . strlen( $rses_signed_pdf ) );
+			header( 'Cache-Control: no-cache, no-store, must-revalidate' );
+			echo $rses_signed_pdf; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+			exit;
+		}
+
 		$rses_lines = DecryptedResultsPresenter::rses_pdf_lines(
 			$rses_report,
 			is_array( $rses_report['humanized_results'] ) ? $rses_report['humanized_results'] : array()
@@ -89,6 +99,12 @@ class CertificationReportService {
 			is_array( $rses_report['humanized_results'] ) ? $rses_report['humanized_results'] : array()
 		);
 
+		$rses_signed = is_array( $rses_report['signed_results'] ?? null )
+			? $rses_report['signed_results']
+			: SignedResultsService::rses_get_package( $import_id );
+		$rses_signed_pdf = SignedResultsService::rses_get_pdf( $import_id );
+		$rses_pdf_bytes  = is_string( $rses_signed_pdf ) ? $rses_signed_pdf : PdfReport::rses_generate( $rses_pdf_lines );
+
 		$rses_files = array(
 			'certification-report.json' => wp_json_encode( $rses_report, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES ),
 			'humanized-results.json'    => wp_json_encode( $rses_report['humanized_results'] ?? array(), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES ),
@@ -102,9 +118,13 @@ class CertificationReportService {
 				),
 				JSON_PRETTY_PRINT
 			),
-			'certification-report.pdf'  => PdfReport::rses_generate( $rses_pdf_lines ),
-			'README.txt'                => __( 'RelataSoft Secure Election Suite - Certification Export. humanized-results.json and the PDF use ballot labels; decrypted-results.json is the raw technical tally.', 'relatasoft-secure-election-suite' ),
+			'certification-report.pdf'  => $rses_pdf_bytes,
+			'README.txt'                => __( 'RelataSoft Secure Election Suite - Certification Export. Prefer signed-results.json for independent Schnorr verification with the election public key. humanized-results.json and the PDF use ballot labels; decrypted-results.json is the raw technical tally.', 'relatasoft-secure-election-suite' ),
 		);
+
+		if ( is_array( $rses_signed ) ) {
+			$rses_files['signed-results.json'] = wp_json_encode( $rses_signed, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES );
+		}
 
 		$rses_files['checksums.json'] = wp_json_encode( ManifestBuilder::rses_build_checksums( $rses_files ), JSON_PRETTY_PRINT );
 

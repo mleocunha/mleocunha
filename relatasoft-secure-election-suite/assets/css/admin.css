@@ -1568,6 +1568,22 @@
 	background: linear-gradient(90deg, var(--rses-brand-gold-deep), var(--rses-primary));
 }
 
+.rses-screen .rses-signed-banner {
+	margin: 0 0 1rem;
+}
+
+.rses-screen .rses-signed-banner .rses-inline-actions {
+	margin-top: 0.65rem;
+}
+
+.rses-screen .rses-verify-box {
+	margin: 1.25rem 0 0;
+	padding: 0.85rem 0.95rem 1rem;
+	border: 1px solid var(--rses-line);
+	border-radius: var(--rses-radius);
+	background: var(--rses-soft-2);
+}
+
 .rses-screen .rses-raw-results {
 	margin: 0 0 1.15rem;
 	padding: 0.65rem 0.85rem;
