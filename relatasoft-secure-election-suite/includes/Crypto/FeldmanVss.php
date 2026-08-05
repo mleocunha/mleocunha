@@ -180,11 +180,20 @@ class FeldmanVss {
 		$scheme_id = (string) ( $payload['scheme_id'] ?? '' );
 		$scheme    = (string) ( $payload['scheme'] ?? '' );
 
-		if ( self::SCHEME_ID !== $scheme_id && self::RSES_SHARE_SCHEME !== $scheme ) {
+		$rses_ok_scheme = self::RSES_SHARE_SCHEME === $scheme
+			|| self::SCHEME_ID === $scheme_id
+			|| CryptoSchemeRegistry::SCHEME_MODP_ELGAMAL_THRESHOLD_CP_V1 === $scheme_id;
+
+		if ( ! $rses_ok_scheme ) {
 			throw new CryptoException( __( 'Invalid Feldman share scheme. Plain Shamir shares are not accepted in this plugin version.', 'relatasoft-secure-election-suite' ) );
 		}
-		if ( ! CryptoSchemeRegistry::rses_may_verify( self::SCHEME_ID === $scheme_id ? $scheme_id : self::SCHEME_ID ) ) {
-			throw new CryptoException( __( 'Share scheme is not accepted in this plugin version.', 'relatasoft-secure-election-suite' ) );
+
+		$rses_verify_id = '' !== $scheme_id ? $scheme_id : self::SCHEME_ID;
+		if ( ! CryptoSchemeRegistry::rses_may_verify( $rses_verify_id ) && self::SCHEME_ID !== $rses_verify_id ) {
+			// Allow Feldman parent id even when generation moved to threshold-cp.
+			if ( self::SCHEME_ID !== $rses_verify_id && CryptoSchemeRegistry::SCHEME_MODP_ELGAMAL_THRESHOLD_CP_V1 !== $rses_verify_id ) {
+				throw new CryptoException( __( 'Share scheme is not accepted in this plugin version.', 'relatasoft-secure-election-suite' ) );
+			}
 		}
 
 		$required = array(

@@ -32,13 +32,17 @@ class ShareVerifyService {
 		$scheme_id = (string) ( $payload['scheme_id'] ?? '' );
 		$scheme    = (string) ( $payload['scheme'] ?? '' );
 
-		if ( FeldmanVss::SCHEME_ID === $scheme_id || FeldmanVss::RSES_SHARE_SCHEME === $scheme ) {
+		if (
+			FeldmanVss::SCHEME_ID === $scheme_id
+			|| CryptoSchemeRegistry::SCHEME_MODP_ELGAMAL_THRESHOLD_CP_V1 === $scheme_id
+			|| FeldmanVss::RSES_SHARE_SCHEME === $scheme
+		) {
 			FeldmanVss::validateSharePayload( $payload );
 			return;
 		}
 
 		throw new CryptoException(
-			__( 'Unsupported share scheme. This plugin version accepts only Feldman VSS shares (modp-elgamal-feldman-v1). Use the previous plugin version for legacy Shamir material.', 'relatasoft-secure-election-suite' )
+			__( 'Unsupported share scheme. This plugin version accepts only Feldman VSS shares (modp-elgamal-feldman-v1 / modp-elgamal-threshold-cp-v1). Use the previous plugin version for legacy Shamir material.', 'relatasoft-secure-election-suite' )
 		);
 	}
 
@@ -50,7 +54,11 @@ class ShareVerifyService {
 		$scheme_id = (string) ( $payload['scheme_id'] ?? '' );
 		$scheme    = (string) ( $payload['scheme'] ?? '' );
 
-		if ( FeldmanVss::SCHEME_ID === $scheme_id || FeldmanVss::RSES_SHARE_SCHEME === $scheme ) {
+		if (
+			FeldmanVss::SCHEME_ID === $scheme_id
+			|| CryptoSchemeRegistry::SCHEME_MODP_ELGAMAL_THRESHOLD_CP_V1 === $scheme_id
+			|| FeldmanVss::RSES_SHARE_SCHEME === $scheme
+		) {
 			return self::rses_verify_feldman( $payload );
 		}
 

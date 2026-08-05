@@ -76,6 +76,51 @@ class Polynomial {
 	}
 
 	/**
+	 * Lagrange coefficients λ_i at x=0 for a set of share indices.
+	 *
+	 * @param array<int,int> $indices Share indices (unique, ≥ 1).
+	 * @param \GMP           $field_prime Field modulus (q).
+	 * @return array<int,\GMP> index => λ_i
+	 * @throws CryptoException If invalid.
+	 */
+	public static function rses_lagrange_coefficients_at_zero( array $indices, \GMP $field_prime ): array {
+		$rses_unique = array();
+		foreach ( $indices as $rses_i ) {
+			$rses_i = (int) $rses_i;
+			if ( $rses_i < 1 ) {
+				throw new CryptoException( __( 'Share index must be positive.', 'relatasoft-secure-election-suite' ) );
+			}
+			if ( isset( $rses_unique[ $rses_i ] ) ) {
+				throw new CryptoException( __( 'Duplicate share index detected.', 'relatasoft-secure-election-suite' ) );
+			}
+			$rses_unique[ $rses_i ] = true;
+		}
+
+		$rses_xs   = array_map( static fn( int $i ): \GMP => \gmp_init( $i ), array_keys( $rses_unique ) );
+		$rses_zero = \gmp_init( 0 );
+		$rses_out  = array();
+
+		foreach ( $rses_xs as $rses_xi ) {
+			$rses_numerator   = \gmp_init( 1 );
+			$rses_denominator = \gmp_init( 1 );
+			foreach ( $rses_xs as $rses_xj ) {
+				if ( \gmp_cmp( $rses_xi, $rses_xj ) === 0 ) {
+					continue;
+				}
+				$rses_numerator   = BigInt::modMul( $rses_numerator, BigInt::modSub( $rses_zero, $rses_xj, $field_prime ), $field_prime );
+				$rses_denominator = BigInt::modMul( $rses_denominator, BigInt::modSub( $rses_xi, $rses_xj, $field_prime ), $field_prime );
+			}
+			$rses_out[ (int) \gmp_strval( $rses_xi, 10 ) ] = BigInt::modMul(
+				$rses_numerator,
+				BigInt::modInv( $rses_denominator, $field_prime ),
+				$field_prime
+			);
+		}
+
+		return $rses_out;
+	}
+
+	/**
 	 * Reconstruct secret from share points with threshold check.
 	 *
 	 * @param array<int,array{x:int,y:\GMP}> $shares      Shares.

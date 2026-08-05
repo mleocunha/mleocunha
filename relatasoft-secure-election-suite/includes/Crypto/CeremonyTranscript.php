@@ -52,8 +52,8 @@ class CeremonyTranscript {
 			'participants'               => $participants,
 			'field'                      => 'elgamal_subgroup_order_q',
 			'key_generation_mode'        => 'trusted_dealer',
-			'private_key_reconstruction' => 'permitted_during_tally',
-			'security_generation'        => 'transitional',
+			'private_key_reconstruction' => (string) ( $args['private_key_reconstruction'] ?? 'prohibited' ),
+			'security_generation'        => (string) ( $args['security_generation'] ?? 'target-modular' ),
 		);
 
 		$transcript['public_transcript_hash'] = self::rses_hash( $transcript );

@@ -8,6 +8,7 @@
 namespace RelataSoft\SecureElectionSuite\KeyAuthority;
 
 use RelataSoft\SecureElectionSuite\Crypto\CeremonyTranscript;
+use RelataSoft\SecureElectionSuite\Crypto\CryptoSchemeRegistry;
 use RelataSoft\SecureElectionSuite\Crypto\FeldmanVss;
 use RelataSoft\SecureElectionSuite\Exports\JsonExport;
 use RelataSoft\SecureElectionSuite\Exports\ManifestBuilder;
@@ -206,7 +207,14 @@ class KeyExportService {
 	 * @return array<string,string>
 	 */
 	private static function rses_transcript_files_for_key( object $key ): array {
-		if ( empty( $key->scheme_id ) || FeldmanVss::SCHEME_ID !== (string) $key->scheme_id ) {
+		$scheme_id = (string) ( $key->scheme_id ?? '' );
+		if (
+			'' === $scheme_id
+			|| (
+				FeldmanVss::SCHEME_ID !== $scheme_id
+				&& CryptoSchemeRegistry::SCHEME_MODP_ELGAMAL_THRESHOLD_CP_V1 !== $scheme_id
+			)
+		) {
 			return array();
 		}
 		if ( empty( $key->ceremony_transcript_json ) ) {

@@ -82,17 +82,19 @@ class ShareAssignmentService {
 		$key_row    = KeyRepository::rses_get( $key_id );
 		$transcript = CeremonyTranscript::rses_build(
 			array(
-				'scheme_id'         => FeldmanVss::SCHEME_ID,
-				'ceremony_id'       => $ceremony_id,
-				'key_id'            => $key_id,
-				'key_label'         => $key_row ? (string) $key_row->key_label : '',
-				'election_round_id' => $election_round_id,
-				'threshold_t'       => $threshold,
-				'participant_count' => $total,
-				'created_at'        => $created_at,
-				'public_key'        => $public_key,
-				'commitments'       => $commitments_dec,
-				'participants'      => $participants,
+				'scheme_id'                  => $scheme,
+				'ceremony_id'                => $ceremony_id,
+				'key_id'                     => $key_id,
+				'key_label'                  => $key_row ? (string) $key_row->key_label : '',
+				'election_round_id'          => $election_round_id,
+				'threshold_t'                => $threshold,
+				'participant_count'          => $total,
+				'created_at'                 => $created_at,
+				'public_key'                 => $public_key,
+				'commitments'                => $commitments_dec,
+				'participants'               => $participants,
+				'private_key_reconstruction' => 'prohibited',
+				'security_generation'        => 'target-modular',
 			)
 		);
 
@@ -103,7 +105,7 @@ class ShareAssignmentService {
 				'field_prime'              => $field_q,
 				'threshold_t'              => $threshold,
 				'total_n'                  => $total,
-				'scheme_id'                => FeldmanVss::SCHEME_ID,
+				'scheme_id'                => $scheme,
 				'ceremony_id'              => $ceremony_id,
 				'commitments_json'         => wp_json_encode( $commitments_dec ),
 				'ceremony_transcript_json' => wp_json_encode( $transcript ),
@@ -135,6 +137,9 @@ class ShareAssignmentService {
 					'public_transcript_hash' => (string) $transcript['public_transcript_hash'],
 				)
 			);
+			// Mark generation scheme (threshold-cp) while keeping FeldmanVSS share math/verify.
+			$payload['scheme_id'] = $scheme;
+			$payload['checksum']  = FeldmanVss::rses_compute_payload_checksum( $payload );
 
 			$encrypted = ShareEncryptionService::rses_encrypt( (string) wp_json_encode( $payload ) );
 

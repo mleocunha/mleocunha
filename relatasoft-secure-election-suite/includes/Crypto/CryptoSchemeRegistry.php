@@ -42,9 +42,11 @@ final class CryptoSchemeRegistry {
 
 	/**
 	 * Scheme used for new Key Authority ceremonies.
+	 *
+	 * Fase 2: generate under threshold-cp (Feldman VSS shares + partial decrypt tally).
 	 */
 	public static function rses_active_generation_scheme(): string {
-		return self::SCHEME_MODP_ELGAMAL_FELDMAN_V1;
+		return self::SCHEME_MODP_ELGAMAL_THRESHOLD_CP_V1;
 	}
 
 	/**
@@ -84,7 +86,7 @@ final class CryptoSchemeRegistry {
 	 * Whether a scheme may generate new election material.
 	 */
 	public static function rses_may_generate( string $scheme_id ): bool {
-		return self::SCHEME_MODP_ELGAMAL_FELDMAN_V1 === $scheme_id;
+		return self::SCHEME_MODP_ELGAMAL_THRESHOLD_CP_V1 === $scheme_id;
 	}
 
 	/**

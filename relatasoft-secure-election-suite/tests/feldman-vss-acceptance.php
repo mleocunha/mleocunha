@@ -73,6 +73,12 @@ rses_f_report(
 );
 
 rses_f_report(
+	'active generation is threshold-cp',
+	CryptoSchemeRegistry::SCHEME_MODP_ELGAMAL_THRESHOLD_CP_V1 === CryptoSchemeRegistry::rses_active_generation_scheme(),
+	CryptoSchemeRegistry::rses_active_generation_scheme()
+);
+
+rses_f_report(
 	'shamir retired from generate',
 	! CryptoSchemeRegistry::rses_may_generate( CryptoSchemeRegistry::SCHEME_MODP_ELGAMAL_SHAMIR_V1 ),
 	'modp-elgamal-shamir-v1'

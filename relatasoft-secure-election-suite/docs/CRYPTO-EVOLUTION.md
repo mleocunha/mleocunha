@@ -1,9 +1,8 @@
 # Evolução criptográfica — lab SSS → VSS (reimplementação)
 
-**Status:** Fase 1 (Feldman VSS) em curso nesta lab; Fase 2 (partial decrypt + Chaum–Pedersen) a seguir  
+**Status:** Fase 1 (`1.0.28.0`) + Fase 2 (`1.0.29.0`) landed nesta lab  
 **Plugin:** RelataSoft Secure Election Suite  
-**Branch:** `cursor/vss-feldman-threshold-03b3` (base `cursor/votador-wp-sss-1.0.27-2eb1`)  
-**Versão alvo Fase 1:** `1.0.28.0`
+**Branch:** `cursor/vss-feldman-threshold-03b3` (base `cursor/votador-wp-sss-1.0.27-2eb1`)
 
 ## Decisões fechadas
 
@@ -30,22 +29,23 @@ ec-elgamal-p521-threshold-cp-v1 planned
 ec-elgamal-p521-pedersen-dkg-v1 planned
 ```
 
-## Fase 1 (atual)
+## Fase 1 (`1.0.28.0`)
 
 - `FeldmanVss`, `Polynomial`, `CeremonyTranscript`, `ShareVerifyService`, `CryptoSchemeRegistry`
 - Key Authority gera commitments + transcript; ZIP do oficial inclui ficheiros públicos da cerimônia
 - Verify offline; mismatch de commitments invalida a cerimônia
-- Apuração ainda reconstrói `x` em memória (transitional)
 
-## Fase 2 (seguinte)
+## Fase 2 (`1.0.29.0`)
 
-- Partial decryption + provas Chaum–Pedersen
-- Combinação sem reconstruir `x`
-- Scheme `modp-elgamal-threshold-cp-v1`
+- Active generation: `modp-elgamal-threshold-cp-v1` (ainda usa Feldman VSS para repartir)
+- Submit: partilha usada de forma efémera → contribuição com partials + provas Chaum–Pedersen (a partilha **não** é persistida)
+- Decrypt: combina partials com Lagrange; `private_key_reconstruction = prohibited`
+- Classes: `ChaumPedersen`, `ThresholdPartialDecrypt`
 
 ## Testes
 
 ```bash
 php tests/feldman-vss-acceptance.php
+php tests/threshold-cp-acceptance.php
 php tests/crypto-acceptance.php
 ```
