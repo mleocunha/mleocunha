@@ -22,7 +22,7 @@ class KeyGenerationJob {
 	public const RSES_STAGE_GENERATOR    = 'generator';
 	public const RSES_STAGE_KEYPAIR      = 'keypair';
 	public const RSES_STAGE_PERSIST      = 'persist';
-	public const RSES_STAGE_SHAMIR       = 'shamir';
+	public const RSES_STAGE_VSS       = 'vss';
 	public const RSES_STAGE_COMPLETE     = 'complete';
 	public const RSES_STAGE_CANCELLED    = 'cancelled';
 	public const RSES_STAGE_FAILED       = 'failed';
@@ -37,7 +37,7 @@ class KeyGenerationJob {
 		self::RSES_STAGE_GENERATOR,
 		self::RSES_STAGE_KEYPAIR,
 		self::RSES_STAGE_PERSIST,
-		self::RSES_STAGE_SHAMIR,
+		self::RSES_STAGE_VSS,
 	);
 
 	/**

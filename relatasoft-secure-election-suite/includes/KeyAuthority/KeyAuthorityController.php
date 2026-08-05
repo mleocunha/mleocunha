@@ -9,7 +9,9 @@ namespace RelataSoft\SecureElectionSuite\KeyAuthority;
 
 use RelataSoft\SecureElectionSuite\Bootstrap\ModeLock;
 use RelataSoft\SecureElectionSuite\Crypto\BigInt;
+use RelataSoft\SecureElectionSuite\Crypto\CeremonyTranscript;
 use RelataSoft\SecureElectionSuite\Crypto\CryptoException;
+use RelataSoft\SecureElectionSuite\Crypto\ShareVerifyService;
 use RelataSoft\SecureElectionSuite\Security\AuditLogger;
 use RelataSoft\SecureElectionSuite\Security\Capability;
 use RelataSoft\SecureElectionSuite\Security\Nonce;
@@ -30,6 +32,7 @@ class KeyAuthorityController {
 		add_action( 'admin_post_rses_import_key', array( self::class, 'rses_handle_import_key' ) );
 		add_action( 'admin_post_rses_export_key', array( self::class, 'rses_handle_export_key' ) );
 		add_action( 'admin_post_rses_key_action', array( self::class, 'rses_handle_key_action' ) );
+		add_action( 'admin_post_rses_verify_share', array( self::class, 'rses_handle_verify_share' ) );
 
 		add_action( 'wp_ajax_rses_keygen_start', array( self::class, 'rses_ajax_keygen_start' ) );
 		add_action( 'wp_ajax_rses_keygen_tick', array( self::class, 'rses_ajax_keygen_tick' ) );
@@ -218,6 +221,77 @@ class KeyAuthorityController {
 		} catch ( CryptoException $rses_e ) {
 			wp_die( esc_html( $rses_e->getMessage() ) );
 		}
+	}
+
+	/**
+	 * Offline share verification (officials and admins). Fail-closed on Feldman mismatch.
+	 */
+	public static function rses_handle_verify_share(): void {
+		Capability::rses_require_official();
+		Nonce::rses_verify_or_die( Nonce::RSES_ACTION_SHARE_VERIFY );
+		ModeLock::rses_require_mode( ModeLock::RSES_MODE_KEY_AUTHORITY );
+
+		$raw     = isset( $_POST['rses_share_json'] ) ? wp_unslash( (string) $_POST['rses_share_json'] ) : ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+		$payload = json_decode( $raw, true );
+		if ( ! is_array( $payload ) ) {
+			wp_safe_redirect(
+				add_query_arg(
+					array(
+						'page'             => 'rses-key-authority',
+						'rses_verify'      => '0',
+						'rses_verify_code' => ShareVerifyService::CODE_MALFORMED,
+					),
+					admin_url( 'admin.php' )
+				)
+			);
+			exit;
+		}
+
+		$result = ShareVerifyService::rses_verify_payload( $payload );
+
+		if ( ! $result['ok'] && ShareVerifyService::CODE_COMMITMENT_MISMATCH === $result['code'] ) {
+			$key_id = (int) ( $result['details']['key_id'] ?? $payload['key_id'] ?? 0 );
+			if ( $key_id > 0 ) {
+				KeyRepository::rses_invalidate_ceremony( $key_id, CeremonyTranscript::CEREMONY_REASON_SHARE_VERIFY_FAIL );
+				AuditLogger::rses_log(
+					'ceremony_invalidated',
+					'key',
+					$key_id,
+					array(
+						'reason' => CeremonyTranscript::CEREMONY_REASON_SHARE_VERIFY_FAIL,
+						'code'   => $result['code'],
+					)
+				);
+			}
+		}
+
+		AuditLogger::rses_log(
+			'share_verify',
+			'share',
+			isset( $payload['key_id'] ) ? (int) $payload['key_id'] : null,
+			array(
+				'ok'   => $result['ok'],
+				'code' => $result['code'],
+			)
+		);
+
+		set_transient(
+			'rses_share_verify_' . get_current_user_id(),
+			$result,
+			5 * MINUTE_IN_SECONDS
+		);
+
+		wp_safe_redirect(
+			add_query_arg(
+				array(
+					'page'             => 'rses-key-authority',
+					'rses_verify'      => $result['ok'] ? '1' : '0',
+					'rses_verify_code' => rawurlencode( $result['code'] ),
+				),
+				admin_url( 'admin.php' )
+			)
+		);
+		exit;
 	}
 
 	/**

@@ -59,7 +59,7 @@ class KeyAuthorityViews {
 					<p>
 						<?php
 						if ( ! empty( $_GET['rses_key_created'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-							esc_html_e( 'Key generated and Shamir shares assigned (when officials were selected).', 'relatasoft-secure-election-suite' );
+							esc_html_e( 'Key generated and Feldman VSS shares assigned (when officials were selected).', 'relatasoft-secure-election-suite' );
 						} else {
 							esc_html_e( 'Mode locked. Generate an ElGamal key below.', 'relatasoft-secure-election-suite' );
 						}
@@ -69,8 +69,10 @@ class KeyAuthorityViews {
 			<?php endif; ?>
 
 			<div class="rses-panel rses-panel-warning">
-				<p><?php esc_html_e( 'Private keys are split into Shamir Secret Sharing shares immediately. Full private keys are not persisted by default.', 'relatasoft-secure-election-suite' ); ?></p>
+				<p><?php esc_html_e( 'Private keys are split with Feldman Verifiable Secret Sharing (field = ElGamal q) immediately. Full private keys are not persisted by default. Scheme: modp-elgamal-feldman-v1.', 'relatasoft-secure-election-suite' ); ?></p>
 			</div>
+
+			<?php self::rses_render_verify_share_panel(); ?>
 
 			<?php if ( empty( $rses_officials ) ) : ?>
 				<div class="rses-panel rses-panel-warning">
@@ -78,7 +80,7 @@ class KeyAuthorityViews {
 						echo esc_html(
 							sprintf(
 								/* translators: %s: electoral authority role label (singular) */
-								__( 'No %1$s accounts found. Create WordPress users with the %1$s role before assigning Shamir shares.', 'relatasoft-secure-election-suite' ),
+								__( 'No %1$s accounts found. Create WordPress users with the %1$s role before assigning Feldman VSS shares.', 'relatasoft-secure-election-suite' ),
 								RoleLabels::rses_editor_singular()
 							)
 						);
@@ -256,8 +258,10 @@ class KeyAuthorityViews {
 			</header>
 
 			<div class="rses-panel rses-panel-warning">
-				<p><?php esc_html_e( 'Store your share offline and keep it confidential. You will paste this same JSON on the Tallying site when submitting your share. Never share it with other officials.', 'relatasoft-secure-election-suite' ); ?></p>
+				<p><?php esc_html_e( 'Store your share offline and keep it confidential. You will paste this same JSON on the Tallying site when submitting your share. Never share it with other officials. Verify your Feldman VSS share locally before the ceremony is trusted.', 'relatasoft-secure-election-suite' ); ?></p>
 			</div>
+
+			<?php self::rses_render_verify_share_panel(); ?>
 
 			<?php
 			$rses_found = false;
@@ -434,6 +438,49 @@ class KeyAuthorityViews {
 				</form>
 			</div>
 		</article>
+		<?php
+	}
+
+	/**
+	 * Offline “Verify my share” panel (officials + admins).
+	 */
+	private static function rses_render_verify_share_panel(): void {
+		$result = get_transient( 'rses_share_verify_' . get_current_user_id() );
+		if ( isset( $_GET['rses_verify'] ) && is_array( $result ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+			delete_transient( 'rses_share_verify_' . get_current_user_id() );
+			$ok = ! empty( $result['ok'] );
+			?>
+			<div class="rses-panel <?php echo $ok ? 'rses-panel-success' : 'rses-panel-warning'; ?>">
+				<p>
+					<strong><?php echo $ok ? esc_html__( 'SHARE VALID', 'relatasoft-secure-election-suite' ) : esc_html__( 'SHARE INVALID', 'relatasoft-secure-election-suite' ); ?></strong>
+					— <?php echo esc_html( (string) ( $result['message'] ?? '' ) ); ?>
+				</p>
+				<?php if ( ! empty( $result['code'] ) ) : ?>
+					<p><code><?php echo esc_html( (string) $result['code'] ); ?></code></p>
+				<?php endif; ?>
+				<?php if ( ! $ok && ! empty( $result['details']['key_id'] ) ) : ?>
+					<p><?php esc_html_e( 'Do not use this file. The ceremony must be annulled and new election material generated.', 'relatasoft-secure-election-suite' ); ?></p>
+				<?php endif; ?>
+			</div>
+			<?php
+		}
+		?>
+		<section class="rses-panel rses-panel-card" id="rses-verify-share">
+			<header class="rses-panel-header">
+				<p class="rses-panel-kicker"><?php esc_html_e( 'Verify', 'relatasoft-secure-election-suite' ); ?></p>
+				<h2 class="rses-panel-title"><?php esc_html_e( 'Verify my share', 'relatasoft-secure-election-suite' ); ?></h2>
+				<p class="rses-panel-desc"><?php esc_html_e( 'Paste your Feldman VSS share JSON. Verification is local: the Key Authority is not asked whether the share it produced is valid.', 'relatasoft-secure-election-suite' ); ?></p>
+			</header>
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="rses-form">
+				<?php Nonce::rses_field( Nonce::RSES_ACTION_SHARE_VERIFY ); ?>
+				<input type="hidden" name="action" value="rses_verify_share" />
+				<label class="rses-field-label" for="rses_share_json"><?php esc_html_e( 'Share JSON', 'relatasoft-secure-election-suite' ); ?></label>
+				<textarea id="rses_share_json" name="rses_share_json" class="large-text code rses-code-area" rows="10" required placeholder="{ ... }"></textarea>
+				<p class="submit">
+					<button type="submit" class="button button-primary"><?php esc_html_e( 'Verify my share', 'relatasoft-secure-election-suite' ); ?></button>
+				</p>
+			</form>
+		</section>
 		<?php
 	}
 }

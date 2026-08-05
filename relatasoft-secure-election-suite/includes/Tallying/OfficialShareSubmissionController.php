@@ -8,7 +8,7 @@
 namespace RelataSoft\SecureElectionSuite\Tallying;
 
 use RelataSoft\SecureElectionSuite\Bootstrap\ModeLock;
-use RelataSoft\SecureElectionSuite\Crypto\ShamirSecretSharing;
+use RelataSoft\SecureElectionSuite\Crypto\ShareVerifyService;
 use RelataSoft\SecureElectionSuite\Database\Repository;
 use RelataSoft\SecureElectionSuite\Exports\HashService;
 use RelataSoft\SecureElectionSuite\KeyAuthority\KeyRepository;
@@ -21,7 +21,7 @@ use RelataSoft\SecureElectionSuite\Security\Sanitizer;
 defined( 'ABSPATH' ) || exit;
 
 /**
- * Handles official Shamir share submissions for tallying.
+ * Handles official Feldman VSS share submissions for tallying.
  */
 class OfficialShareSubmissionController {
 
@@ -55,7 +55,7 @@ class OfficialShareSubmissionController {
 		}
 
 		try {
-			ShamirSecretSharing::validateSharePayload( $rses_payload );
+			ShareVerifyService::rses_validate_for_tally( $rses_payload );
 		} catch ( \RelataSoft\SecureElectionSuite\Crypto\CryptoException $rses_e ) {
 			wp_die( esc_html( $rses_e->getMessage() ) );
 		}

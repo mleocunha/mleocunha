@@ -11,7 +11,8 @@ use RelataSoft\SecureElectionSuite\Crypto\BigInt;
 use RelataSoft\SecureElectionSuite\Crypto\CryptoException;
 use RelataSoft\SecureElectionSuite\Crypto\ElGamalCiphertext;
 use RelataSoft\SecureElectionSuite\Crypto\HomomorphicTally;
-use RelataSoft\SecureElectionSuite\Crypto\ShamirSecretSharing;
+use RelataSoft\SecureElectionSuite\Crypto\Polynomial;
+use RelataSoft\SecureElectionSuite\Crypto\ShareVerifyService;
 use RelataSoft\SecureElectionSuite\KeyAuthority\ShareEncryptionService;
 use RelataSoft\SecureElectionSuite\Security\AuditLogger;
 use RelataSoft\SecureElectionSuite\Security\Capability;
@@ -19,7 +20,7 @@ use RelataSoft\SecureElectionSuite\Security\Capability;
 defined( 'ABSPATH' ) || exit;
 
 /**
- * In-memory Shamir reconstruction and tally decryption.
+ * In-memory Feldman share reconstruction and tally decryption (Fase 1: reconstruct x).
  */
 class TallyDecryptionService {
 
@@ -90,7 +91,7 @@ class TallyDecryptionService {
 					throw new CryptoException( __( 'Invalid share payload.', 'relatasoft-secure-election-suite' ) );
 				}
 
-				ShamirSecretSharing::validateSharePayload( $rses_payload );
+				ShareVerifyService::rses_validate_for_tally( $rses_payload );
 
 				if ( $rses_payload['public_key']['p'] !== $rses_public['p']
 					|| $rses_payload['public_key']['y'] !== $rses_public['y'] ) {
@@ -105,7 +106,7 @@ class TallyDecryptionService {
 				);
 			}
 
-			$rses_x = ShamirSecretSharing::reconstructWithThreshold(
+			$rses_x = Polynomial::rses_reconstruct_with_threshold(
 				$rses_share_points,
 				$rses_field_prime,
 				$rses_threshold

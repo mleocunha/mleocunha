@@ -89,8 +89,8 @@ class KeyGenerationRunner {
 						KeyGenerationJob::rses_save( $rses_job );
 						break;
 
-					case KeyGenerationJob::RSES_STAGE_SHAMIR:
-						$rses_job = self::rses_stage_shamir( $rses_job );
+					case KeyGenerationJob::RSES_STAGE_VSS:
+						$rses_job = self::rses_stage_vss( $rses_job );
 						KeyGenerationJob::rses_save( $rses_job );
 						return KeyGenerationJob::rses_public_status( $rses_job );
 
@@ -258,7 +258,7 @@ class KeyGenerationRunner {
 		);
 
 		$job['key_id']   = $rses_key_id;
-		$job['stage']    = KeyGenerationJob::RSES_STAGE_SHAMIR;
+		$job['stage']    = KeyGenerationJob::RSES_STAGE_VSS;
 		$job['message']  = __( 'Public parameters saved. Splitting trustee shares…', 'relatasoft-secure-election-suite' );
 		$job['progress'] = 85;
 		return $job;
@@ -268,7 +268,7 @@ class KeyGenerationRunner {
 	 * @param array<string,mixed> $job Job.
 	 * @return array<string,mixed>
 	 */
-	private static function rses_stage_shamir( array $job ): array {
+	private static function rses_stage_vss( array $job ): array {
 		$rses_key_id    = (int) $job['key_id'];
 		$rses_threshold = (int) $job['threshold_t'];
 		$rses_total     = (int) $job['total_n'];
@@ -296,9 +296,9 @@ class KeyGenerationRunner {
 				$rses_total,
 				$rses_officials
 			);
-			$job['message'] = __( 'Key generation complete. Shamir shares assigned to officials.', 'relatasoft-secure-election-suite' );
+			$job['message'] = __( 'Key generation complete. Feldman VSS shares assigned to officials.', 'relatasoft-secure-election-suite' );
 		} else {
-			$job['message'] = __( 'Key generation complete. No officials selected — public key saved without Shamir shares.', 'relatasoft-secure-election-suite' );
+			$job['message'] = __( 'Key generation complete. No officials selected — public key saved without Feldman VSS shares.', 'relatasoft-secure-election-suite' );
 		}
 
 		KeyGenerationJob::rses_clear_secrets( $job );
@@ -317,6 +317,7 @@ class KeyGenerationRunner {
 				'job_id'    => (string) ( $job['job_id'] ?? '' ),
 				'attempts'  => (int) ( $job['safe_prime_attempt'] ?? 0 ),
 				'chunked'   => true,
+				'scheme_id' => \RelataSoft\SecureElectionSuite\Crypto\CryptoSchemeRegistry::rses_active_generation_scheme(),
 			)
 		);
 
