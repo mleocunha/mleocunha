@@ -25,7 +25,7 @@ class CryptoSelfTest {
 			self::testElGamalKeyGeneration(),
 			self::testEncryptDecrypt(),
 			self::testHomomorphicAggregation(),
-			self::testShamir(),
+			self::testFeldmanVss(),
 			self::testFullMiniElection(),
 		);
 	}
@@ -219,47 +219,79 @@ class CryptoSelfTest {
 	 *
 	 * @return array{name:string,passed:bool,message:string}
 	 */
-	public static function testShamir(): array {
+	public static function testFeldmanVss(): array {
 		if ( ! extension_loaded( 'gmp' ) ) {
 			return array(
-				'name'    => __( 'Shamir Secret Sharing', 'relatasoft-secure-election-suite' ),
+				'name'    => __( 'Feldman VSS', 'relatasoft-secure-election-suite' ),
 				'passed'  => false,
 				'message' => __( 'Skipped: GMP not available.', 'relatasoft-secure-election-suite' ),
 			);
 		}
 
 		try {
-			$rses_keypair    = ElGamal::generateKeyPair( 512 );
-			$rses_x          = $rses_keypair->getPrivateGmp();
-			$rses_field_prime = PrimeGenerator::generatePrimeGreaterThan( $rses_x, 128 );
+			$rses_keypair = ElGamal::generateKeyPair( 512 );
+			$rses_pub     = $rses_keypair->getPublicGmp();
+			$rses_x       = $rses_keypair->getPrivateGmp();
 
-			$rses_shares = ShamirSecretSharing::splitSecret( $rses_x, 3, 5, $rses_field_prime );
-
-			$rses_subset = array(
-				$rses_shares[0],
-				$rses_shares[2],
-				$rses_shares[4],
+			$split = FeldmanVss::rses_split_with_commitments(
+				$rses_x,
+				3,
+				5,
+				$rses_pub['p'],
+				$rses_pub['q'],
+				$rses_pub['g']
 			);
 
-			$rses_reconstructed = ShamirSecretSharing::reconstructSecret( $rses_subset, $rses_field_prime );
+			if ( \gmp_cmp( $split['commitments'][0], $rses_pub['y'] ) !== 0 ) {
+				return array(
+					'name'    => __( 'Feldman VSS', 'relatasoft-secure-election-suite' ),
+					'passed'  => false,
+					'message' => __( 'Commitment C0 does not equal public key y.', 'relatasoft-secure-election-suite' ),
+				);
+			}
+
+			foreach ( $split['shares'] as $share ) {
+				$ok = FeldmanVss::rses_verify_share(
+					(int) $share['x'],
+					$share['y'],
+					$split['commitments'],
+					$rses_pub['p'],
+					$rses_pub['q'],
+					$rses_pub['g'],
+					$rses_pub['y']
+				);
+				if ( ! $ok ) {
+					return array(
+						'name'    => __( 'Feldman VSS', 'relatasoft-secure-election-suite' ),
+						'passed'  => false,
+						'message' => __( 'Share failed Feldman verification.', 'relatasoft-secure-election-suite' ),
+					);
+				}
+			}
+
+			$rses_subset = array(
+				$split['shares'][0],
+				$split['shares'][2],
+				$split['shares'][4],
+			);
+			$rses_reconstructed = Polynomial::rses_reconstruct_with_threshold( $rses_subset, $rses_pub['q'], 3 );
 
 			if ( \gmp_cmp( $rses_reconstructed, $rses_x ) !== 0 ) {
 				return array(
-					'name'    => __( 'Shamir Secret Sharing', 'relatasoft-secure-election-suite' ),
+					'name'    => __( 'Feldman VSS', 'relatasoft-secure-election-suite' ),
 					'passed'  => false,
 					'message' => __( 'Reconstructed secret does not match original.', 'relatasoft-secure-election-suite' ),
 				);
 			}
 
-			$rses_two_shares = array(
-				$rses_shares[0],
-				$rses_shares[1],
-			);
-
 			try {
-				ShamirSecretSharing::reconstructWithThreshold( $rses_two_shares, $rses_field_prime, 3 );
+				Polynomial::rses_reconstruct_with_threshold(
+					array( $split['shares'][0], $split['shares'][1] ),
+					$rses_pub['q'],
+					3
+				);
 				return array(
-					'name'    => __( 'Shamir Secret Sharing', 'relatasoft-secure-election-suite' ),
+					'name'    => __( 'Feldman VSS', 'relatasoft-secure-election-suite' ),
 					'passed'  => false,
 					'message' => __( 'Reconstruction with 2 shares should have failed.', 'relatasoft-secure-election-suite' ),
 				);
@@ -268,13 +300,13 @@ class CryptoSelfTest {
 			}
 
 			return array(
-				'name'    => __( 'Shamir Secret Sharing', 'relatasoft-secure-election-suite' ),
+				'name'    => __( 'Feldman VSS', 'relatasoft-secure-election-suite' ),
 				'passed'  => true,
-				'message' => __( 't=3 n=5 Shamir split/reconstruct validated.', 'relatasoft-secure-election-suite' ),
+				'message' => __( 't=3 n=5 Feldman VSS split/verify/reconstruct validated (field = q).', 'relatasoft-secure-election-suite' ),
 			);
 		} catch ( CryptoException $rses_e ) {
 			return array(
-				'name'    => __( 'Shamir Secret Sharing', 'relatasoft-secure-election-suite' ),
+				'name'    => __( 'Feldman VSS', 'relatasoft-secure-election-suite' ),
 				'passed'  => false,
 				'message' => $rses_e->getMessage(),
 			);
@@ -296,14 +328,20 @@ class CryptoSelfTest {
 		}
 
 		try {
-			$rses_keypair     = ElGamal::generateKeyPair( 512 );
-			$rses_pub         = $rses_keypair->getPublicGmp();
-			$rses_x           = $rses_keypair->getPrivateGmp();
-			$rses_field_prime = PrimeGenerator::generatePrimeGreaterThan( $rses_x, 128 );
+			$rses_keypair = ElGamal::generateKeyPair( 512 );
+			$rses_pub     = $rses_keypair->getPublicGmp();
+			$rses_x       = $rses_keypair->getPrivateGmp();
 
-			$rses_all_shares = ShamirSecretSharing::splitSecret( $rses_x, 3, 5, $rses_field_prime );
-			$rses_votes      = array( 1, 1, 1, 0, 0 );
-			$rses_cts        = array();
+			$split = FeldmanVss::rses_split_with_commitments(
+				$rses_x,
+				3,
+				5,
+				$rses_pub['p'],
+				$rses_pub['q'],
+				$rses_pub['g']
+			);
+			$rses_votes = array( 1, 1, 1, 0, 0 );
+			$rses_cts   = array();
 
 			foreach ( $rses_votes as $rses_vote ) {
 				$rses_cts[] = HomomorphicTally::encryptCount(
@@ -318,14 +356,14 @@ class CryptoSelfTest {
 			$rses_agg = HomomorphicTally::aggregateCounts( $rses_cts, $rses_pub['p'] );
 
 			$rses_threshold_shares = array(
-				$rses_all_shares[0],
-				$rses_all_shares[2],
-				$rses_all_shares[4],
+				$split['shares'][0],
+				$split['shares'][2],
+				$split['shares'][4],
 			);
 
-			$rses_reconstructed_x = ShamirSecretSharing::reconstructWithThreshold(
+			$rses_reconstructed_x = Polynomial::rses_reconstruct_with_threshold(
 				$rses_threshold_shares,
-				$rses_field_prime,
+				$rses_pub['q'],
 				3
 			);
 
@@ -364,7 +402,7 @@ class CryptoSelfTest {
 			return array(
 				'name'    => __( 'Mini Election Simulation', 'relatasoft-secure-election-suite' ),
 				'passed'  => true,
-				'message' => __( 'Full mini election with Shamir threshold decryption passed.', 'relatasoft-secure-election-suite' ),
+				'message' => __( 'Full mini election with Feldman VSS threshold decryption passed.', 'relatasoft-secure-election-suite' ),
 			);
 		} catch ( CryptoException $rses_e ) {
 			return array(

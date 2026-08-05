@@ -6,7 +6,7 @@
  */
 
 define( 'ABSPATH', true );
-define( 'RSES_VERSION', '1.0.0' );
+define( 'RSES_VERSION', '1.0.28.0' );
 
 require_once dirname( __DIR__ ) . '/includes/Crypto/CryptoException.php';
 require_once dirname( __DIR__ ) . '/includes/Crypto/BigInt.php';
@@ -17,7 +17,9 @@ require_once dirname( __DIR__ ) . '/includes/Crypto/ElGamalKeyPair.php';
 require_once dirname( __DIR__ ) . '/includes/Crypto/ElGamal.php';
 require_once dirname( __DIR__ ) . '/includes/Crypto/CryptoEncoding.php';
 require_once dirname( __DIR__ ) . '/includes/Crypto/HomomorphicTally.php';
-require_once dirname( __DIR__ ) . '/includes/Crypto/ShamirSecretSharing.php';
+require_once dirname( __DIR__ ) . '/includes/Crypto/Polynomial.php';
+require_once dirname( __DIR__ ) . '/includes/Crypto/CryptoSchemeRegistry.php';
+require_once dirname( __DIR__ ) . '/includes/Crypto/FeldmanVss.php';
 require_once dirname( __DIR__ ) . '/includes/Crypto/CryptoSelfTest.php';
 
 if ( ! function_exists( '__' ) ) {

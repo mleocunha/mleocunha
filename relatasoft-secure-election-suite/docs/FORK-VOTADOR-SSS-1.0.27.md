@@ -1,8 +1,8 @@
 # Fork lab: Votador ↔ WordPress @ 1.0.27 (SSS)
 
 **Branch:** `cursor/votador-wp-sss-1.0.27-2eb1`  
-**Frozen plugin version:** `1.0.27` crypto baseline (`33fcc6a`); lab patches through **`1.0.27.7`** (tally UI shows election/round labels)  
-**Crypto:** plain Shamir (`modp-elgamal-shamir-v1` behaviour) — **no** Feldman VSS / ceremony wiring
+**Frozen plugin version:** `1.0.27` crypto baseline (`33fcc6a`); lab patches through **`1.0.27.7`**, then VSS reimplementation from **`1.0.28.0`** on `cursor/vss-feldman-threshold-03b3`  
+**Crypto (from 1.0.28.0):** Feldman VSS (`modp-elgamal-feldman-v1`, field=`q`) — plain Shamir retired in this lineage (clean cut)
 
 ## Purpose
 

@@ -22,13 +22,17 @@ class Nonce {
 	public const RSES_ACTION_KEY_GENERATE       = 'rses_key_generate';
 	public const RSES_ACTION_KEY_IMPORT         = 'rses_key_import';
 	public const RSES_ACTION_KEY_EXPORT         = 'rses_key_export';
+	public const RSES_ACTION_KEY_DELETE         = 'rses_key_delete';
 	public const RSES_ACTION_SHARE_EXPORT       = 'rses_share_export';
+	public const RSES_ACTION_SHARE_VERIFY       = 'rses_share_verify';
 	public const RSES_ACTION_MEDIA_ATTACH       = 'rses_media_attach';
 	public const RSES_ACTION_ELECTION_SAVE      = 'rses_election_save';
 	public const RSES_ACTION_ELECTION_DELETE    = 'rses_election_delete';
 	public const RSES_ACTION_VOTE_CAST          = 'rses_vote_cast';
 	public const RSES_ACTION_TALLY_IMPORT       = 'rses_tally_import';
+	public const RSES_ACTION_TALLY_IMPORT_DELETE = 'rses_tally_import_delete';
 	public const RSES_ACTION_SHARE_SUBMIT       = 'rses_share_submit';
+	public const RSES_ACTION_SHARE_CLEAR        = 'rses_share_clear';
 	public const RSES_ACTION_DECRYPTION         = 'rses_decryption';
 	public const RSES_ACTION_CERTIFICATION      = 'rses_certification';
 	public const RSES_ACTION_CRYPTO_SELF_TEST   = 'rses_crypto_self_test';

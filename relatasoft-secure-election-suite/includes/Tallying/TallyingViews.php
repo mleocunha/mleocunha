@@ -33,16 +33,29 @@ class TallyingViews {
 	/**
 	 * Election/round subtitle for import cards and tables.
 	 *
-	 * @param object $import Import row.
+	 * @param object                   $import   Import row.
+	 * @param array<string,mixed>|null $manifest Optional manifest.
 	 */
-	private static function rses_import_election_meta_html( object $import ): string {
+	private static function rses_import_election_meta_html( object $import, ?array $manifest = null ): string {
 		$rses_election = TallyImportRepository::rses_display_election_title( $import );
 		$rses_round    = TallyImportRepository::rses_display_round_title( $import );
+		$rses_key      = TallyImportRepository::rses_key_identity( $import, $manifest );
 		$rses_bits     = array();
 
 		$rses_bits[] = '<strong class="rses-import-election-title">' . esc_html( $rses_election ) . '</strong>';
 		if ( '' !== $rses_round ) {
 			$rses_bits[] = esc_html( $rses_round );
+		}
+		if ( $rses_key['key_id'] > 0 || '' !== $rses_key['key_label'] || '' !== $rses_key['fingerprint'] ) {
+			$rses_bits[] = esc_html(
+				sprintf(
+					/* translators: 1: key id, 2: key label, 3: fingerprint */
+					__( 'Key #%1$s — %2$s (fp %3$s)', 'relatasoft-secure-election-suite' ),
+					(string) ( $rses_key['key_id'] ?: '—' ),
+					'' !== $rses_key['key_label'] ? $rses_key['key_label'] : '—',
+					'' !== $rses_key['fingerprint'] ? $rses_key['fingerprint'] : '—'
+				)
+			);
 		}
 		if ( isset( $import->ballot_count ) && null !== $import->ballot_count && '' !== (string) $import->ballot_count ) {
 			$rses_bits[] = esc_html(
@@ -102,6 +115,27 @@ class TallyingViews {
 								__( 'Cleared %d oversized import record(s) that were exhausting PHP memory. Please import the ZIP again with this plugin version.', 'relatasoft-secure-election-suite' ),
 								$rses_purged
 							)
+						);
+						?>
+					</p>
+				</div>
+			<?php endif; ?>
+
+			<?php if ( ! empty( $_GET['rses_import_deleted'] ) ) : // phpcs:ignore WordPress.Security.NonceVerification.Recommended ?>
+				<div class="rses-panel rses-panel-success">
+					<p>
+						<?php
+						$rses_deleted_title = isset( $_GET['title'] ) // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+							? sanitize_text_field( wp_unslash( (string) $_GET['title'] ) ) // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+							: '';
+						echo esc_html(
+							'' !== $rses_deleted_title
+								? sprintf(
+									/* translators: %s: election title */
+									__( 'Imported election “%s” was permanently deleted (shares, decryption cache, and certifications for that import included).', 'relatasoft-secure-election-suite' ),
+									$rses_deleted_title
+								)
+								: __( 'Imported election was permanently deleted.', 'relatasoft-secure-election-suite' )
 						);
 						?>
 					</p>
@@ -212,6 +246,7 @@ class TallyingViews {
 						<p class="rses-empty"><?php esc_html_e( 'No imports yet.', 'relatasoft-secure-election-suite' ); ?></p>
 					</div>
 				<?php else : ?>
+					<?php $rses_confirm_word = TallyImportRepository::rses_delete_confirm_word(); ?>
 					<div class="rses-table-wrap">
 						<table class="rses-table">
 							<thead>
@@ -223,14 +258,16 @@ class TallyingViews {
 									<th><?php esc_html_e( 'Source', 'relatasoft-secure-election-suite' ); ?></th>
 									<th><?php esc_html_e( 'Status', 'relatasoft-secure-election-suite' ); ?></th>
 									<th><?php esc_html_e( 'Imported', 'relatasoft-secure-election-suite' ); ?></th>
+									<th><?php esc_html_e( 'Actions', 'relatasoft-secure-election-suite' ); ?></th>
 								</tr>
 							</thead>
 							<tbody>
 								<?php foreach ( $rses_imports as $rses_imp ) : ?>
+									<?php $rses_imp_title = TallyImportRepository::rses_display_election_title( $rses_imp ); ?>
 									<tr>
 										<td><?php echo esc_html( (string) $rses_imp->id ); ?></td>
 										<td>
-											<strong><?php echo esc_html( TallyImportRepository::rses_display_election_title( $rses_imp ) ); ?></strong>
+											<strong><?php echo esc_html( $rses_imp_title ); ?></strong>
 											<?php if ( ! empty( $rses_imp->election_external_id ) ) : ?>
 												<br /><span class="description">#<?php echo esc_html( (string) $rses_imp->election_external_id ); ?></span>
 											<?php endif; ?>
@@ -254,6 +291,62 @@ class TallyingViews {
 										<td><?php echo esc_html( $rses_imp->source_site_url ?? '—' ); ?></td>
 										<td><?php echo self::rses_status_pill( (string) $rses_imp->status ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></td>
 										<td><?php echo esc_html( $rses_imp->imported_at ); ?></td>
+										<td>
+											<details class="rses-import-delete">
+												<summary class="rses-import-delete-summary"><?php esc_html_e( 'Delete…', 'relatasoft-secure-election-suite' ); ?></summary>
+												<form
+													method="post"
+													action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>"
+													class="rses-form rses-import-delete-form"
+												>
+													<?php Nonce::rses_field( Nonce::RSES_ACTION_TALLY_IMPORT_DELETE ); ?>
+													<input type="hidden" name="action" value="rses_tally_import_delete" />
+													<input type="hidden" name="tally_import_id" value="<?php echo esc_attr( (string) $rses_imp->id ); ?>" />
+													<p class="description">
+														<?php
+														echo esc_html(
+															sprintf(
+																/* translators: 1: election title, 2: confirmation word in active locale */
+																__( 'Permanently delete “%1$s”, including submitted fractions and certifications for this import. Type %2$s to confirm.', 'relatasoft-secure-election-suite' ),
+																$rses_imp_title,
+																$rses_confirm_word
+															)
+														);
+														?>
+													</p>
+													<label class="screen-reader-text" for="rses_delete_confirm_<?php echo esc_attr( (string) $rses_imp->id ); ?>">
+														<?php
+														echo esc_html(
+															sprintf(
+																/* translators: %s: confirmation word */
+																__( 'Type %s to confirm deletion', 'relatasoft-secure-election-suite' ),
+																$rses_confirm_word
+															)
+														);
+														?>
+													</label>
+													<input
+														type="text"
+														name="rses_delete_confirm"
+														id="rses_delete_confirm_<?php echo esc_attr( (string) $rses_imp->id ); ?>"
+														class="regular-text"
+														autocomplete="off"
+														required
+														placeholder="<?php echo esc_attr( $rses_confirm_word ); ?>"
+													/>
+													<p class="rses-form-actions">
+														<?php
+														submit_button(
+															__( 'Delete imported election', 'relatasoft-secure-election-suite' ),
+															'delete',
+															'submit',
+															false
+														);
+														?>
+													</p>
+												</form>
+											</details>
+										</td>
 									</tr>
 								<?php endforeach; ?>
 							</tbody>
@@ -272,7 +365,9 @@ class TallyingViews {
 		Capability::rses_require_official();
 
 		TallyImportRepository::rses_backfill_summaries();
-		$rses_imports = TallyImportRepository::rses_list();
+		$rses_imports      = TallyImportRepository::rses_list();
+		$rses_user_id      = get_current_user_id();
+		$rses_flash_import = isset( $_GET['import'] ) ? absint( $_GET['import'] ) : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 		?>
 		<div class="wrap rses-wrap rses-screen" <?php echo Translator::rses_html_attrs(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
 			<header class="rses-hero">
@@ -284,7 +379,7 @@ class TallyingViews {
 					echo esc_html(
 						sprintf(
 							/* translators: %s: electoral authority role label (singular) */
-							__( 'Paste the share JSON from Key Authority. Each %s submits independently; only an Administrator can decrypt after the threshold is met.', 'relatasoft-secure-election-suite' ),
+							__( 'Paste the Feldman VSS share JSON from Key Authority. It is used ephemerally to build Chaum–Pedersen partial decrypts (the share itself is not stored). Each %s submits independently; only an Administrator can combine after the threshold is met.', 'relatasoft-secure-election-suite' ),
 							RoleLabels::rses_editor_singular()
 						)
 					);
@@ -293,12 +388,50 @@ class TallyingViews {
 
 			<?php if ( ! empty( $_GET['rses_submitted'] ) ) : // phpcs:ignore WordPress.Security.NonceVerification.Recommended ?>
 				<div class="rses-panel rses-panel-success">
-					<p><?php esc_html_e( 'Your Shamir share was submitted successfully.', 'relatasoft-secure-election-suite' ); ?></p>
+					<p>
+						<?php
+						if ( $rses_flash_import > 0 ) {
+							$rses_flash_row = TallyImportRepository::rses_get( $rses_flash_import );
+							echo esc_html(
+								sprintf(
+									/* translators: %s: election title */
+									__( 'Your partial decryption contribution for “%s” was submitted successfully (share value was not stored).', 'relatasoft-secure-election-suite' ),
+									$rses_flash_row
+										? TallyImportRepository::rses_display_election_title( $rses_flash_row )
+										: ( '#' . $rses_flash_import )
+								)
+							);
+						} else {
+							esc_html_e( 'Your partial decryption contribution was submitted successfully (share value was not stored).', 'relatasoft-secure-election-suite' );
+						}
+						?>
+					</p>
+				</div>
+			<?php endif; ?>
+
+			<?php if ( ! empty( $_GET['rses_shares_cleared'] ) ) : // phpcs:ignore WordPress.Security.NonceVerification.Recommended ?>
+				<div class="rses-panel rses-panel-success">
+					<p>
+						<?php
+						$rses_cleared_count = isset( $_GET['count'] ) ? absint( $_GET['count'] ) : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+						$rses_cleared_row   = $rses_flash_import > 0 ? TallyImportRepository::rses_get( $rses_flash_import ) : null;
+						echo esc_html(
+							sprintf(
+								/* translators: 1: number of fractions cleared, 2: election title */
+								__( 'Cleared %1$d submitted Shamir fraction(s) for “%2$s”. Officials may submit again for this election.', 'relatasoft-secure-election-suite' ),
+								$rses_cleared_count,
+								$rses_cleared_row
+									? TallyImportRepository::rses_display_election_title( $rses_cleared_row )
+									: ( $rses_flash_import > 0 ? '#' . $rses_flash_import : __( 'this election', 'relatasoft-secure-election-suite' ) )
+							)
+						);
+						?>
+					</p>
 				</div>
 			<?php endif; ?>
 
 			<div class="rses-panel rses-panel-info">
-				<p><?php esc_html_e( 'Use the same share JSON you copied or downloaded under My Shamir Shares on the Key Authority site. Never paste another official’s share.', 'relatasoft-secure-election-suite' ); ?></p>
+				<p><?php esc_html_e( 'Use the same Feldman VSS share JSON you copied or downloaded under My Shamir Shares on the Key Authority site. Open the card for the correct election, compare fingerprint / source site with your fraction JSON, then paste. Never paste another official’s share. The server keeps only proven partial decrypts.', 'relatasoft-secure-election-suite' ); ?></p>
 			</div>
 
 			<?php
@@ -307,43 +440,137 @@ class TallyingViews {
 				if ( 'verified' !== $rses_imp->status ) {
 					continue;
 				}
-				$rses_any        = true;
-				$rses_manifest   = TallyImportRepository::rses_get_manifest( $rses_imp );
-				$rses_threshold  = (int) ( $rses_manifest['round']['threshold_t'] ?? 3 );
-				$rses_submitted  = OfficialShareSubmissionController::rses_get_submission_count( (int) $rses_imp->id );
-				$rses_pct        = min( 100, ( $rses_submitted / max( 1, $rses_threshold ) ) * 100 );
+				$rses_any       = true;
+				$rses_manifest  = TallyImportRepository::rses_get_manifest( $rses_imp );
+				$rses_threshold = (int) ( $rses_manifest['round']['threshold_t'] ?? $rses_manifest['manifest']['threshold_t'] ?? 3 );
+				$rses_submitted = OfficialShareSubmissionController::rses_get_submission_count( (int) $rses_imp->id );
+				$rses_pct       = min( 100, ( $rses_submitted / max( 1, $rses_threshold ) ) * 100 );
+				$rses_key       = TallyImportRepository::rses_key_identity( $rses_imp, $rses_manifest );
+				$rses_form_key  = $rses_key['key_id'] > 0
+					? $rses_key['key_id']
+					: (int) ( $rses_manifest['round']['key_id'] ?? 0 );
+				$rses_mine      = OfficialShareSubmissionController::rses_get_official_submission( (int) $rses_imp->id, $rses_user_id );
+				$rses_title     = TallyImportRepository::rses_display_election_title( $rses_imp );
+				$rses_round     = TallyImportRepository::rses_display_round_title( $rses_imp );
 				?>
-				<article class="rses-import-card">
+				<article class="rses-import-card" id="rses-share-election-<?php echo esc_attr( (string) $rses_imp->id ); ?>">
 					<header class="rses-import-card-header">
-						<h3><?php echo esc_html( TallyImportRepository::rses_display_election_title( $rses_imp ) ); ?></h3>
-						<?php echo self::rses_import_election_meta_html( $rses_imp ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
-						<p class="description"><?php esc_html_e( 'Import', 'relatasoft-secure-election-suite' ); ?> #<?php echo esc_html( (string) $rses_imp->id ); ?></p>
+						<p class="rses-panel-kicker"><?php esc_html_e( 'Imported election', 'relatasoft-secure-election-suite' ); ?></p>
+						<h3><?php echo esc_html( $rses_title ); ?></h3>
+						<?php if ( '' !== $rses_round ) : ?>
+							<p class="rses-panel-desc"><strong><?php echo esc_html( $rses_round ); ?></strong></p>
+						<?php endif; ?>
+						<?php echo self::rses_import_election_meta_html( $rses_imp, $rses_manifest ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+						<ul class="rses-panel-desc rses-share-bind-list">
+							<li>
+								<strong><?php esc_html_e( 'Import', 'relatasoft-secure-election-suite' ); ?>:</strong>
+								#<?php echo esc_html( (string) $rses_imp->id ); ?>
+							</li>
+							<li>
+								<strong><?php esc_html_e( 'Source site', 'relatasoft-secure-election-suite' ); ?>:</strong>
+								<?php echo esc_html( $rses_key['source_site_url'] !== '' ? $rses_key['source_site_url'] : '—' ); ?>
+							</li>
+							<li>
+								<strong><?php esc_html_e( 'Public-key fingerprint', 'relatasoft-secure-election-suite' ); ?>:</strong>
+								<code><?php echo esc_html( $rses_key['fingerprint'] !== '' ? $rses_key['fingerprint'] : '—' ); ?></code>
+								<?php if ( '' !== $rses_key['public_y_prefix'] ) : ?>
+									<span class="description">(y <?php echo esc_html( $rses_key['public_y_prefix'] ); ?>…)</span>
+								<?php endif; ?>
+							</li>
+							<li>
+								<strong><?php esc_html_e( 'Key label', 'relatasoft-secure-election-suite' ); ?>:</strong>
+								<?php
+								echo esc_html(
+									'' !== $rses_key['key_label']
+										? $rses_key['key_label']
+										: __( '(not in package)', 'relatasoft-secure-election-suite' )
+								);
+								?>
+								<span class="description">— <?php esc_html_e( 'labels may repeat across servers; do not match by label alone', 'relatasoft-secure-election-suite' ); ?></span>
+							</li>
+						</ul>
 					</header>
 					<div class="rses-import-card-body">
 						<div class="rses-threshold-meta">
-							<span><?php esc_html_e( 'Threshold progress', 'relatasoft-secure-election-suite' ); ?></span>
+							<span><?php esc_html_e( 'Threshold progress for this election', 'relatasoft-secure-election-suite' ); ?></span>
 							<strong><?php echo esc_html( (string) $rses_submitted ); ?> / <?php echo esc_html( (string) $rses_threshold ); ?></strong>
 						</div>
 						<div class="rses-progress-bar" role="progressbar" aria-valuenow="<?php echo esc_attr( (string) (int) $rses_pct ); ?>" aria-valuemin="0" aria-valuemax="100">
 							<div class="rses-progress-fill" style="width: <?php echo esc_attr( (string) $rses_pct ); ?>%"></div>
 						</div>
 
-						<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="rses-form">
-							<?php Nonce::rses_field( Nonce::RSES_ACTION_SHARE_SUBMIT ); ?>
-							<input type="hidden" name="action" value="rses_submit_share" />
-							<input type="hidden" name="tally_import_id" value="<?php echo esc_attr( (string) $rses_imp->id ); ?>" />
-							<input type="hidden" name="key_id" value="<?php echo esc_attr( (string) ( $rses_manifest['round']['key_id'] ?? 0 ) ); ?>" />
-							<input type="hidden" name="election_round_id" value="<?php echo esc_attr( (string) ( $rses_manifest['round']['id'] ?? 0 ) ); ?>" />
-							<div class="rses-field-grid">
-								<div class="rses-field rses-field-full">
-									<label for="rses_share_json_<?php echo esc_attr( (string) $rses_imp->id ); ?>"><?php esc_html_e( 'Your Share JSON', 'relatasoft-secure-election-suite' ); ?></label>
-									<textarea name="rses_share_json" id="rses_share_json_<?php echo esc_attr( (string) $rses_imp->id ); ?>" rows="8" class="rses-code-area" required></textarea>
-								</div>
+						<?php if ( $rses_mine ) : ?>
+							<div class="rses-panel rses-panel-success">
+								<p>
+									<?php
+									echo esc_html(
+										sprintf(
+											/* translators: 1: election title, 2: share index */
+											__( 'You already submitted fraction index %2$d for “%1$s”. Submit a different fraction under another election card if you hold more.', 'relatasoft-secure-election-suite' ),
+											$rses_title,
+											(int) $rses_mine->share_index
+										)
+									);
+									?>
+								</p>
 							</div>
-							<p class="rses-form-actions">
-								<?php submit_button( __( 'Submit Share', 'relatasoft-secure-election-suite' ), 'primary rses-btn-primary', 'submit', false ); ?>
-							</p>
-						</form>
+						<?php else : ?>
+							<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="rses-form">
+								<?php Nonce::rses_field( Nonce::RSES_ACTION_SHARE_SUBMIT ); ?>
+								<input type="hidden" name="action" value="rses_submit_share" />
+								<input type="hidden" name="tally_import_id" value="<?php echo esc_attr( (string) $rses_imp->id ); ?>" />
+								<input type="hidden" name="key_id" value="<?php echo esc_attr( (string) $rses_form_key ); ?>" />
+								<input type="hidden" name="election_round_id" value="<?php echo esc_attr( (string) ( $rses_manifest['round']['id'] ?? 0 ) ); ?>" />
+								<div class="rses-field-grid">
+									<div class="rses-field rses-field-full">
+										<label for="rses_share_json_<?php echo esc_attr( (string) $rses_imp->id ); ?>">
+											<?php
+											echo esc_html(
+												sprintf(
+													/* translators: %s: election title */
+													__( 'Shamir fraction JSON for “%s”', 'relatasoft-secure-election-suite' ),
+													$rses_title
+												)
+											);
+											?>
+										</label>
+										<textarea
+											name="rses_share_json"
+											id="rses_share_json_<?php echo esc_attr( (string) $rses_imp->id ); ?>"
+											rows="8"
+											class="rses-code-area"
+											required
+											placeholder='{"rses_package":"feldman-share-v1","public_key_fingerprint":"…","source_site":"…","share":{…}}'
+										></textarea>
+										<p class="description">
+											<?php
+											echo esc_html(
+												sprintf(
+													/* translators: %s: fingerprint */
+													__( 'Must match fingerprint %s for this imported election. Wrong election ⇒ rejected. The share value is used only to build a partial decrypt and is not stored.', 'relatasoft-secure-election-suite' ),
+													$rses_key['fingerprint'] !== '' ? $rses_key['fingerprint'] : '—'
+												)
+											);
+											?>
+										</p>
+									</div>
+								</div>
+								<p class="rses-form-actions">
+									<?php
+									submit_button(
+										sprintf(
+											/* translators: %s: election title */
+											__( 'Submit fraction for “%s”', 'relatasoft-secure-election-suite' ),
+											$rses_title
+										),
+										'primary rses-btn-primary',
+										'submit',
+										false
+									);
+									?>
+								</p>
+							</form>
+						<?php endif; ?>
 
 						<?php if ( $rses_submitted >= $rses_threshold && Capability::rses_can_tally_and_certify() ) : ?>
 							<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="rses-form">
@@ -357,13 +584,41 @@ class TallyingViews {
 						<?php elseif ( $rses_submitted >= $rses_threshold ) : ?>
 							<p class="description"><?php esc_html_e( 'Threshold met. An Administrator must run tally decryption and certification.', 'relatasoft-secure-election-suite' ); ?></p>
 						<?php endif; ?>
+
+						<?php if ( $rses_submitted > 0 && Capability::rses_can_tally_and_certify() ) : ?>
+							<form
+								method="post"
+								action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>"
+								class="rses-form rses-clear-shares-form"
+								onsubmit="return confirm('<?php echo esc_js( sprintf( __( 'Clear all %1$d submitted Shamir fraction(s) for “%2$s”? Officials will need to submit again. Cached decryption for this election will also be discarded.', 'relatasoft-secure-election-suite' ), $rses_submitted, $rses_title ) ); ?>');"
+							>
+								<?php Nonce::rses_field( Nonce::RSES_ACTION_SHARE_CLEAR ); ?>
+								<input type="hidden" name="action" value="rses_clear_shares" />
+								<input type="hidden" name="tally_import_id" value="<?php echo esc_attr( (string) $rses_imp->id ); ?>" />
+								<p class="rses-form-actions">
+									<?php
+									submit_button(
+										sprintf(
+											/* translators: %s: election title */
+											__( 'Clear all fractions for “%s”', 'relatasoft-secure-election-suite' ),
+											$rses_title
+										),
+										'delete',
+										'submit',
+										false
+									);
+									?>
+								</p>
+								<p class="description"><?php esc_html_e( 'Administrators only. Use this to undo mistaken submissions for this imported election.', 'relatasoft-secure-election-suite' ); ?></p>
+							</form>
+						<?php endif; ?>
 					</div>
 				</article>
 			<?php endforeach; ?>
 
 			<?php if ( ! $rses_any ) : ?>
 				<div class="rses-panel rses-panel-info">
-					<p><?php esc_html_e( 'No verified imports yet. Ask an Administrator to import a voting package first.', 'relatasoft-secure-election-suite' ); ?></p>
+					<p><?php esc_html_e( 'No verified imports yet. Ask an Administrator to import a voting package first — fraction submission is only available for loaded elections.', 'relatasoft-secure-election-suite' ); ?></p>
 				</div>
 			<?php endif; ?>
 		</div>
@@ -385,37 +640,83 @@ class TallyingViews {
 
 				<p class="rses-hero-kicker"><?php esc_html_e( 'Tallying', 'relatasoft-secure-election-suite' ); ?></p>
 				<h1 class="rses-hero-title"><?php esc_html_e( 'Certification', 'relatasoft-secure-election-suite' ); ?></h1>
-				<p class="rses-hero-lead"><?php esc_html_e( 'Review decrypted tallies, generate certification records, and export ZIP or PDF packages.', 'relatasoft-secure-election-suite' ); ?></p>
+				<p class="rses-hero-lead"><?php esc_html_e( 'Public review of the decrypted tally — structured so electoral authorities, voters, observers, and candidates can understand the outcome without specialized cryptography training.', 'relatasoft-secure-election-suite' ); ?></p>
 			</header>
+
+			<section class="rses-panel rses-panel-card" aria-labelledby="rses-cert-how-to-read">
+				<header class="rses-panel-header">
+					<p class="rses-panel-kicker"><?php esc_html_e( 'How to read this screen', 'relatasoft-secure-election-suite' ); ?></p>
+					<h2 class="rses-panel-title" id="rses-cert-how-to-read"><?php esc_html_e( 'Electoral publicity first', 'relatasoft-secure-election-suite' ); ?></h2>
+					<p class="rses-panel-desc"><?php esc_html_e( 'In the tradition of electoral law, the count must be intelligible to those entitled to follow it. Read the public results first; use the technical appendix only if you need machine-readable detail.', 'relatasoft-secure-election-suite' ); ?></p>
+				</header>
+				<ul class="rses-panel-desc rses-share-bind-list">
+					<li><?php esc_html_e( 'Electoral authorities — confirm the humanized results, generate the certification record, and export PDF/ZIP for the official file.', 'relatasoft-secure-election-suite' ); ?></li>
+					<li><?php esc_html_e( 'Voters, observers, and candidates — read the same plain-language results table (questions, options, vote counts, participation).', 'relatasoft-secure-election-suite' ); ?></li>
+					<li><?php esc_html_e( 'Technical auditors — open the technical appendix and checksums in the export package when a machine-readable tally is required.', 'relatasoft-secure-election-suite' ); ?></li>
+					<li><?php esc_html_e( 'Already in place upstream — ceremony/share verification (Feldman VSS) and threshold decryption without reconstructing the full private key.', 'relatasoft-secure-election-suite' ); ?></li>
+				</ul>
+			</section>
 
 			<?php if ( ! empty( $_GET['rses_decrypted'] ) ) : // phpcs:ignore WordPress.Security.NonceVerification.Recommended ?>
 				<div class="rses-panel rses-panel-success">
-					<p><?php esc_html_e( 'Tally decrypted successfully. Review results below and generate certification.', 'relatasoft-secure-election-suite' ); ?></p>
+					<p><?php esc_html_e( 'Tally decrypted successfully. Review the public results below and generate certification when ready.', 'relatasoft-secure-election-suite' ); ?></p>
 				</div>
 			<?php endif; ?>
 
 			<?php
-			$rses_any = false;
+			$rses_any  = false;
+			$rses_sort = DecryptedResultsPresenter::rses_normalize_sort(
+				isset( $_GET['rses_results_sort'] ) // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+					? sanitize_key( wp_unslash( (string) $_GET['rses_results_sort'] ) ) // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+					: DecryptedResultsPresenter::RSES_SORT_COUNT_DESC
+			);
 			foreach ( $rses_imports as $rses_imp ) :
 				if ( 'verified' !== $rses_imp->status ) {
 					continue;
 				}
-				$rses_any    = true;
-				$rses_result = get_transient( 'rses_decryption_result_' . $rses_imp->id );
+				$rses_any       = true;
+				$rses_result    = get_transient( 'rses_decryption_result_' . $rses_imp->id );
+				$rses_manifest  = $rses_result ? TallyImportRepository::rses_get_manifest( $rses_imp ) : array();
+				$rses_humanized = null;
+				if ( $rses_result ) {
+					$rses_humanized = DecryptedResultsPresenter::rses_humanize(
+						is_array( $rses_result['decrypted_results'] ?? null ) ? $rses_result['decrypted_results'] : array(),
+						is_array( $rses_manifest['ballot'] ?? null ) ? $rses_manifest['ballot'] : array(),
+						$rses_sort
+					);
+				}
 				?>
-				<article class="rses-cert-card">
+				<article class="rses-cert-card" id="rses-cert-<?php echo esc_attr( (string) $rses_imp->id ); ?>">
 					<header class="rses-cert-card-header">
 						<h3><?php echo esc_html( TallyImportRepository::rses_display_election_title( $rses_imp ) ); ?></h3>
-						<?php echo self::rses_import_election_meta_html( $rses_imp ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+						<?php echo self::rses_import_election_meta_html( $rses_imp, $rses_manifest ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
 						<p class="rses-panel-desc">
 							<?php echo self::rses_status_pill( (string) $rses_imp->status ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
 							<span class="description"> · <?php esc_html_e( 'Import', 'relatasoft-secure-election-suite' ); ?> #<?php echo esc_html( (string) $rses_imp->id ); ?></span>
 						</p>
 					</header>
 					<div class="rses-cert-card-body">
-						<?php if ( $rses_result ) : ?>
-							<p class="rses-field-label"><?php esc_html_e( 'Decrypted Results', 'relatasoft-secure-election-suite' ); ?></p>
-							<pre class="rses-decrypted-results"><?php echo esc_html( wp_json_encode( $rses_result['decrypted_results'], JSON_PRETTY_PRINT ) ); ?></pre>
+						<?php if ( $rses_result && is_array( $rses_humanized ) ) : ?>
+							<div class="rses-panel rses-panel-warning" role="note" aria-labelledby="rses-cert-deferred-sig-<?php echo esc_attr( (string) $rses_imp->id ); ?>">
+								<p id="rses-cert-deferred-sig-<?php echo esc_attr( (string) $rses_imp->id ); ?>">
+									<strong><?php esc_html_e( 'Deferred: independent cryptographic signature of the results bulletin', 'relatasoft-secure-election-suite' ); ?></strong>
+								</p>
+								<p class="rses-panel-desc">
+									<?php esc_html_e( 'This screen and its PDF/ZIP exports present the decrypted tally for public understanding. They are not a cryptographically signed results bulletin. A later release will add threshold signing so authenticity can be checked without trusting this server.', 'relatasoft-secure-election-suite' ); ?>
+								</p>
+								<p class="rses-panel-desc">
+									<?php esc_html_e( 'What stands today: plain-language results, certification exports for the official record, ceremony/share verification, and threshold decryption without reconstructing the election private key.', 'relatasoft-secure-election-suite' ); ?>
+								</p>
+							</div>
+
+							<p class="rses-field-label"><?php esc_html_e( 'Public results (plain language)', 'relatasoft-secure-election-suite' ); ?></p>
+							<?php DecryptedResultsPresenter::rses_render_html( $rses_humanized, (string) (int) $rses_imp->id ); ?>
+
+							<details class="rses-raw-results">
+								<summary><?php esc_html_e( 'Technical appendix — raw decrypted tally', 'relatasoft-secure-election-suite' ); ?></summary>
+								<p class="rses-panel-desc"><?php esc_html_e( 'For auditors and systems integration. Most electoral readers can ignore this section.', 'relatasoft-secure-election-suite' ); ?></p>
+								<pre class="rses-decrypted-results"><?php echo esc_html( wp_json_encode( $rses_result['decrypted_results'], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE ) ); ?></pre>
+							</details>
 
 							<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="rses-form">
 								<?php Nonce::rses_field( Nonce::RSES_ACTION_CERTIFICATION ); ?>

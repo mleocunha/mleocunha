@@ -243,20 +243,20 @@ class AdminMenu {
 				<?php if ( ModeLock::rses_is_mode( ModeLock::RSES_MODE_KEY_AUTHORITY ) ) : ?>
 					<div class="rses-dashboard-card">
 						<?php if ( Capability::rses_can_manage_election() ) : ?>
-							<h2><?php esc_html_e( 'Key Authority', 'relatasoft-secure-election-suite' ); ?></h2>
-							<p><?php esc_html_e( 'Generate ElGamal keys, split private exponents with Shamir Secret Sharing, and export public keys / shares.', 'relatasoft-secure-election-suite' ); ?></p>
+							<h2><?php esc_html_e( '1. Key Authority', 'relatasoft-secure-election-suite' ); ?></h2>
+							<p><?php esc_html_e( 'Generate ElGamal keys, split private exponents with Feldman VSS, and export public keys / shares.', 'relatasoft-secure-election-suite' ); ?></p>
 							<p>
 								<a class="button button-primary" href="<?php echo esc_url( admin_url( 'admin.php?page=rses-key-authority' ) ); ?>">
 									<?php esc_html_e( 'Open Key Authority', 'relatasoft-secure-election-suite' ); ?>
 								</a>
 							</p>
 						<?php else : ?>
-							<h2><?php esc_html_e( 'My Shamir Shares', 'relatasoft-secure-election-suite' ); ?></h2>
+							<h2><?php esc_html_e( '1. My Shamir Shares', 'relatasoft-secure-election-suite' ); ?></h2>
 							<p><?php
 								echo esc_html(
 									sprintf(
 										/* translators: %s: electoral authority role label (singular) */
-										__( 'View, copy, and download the Shamir share assigned to your %s account. Keep it offline and confidential.', 'relatasoft-secure-election-suite' ),
+										__( 'View, copy, and download the Feldman VSS share assigned to your %s account. Keep it offline and confidential.', 'relatasoft-secure-election-suite' ),
 										RoleLabels::rses_editor_singular()
 									)
 								);
@@ -344,12 +344,12 @@ class AdminMenu {
 						</div>
 					<?php endif; ?>
 					<div class="rses-dashboard-card">
-						<h2><?php echo Capability::rses_can_manage_election() ? esc_html__( '2. Collect Official Shares', 'relatasoft-secure-election-suite' ) : esc_html__( 'Submit Your Shamir Share', 'relatasoft-secure-election-suite' ); ?></h2>
+						<h2><?php echo Capability::rses_can_manage_election() ? esc_html__( '2. Collect Official Shares', 'relatasoft-secure-election-suite' ) : esc_html__( '1. Submit Your Shamir Share', 'relatasoft-secure-election-suite' ); ?></h2>
 						<p><?php
 							echo esc_html(
 								sprintf(
 									/* translators: %s: electoral authority role label (singular) */
-									__( 'Each %s pastes their offline Shamir share JSON here until the threshold is met.', 'relatasoft-secure-election-suite' ),
+									__( 'Each %s pastes their offline Feldman VSS share JSON here; it becomes an ephemeral partial decrypt until the threshold is met.', 'relatasoft-secure-election-suite' ),
 									RoleLabels::rses_editor_singular()
 								)
 							);

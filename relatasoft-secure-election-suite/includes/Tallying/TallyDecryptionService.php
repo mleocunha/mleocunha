@@ -10,8 +10,7 @@ namespace RelataSoft\SecureElectionSuite\Tallying;
 use RelataSoft\SecureElectionSuite\Crypto\BigInt;
 use RelataSoft\SecureElectionSuite\Crypto\CryptoException;
 use RelataSoft\SecureElectionSuite\Crypto\ElGamalCiphertext;
-use RelataSoft\SecureElectionSuite\Crypto\HomomorphicTally;
-use RelataSoft\SecureElectionSuite\Crypto\ShamirSecretSharing;
+use RelataSoft\SecureElectionSuite\Crypto\ThresholdPartialDecrypt;
 use RelataSoft\SecureElectionSuite\KeyAuthority\ShareEncryptionService;
 use RelataSoft\SecureElectionSuite\Security\AuditLogger;
 use RelataSoft\SecureElectionSuite\Security\Capability;
@@ -19,12 +18,12 @@ use RelataSoft\SecureElectionSuite\Security\Capability;
 defined( 'ABSPATH' ) || exit;
 
 /**
- * In-memory Shamir reconstruction and tally decryption.
+ * Combine Chaum–Pedersen-proven partial decrypts — never reconstruct x.
  */
 class TallyDecryptionService {
 
 	/**
-	 * Decrypt tallies for an import when threshold shares are available.
+	 * Decrypt tallies for an import when threshold contributions are available.
 	 *
 	 * @param int $import_id Import ID.
 	 * @return array{success:bool,message:string,results?:array<string,mixed>}
@@ -75,63 +74,73 @@ class TallyDecryptionService {
 			$rses_p = BigInt::fromDecimalString( $rses_public['p'] );
 			$rses_q = BigInt::fromDecimalString( $rses_public['q'] );
 			$rses_g = BigInt::fromDecimalString( $rses_public['g'] );
-			$rses_y = BigInt::fromDecimalString( $rses_public['y'] );
 
-			$rses_share_points = array();
-			$rses_field_prime  = null;
-
+			$rses_contributions = array();
 			foreach ( array_slice( $rses_submissions, 0, $rses_threshold ) as $rses_sub ) {
-				$rses_payload = json_decode(
+				$rses_pkg = json_decode(
 					ShareEncryptionService::rses_decrypt( $rses_sub->share_payload_encrypted ),
 					true
 				);
+				if ( ! is_array( $rses_pkg ) ) {
+					throw new CryptoException( __( 'Invalid contribution payload.', 'relatasoft-secure-election-suite' ) );
+				}
+				ThresholdPartialDecrypt::rses_validate_contribution( $rses_pkg );
 
-				if ( ! is_array( $rses_payload ) ) {
-					throw new CryptoException( __( 'Invalid share payload.', 'relatasoft-secure-election-suite' ) );
+				if ( ( $rses_pkg['public_key']['p'] ?? '' ) !== ( $rses_public['p'] ?? null )
+					|| ( $rses_pkg['public_key']['y'] ?? '' ) !== ( $rses_public['y'] ?? null ) ) {
+					throw new CryptoException( __( 'Contribution public key mismatch.', 'relatasoft-secure-election-suite' ) );
 				}
 
-				ShamirSecretSharing::validateSharePayload( $rses_payload );
-
-				if ( $rses_payload['public_key']['p'] !== $rses_public['p']
-					|| $rses_payload['public_key']['y'] !== $rses_public['y'] ) {
-					throw new CryptoException( __( 'Share public key mismatch.', 'relatasoft-secure-election-suite' ) );
-				}
-
-				$rses_field_prime = BigInt::fromDecimalString( $rses_payload['field_prime'] );
-
-				$rses_share_points[] = array(
-					'x' => (int) $rses_payload['share_index'],
-					'y' => BigInt::fromDecimalString( $rses_payload['share_value'] ),
-				);
+				$rses_contributions[] = $rses_pkg;
 			}
 
-			$rses_x = ShamirSecretSharing::reconstructWithThreshold(
-				$rses_share_points,
-				$rses_field_prime,
-				$rses_threshold
-			);
-
-			$rses_y_check = BigInt::modPow( $rses_g, $rses_x, $rses_p );
-			if ( \gmp_cmp( $rses_y_check, $rses_y ) !== 0 ) {
-				throw new CryptoException( __( 'Reconstructed key failed validation.', 'relatasoft-secure-election-suite' ) );
+			// Index partials by (question_id, option_id).
+			$rses_by_tally = array();
+			foreach ( $rses_contributions as $rses_pkg ) {
+				foreach ( (array) ( $rses_pkg['partials'] ?? array() ) as $rses_partial ) {
+					if ( ! is_array( $rses_partial ) ) {
+						continue;
+					}
+					$rses_key = (string) ( $rses_partial['question_id'] ?? '' ) . ':' . (string) ( $rses_partial['option_id'] ?? '' );
+					$rses_by_tally[ $rses_key ][] = $rses_partial;
+				}
 			}
 
 			$rses_decrypted = array();
 
 			foreach ( $rses_tallies as $rses_tally ) {
+				if ( ! is_array( $rses_tally ) ) {
+					continue;
+				}
+				$rses_key = (string) ( $rses_tally['question_id'] ?? '' ) . ':' . (string) ( $rses_tally['option_id'] ?? '' );
+				$rses_partials = $rses_by_tally[ $rses_key ] ?? array();
+				if ( count( $rses_partials ) < $rses_threshold ) {
+					throw new CryptoException(
+						sprintf(
+							/* translators: %s: question/option key */
+							__( 'Missing partial decrypts for tally %s.', 'relatasoft-secure-election-suite' ),
+							$rses_key
+						)
+					);
+				}
+
 				$rses_ct = ElGamalCiphertext::fromDecimalStrings(
-					$rses_tally['aggregate_alpha'],
-					$rses_tally['aggregate_beta']
+					(string) $rses_tally['aggregate_alpha'],
+					(string) $rses_tally['aggregate_beta']
 				);
 
-				$rses_max = (int) ( $rses_tally['ballot_count'] ?? $rses_tally['max_decode_count'] ?? 1000 );
-
-				$rses_count = HomomorphicTally::decryptAndDecode(
-					$rses_ct,
+				$rses_alpha_x = ThresholdPartialDecrypt::rses_combine_partials(
+					array_slice( $rses_partials, 0, $rses_threshold ),
 					$rses_p,
-					$rses_q,
+					$rses_q
+				);
+
+				$rses_max   = (int) ( $rses_tally['ballot_count'] ?? $rses_tally['max_decode_count'] ?? 1000 );
+				$rses_count = ThresholdPartialDecrypt::rses_decrypt_and_decode(
+					$rses_ct,
+					$rses_alpha_x,
+					$rses_p,
 					$rses_g,
-					$rses_x,
 					$rses_max
 				);
 
@@ -142,20 +151,31 @@ class TallyDecryptionService {
 				);
 			}
 
-			unset( $rses_x );
-
 			$rses_result_data = array(
 				'decrypted_results' => $rses_decrypted,
 				'import_id'         => $import_id,
 				'threshold'         => $rses_threshold,
 				'submissions'       => count( $rses_submissions ),
+				'scheme_id'         => ThresholdPartialDecrypt::SCHEME_ID,
+				'private_key_reconstruction' => 'prohibited',
 			);
 
 			set_transient( 'rses_decryption_result_' . $import_id, $rses_result_data, HOUR_IN_SECONDS );
 
+			AuditLogger::rses_log(
+				'tally_decrypt_threshold_cp',
+				'tally_import',
+				$import_id,
+				array(
+					'threshold'   => $rses_threshold,
+					'submissions' => count( $rses_submissions ),
+					'scheme_id'   => ThresholdPartialDecrypt::SCHEME_ID,
+				)
+			);
+
 			return array(
 				'success' => true,
-				'message' => __( 'Tally decrypted successfully.', 'relatasoft-secure-election-suite' ),
+				'message' => __( 'Tally decrypted successfully via threshold partial decryption (no private key reconstruction).', 'relatasoft-secure-election-suite' ),
 				'results' => $rses_result_data,
 			);
 		} catch ( CryptoException $rses_e ) {

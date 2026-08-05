@@ -8,7 +8,9 @@
 namespace RelataSoft\SecureElectionSuite\KeyAuthority;
 
 use RelataSoft\SecureElectionSuite\Database\Repository;
+use RelataSoft\SecureElectionSuite\Database\Schema;
 use RelataSoft\SecureElectionSuite\Exports\HashService;
+use RelataSoft\SecureElectionSuite\Voting\ElectionRepository;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -130,6 +132,92 @@ class KeyRepository {
 	}
 
 	/**
+	 * Delete Feldman VSS share rows for a key.
+	 *
+	 * @param int $key_id Key ID.
+	 * @return int Rows deleted.
+	 */
+	public static function rses_delete_shares_for_key( int $key_id ): int {
+		global $wpdb;
+
+		$key_id = absint( $key_id );
+		if ( $key_id < 1 ) {
+			return 0;
+		}
+
+		$rses_table = Schema::rses_table( 'rses_shares' );
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+		$rses_deleted = $wpdb->delete(
+			$rses_table,
+			array( 'key_id' => $key_id ),
+			array( '%d' )
+		);
+
+		return false === $rses_deleted ? 0 : (int) $rses_deleted;
+	}
+
+	/**
+	 * Whether this key is assigned to any election round on this site.
+	 *
+	 * @param int $key_id Key ID.
+	 */
+	public static function rses_is_linked_to_elections( int $key_id ): bool {
+		return ! empty( ElectionRepository::rses_list_usage_by_key( $key_id ) );
+	}
+
+	/**
+	 * Permanently delete a key, its shares, and clear an active keygen job for it.
+	 *
+	 * Refuses when the key is still linked to an election round on this site.
+	 *
+	 * @param int $key_id Key ID.
+	 * @return array{ok:bool,error:?string,label:string}
+	 */
+	public static function rses_delete_permanently( int $key_id ): array {
+		$key_id     = absint( $key_id );
+		$rses_key   = self::rses_get( $key_id );
+		$rses_label = $rses_key ? (string) $rses_key->key_label : '';
+
+		if ( ! $rses_key ) {
+			return array(
+				'ok'    => false,
+				'error' => __( 'Key not found.', 'relatasoft-secure-election-suite' ),
+				'label' => '',
+			);
+		}
+
+		if ( self::rses_is_linked_to_elections( $key_id ) ) {
+			return array(
+				'ok'    => false,
+				'error' => __( 'This key is still linked to an election on this site. Remove or reassign that election before deleting the key.', 'relatasoft-secure-election-suite' ),
+				'label' => $rses_label,
+			);
+		}
+
+		self::rses_delete_shares_for_key( $key_id );
+
+		$rses_job = KeyGenerationJob::rses_get();
+		if ( is_array( $rses_job ) && (int) ( $rses_job['key_id'] ?? 0 ) === $key_id ) {
+			KeyGenerationJob::rses_delete();
+		}
+
+		$rses_ok = self::rses_delete( $key_id );
+		if ( ! $rses_ok ) {
+			return array(
+				'ok'    => false,
+				'error' => __( 'Could not delete this key.', 'relatasoft-secure-election-suite' ),
+				'label' => $rses_label,
+			);
+		}
+
+		return array(
+			'ok'    => true,
+			'error' => null,
+			'label' => $rses_label,
+		);
+	}
+
+	/**
 	 * Get shares for a key.
 	 *
 	 * @param int $key_id Key ID.
@@ -156,5 +244,34 @@ class KeyRepository {
 		);
 
 		return $rses_shares[0] ?? null;
+	}
+
+	/**
+	 * Fail-closed ceremony invalidation after a failed share verification.
+	 *
+	 * @param int    $key_id Key ID.
+	 * @param string $reason Short reason code.
+	 */
+	public static function rses_invalidate_ceremony( int $key_id, string $reason ): bool {
+		return Repository::rses_update(
+			'rses_keys',
+			array(
+				'ceremony_status' => 'CEREMONY_INVALID:' . $reason,
+				'updated_at'      => current_time( 'mysql', true ),
+			),
+			array( 'id' => $key_id ),
+			array( '%s', '%s' ),
+			array( '%d' )
+		);
+	}
+
+	/**
+	 * Whether the ceremony is still usable for exports / tally material.
+	 *
+	 * @param object $key Key row.
+	 */
+	public static function rses_ceremony_is_active( object $key ): bool {
+		$status = (string) ( $key->ceremony_status ?? 'active' );
+		return 'active' === $status || '' === $status;
 	}
 }
