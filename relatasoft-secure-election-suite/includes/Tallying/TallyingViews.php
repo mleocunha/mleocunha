@@ -284,7 +284,7 @@ class TallyingViews {
 					echo esc_html(
 						sprintf(
 							/* translators: %s: electoral authority role label (singular) */
-							__( 'Paste the share JSON from Key Authority. Each %s submits independently; only an Administrator can decrypt after the threshold is met.', 'relatasoft-secure-election-suite' ),
+							__( 'Paste the Feldman VSS share JSON from Key Authority. It is used ephemerally to build Chaum–Pedersen partial decrypts (the share itself is not stored). Each %s submits independently; only an Administrator can combine after the threshold is met.', 'relatasoft-secure-election-suite' ),
 							RoleLabels::rses_editor_singular()
 						)
 					);
@@ -293,12 +293,12 @@ class TallyingViews {
 
 			<?php if ( ! empty( $_GET['rses_submitted'] ) ) : // phpcs:ignore WordPress.Security.NonceVerification.Recommended ?>
 				<div class="rses-panel rses-panel-success">
-					<p><?php esc_html_e( 'Your Shamir share was submitted successfully.', 'relatasoft-secure-election-suite' ); ?></p>
+					<p><?php esc_html_e( 'Your partial decryption contribution was submitted successfully (share value was not stored).', 'relatasoft-secure-election-suite' ); ?></p>
 				</div>
 			<?php endif; ?>
 
 			<div class="rses-panel rses-panel-info">
-				<p><?php esc_html_e( 'Use the same share JSON you copied or downloaded under My Shamir Shares on the Key Authority site. Never paste another official’s share.', 'relatasoft-secure-election-suite' ); ?></p>
+				<p><?php esc_html_e( 'Use the same Feldman VSS share JSON you copied or downloaded under My Shamir Shares on the Key Authority site. Never paste another official’s share. The server keeps only proven partial decrypts.', 'relatasoft-secure-election-suite' ); ?></p>
 			</div>
 
 			<?php
