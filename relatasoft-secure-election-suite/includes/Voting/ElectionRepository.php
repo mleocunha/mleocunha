@@ -8,6 +8,7 @@
 namespace RelataSoft\SecureElectionSuite\Voting;
 
 use RelataSoft\SecureElectionSuite\Database\Repository;
+use RelataSoft\SecureElectionSuite\Database\Schema;
 use RelataSoft\SecureElectionSuite\Exports\HashService;
 
 defined( 'ABSPATH' ) || exit;
@@ -127,6 +128,38 @@ class ElectionRepository {
 			array( $election_id ),
 			'round_number ASC'
 		);
+	}
+
+	/**
+	 * List election/round rows that use a given key on this site.
+	 *
+	 * @param int $key_id Key ID.
+	 * @return array<int,object>
+	 */
+	public static function rses_list_usage_by_key( int $key_id ): array {
+		global $wpdb;
+
+		if ( $key_id < 1 ) {
+			return array();
+		}
+
+		$rses_rounds    = Schema::rses_table( 'rses_election_rounds' );
+		$rses_elections = Schema::rses_table( 'rses_elections' );
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$rses_rows = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT e.id AS election_id, e.title AS election_title, e.status AS election_status,
+					r.id AS round_id, r.title AS round_title, r.round_number, r.status AS round_status, r.key_id
+				FROM {$rses_rounds} r
+				INNER JOIN {$rses_elections} e ON e.id = r.election_id
+				WHERE r.key_id = %d
+				ORDER BY e.id DESC, r.round_number ASC",
+				$key_id
+			)
+		);
+
+		return is_array( $rses_rows ) ? $rses_rows : array();
 	}
 
 	/**

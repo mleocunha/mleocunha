@@ -14,6 +14,7 @@ use RelataSoft\SecureElectionSuite\Crypto\CryptoException;
 use RelataSoft\SecureElectionSuite\Crypto\ShareVerifyService;
 use RelataSoft\SecureElectionSuite\Security\AuditLogger;
 use RelataSoft\SecureElectionSuite\Security\Capability;
+use RelataSoft\SecureElectionSuite\Security\ConfirmWord;
 use RelataSoft\SecureElectionSuite\Security\Nonce;
 use RelataSoft\SecureElectionSuite\Security\Sanitizer;
 
@@ -32,6 +33,7 @@ class KeyAuthorityController {
 		add_action( 'admin_post_rses_import_key', array( self::class, 'rses_handle_import_key' ) );
 		add_action( 'admin_post_rses_export_key', array( self::class, 'rses_handle_export_key' ) );
 		add_action( 'admin_post_rses_key_action', array( self::class, 'rses_handle_key_action' ) );
+		add_action( 'admin_post_rses_key_delete', array( self::class, 'rses_handle_key_delete' ) );
 		add_action( 'admin_post_rses_verify_share', array( self::class, 'rses_handle_verify_share' ) );
 
 		add_action( 'wp_ajax_rses_keygen_start', array( self::class, 'rses_ajax_keygen_start' ) );
@@ -247,7 +249,8 @@ class KeyAuthorityController {
 			exit;
 		}
 
-		$result = ShareVerifyService::rses_verify_payload( $payload );
+		$payload = KeyExportService::rses_unwrap_share_payload( $payload );
+		$result  = ShareVerifyService::rses_verify_payload( $payload );
 
 		if ( ! $result['ok'] && ShareVerifyService::CODE_COMMITMENT_MISMATCH === $result['code'] ) {
 			$key_id = (int) ( $result['details']['key_id'] ?? $payload['key_id'] ?? 0 );
@@ -332,15 +335,15 @@ class KeyAuthorityController {
 	}
 
 	/**
-	 * Handle trash/restore/delete actions.
+	 * Handle trash/restore actions (legacy soft-delete path).
 	 */
 	public static function rses_handle_key_action(): void {
 		Capability::rses_require_admin();
 		Nonce::rses_verify_or_die( Nonce::RSES_ACTION_KEY_EXPORT );
 		ModeLock::rses_require_mode( ModeLock::RSES_MODE_KEY_AUTHORITY );
 
-		$rses_key_id  = Sanitizer::rses_id( $_POST['key_id'] ?? 0 );
-		$rses_action  = Sanitizer::rses_text( $_POST['rses_key_action'] ?? '' );
+		$rses_key_id = Sanitizer::rses_id( $_POST['key_id'] ?? 0 );
+		$rses_action = Sanitizer::rses_text( $_POST['rses_key_action'] ?? '' );
 
 		switch ( $rses_action ) {
 			case 'trash':
@@ -352,12 +355,63 @@ class KeyAuthorityController {
 				AuditLogger::rses_log( 'key_restore', 'key', $rses_key_id );
 				break;
 			case 'delete':
-				KeyRepository::rses_delete( $rses_key_id );
-				AuditLogger::rses_log( 'key_delete', 'key', $rses_key_id );
+				// Prefer admin_post_rses_key_delete (typed confirm). Kept for compatibility.
+				$rses_result = KeyRepository::rses_delete_permanently( $rses_key_id );
+				if ( $rses_result['ok'] ) {
+					AuditLogger::rses_log( 'key_delete', 'key', $rses_key_id, array( 'label' => $rses_result['label'] ) );
+				}
 				break;
 		}
 
 		wp_safe_redirect( admin_url( 'admin.php?page=rses-key-authority' ) );
+		exit;
+	}
+
+	/**
+	 * Permanently delete a generated key after typed confirmation.
+	 */
+	public static function rses_handle_key_delete(): void {
+		Capability::rses_require_admin();
+		Nonce::rses_verify_or_die( Nonce::RSES_ACTION_KEY_DELETE );
+		ModeLock::rses_require_mode( ModeLock::RSES_MODE_KEY_AUTHORITY );
+
+		$rses_key_id = Sanitizer::rses_post_id( 'key_id' );
+		$rses_typed  = isset( $_POST['rses_delete_confirm'] )
+			? sanitize_text_field( wp_unslash( (string) $_POST['rses_delete_confirm'] ) )
+			: '';
+
+		if ( ! ConfirmWord::rses_matches( $rses_typed ) ) {
+			wp_die(
+				esc_html(
+					sprintf(
+						/* translators: %s: required confirmation word in the active locale */
+						__( 'Deletion cancelled. Type “%s” exactly to confirm permanently deleting this key.', 'relatasoft-secure-election-suite' ),
+						ConfirmWord::rses_word()
+					)
+				)
+			);
+		}
+
+		$rses_result = KeyRepository::rses_delete_permanently( $rses_key_id );
+		if ( ! $rses_result['ok'] ) {
+			wp_die( esc_html( (string) $rses_result['error'] ) );
+		}
+
+		AuditLogger::rses_log(
+			'key_delete',
+			'key',
+			$rses_key_id,
+			array(
+				'label'      => $rses_result['label'],
+				'deleted_by' => get_current_user_id(),
+			)
+		);
+
+		wp_safe_redirect(
+			admin_url(
+				'admin.php?page=rses-key-authority&rses_key_deleted=1&label=' . rawurlencode( (string) $rses_result['label'] )
+			)
+		);
 		exit;
 	}
 }
