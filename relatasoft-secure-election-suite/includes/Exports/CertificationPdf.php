@@ -12,7 +12,8 @@ use RelataSoft\SecureElectionSuite\Tallying\DecryptedResultsPresenter;
 defined( 'ABSPATH' ) || exit;
 
 /**
- * Builds a multi-page UTF-8 PDF: hero, status, result tables with vote bars, completion stamp, optional signed JSON.
+ * Builds a multi-page UTF-8 PDF: hero, transparency notice, result tables with vote bars,
+ * completion stamp, and (deferred) optional threshold-signed JSON appendix.
  */
 class CertificationPdf {
 
@@ -57,10 +58,11 @@ class CertificationPdf {
 	private function rses_build( array $report, array $humanized, ?array $package ): string {
 		$this->rses_new_page( false );
 		$this->rses_draw_hero();
-		$this->rses_draw_signed_banner( $report );
+		$this->rses_draw_transparency_banner( $report );
 		$this->rses_draw_election_card( $report, $humanized );
 		$this->rses_draw_results( $humanized );
 		$this->rses_draw_completed_stamp();
+		// Optional appendix reserved for a future threshold-signed package (deferred).
 		if ( is_array( $package ) ) {
 			$this->rses_draw_signed_json( $package );
 		}
@@ -167,7 +169,7 @@ class CertificationPdf {
 			22,
 			$rses_ink
 		);
-		$rses_lead = __( 'Review decrypted tallies, generate certification records, and export ZIP or PDF packages.', 'relatasoft-secure-election-suite' );
+		$rses_lead = __( 'Public tally record for electoral authorities, observers, and candidates.', 'relatasoft-secure-election-suite' );
 		$rses_lead = $this->rses_font->rses_fit_text( $rses_lead, 8.5, self::RSES_PAGE_W - ( 2 * self::RSES_MARGIN ) );
 		$this->rses_text( self::RSES_MARGIN, $rses_y0 + 18, $rses_lead, 8.5, $rses_mute );
 
@@ -175,36 +177,55 @@ class CertificationPdf {
 	}
 
 	/**
+	 * Transparency notice: what this PDF is (and is not) for electoral readers.
+	 *
 	 * @param array<string,mixed> $report Meta.
 	 */
-	private function rses_draw_signed_banner( array $report ): void {
-		$rses_bg   = array( 0.890, 0.961, 0.890 );
-		$rses_ink  = array( 0.102, 0.400, 0.102 );
-		$rses_line = array( 0.776, 0.918, 0.776 );
-		$rses_x    = self::RSES_MARGIN;
-		$rses_w    = self::RSES_PAGE_W - ( 2 * self::RSES_MARGIN );
+	private function rses_draw_transparency_banner( array $report ): void {
+		$rses_bg     = array( 0.937, 0.965, 0.988 );
+		$rses_ink    = array( 0.110, 0.165, 0.196 );
+		$rses_mute   = array( 0.353, 0.420, 0.459 );
+		$rses_border = array( 0.722, 0.820, 0.882 );
+		$rses_x      = self::RSES_MARGIN;
+		$rses_w      = self::RSES_PAGE_W - ( 2 * self::RSES_MARGIN );
 
 		$rses_fp = (string) ( $report['public_key_fingerprint'] ?? '' );
 		if ( '' === $rses_fp && ! empty( $report['public_key_hash'] ) ) {
 			$rses_fp = substr( (string) $report['public_key_hash'], 0, 12 );
 		}
-		$rses_detail = sprintf(
-			/* translators: 1: fingerprint, 2: scheme */
-			__( 'Schnorr signature under election public key (fp %1$s), scheme %2$s. Anyone with the signed JSON can verify without trusting this server.', 'relatasoft-secure-election-suite' ),
-			'' !== $rses_fp ? $rses_fp : '—',
-			(string) ( $report['signature_scheme'] ?? 'schnorr-sha256-modpq-v1' )
+
+		$rses_lines = array(
+			__( 'This document presents the decrypted tally in plain language for electoral authorities, voters, observers, and candidates.', 'relatasoft-secure-election-suite' ),
+			__( 'Independent cryptographic signature of the results bulletin is deferred and is not included in this version.', 'relatasoft-secure-election-suite' ),
+			sprintf(
+				/* translators: %s: public-key fingerprint or dash */
+				__( 'Election public-key fingerprint: %s. Do not treat this PDF as a signed results package.', 'relatasoft-secure-election-suite' ),
+				'' !== $rses_fp ? $rses_fp : '—'
+			),
 		);
-		$rses_detail_lines = $this->rses_wrap_lines( $rses_detail, 8.5, $rses_w - 24, 3 );
-		$rses_h            = 28.0 + ( count( $rses_detail_lines ) * 11.0 );
+
+		$rses_h = 30.0 + ( count( $rses_lines ) * 11.0 );
 		$this->rses_ensure_space( $rses_h + 12 );
 		$rses_y = $this->rses_y - $rses_h;
 		$this->rses_fill_rect( $rses_x, $rses_y, $rses_w, $rses_h, $rses_bg );
-		$this->rses_stroke_rect( $rses_x, $rses_y, $rses_w, $rses_h, $rses_line, 0.8 );
+		$this->rses_stroke_rect( $rses_x, $rses_y, $rses_w, $rses_h, $rses_border, 0.8 );
 
-		$this->rses_text( $rses_x + 12, $rses_y + $rses_h - 18, __( 'Digitally signed', 'relatasoft-secure-election-suite' ), 11, $rses_ink );
-		$rses_ty = $rses_y + $rses_h - 34;
-		foreach ( $rses_detail_lines as $rses_detail_line ) {
-			$this->rses_text( $rses_x + 12, $rses_ty, $rses_detail_line, 8.5, $rses_ink );
+		$this->rses_text(
+			$rses_x + 12,
+			$rses_y + $rses_h - 16,
+			__( 'Transparency notice', 'relatasoft-secure-election-suite' ),
+			11,
+			$rses_ink
+		);
+		$rses_ty = $rses_y + $rses_h - 32;
+		foreach ( $rses_lines as $rses_notice_line ) {
+			$this->rses_text(
+				$rses_x + 12,
+				$rses_ty,
+				$this->rses_font->rses_fit_text( $rses_notice_line, 8.5, $rses_w - 24 ),
+				8.5,
+				$rses_mute
+			);
 			$rses_ty -= 11;
 		}
 		$this->rses_y = $rses_y - 14;

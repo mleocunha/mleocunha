@@ -1,6 +1,6 @@
 # Evolução criptográfica — lab SSS → VSS (reimplementação)
 
-**Status:** Fase 1 (`1.0.28.0`) + Fase 2 (`1.0.29.0`) landed nesta lab  
+**Status:** Fase 1 (`1.0.28.0`) + Fase 2 (`1.0.29.0`) + UX certificação (`1.0.29.1`) nesta lab  
 **Plugin:** RelataSoft Secure Election Suite  
 **Branch:** `cursor/vss-feldman-threshold-03b3` (base `cursor/votador-wp-sss-1.0.27-2eb1`)
 
@@ -16,8 +16,9 @@
 | Cerimônia ZIP | `ceremony-manifest.json`, `commitments.json`, `ceremony-public-key.json`, `participants.json`, instruções de verify |
 | Submit | Fail-closed se a fração não verificar |
 | UI pt_BR | Manter “fração/frações”; mencionar Feldman/VSS onde couber |
+| Assinatura Schnorr dos resultados | **Adiada** — UI/PDF/ZIP estruturados para publicidade eleitoral sem fingir boletim assinado |
 | Votador | Entra nesta entrega (demo ponta a ponta) |
-| Melhorias 1.0.27.8–.19 | Reaplicar **depois** do núcleo VSS |
+| Melhorias 1.0.27.8–.19 | Reaplicar **depois** do núcleo VSS (parcialmente reaplicadas sem assinatura de resultados) |
 
 ## Schemes
 
@@ -41,6 +42,13 @@ ec-elgamal-p521-pedersen-dkg-v1 planned
 - Submit: partilha usada de forma efémera → contribuição com partials + provas Chaum–Pedersen (a partilha **não** é persistida)
 - Decrypt: combina partials com Lagrange; `private_key_reconstruction = prohibited`
 - Classes: `ChaumPedersen`, `ThresholdPartialDecrypt`
+
+## UX certificação (`1.0.29.1`)
+
+- Ecrã Certification: “como ler” por público (autoridades, eleitores/observadores/candidatos, auditores)
+- Aviso explícito de assinatura do boletim **adiada** (não tratar PDF/ZIP como resultados assinados)
+- PDF com “Transparency notice”; ZIP `README.txt` em camadas (publicidade → apêndice técnico → checksums)
+- Resultados humanizados + apêndice técnico; sem reintroduzir reconstrução de `x` para assinar
 
 ## Testes
 

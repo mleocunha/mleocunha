@@ -117,7 +117,11 @@ class CertificationReportService {
 			),
 			'certification-report.pdf'  => $rses_pdf_bytes,
 			'README.txt'                => __(
-				'RelataSoft Secure Election Suite - Certification Export. humanized-results.json and the PDF use ballot labels for electoral authorities and observers. decrypted-results.json is the raw technical tally. Digital Schnorr signature of published results is planned for a later release (threshold signing) and is not included in this version — do not treat this package as cryptographically signed results.',
+				"RelataSoft Secure Election Suite — Certification Export\n\n"
+				. "1) humanized-results.json and certification-report.pdf — plain-language tally (ballot labels and vote counts) for electoral authorities, voters, observers, and candidates.\n"
+				. "2) decrypted-results.json and verification.json — technical appendix for auditors.\n"
+				. "3) checksums.json — integrity of the files in this ZIP.\n\n"
+				. 'Independent cryptographic signature of the results bulletin (threshold signing) is deferred and is not included in this version. Do not treat this package as a cryptographically signed results bulletin.',
 				'relatasoft-secure-election-suite'
 			),
 		);

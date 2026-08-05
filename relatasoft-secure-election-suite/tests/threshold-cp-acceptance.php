@@ -6,7 +6,7 @@
  */
 
 define( 'ABSPATH', true );
-define( 'RSES_VERSION', '1.0.29.0' );
+define( 'RSES_VERSION', '1.0.29.1' );
 
 require_once dirname( __DIR__ ) . '/includes/Crypto/CryptoException.php';
 require_once dirname( __DIR__ ) . '/includes/Crypto/BigInt.php';

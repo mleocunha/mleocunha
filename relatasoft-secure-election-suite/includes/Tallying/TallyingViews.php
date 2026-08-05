@@ -640,12 +640,26 @@ class TallyingViews {
 
 				<p class="rses-hero-kicker"><?php esc_html_e( 'Tallying', 'relatasoft-secure-election-suite' ); ?></p>
 				<h1 class="rses-hero-title"><?php esc_html_e( 'Certification', 'relatasoft-secure-election-suite' ); ?></h1>
-				<p class="rses-hero-lead"><?php esc_html_e( 'Review decrypted tallies, generate certification records, and export ZIP or PDF packages.', 'relatasoft-secure-election-suite' ); ?></p>
+				<p class="rses-hero-lead"><?php esc_html_e( 'Public review of the decrypted tally — structured so electoral authorities, voters, observers, and candidates can understand the outcome without specialized cryptography training.', 'relatasoft-secure-election-suite' ); ?></p>
 			</header>
+
+			<section class="rses-panel rses-panel-card" aria-labelledby="rses-cert-how-to-read">
+				<header class="rses-panel-header">
+					<p class="rses-panel-kicker"><?php esc_html_e( 'How to read this screen', 'relatasoft-secure-election-suite' ); ?></p>
+					<h2 class="rses-panel-title" id="rses-cert-how-to-read"><?php esc_html_e( 'Electoral publicity first', 'relatasoft-secure-election-suite' ); ?></h2>
+					<p class="rses-panel-desc"><?php esc_html_e( 'In the tradition of electoral law, the count must be intelligible to those entitled to follow it. Read the public results first; use the technical appendix only if you need machine-readable detail.', 'relatasoft-secure-election-suite' ); ?></p>
+				</header>
+				<ul class="rses-panel-desc rses-share-bind-list">
+					<li><?php esc_html_e( 'Electoral authorities — confirm the humanized results, generate the certification record, and export PDF/ZIP for the official file.', 'relatasoft-secure-election-suite' ); ?></li>
+					<li><?php esc_html_e( 'Voters, observers, and candidates — read the same plain-language results table (questions, options, vote counts, participation).', 'relatasoft-secure-election-suite' ); ?></li>
+					<li><?php esc_html_e( 'Technical auditors — open the technical appendix and checksums in the export package when a machine-readable tally is required.', 'relatasoft-secure-election-suite' ); ?></li>
+					<li><?php esc_html_e( 'Already in place upstream — ceremony/share verification (Feldman VSS) and threshold decryption without reconstructing the full private key.', 'relatasoft-secure-election-suite' ); ?></li>
+				</ul>
+			</section>
 
 			<?php if ( ! empty( $_GET['rses_decrypted'] ) ) : // phpcs:ignore WordPress.Security.NonceVerification.Recommended ?>
 				<div class="rses-panel rses-panel-success">
-					<p><?php esc_html_e( 'Tally decrypted successfully. Review results below and generate certification.', 'relatasoft-secure-election-suite' ); ?></p>
+					<p><?php esc_html_e( 'Tally decrypted successfully. Review the public results below and generate certification when ready.', 'relatasoft-secure-election-suite' ); ?></p>
 				</div>
 			<?php endif; ?>
 
@@ -683,19 +697,24 @@ class TallyingViews {
 					</header>
 					<div class="rses-cert-card-body">
 						<?php if ( $rses_result && is_array( $rses_humanized ) ) : ?>
-							<div class="rses-panel rses-panel-info rses-signed-banner">
-								<p>
-									<strong><?php esc_html_e( 'Digital signature of results — planned / not yet available', 'relatasoft-secure-election-suite' ); ?></strong>
-									—
-									<?php esc_html_e( 'Threshold Schnorr signing of published results is deferred. This release shows humanized decrypted tallies and certification exports for electoral authorities and observers, but does not attach a cryptographic results signature. Do not treat ZIP/PDF packages as Schnorr-signed results.', 'relatasoft-secure-election-suite' ); ?>
+							<div class="rses-panel rses-panel-warning" role="note" aria-labelledby="rses-cert-deferred-sig-<?php echo esc_attr( (string) $rses_imp->id ); ?>">
+								<p id="rses-cert-deferred-sig-<?php echo esc_attr( (string) $rses_imp->id ); ?>">
+									<strong><?php esc_html_e( 'Deferred: independent cryptographic signature of the results bulletin', 'relatasoft-secure-election-suite' ); ?></strong>
+								</p>
+								<p class="rses-panel-desc">
+									<?php esc_html_e( 'This screen and its PDF/ZIP exports present the decrypted tally for public understanding. They are not a cryptographically signed results bulletin. A later release will add threshold signing so authenticity can be checked without trusting this server.', 'relatasoft-secure-election-suite' ); ?>
+								</p>
+								<p class="rses-panel-desc">
+									<?php esc_html_e( 'What stands today: plain-language results, certification exports for the official record, ceremony/share verification, and threshold decryption without reconstructing the election private key.', 'relatasoft-secure-election-suite' ); ?>
 								</p>
 							</div>
 
-							<p class="rses-field-label"><?php esc_html_e( 'Results', 'relatasoft-secure-election-suite' ); ?></p>
+							<p class="rses-field-label"><?php esc_html_e( 'Public results (plain language)', 'relatasoft-secure-election-suite' ); ?></p>
 							<?php DecryptedResultsPresenter::rses_render_html( $rses_humanized, (string) (int) $rses_imp->id ); ?>
 
 							<details class="rses-raw-results">
-								<summary><?php esc_html_e( 'Raw decrypted tally (technical)', 'relatasoft-secure-election-suite' ); ?></summary>
+								<summary><?php esc_html_e( 'Technical appendix — raw decrypted tally', 'relatasoft-secure-election-suite' ); ?></summary>
+								<p class="rses-panel-desc"><?php esc_html_e( 'For auditors and systems integration. Most electoral readers can ignore this section.', 'relatasoft-secure-election-suite' ); ?></p>
 								<pre class="rses-decrypted-results"><?php echo esc_html( wp_json_encode( $rses_result['decrypted_results'], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE ) ); ?></pre>
 							</details>
 
