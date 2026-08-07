@@ -77,6 +77,7 @@ export async function resetPasswordViaRoundcube(page, opts) {
     await page.waitForTimeout(2000);
 
     const resetLink = await waitForNewResetLinkInRoundcube(mailPage, {
+      mailUrl,
       subject,
       knownSubjects,
       userLogin,
@@ -186,6 +187,7 @@ async function requestPasswordResetFromLogin(page, opts) {
  */
 async function waitForNewResetLinkInRoundcube(page, opts) {
   const {
+    mailUrl,
     subject,
     knownSubjects,
     userLogin,
@@ -198,14 +200,23 @@ async function waitForNewResetLinkInRoundcube(page, opts) {
 
   const deadline = Date.now() + timeoutMs;
   let lastSubjects = [];
+  let poll = 0;
 
   while (Date.now() < deadline) {
-    await refreshRoundcubeInbox(page);
+    poll += 1;
+    // Hard refresh of the inbox view every other poll so new mail shows up
+    // quickly (checkmail alone can lag for minutes on some hosts).
+    await refreshRoundcubeInbox(page, {
+      mailUrl,
+      forceReload: poll === 1 || poll % 2 === 0,
+      logger,
+      poll,
+    });
 
     const match = await findNewestResetMessageRow(page, subject, knownSubjects);
     if (!match) {
       lastSubjects = await listVisibleSubjects(page);
-      await page.waitForTimeout(2000);
+      await page.waitForTimeout(1200);
       continue;
     }
 
@@ -223,9 +234,10 @@ async function waitForNewResetLinkInRoundcube(page, opts) {
         top_uid: match.uid || null,
         unread: match.unread,
         newer: isNewerThanBaseline,
+        poll,
       });
       lastSubjects = await listVisibleSubjects(page);
-      await page.waitForTimeout(2000);
+      await page.waitForTimeout(1200);
       continue;
     }
 
@@ -254,7 +266,7 @@ async function waitForNewResetLinkInRoundcube(page, opts) {
 
     logger?.warn?.('Preview aberto, mas não foi possível montar link action=rp; tentando de novo…');
     lastSubjects = await listVisibleSubjects(page);
-    await page.waitForTimeout(2000);
+    await page.waitForTimeout(1200);
   }
 
   throw new Error(
@@ -384,9 +396,41 @@ async function openMessageRow(page, row) {
   }
 }
 
-async function refreshRoundcubeInbox(page) {
-  // Prefer Elastic toolbar checkmail / refresh over the generic "r" shortcut
-  // (which can type into search when focus is wrong).
+/**
+ * Refresh Roundcube so new INBOX mail appears quickly.
+ * Prefer a real navigation to the inbox view (headed, visible) — checkmail
+ * alone often lags for a long time on some servers.
+ *
+ * @param {import('playwright').Page} page
+ * @param {{ mailUrl?: string, forceReload?: boolean, logger?: object, poll?: number }} [opts]
+ */
+async function refreshRoundcubeInbox(page, opts = {}) {
+  const { mailUrl = '', forceReload = false, logger, poll = 0 } = opts;
+
+  if (forceReload && mailUrl) {
+    const inboxUrl = roundcubeInboxUrl(mailUrl);
+    logger?.info?.('Atualizando Caixa de Entrada do Roundcube (reload da página)', {
+      poll,
+      inboxUrl,
+    });
+    await page.goto(inboxUrl, { waitUntil: 'domcontentloaded', timeout: 60000 }).catch(() => {});
+    await waitForRoundcubeMessageList(page, logger).catch(() => {});
+    await openInboxFolder(page);
+    // Also poke checkmail after reload.
+    await page.evaluate(() => {
+      try {
+        if (window.rcmail && typeof window.rcmail.command === 'function') {
+          window.rcmail.command('checkmail');
+        }
+      } catch {
+        /* ignore */
+      }
+    }).catch(() => {});
+    await page.waitForTimeout(700);
+    return;
+  }
+
+  // Soft refresh: toolbar / rcmail checkmail.
   const refreshed = await page.evaluate(() => {
     try {
       if (window.rcmail && typeof window.rcmail.command === 'function') {
@@ -400,8 +444,7 @@ async function refreshRoundcubeInbox(page) {
   });
 
   if (refreshed) {
-    await page.waitForTimeout(900);
-    return;
+    await page.waitForTimeout(700);
   }
 
   const refreshBtn = page
@@ -415,17 +458,41 @@ async function refreshRoundcubeInbox(page) {
         'a[title*="Atualizar" i]',
         'a[title*="Refresh" i]',
         'a[aria-label*="Check" i]',
+        'a[aria-label*="Atualizar" i]',
       ].join(', ')
     )
     .first();
-  if (await refreshBtn.count()) {
+  if ((await refreshBtn.count()) && (await refreshBtn.isVisible().catch(() => false))) {
     await refreshBtn.click().catch(() => {});
-    await page.waitForTimeout(900);
+    await page.waitForTimeout(700);
     return;
   }
 
-  await page.keyboard.press('r').catch(() => {});
-  await page.waitForTimeout(600);
+  if (!refreshed) {
+    // Focus list then Roundcube shortcut, or fall back to full inbox reload.
+    await page.locator('#messagelist').click({ timeout: 2000 }).catch(() => {});
+    await page.keyboard.press('r').catch(() => {});
+    await page.waitForTimeout(500);
+    if (mailUrl) {
+      await refreshRoundcubeInbox(page, { mailUrl, forceReload: true, logger, poll });
+    }
+  }
+}
+
+function roundcubeInboxUrl(mailUrl) {
+  try {
+    const u = new URL(mailUrl);
+    // Keep path (often /mail/ or /mail) and force the mail task + INBOX mailbox.
+    u.search = '';
+    u.searchParams.set('_task', 'mail');
+    u.searchParams.set('_mbox', 'INBOX');
+    // Cache-buster so the headed tab actually reloads the list.
+    u.searchParams.set('_votador_refresh', String(Date.now()));
+    return u.toString();
+  } catch {
+    const base = String(mailUrl || '').replace(/\/+$/, '');
+    return `${base}/?_task=mail&_mbox=INBOX&_votador_refresh=${Date.now()}`;
+  }
 }
 
 /**
