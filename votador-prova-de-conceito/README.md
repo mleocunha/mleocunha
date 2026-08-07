@@ -29,6 +29,25 @@ cd votador-prova-de-conceito
 npm install
 ```
 
+### Atualizar no Mac (substituir cópia antiga)
+
+Se `npm start` mostrar `Votador PoC [login-fill-1]`, você ainda está na cópia antiga (ZIP).
+Esta pasta precisa ser a do PR **#20** / branch `cursor/poc-roundcube-reset-visual-0206`.
+
+```bash
+# 1) Liberar a porta se um npm start & ficou no fundo
+lsof -ti :3847 | xargs kill
+
+# 2) Trocar o código (exemplo via git clone do repo + checkout do branch)
+#    ou substitua ~/votador-prova-de-conceito pelos arquivos do ZIP/artifact novo
+
+cd ~/votador-prova-de-conceito
+npm install
+npm start
+```
+
+Confirme no terminal e na UI: build **`poc-lostpassword-roundcube-2`** (nunca `login-fill-1`).
+
 ## Interface (recomendado)
 
 ```bash

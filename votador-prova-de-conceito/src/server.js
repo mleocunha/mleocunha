@@ -34,6 +34,7 @@ app.use(express.static(publicDir));
 app.get('/api/defaults', (_req, res) => {
   res.json({
     ...DEFAULTS,
+    build: VOTADOR_BUILD,
     loginPaths: [
       { value: '/id.php', label: '/id.php' },
       { value: '/wp-login.php', label: '/wp-login.php' },
@@ -212,6 +213,21 @@ app.listen(PORT, () => {
   console.log(`Votador PoC [${VOTADOR_BUILD}] → http://127.0.0.1:${PORT}`);
   // eslint-disable-next-line no-console
   console.log(
+    'Esperado neste build: PoC = Recuperar minha senha → Roundcube headed → nova senha WP → login → voto.'
+  );
+  // eslint-disable-next-line no-console
+  console.log(
     'No macOS: Ajustes do Sistema → Privacidade e Segurança → Autorizar Automação/Acessibilidade para o Terminal e o Google Chrome.'
   );
+}).on('error', (err) => {
+  if (err && err.code === 'EADDRINUSE') {
+    // eslint-disable-next-line no-console
+    console.error(
+      `Porta ${PORT} em uso (EADDRINUSE). Pare o processo antigo, por exemplo:\n` +
+        `  lsof -ti :${PORT} | xargs kill\n` +
+        `Depois rode de novo: npm start`
+    );
+    process.exit(1);
+  }
+  throw err;
 });

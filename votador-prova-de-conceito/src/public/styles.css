@@ -63,6 +63,22 @@ body {
   line-height: 1.5;
 }
 
+.build-line {
+  margin: 0.75rem 0 0;
+  font-size: 0.92rem;
+  color: var(--muted);
+}
+
+.build-line code {
+  font-size: 0.9em;
+}
+
+.build-line .build-stale,
+code.build-stale {
+  color: var(--danger);
+  font-weight: 700;
+}
+
 .mac-banner {
   margin-bottom: 1.25rem;
   padding: 0.85rem 1rem;

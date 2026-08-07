@@ -10,8 +10,8 @@ import { createPasswordStore } from './passwordStore.js';
 import { discoverBatchLocale } from './discoverLocale.js';
 import { startDisplayCaffeinate } from './caffeinate.js';
 
-/** Bumped when PoC runtime behaviour changes — look for this in startup logs. */
-export const VOTADOR_BUILD = 'poc-lostpassword-roundcube-1';
+/** Bumped when PoC runtime behaviour changes — look for this in startup logs / UI. */
+export const VOTADOR_BUILD = 'poc-lostpassword-roundcube-2';
 
 export const DEFAULTS = {
   windows: 5,

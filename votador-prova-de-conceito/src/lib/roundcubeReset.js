@@ -51,6 +51,11 @@ export async function resetPasswordViaRoundcube(page, opts) {
     logger,
   });
 
+  logger?.info?.('Abrindo Roundcube headed (nova aba Chrome)', {
+    mailUrl,
+    user_email: userEmail,
+  });
+
   const mailPage = await page.context().newPage();
   try {
     const resetLink = await findResetLinkInRoundcube(mailPage, {

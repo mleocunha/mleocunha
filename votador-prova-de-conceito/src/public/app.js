@@ -16,10 +16,7 @@ if (/Mac|iPhone|iPad/.test(navigator.platform) || navigator.userAgent.includes('
   macBanner.hidden = false;
 }
 
-loginPath.addEventListener('change', () => {
-  customLoginWrap.classList.toggle('hidden', loginPath.value !== 'custom');
-});
-
+const buildIdEl = document.getElementById('buildId');
 const passwordChangePoc = document.getElementById('passwordChangePoc');
 const mailUrlWrap = document.getElementById('mailUrlWrap');
 const mailUrl = document.getElementById('mailUrl');
@@ -34,6 +31,10 @@ function syncMailUrlField() {
 
 passwordChangePoc.addEventListener('change', syncMailUrlField);
 syncMailUrlField();
+
+loginPath.addEventListener('change', () => {
+  customLoginWrap.classList.toggle('hidden', loginPath.value !== 'custom');
+});
 
 function clearLog() {
   logEl.replaceChildren();
@@ -61,6 +62,28 @@ function appendLog(ev) {
   logEl.appendChild(line);
   logEl.scrollTop = logEl.scrollHeight;
 }
+
+async function showBuild() {
+  try {
+    const res = await fetch('/api/status');
+    const data = await res.json();
+    const build = data.build || '(desconhecido)';
+    if (buildIdEl) {
+      buildIdEl.textContent = build;
+      if (String(build).includes('login-fill')) {
+        buildIdEl.classList.add('build-stale');
+        appendLog({
+          level: 'error',
+          message:
+            'Build antigo (login-fill-*). Pare este servidor e substitua ~/votador-prova-de-conceito pelo código do PR #20 (poc-lostpassword-roundcube-*).',
+        });
+      }
+    }
+  } catch {
+    if (buildIdEl) buildIdEl.textContent = '(falha ao ler /api/status)';
+  }
+}
+showBuild();
 
 function handleEvent(ev) {
   if (!ev || typeof ev !== 'object') {
