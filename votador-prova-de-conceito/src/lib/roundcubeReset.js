@@ -1164,6 +1164,9 @@ async function setWordPressPassword(page, resetLink, logger) {
     const detail = ((await err.innerText()) || '').trim();
     throw new Error(`WordPress recusou a nova senha: ${detail || 'erro no formulário'}`);
   }
+  if (/senhas não são iguais|senhas nao sao iguais|passwords? do not match|passwords? don'?t match/i.test(bodyText)) {
+    throw new Error('WordPress recusou a nova senha: As senhas não são iguais (pass1 ≠ pass2 no POST).');
+  }
 
   const successBanner =
     /password has been reset|your password has been reset|senha foi redefinida|palavra-passe foi redefinida|contraseña ha sido restablecida|mot de passe a été réinitialisé/i.test(
