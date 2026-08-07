@@ -842,6 +842,10 @@ async function setWordPressPassword(page, resetLink, newPassword, logger) {
   // may keep the auto-generated value. Set OUR password with the native value
   // setter, force #pw-weak, unlock submit, then native form.submit() (bypasses
   // disabled button). Never trust a broad page HTML match like /updated/.
+  const navPromise = page
+    .waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 60000 })
+    .catch(() => null);
+
   const submitResult = await page.evaluate((pwd) => {
     const nativeSet = Object.getOwnPropertyDescriptor(
       window.HTMLInputElement.prototype,
@@ -929,7 +933,7 @@ async function setWordPressPassword(page, resetLink, newPassword, logger) {
     );
   }
 
-  await page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 60000 }).catch(() => {});
+  await navPromise;
   await page.waitForTimeout(500);
 
   const bodyText = ((await page.locator('body').innerText().catch(() => '')) || '').trim();
