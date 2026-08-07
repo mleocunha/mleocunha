@@ -164,10 +164,11 @@ async function findResetLinkInRoundcube(page, opts) {
   await page.goto(mailUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
   await loginRoundcubeIfNeeded(page, { userEmail, mailPassword, logger });
 
-  await page.locator('#messagelist, #mailboxlist, #layout-content').first().waitFor({
+  // Real mailbox UI only — never treat the login shell (#layout-content) as inbox.
+  await page.locator('#messagelist, #mailboxlist').first().waitFor({
     state: 'visible',
     timeout: 60000,
-  }).catch(() => {});
+  });
 
   await openInboxFolder(page);
 
@@ -205,39 +206,42 @@ async function findResetLinkInRoundcube(page, opts) {
 }
 
 /**
- * Roundcube may already have a session from a previous insistência in the same
- * BrowserContext — then #rcmloginuser is absent and we must not wait for it.
+ * Roundcube Elastic login page also has #layout-content — that is NOT a session.
+ * Only skip login when the real mailbox (#messagelist / #mailboxlist) is visible
+ * and #rcmloginuser is not.
  */
 async function loginRoundcubeIfNeeded(page, { userEmail, mailPassword, logger }) {
-  const inboxReady = page.locator('#messagelist, #mailboxlist, #layout-list, #layout-content');
   const loginUser = page.locator('#rcmloginuser');
+  const mailboxUi = page.locator('#messagelist, #mailboxlist');
 
-  // Brief settle after goto.
-  await page.waitForTimeout(500);
+  await page.waitForTimeout(400);
 
-  if (await inboxReady.first().isVisible().catch(() => false)) {
-    logger?.info?.('Roundcube já autenticado; reutilizando sessão');
-    return;
-  }
-
-  // Some skins show a splash then redirect; wait for either login or inbox.
   try {
     await Promise.race([
       loginUser.waitFor({ state: 'visible', timeout: 30000 }),
-      inboxReady.first().waitFor({ state: 'visible', timeout: 30000 }),
+      mailboxUi.first().waitFor({ state: 'visible', timeout: 30000 }),
     ]);
   } catch {
     throw new Error(
-      'Roundcube não mostrou login (#rcmloginuser) nem INBOX — confira a URL do webmail.'
+      'Roundcube não mostrou login (#rcmloginuser) nem INBOX (#messagelist) — confira a URL do webmail.'
     );
   }
 
-  if (await inboxReady.first().isVisible().catch(() => false)) {
+  const onLogin = await loginUser.isVisible().catch(() => false);
+  const inMailbox = await mailboxUi.first().isVisible().catch(() => false);
+
+  if (inMailbox && !onLogin) {
     logger?.info?.('Roundcube já autenticado; reutilizando sessão');
     return;
   }
 
-  await loginUser.waitFor({ state: 'visible', timeout: 10000 });
+  if (!onLogin) {
+    // Unexpected intermediate page — force reload of mail URL once.
+    await page.goto(page.url(), { waitUntil: 'domcontentloaded', timeout: 60000 }).catch(() => {});
+    await loginUser.waitFor({ state: 'visible', timeout: 30000 });
+  }
+
+  logger?.info?.('Login Roundcube (headed)', { user_email: userEmail });
   await page.fill('#rcmloginuser', userEmail);
   await page.fill('#rcmloginpwd', mailPassword);
   await Promise.all([
@@ -253,6 +257,8 @@ async function loginRoundcubeIfNeeded(page, { userEmail, mailPassword, logger })
       `Falha no login Roundcube (use a senha de e-mail do CSV, inalterada). ${detail}`.trim()
     );
   }
+
+  await mailboxUi.first().waitFor({ state: 'visible', timeout: 60000 });
 }
 
 async function openInboxFolder(page) {
