@@ -44,7 +44,8 @@ export async function resetPasswordViaRoundcube(page, opts) {
     locale: batchLocale,
   });
 
-  // Only the newest reset mail after this request should be opened.
+  // Only the newest reset mail AFTER this request should be opened.
+  // Snapshot inbox identity after Roundcube login so we ignore older unread mail.
   const requestedAtMs = Date.now();
 
   await requestPasswordResetFromLogin(page, {
@@ -53,6 +54,9 @@ export async function resetPasswordViaRoundcube(page, opts) {
     userEmail,
     logger,
   });
+
+  // Give WP/mail delivery a moment before polling.
+  await page.waitForTimeout(1500);
 
   logger?.info?.('Abrindo Roundcube headed (nova aba Chrome)', {
     mailUrl,
@@ -64,6 +68,7 @@ export async function resetPasswordViaRoundcube(page, opts) {
     const resetLink = await findResetLinkInRoundcube(mailPage, {
       mailUrl,
       userEmail,
+      userLogin,
       mailPassword,
       subject,
       knownSubjects,
@@ -72,7 +77,9 @@ export async function resetPasswordViaRoundcube(page, opts) {
       logger,
     });
 
-    logger?.info?.('Link de redefinição encontrado; definindo nova senha WP…');
+    logger?.info?.('Link de redefinição encontrado; definindo nova senha WP…', {
+      login_in_link: safeLoginFromResetLink(resetLink),
+    });
     const newPassword = generateSecurePassword(8);
     await setWordPressPassword(mailPage, resetLink, newPassword);
     await ensureLoggedOutOfWordPress(mailPage, loginUrl);
@@ -166,6 +173,7 @@ async function findResetLinkInRoundcube(page, opts) {
   const {
     mailUrl,
     userEmail,
+    userLogin,
     mailPassword,
     subject,
     knownSubjects,
@@ -178,8 +186,14 @@ async function findResetLinkInRoundcube(page, opts) {
   await loginRoundcubeIfNeeded(page, { userEmail, mailPassword, logger });
 
   await waitForRoundcubeMessageList(page, logger);
-
   await openInboxFolder(page);
+
+  // Identity of whatever is currently on top — we must wait for a NEWER unread mail.
+  const baseline = await snapshotTopResetMessage(page, subject, knownSubjects);
+  logger?.info?.('Baseline da INBOX antes de aguardar e-mail novo', {
+    baseline_uid: baseline?.uid || null,
+    baseline_unread: baseline?.unread ?? null,
+  });
 
   const deadline = Date.now() + timeoutMs;
   let lastSubjects = [];
@@ -187,43 +201,61 @@ async function findResetLinkInRoundcube(page, opts) {
   while (Date.now() < deadline) {
     await refreshRoundcubeInbox(page);
 
-    // Only the newest matching reset mail (top of list). Ignore older ones.
-    // Require unread so we do not reopen a prior reset that is still on top
-    // until the brand-new message arrives after lostpassword.
     const match = await findNewestResetMessageRow(page, subject, knownSubjects);
-    if (match && match.unread) {
-      logger?.info?.('Abrindo somente a mensagem de redefinição mais recente', {
-        subject: match.matchedSubject || subject,
-        list_index: match.index,
-        unread: true,
-      });
-      await openMessageRow(page, match.row);
-      await waitForMessagePreview(page);
-
-      const resetLink = await extractResetLink(page);
-      if (resetLink) {
-        await markCurrentMessageRead(page);
-        logger?.info?.('E-mail de redefinição aberto na INBOX', {
-          subject: match.matchedSubject || subject,
-          newest_only: true,
-          requested_at_ms: requestedAtMs || null,
-        });
-        return resetLink;
-      }
-    } else if (match && !match.unread) {
-      logger?.info?.('Mensagem de reset mais recente ainda está lida; aguardando e-mail novo…', {
-        subject: match.matchedSubject || subject,
-        list_index: match.index,
-      });
+    if (!match) {
+      lastSubjects = await listVisibleSubjects(page);
+      await page.waitForTimeout(2000);
+      continue;
     }
 
+    const isNewerThanBaseline =
+      !baseline ||
+      (match.uid && baseline.uid && String(match.uid) !== String(baseline.uid)) ||
+      (match.uid && !baseline.uid) ||
+      (!match.uid && match.fingerprint && match.fingerprint !== baseline.fingerprint);
+
+    // Must be unread AND newer than what was already in the inbox when we started.
+    if (!match.unread || !isNewerThanBaseline) {
+      logger?.info?.('Aguardando e-mail de redefinição NOVO (não lido, mais recente que o baseline)…', {
+        top_uid: match.uid || null,
+        unread: match.unread,
+        newer: isNewerThanBaseline,
+      });
+      lastSubjects = await listVisibleSubjects(page);
+      await page.waitForTimeout(2000);
+      continue;
+    }
+
+    logger?.info?.('Abrindo somente a mensagem de redefinição mais recente', {
+      subject: match.matchedSubject || subject,
+      list_index: match.index,
+      uid: match.uid || null,
+      unread: true,
+    });
+    await openMessageRow(page, match.row);
+    await waitForMessagePreview(page, { userLogin });
+
+    const resetLink = await extractResetLink(page, { userLogin });
+    if (resetLink) {
+      await markCurrentMessageRead(page);
+      logger?.info?.('E-mail de redefinição aberto na INBOX', {
+        subject: match.matchedSubject || subject,
+        newest_only: true,
+        uid: match.uid || null,
+        requested_at_ms: requestedAtMs || null,
+        login_in_link: safeLoginFromResetLink(resetLink),
+      });
+      return resetLink;
+    }
+
+    logger?.warn?.('Preview aberto, mas link action=rp válido para este login não encontrado; tentando de novo…');
     lastSubjects = await listVisibleSubjects(page);
     await page.waitForTimeout(2000);
   }
 
   throw new Error(
-    `E-mail de redefinição não encontrado na INBOX em ${Math.round(timeoutMs / 1000)}s ` +
-      `(procurava "${subject}" / assuntos conhecidos; só a mais recente). ` +
+    `E-mail de redefinição NOVO não encontrado na INBOX em ${Math.round(timeoutMs / 1000)}s ` +
+      `(procurava "${subject}"; só a mais recente não lida após o pedido). ` +
       `Assuntos visíveis: ${JSON.stringify(lastSubjects.slice(0, 12))}`
   );
 }
@@ -408,10 +440,31 @@ async function findNewestResetMessageRow(page, preferredSubject, knownSubjects) 
 
   for (let i = 0; i < count; i += 1) {
     const row = rows.nth(i);
-    const text = ((await row.innerText().catch(() => '')) || '').replace(/\s+/g, ' ').trim();
-    const lower = text.toLowerCase();
-    const cls = (await row.getAttribute('class')) || '';
-    const unread = /\bunread\b/i.test(cls);
+    const meta = await row.evaluate((tr) => {
+      const text = (tr.innerText || '').replace(/\s+/g, ' ').trim();
+      const cls = tr.className || '';
+      const uid =
+        tr.getAttribute('uid') ||
+        tr.getAttribute('data-uid') ||
+        tr.dataset?.uid ||
+        (String(tr.id || '').match(/(\d+)/) || [])[1] ||
+        '';
+      const subjectEl = tr.querySelector('td.subject, .subject');
+      const subjectText = ((subjectEl && subjectEl.textContent) || '').replace(/\s+/g, ' ').trim();
+      const dateEl = tr.querySelector('td.date, .date');
+      const dateText = ((dateEl && dateEl.textContent) || '').replace(/\s+/g, ' ').trim();
+      return {
+        text,
+        cls,
+        uid: String(uid || ''),
+        subjectText,
+        dateText,
+        fingerprint: `${subjectText}|${dateText}|${text.slice(0, 80)}`,
+      };
+    });
+
+    const lower = String(meta.text || '').toLowerCase();
+    const unread = /\bunread\b/i.test(meta.cls);
 
     let matchedSubject = '';
     if (preferred && lower.includes(preferred)) {
@@ -424,17 +477,27 @@ async function findNewestResetMessageRow(page, preferredSubject, knownSubjects) 
         }
       }
     }
-    if (!matchedSubject && /redefin|password.?reset|restablec|réinitial|elektoral|electoral/i.test(text)) {
-      matchedSubject = text.slice(0, 80);
+    if (!matchedSubject && /redefin|password.?reset|restablec|réinitial|elektoral|electoral|eleitor/i.test(lower)) {
+      matchedSubject = meta.subjectText || meta.text.slice(0, 80);
     }
 
     if (matchedSubject) {
-      // First match in list order = newest. Ignore every older reset mail below.
-      return { row, matchedSubject, index: i, unread };
+      return {
+        row,
+        matchedSubject,
+        index: i,
+        unread,
+        uid: meta.uid,
+        fingerprint: meta.fingerprint,
+      };
     }
   }
 
   return null;
+}
+
+async function snapshotTopResetMessage(page, preferredSubject, knownSubjects) {
+  return findNewestResetMessageRow(page, preferredSubject, knownSubjects);
 }
 
 async function listVisibleSubjects(page) {
@@ -449,62 +512,141 @@ async function listVisibleSubjects(page) {
   }).catch(() => []);
 }
 
-async function waitForMessagePreview(page) {
+async function waitForMessagePreview(page, { userLogin } = {}) {
   // Elastic uses #messagecontframe; older skins may use #messageframe.
   const frameSelectors = ['#messagecontframe', '#messageframe', 'iframe.iframe-content'];
+  const loginNeedle = String(userLogin || '').trim();
   for (const sel of frameSelectors) {
     const frameEl = page.locator(sel).first();
-    if (await frameEl.count()) {
-      try {
-        await page.waitForFunction(
-          (selector) => {
-            const el = document.querySelector(selector);
-            if (!el || !el.contentDocument) {
+    if (!(await frameEl.count())) {
+      continue;
+    }
+    try {
+      await page.waitForFunction(
+        ({ selector, login }) => {
+          const el = document.querySelector(selector);
+          if (!el || !el.contentDocument) {
+            return false;
+          }
+          const body = el.contentDocument.body;
+          if (!body) {
+            return false;
+          }
+          const html = body.innerHTML || '';
+          const text = body.innerText || '';
+          const blob = `${html}\n${text}`;
+          if (!/action=rp|wp-login\.php/i.test(blob)) {
+            return text.trim().length > 40 ? 'body' : false;
+          }
+          if (login) {
+            const decoded = blob.replace(/&amp;/g, '&');
+            if (!decoded.includes(login) && !decoded.includes(encodeURIComponent(login))) {
               return false;
             }
-            const body = el.contentDocument.body;
-            if (!body) {
-              return false;
-            }
-            const html = body.innerHTML || '';
-            const text = body.innerText || '';
-            return /action=rp|wp-login\.php/i.test(html + text) || text.trim().length > 40;
-          },
-          sel,
-          { timeout: 8000 }
-        );
-        return;
-      } catch {
-        /* try next / fall through */
-      }
+          }
+          return true;
+        },
+        { selector: sel, login: loginNeedle },
+        { timeout: 12000 }
+      );
+      return;
+    } catch {
+      /* try next */
     }
   }
   await page.waitForTimeout(1000);
 }
 
-async function extractResetLink(page) {
+/**
+ * Extract wp-login action=rp link for this elector. Prefer <a href>, unwrap
+ * Roundcube redirects, rejoin line-wrapped plaintext URLs, and require login=.
+ */
+async function extractResetLink(page, { userLogin } = {}) {
+  const wantLogin = String(userLogin || '').trim();
   const frames = [page, ...page.frames()];
   for (const frame of frames) {
     try {
-      const href = await frame.evaluate(() => {
+      const href = await frame.evaluate((login) => {
+        function unwrap(raw) {
+          let h = String(raw || '').replace(/&amp;/g, '&').trim();
+          // Roundcube / other redirectors: ...?_redirect=https%3A%2F%2F... or url=
+          try {
+            const u = new URL(h, location.href);
+            for (const key of ['_redirect', 'redirect', 'url', 'u']) {
+              const v = u.searchParams.get(key);
+              if (v && /wp-login\.php/i.test(v)) {
+                h = v;
+                break;
+              }
+            }
+          } catch {
+            /* keep h */
+          }
+          return h.replace(/[)>,.;]+$/g, '');
+        }
+
+        function loginOf(h) {
+          try {
+            return decodeURIComponent(new URL(h).searchParams.get('login') || '');
+          } catch {
+            const m = String(h).match(/[?&]login=([^&]+)/i);
+            return m ? decodeURIComponent(m[1]) : '';
+          }
+        }
+
+        function acceptable(h) {
+          if (!/wp-login\.php/i.test(h) || !/[?&]action=rp\b/i.test(h)) {
+            return false;
+          }
+          if (!login) {
+            return true;
+          }
+          return loginOf(h) === login;
+        }
+
         const anchors = Array.from(document.querySelectorAll('a[href]'));
         for (const a of anchors) {
-          const h = a.href || '';
-          if (/wp-login\.php/i.test(h) && /[?&]action=rp\b/i.test(h)) {
+          const h = unwrap(a.href || a.getAttribute('href') || '');
+          if (acceptable(h)) {
             return h;
           }
         }
-        const text = document.body ? document.body.innerText : '';
-        const html = document.body ? document.body.innerHTML : '';
-        const blob = `${text}\n${html}`;
-        const match = blob.match(
-          /https?:\/\/[^\s"'<>]+wp-login\.php\?[^\s"'<>]*action=rp[^\s"'<>]*/i
-        );
-        if (!match) {
-          return '';
+
+        // Plain text: collapse soft line breaks inside URLs.
+        let text = document.body ? document.body.innerText || '' : '';
+        text = text.replace(/=\r?\n/g, '');
+        text = text.replace(/https?:\/\/\S+(?:\r?\n\S+)*/g, (block) => block.replace(/\s+/g, ''));
+        const html = document.body ? document.body.innerHTML || '' : '';
+        const blob = `${text}\n${html}`.replace(/&amp;/g, '&');
+
+        const matches = blob.match(/https?:\/\/[^\s"'<>]+wp-login\.php\?[^\s"'<>]*action=rp[^\s"'<>]*/gi) || [];
+        for (const m of matches) {
+          const h = unwrap(m);
+          if (acceptable(h)) {
+            return h;
+          }
         }
-        return match[0].replace(/&amp;/g, '&').replace(/[)>,.;]+$/, '');
-      });
+
+        // Last resort: key + login scattered in text.
+        if (login) {
+          const keyMatch = blob.match(/[?&]key=([A-Za-z0-9]+)/);
+          if (keyMatch) {
+            const origin = location.origin;
+            // Prefer site from any wp-login mention.
+            const hostMatch = blob.match(/https?:\/\/[^/\s"'<>]+(?=\/wp-login\.php)/i);
+            const base = hostMatch ? hostMatch[0] : '';
+            if (base) {
+              const built = `${base}/wp-login.php?action=rp&key=${keyMatch[1]}&login=${encodeURIComponent(login)}`;
+              if (acceptable(built)) {
+                return built;
+              }
+            }
+            void origin;
+          }
+        }
+
+        return '';
+      }, wantLogin);
       if (href) {
         return href;
       }
@@ -513,6 +655,14 @@ async function extractResetLink(page) {
     }
   }
   return '';
+}
+
+function safeLoginFromResetLink(link) {
+  try {
+    return decodeURIComponent(new URL(link).searchParams.get('login') || '');
+  } catch {
+    return '';
+  }
 }
 
 async function markCurrentMessageRead(page) {
