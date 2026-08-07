@@ -1042,18 +1042,17 @@ async function setWordPressPassword(page, resetLink, logger) {
     .waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 60000 })
     .catch(() => null);
 
+  // WP requires $_POST['pass1'] === $_POST['pass2'] ("As senhas não são iguais").
+  // Set both silently — input events can let user-profile.js rewrite only pass1.
   const submitResult = await page.evaluate((pwd) => {
     const nativeSet = Object.getOwnPropertyDescriptor(
       window.HTMLInputElement.prototype,
       'value'
     )?.set;
-    const setVal = (el, value) => {
+    const setSilent = (el, value) => {
       if (!el) return;
       if (nativeSet) nativeSet.call(el, value);
       else el.value = value;
-      el.dispatchEvent(new Event('input', { bubbles: true }));
-      el.dispatchEvent(new Event('keyup', { bubbles: true }));
-      el.dispatchEvent(new Event('change', { bubbles: true }));
     };
 
     const pass1El =
@@ -1065,28 +1064,6 @@ async function setWordPressPassword(page, resetLink, logger) {
       return { ok: false, reason: 'missing-pass1' };
     }
 
-    setVal(pass1El, pwd);
-    setVal(pass1Text, pwd);
-    setVal(pass2El, pwd);
-
-    const weakRow = document.querySelector('.pw-weak');
-    if (weakRow) {
-      weakRow.classList.remove('hidden');
-      weakRow.style.display = '';
-    }
-    const weak = document.querySelector('#pw-weak');
-    if (weak instanceof HTMLInputElement) {
-      weak.checked = true;
-      weak.dispatchEvent(new Event('change', { bubbles: true }));
-    }
-
-    const submit = document.querySelector('#wp-submit');
-    if (submit) {
-      submit.disabled = false;
-      submit.removeAttribute('disabled');
-      submit.classList.remove('disabled');
-    }
-
     const form =
       document.querySelector('#resetpassform') ||
       (pass1El && pass1El.form) ||
@@ -1096,30 +1073,86 @@ async function setWordPressPassword(page, resetLink, logger) {
       return { ok: false, reason: 'missing-form' };
     }
 
-    let named = form.querySelector('input[name="pass1"]');
-    if (!named) {
-      named = document.createElement('input');
-      named.type = 'hidden';
-      named.name = 'pass1';
-      form.appendChild(named);
+    setSilent(pass1El, pwd);
+    setSilent(pass1Text, pwd);
+    setSilent(pass2El, pwd);
+    for (const el of form.querySelectorAll(
+      'input[name="pass1"], input[name="pass2"], #pass1, #pass2, #pass1-text'
+    )) {
+      setSilent(el, pwd);
     }
-    setVal(named, pwd);
-    const named2 = form.querySelector('input[name="pass2"]');
-    if (named2) setVal(named2, pwd);
 
-    if (String(named.value || '') !== pwd) {
-      return { ok: false, reason: 'value-mismatch', gotLen: String(named.value || '').length };
+    let named1 = form.querySelector('input[name="pass1"]');
+    if (!named1) {
+      named1 = document.createElement('input');
+      named1.type = 'hidden';
+      named1.name = 'pass1';
+      form.appendChild(named1);
+    }
+    setSilent(named1, pwd);
+
+    let named2 = form.querySelector('input[name="pass2"]');
+    if (!named2) {
+      named2 = document.createElement('input');
+      named2.type = 'hidden';
+      named2.name = 'pass2';
+      form.appendChild(named2);
+    }
+    setSilent(named2, pwd);
+    named2.disabled = false;
+    named2.removeAttribute('disabled');
+    named2.classList.remove('hidden');
+    named2.removeAttribute('hidden');
+    if (pass2El && pass2El !== named2) {
+      setSilent(pass2El, pwd);
+      pass2El.disabled = false;
+      pass2El.removeAttribute('disabled');
+    }
+
+    const weakRow = document.querySelector('.pw-weak');
+    if (weakRow) {
+      weakRow.classList.remove('hidden');
+      weakRow.style.display = '';
+    }
+    const weak = document.querySelector('#pw-weak');
+    if (weak instanceof HTMLInputElement) {
+      weak.checked = true;
+    }
+
+    const submit = document.querySelector('#wp-submit');
+    if (submit) {
+      submit.disabled = false;
+      submit.removeAttribute('disabled');
+      submit.classList.remove('disabled');
+    }
+
+    const v1 = String(named1.value || '');
+    const v2 = String(named2.value || '');
+    if (v1 !== pwd || v2 !== pwd || v1 !== v2) {
+      return {
+        ok: false,
+        reason: 'pass1-pass2-mismatch',
+        pass1Len: v1.length,
+        pass2Len: v2.length,
+      };
     }
 
     HTMLFormElement.prototype.submit.call(form);
-    return { ok: true, passLen: pwd.length };
+    return { ok: true, passLen: pwd.length, pass2Len: v2.length };
   }, password);
 
   if (!submitResult?.ok) {
     throw new Error(
-      `Não foi possível enviar a nova senha no WordPress (${submitResult?.reason || 'unknown'}).`
+      `Não foi possível enviar a nova senha no WordPress (${submitResult?.reason || 'unknown'}` +
+        `${submitResult?.pass1Len != null ? `; pass1_len=${submitResult.pass1Len}` : ''}` +
+        `${submitResult?.pass2Len != null ? `; pass2_len=${submitResult.pass2Len}` : ''}).`
     );
   }
+
+  logger?.info?.('Formulário rp enviado com pass1 === pass2', {
+    senha_len: password.length,
+    senha_source: source,
+  });
 
   await navPromise;
   await page.waitForTimeout(500);
