@@ -36,12 +36,14 @@ export async function resetPasswordViaRoundcube(page, opts) {
 
   const subject = subjectForLocale(batchLocale);
   const knownSubjects = uniqueSubjects(batchLocale);
+  const wpOrigin = originFromUrl(loginUrl);
 
   logger?.info?.('Preparando Roundcube antes do pedido de redefinição', {
     user_login: userLogin,
     user_email: userEmail,
     subject,
     locale: batchLocale,
+    wp_origin: wpOrigin,
   });
 
   // Open Roundcube FIRST and snapshot the current top reset mail, then request a
@@ -72,12 +74,13 @@ export async function resetPasswordViaRoundcube(page, opts) {
       userEmail,
       logger,
     });
-    await page.waitForTimeout(1500);
+    await page.waitForTimeout(2000);
 
     const resetLink = await waitForNewResetLinkInRoundcube(mailPage, {
       subject,
       knownSubjects,
       userLogin,
+      wpOrigin,
       timeoutMs,
       requestedAtMs,
       baseline,
@@ -86,6 +89,8 @@ export async function resetPasswordViaRoundcube(page, opts) {
 
     logger?.info?.('Link de redefinição encontrado; definindo nova senha WP…', {
       login_in_link: safeLoginFromResetLink(resetLink),
+      key_len: keyLenFromResetLink(resetLink),
+      link_host: safeHostFromResetLink(resetLink),
     });
     const newPassword = generateSecurePassword(8);
     await setWordPressPassword(mailPage, resetLink, newPassword);
@@ -184,6 +189,7 @@ async function waitForNewResetLinkInRoundcube(page, opts) {
     subject,
     knownSubjects,
     userLogin,
+    wpOrigin,
     timeoutMs,
     requestedAtMs = 0,
     baseline = null,
@@ -232,7 +238,7 @@ async function waitForNewResetLinkInRoundcube(page, opts) {
     await openMessageRow(page, match.row);
     await waitForMessagePreview(page, { userLogin });
 
-    const resetLink = await extractResetLink(page, { userLogin });
+    const resetLink = await extractResetLink(page, { userLogin, wpOrigin });
     if (resetLink) {
       await markCurrentMessageRead(page);
       logger?.info?.('E-mail de redefinição aberto na INBOX', {
@@ -241,11 +247,12 @@ async function waitForNewResetLinkInRoundcube(page, opts) {
         uid: match.uid || null,
         requested_at_ms: requestedAtMs || null,
         login_in_link: safeLoginFromResetLink(resetLink),
+        key_len: keyLenFromResetLink(resetLink),
       });
       return resetLink;
     }
 
-    logger?.warn?.('Preview aberto, mas link action=rp válido para este login não encontrado; tentando de novo…');
+    logger?.warn?.('Preview aberto, mas não foi possível montar link action=rp; tentando de novo…');
     lastSubjects = await listVisibleSubjects(page);
     await page.waitForTimeout(2000);
   }
@@ -555,95 +562,92 @@ async function waitForMessagePreview(page, { userLogin } = {}) {
 }
 
 /**
- * Extract wp-login action=rp link for this elector. Prefer <a href>, unwrap
- * Roundcube redirects, rejoin line-wrapped plaintext URLs, and require login=.
+ * Build a clean wp-login action=rp URL.
+ *
+ * Logins with many dots (vinicius.machado.nascimento.4981) are often truncated
+ * by mail clients when auto-linking. Always prefer key from the message + the
+ * known user_login from the CSV.
  */
-async function extractResetLink(page, { userLogin } = {}) {
+async function extractResetLink(page, { userLogin, wpOrigin } = {}) {
   const wantLogin = String(userLogin || '').trim();
+  const origin = String(wpOrigin || '').replace(/\/+$/, '');
   const frames = [page, ...page.frames()];
   for (const frame of frames) {
     try {
-      const href = await frame.evaluate((login) => {
-        function unwrap(raw) {
-          let h = String(raw || '').replace(/&amp;/g, '&').trim();
-          // Roundcube / other redirectors: ...?_redirect=https%3A%2F%2F... or url=
-          try {
-            const u = new URL(h, location.href);
-            for (const key of ['_redirect', 'redirect', 'url', 'u']) {
-              const v = u.searchParams.get(key);
-              if (v && /wp-login\.php/i.test(v)) {
-                h = v;
-                break;
+      const href = await frame.evaluate(
+        ({ login, forcedOrigin }) => {
+          function unwrap(raw) {
+            let h = String(raw || '').replace(/&amp;/g, '&').trim();
+            try {
+              const u = new URL(h, location.href);
+              for (const key of ['_redirect', 'redirect', 'url', 'u']) {
+                const v = u.searchParams.get(key);
+                if (v && /wp-login\.php/i.test(v)) {
+                  h = v;
+                  break;
+                }
               }
+            } catch {
+              /* keep h */
             }
-          } catch {
-            /* keep h */
+            return h.replace(/[)>,.;]+$/g, '');
           }
-          return h.replace(/[)>,.;]+$/g, '');
-        }
 
-        function loginOf(h) {
-          try {
-            return decodeURIComponent(new URL(h).searchParams.get('login') || '');
-          } catch {
-            const m = String(h).match(/[?&]login=([^&]+)/i);
-            return m ? decodeURIComponent(m[1]) : '';
+          function findKey(blob) {
+            const m =
+              String(blob).match(/[?&]key=([A-Za-z0-9]+)/i) ||
+              String(blob).match(/\bkey=([A-Za-z0-9]{8,})\b/i);
+            return m ? m[1] : '';
           }
-        }
 
-        function acceptable(h) {
-          if (!/wp-login\.php/i.test(h) || !/[?&]action=rp\b/i.test(h)) {
-            return false;
+          function findBase(blob) {
+            const hostMatch = String(blob).match(/https?:\/\/[^/\s"'<>]+(?=\/wp-login\.php)/i);
+            if (hostMatch) {
+              return hostMatch[0];
+            }
+            return String(forcedOrigin || '').replace(/\/+$/, '');
           }
-          if (!login) {
-            return true;
+
+          function build(base, key, login) {
+            if (!base || !key || !login) {
+              return '';
+            }
+            return `${base}/wp-login.php?action=rp&key=${encodeURIComponent(key)}&login=${encodeURIComponent(login)}`;
           }
-          return loginOf(h) === login;
-        }
 
-        const anchors = Array.from(document.querySelectorAll('a[href]'));
-        for (const a of anchors) {
-          const h = unwrap(a.href || a.getAttribute('href') || '');
-          if (acceptable(h)) {
-            return h;
+          let text = document.body ? document.body.innerText || '' : '';
+          text = text.replace(/=\r?\n/g, '');
+          text = text.replace(/https?:\/\/\S+(?:\r?\n\S+)*/g, (block) => block.replace(/\s+/g, ''));
+          const html = document.body ? document.body.innerHTML || '' : '';
+          const blob = `${text}\n${html}`.replace(/&amp;/g, '&');
+
+          // 1) Prefer rebuilding from key + known login (avoids truncated login= in auto-links).
+          const key = findKey(blob);
+          const base = findBase(blob);
+          const rebuilt = build(base, key, login);
+          if (rebuilt) {
+            return rebuilt;
           }
-        }
 
-        // Plain text: collapse soft line breaks inside URLs.
-        let text = document.body ? document.body.innerText || '' : '';
-        text = text.replace(/=\r?\n/g, '');
-        text = text.replace(/https?:\/\/\S+(?:\r?\n\S+)*/g, (block) => block.replace(/\s+/g, ''));
-        const html = document.body ? document.body.innerHTML || '' : '';
-        const blob = `${text}\n${html}`.replace(/&amp;/g, '&');
-
-        const matches = blob.match(/https?:\/\/[^\s"'<>]+wp-login\.php\?[^\s"'<>]*action=rp[^\s"'<>]*/gi) || [];
-        for (const m of matches) {
-          const h = unwrap(m);
-          if (acceptable(h)) {
-            return h;
-          }
-        }
-
-        // Last resort: key + login scattered in text.
-        if (login) {
-          const keyMatch = blob.match(/[?&]key=([A-Za-z0-9]+)/);
-          if (keyMatch) {
-            const origin = location.origin;
-            // Prefer site from any wp-login mention.
-            const hostMatch = blob.match(/https?:\/\/[^/\s"'<>]+(?=\/wp-login\.php)/i);
-            const base = hostMatch ? hostMatch[0] : '';
-            if (base) {
-              const built = `${base}/wp-login.php?action=rp&key=${keyMatch[1]}&login=${encodeURIComponent(login)}`;
-              if (acceptable(built)) {
-                return built;
+          // 2) Fallback: raw anchors that already include action=rp.
+          const anchors = Array.from(document.querySelectorAll('a[href]'));
+          for (const a of anchors) {
+            const h = unwrap(a.href || a.getAttribute('href') || '');
+            if (/wp-login\.php/i.test(h) && /[?&]action=rp\b/i.test(h) && /[?&]key=/i.test(h)) {
+              const k = findKey(h);
+              const b = findBase(h) || base || forcedOrigin;
+              const fixed = build(b, k, login);
+              if (fixed) {
+                return fixed;
               }
+              return h;
             }
-            void origin;
           }
-        }
 
-        return '';
-      }, wantLogin);
+          return '';
+        },
+        { login: wantLogin, forcedOrigin: origin }
+      );
       if (href) {
         return href;
       }
@@ -654,9 +658,33 @@ async function extractResetLink(page, { userLogin } = {}) {
   return '';
 }
 
+function originFromUrl(url) {
+  try {
+    return new URL(url).origin;
+  } catch {
+    return '';
+  }
+}
+
 function safeLoginFromResetLink(link) {
   try {
     return decodeURIComponent(new URL(link).searchParams.get('login') || '');
+  } catch {
+    return '';
+  }
+}
+
+function keyLenFromResetLink(link) {
+  try {
+    return String(new URL(link).searchParams.get('key') || '').length;
+  } catch {
+    return 0;
+  }
+}
+
+function safeHostFromResetLink(link) {
+  try {
+    return new URL(link).host;
   } catch {
     return '';
   }
