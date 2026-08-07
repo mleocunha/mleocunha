@@ -603,7 +603,6 @@
   "The reset email was sent. Check your inbox and spam folder.": "De herstelmail is verzonden. Controleer ook de spammap.",
   "Could not send the reset email. Try again or contact support.": "De e-mail kon niet worden verzonden. Probeer opnieuw of neem contact op met support.",
   "Receive email to reset my password": "E-mail ontvangen om mijn wachtwoord te herstellen",
-  "Elector Password Reset": "Herstel van kiezerswachtwoord",
   "A password reset was requested for your elector account on %s.": "Er is een wachtwoordherstel aangevraagd voor uw kiezersaccount op %s.",
   "Open the following address to choose a new password:": "Open het volgende adres om een nieuw wachtwoord te kiezen:",
   "If you did not request this, ignore this message.": "Als u dit niet heeft aangevraagd, negeer dit bericht.",
@@ -617,5 +616,6 @@
   "Thank-you page with vote receipt hash.": "Bedankpagina met hash van het stemontvangstbewijs.",
   "Voting Booth": "Voting Booth",
   "Creates (or reuses) welcome, voting booth, and thank-you pages with default shortcode content. You can edit them in Pages afterward. The Votador password-change PoC uses WordPress “Lost password” / “Recuperar minha senha” before login (Roundcube); [enviar_redefinicao_senha] remains optional for manual logged-in tests.": "Creates (or reuses) welcome, voting booth, and thank-you pages with default shortcode content. You can edit them in Pages afterward. The Votador password-change PoC uses WordPress “Lost password” / “Recuperar minha senha” before login (Roundcube); [enviar_redefinicao_senha] remains optional for manual logged-in tests.",
-  "Optional: sends a password-reset email to the currently logged-in user (plain text). The Votador PoC now triggers reset via “Recuperar minha senha” before login; this shortcode is for manual tests.": "Optional: sends a password-reset email to the currently logged-in user (plain text). The Votador PoC now triggers reset via “Recuperar minha senha” before login; this shortcode is for manual tests."
+  "Optional: sends a password-reset email to the currently logged-in user (plain text). The Votador PoC now triggers reset via “Recuperar minha senha” before login; this shortcode is for manual tests.": "Optional: sends a password-reset email to the currently logged-in user (plain text). The Votador PoC now triggers reset via “Recuperar minha senha” before login; this shortcode is for manual tests.",
+  "Electoral Password Reset": "Herstel van electoraal wachtwoord"
 }

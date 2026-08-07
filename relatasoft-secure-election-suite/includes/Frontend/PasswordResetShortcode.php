@@ -27,7 +27,7 @@ class PasswordResetShortcode {
 	/**
 	 * English msgid for the reset mail subject (catalogs translate per locale).
 	 */
-	public const RSES_MAIL_SUBJECT = 'Elector Password Reset';
+	public const RSES_MAIL_SUBJECT = 'Electoral Password Reset';
 
 	/**
 	 * Register hooks and shortcode.

@@ -1,5 +1,5 @@
 import { generateSecurePassword } from './passwordGen.js';
-import { ELECTOR_PASSWORD_RESET_SUBJECTS, subjectForLocale } from './mailSubjects.js';
+import { allResetSubjects, subjectForLocale } from './mailSubjects.js';
 
 const DEFAULT_MAIL_URL = 'https://relatasoft.com.br/mail/';
 
@@ -44,6 +44,9 @@ export async function resetPasswordViaRoundcube(page, opts) {
     locale: batchLocale,
   });
 
+  // Only the newest reset mail after this request should be opened.
+  const requestedAtMs = Date.now();
+
   await requestPasswordResetFromLogin(page, {
     loginUrl,
     userLogin,
@@ -65,6 +68,7 @@ export async function resetPasswordViaRoundcube(page, opts) {
       subject,
       knownSubjects,
       timeoutMs,
+      requestedAtMs,
       logger,
     });
 
@@ -159,7 +163,16 @@ async function requestPasswordResetFromLogin(page, opts) {
 }
 
 async function findResetLinkInRoundcube(page, opts) {
-  const { mailUrl, userEmail, mailPassword, subject, knownSubjects, timeoutMs, logger } = opts;
+  const {
+    mailUrl,
+    userEmail,
+    mailPassword,
+    subject,
+    knownSubjects,
+    timeoutMs,
+    requestedAtMs = 0,
+    logger,
+  } = opts;
 
   await page.goto(mailUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
   await loginRoundcubeIfNeeded(page, { userEmail, mailPassword, logger });
@@ -178,18 +191,24 @@ async function findResetLinkInRoundcube(page, opts) {
   while (Date.now() < deadline) {
     await refreshRoundcubeInbox(page);
 
-    const match = await findMatchingMessageRow(page, subject, knownSubjects);
+    // Only the newest matching reset mail (top of list). Ignore older ones.
+    const match = await findNewestResetMessageRow(page, subject, knownSubjects);
     if (match) {
+      logger?.info?.('Abrindo somente a mensagem de redefinição mais recente', {
+        subject: match.matchedSubject || subject,
+        list_index: match.index,
+        unread: match.unread,
+      });
       await match.row.click();
       await waitForMessagePreview(page);
 
       const resetLink = await extractResetLink(page);
       if (resetLink) {
-        // Mark read only after we have a link; password set happens on this page next.
         await markCurrentMessageRead(page);
         logger?.info?.('E-mail de redefinição aberto na INBOX', {
           subject: match.matchedSubject || subject,
-          unread_preferred: true,
+          newest_only: true,
+          requested_at_ms: requestedAtMs || null,
         });
         return resetLink;
       }
@@ -201,7 +220,8 @@ async function findResetLinkInRoundcube(page, opts) {
 
   throw new Error(
     `E-mail de redefinição não encontrado na INBOX em ${Math.round(timeoutMs / 1000)}s ` +
-      `(procurava "${subject}" / assuntos conhecidos). Assuntos visíveis: ${JSON.stringify(lastSubjects.slice(0, 12))}`
+      `(procurava "${subject}" / assuntos conhecidos; só a mais recente). ` +
+      `Assuntos visíveis: ${JSON.stringify(lastSubjects.slice(0, 12))}`
   );
 }
 
@@ -316,7 +336,11 @@ async function refreshRoundcubeInbox(page) {
   await page.waitForTimeout(600);
 }
 
-async function findMatchingMessageRow(page, preferredSubject, knownSubjects) {
+/**
+ * Roundcube lists newest mail first by default. Among reset-subject matches,
+ * open ONLY the topmost (most recent) row — never older reset messages.
+ */
+async function findNewestResetMessageRow(page, preferredSubject, knownSubjects) {
   const rows = page.locator('#messagelist tr.message, #messagelist tbody tr, tr.message');
   const count = await rows.count();
   if (!count) {
@@ -326,39 +350,35 @@ async function findMatchingMessageRow(page, preferredSubject, knownSubjects) {
   const preferred = String(preferredSubject || '').trim().toLowerCase();
   const known = (knownSubjects || []).map((s) => String(s).trim().toLowerCase()).filter(Boolean);
 
-  // Prefer unread rows with the preferred subject, then any known subject, then any rp-looking subject.
-  const ranked = [];
   for (let i = 0; i < count; i += 1) {
     const row = rows.nth(i);
     const text = ((await row.innerText().catch(() => '')) || '').replace(/\s+/g, ' ').trim();
     const lower = text.toLowerCase();
     const cls = (await row.getAttribute('class')) || '';
     const unread = /\bunread\b/i.test(cls);
-    let score = 0;
+
     let matchedSubject = '';
     if (preferred && lower.includes(preferred)) {
-      score = 300 + (unread ? 20 : 0);
       matchedSubject = preferredSubject;
     } else {
       for (const s of known) {
         if (s && lower.includes(s)) {
-          score = 200 + (unread ? 20 : 0);
           matchedSubject = s;
           break;
         }
       }
     }
-    if (!score && /redefin|password.?reset|restablec|réinitial|reset/i.test(text)) {
-      score = 100 + (unread ? 20 : 0);
+    if (!matchedSubject && /redefin|password.?reset|restablec|réinitial|elektoral|electoral/i.test(text)) {
       matchedSubject = text.slice(0, 80);
     }
-    if (score) {
-      ranked.push({ row, score, matchedSubject, index: i });
+
+    if (matchedSubject) {
+      // First match in list order = newest. Ignore every older reset mail below.
+      return { row, matchedSubject, index: i, unread };
     }
   }
 
-  ranked.sort((a, b) => b.score - a.score || a.index - b.index);
-  return ranked[0] || null;
+  return null;
 }
 
 async function listVisibleSubjects(page) {
@@ -585,7 +605,7 @@ async function ensureLoggedOutOfWordPress(page, loginUrl) {
 
 function uniqueSubjects(batchLocale) {
   const preferred = subjectForLocale(batchLocale);
-  const all = [preferred, ...Object.values(ELECTOR_PASSWORD_RESET_SUBJECTS)];
+  const all = [preferred, ...allResetSubjects()];
   const seen = new Set();
   const out = [];
   for (const s of all) {

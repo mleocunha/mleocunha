@@ -641,7 +641,7 @@
   "The reset email was sent. Check your inbox and spam folder.",
   "Could not send the reset email. Try again or contact support.",
   "Receive email to reset my password",
-  "Elector Password Reset",
+  "Electoral Password Reset",
   "A password reset was requested for your elector account on %s.",
   "Open the following address to choose a new password:",
   "If you did not request this, ignore this message.",

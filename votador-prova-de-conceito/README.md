@@ -46,7 +46,7 @@ npm install
 npm start
 ```
 
-Confirme no terminal e na UI: build **`poc-lostpassword-roundcube-4`** (nunca `login-fill-1`).
+Confirme no terminal e na UI: build **`poc-lostpassword-roundcube-5`** (nunca `login-fill-1`).
 
 ## Interface (recomendado)
 
@@ -102,7 +102,7 @@ Opção desmarcada por padrão. Quando marcada:
    1. Se já existir senha WP em `credentials/generated-passwords.csv` e ela autenticar → pula o reset.
    2. Senão: na URL de login da plataforma, clica **Recuperar minha senha** / lostpassword (ainda **sem** sessão WP).
    3. Roundcube com `user_email` + senha de e-mail do CSV (`password` — **inalterada**).
-   4. Aguarda INBOX (assunto traduzido, ex. pt_BR *Redefinição de Senha Eleitora*, com fallback para outros locales / assuntos de reset).
+   4. Aguarda INBOX (assunto traduzido, ex. pt_BR *Redefinição de Senha Eleitoral*, com fallback para outros locales / assuntos de reset).
    5. Abre o link `action=rp`, define nova senha WP (8 chars, sem ambíguos), marca o e-mail como lido.
    6. Grava a senha WP em `credentials/generated-passwords.csv` → logoff/cookies limpos → login WP com a senha nova → vota.
 4. Cópia das senhas também em `results/<timestamp>/passwords.csv`.

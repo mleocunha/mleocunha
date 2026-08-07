@@ -603,7 +603,6 @@
   "The reset email was sent. Check your inbox and spam folder.": "O e-mail de redefinição foi enviado. Verifique também a pasta de spam.",
   "Could not send the reset email. Try again or contact support.": "Não foi possível enviar o e-mail. Tente novamente ou contate o suporte.",
   "Receive email to reset my password": "Receber e-mail para redefinir minha senha",
-  "Elector Password Reset": "Redefinição de Senha Eleitora",
   "A password reset was requested for your elector account on %s.": "Foi solicitada a redefinição de senha da sua conta de eleitor em %s.",
   "Open the following address to choose a new password:": "Abra o endereço a seguir para escolher uma nova senha:",
   "If you did not request this, ignore this message.": "Se você não solicitou isso, ignore esta mensagem.",
@@ -711,5 +710,6 @@
   "Round": "Rodada",
   "Ballots": "Cédulas",
   "Creates (or reuses) welcome, voting booth, and thank-you pages with default shortcode content. You can edit them in Pages afterward. The Votador password-change PoC uses WordPress “Lost password” / “Recuperar minha senha” before login (Roundcube); [enviar_redefinicao_senha] remains optional for manual logged-in tests.": "Cria (ou reutiliza) páginas de boas-vindas, cabina e agradecimento com shortcodes padrão. Edite-as depois em Páginas. O PoC de troca de senha do Votador usa “Recuperar minha senha” antes do login (Roundcube); [enviar_redefinicao_senha] continua opcional para testes manuais logados.",
-  "Optional: sends a password-reset email to the currently logged-in user (plain text). The Votador PoC now triggers reset via “Recuperar minha senha” before login; this shortcode is for manual tests.": "Opcional: envia e-mail de redefinição ao usuário autenticado (texto simples). O Votador PoC dispara a redefinição via “Recuperar minha senha” antes do login; este shortcode serve a testes manuais."
+  "Optional: sends a password-reset email to the currently logged-in user (plain text). The Votador PoC now triggers reset via “Recuperar minha senha” before login; this shortcode is for manual tests.": "Opcional: envia e-mail de redefinição ao usuário autenticado (texto simples). O Votador PoC dispara a redefinição via “Recuperar minha senha” antes do login; este shortcode serve a testes manuais.",
+  "Electoral Password Reset": "Redefinição de Senha Eleitoral"
 }
