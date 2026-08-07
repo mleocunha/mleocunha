@@ -134,7 +134,12 @@
     <section class="block log-block">
       <div class="log-head">
         <h2>Progresso</h2>
-        <span id="runState" class="pill">ocioso</span>
+        <div class="log-head-actions">
+          <button type="button" id="copyLogBtn" class="ghost small" title="Copiar todo o Progresso">
+            Copiar progresso
+          </button>
+          <span id="runState" class="pill">ocioso</span>
+        </div>
       </div>
       <pre id="log" class="log" aria-live="polite"></pre>
     </section>

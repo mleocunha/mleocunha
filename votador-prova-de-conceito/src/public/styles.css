@@ -222,6 +222,24 @@ button.ghost {
   margin-bottom: 0.75rem;
 }
 
+.log-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
+button.ghost.small {
+  padding: 0.35rem 0.7rem;
+  font-size: 0.82rem;
+  border-radius: 8px;
+}
+
+button.ghost.small.copied {
+  border-color: var(--accent);
+  color: var(--accent-dark);
+}
+
 .log-head h2 {
   margin: 0;
 }

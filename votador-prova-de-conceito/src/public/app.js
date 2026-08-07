@@ -3,6 +3,7 @@ const logEl = document.getElementById('log');
 const runState = document.getElementById('runState');
 const startBtn = document.getElementById('startBtn');
 const stopBtn = document.getElementById('stopBtn');
+const copyLogBtn = document.getElementById('copyLogBtn');
 const loginPath = document.getElementById('loginPath');
 const customLoginWrap = document.getElementById('customLoginWrap');
 const macBanner = document.getElementById('macBanner');
@@ -190,4 +191,40 @@ form.addEventListener('submit', async (e) => {
 stopBtn.addEventListener('click', async () => {
   await fetch('/api/stop', { method: 'POST' });
   appendLog({ level: 'warn', message: 'Pedido de parada enviado…' });
+});
+
+async function copyProgressLog() {
+  const text = Array.from(logEl.children)
+    .map((el) => el.textContent || '')
+    .join('\n')
+    .trim();
+  const payload = text || '(Progresso vazio)';
+  const label = copyLogBtn.textContent;
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(payload);
+    } else {
+      const ta = document.createElement('textarea');
+      ta.value = payload;
+      ta.setAttribute('readonly', '');
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      ta.remove();
+    }
+    copyLogBtn.textContent = 'Copiado';
+    copyLogBtn.classList.add('copied');
+  } catch {
+    copyLogBtn.textContent = 'Falha ao copiar';
+  }
+  window.setTimeout(() => {
+    copyLogBtn.textContent = label;
+    copyLogBtn.classList.remove('copied');
+  }, 1600);
+}
+
+copyLogBtn?.addEventListener('click', () => {
+  copyProgressLog();
 });
