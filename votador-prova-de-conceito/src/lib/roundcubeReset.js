@@ -1,5 +1,6 @@
 import { generateSecurePassword } from './passwordGen.js';
 import { allResetSubjects, subjectForLocale } from './mailSubjects.js';
+import { readLoginError, tryWpLogin } from './wpLogin.js';
 
 const DEFAULT_MAIL_URL = 'https://relatasoft.com.br/mail/';
 
@@ -93,8 +94,28 @@ export async function resetPasswordViaRoundcube(page, opts) {
       key_len: keyLenFromResetLink(resetLink),
       link_host: safeHostFromResetLink(resetLink),
     });
-    const newPassword = generateSecurePassword(8);
-    await setWordPressPassword(mailPage, resetLink, newPassword);
+    const newPassword = generateSecurePassword(12);
+    await setWordPressPassword(mailPage, resetLink, newPassword, logger);
+    await ensureLoggedOutOfWordPress(mailPage, loginUrl);
+
+    // Prove WP accepted OUR password before returning — otherwise the PoC
+    // stores a password that never authenticates and loops on Roundcube reset.
+    logger?.info?.('Verificando login WP com a senha recém-definida…', {
+      user_login: userLogin,
+      senha_len: newPassword.length,
+    });
+    const verified = await tryWpLogin(mailPage, loginUrl, userLogin, newPassword);
+    if (!verified) {
+      const detail = await readLoginError(mailPage);
+      throw new Error(
+        `Senha definida no formulário rp, mas o login de verificação falhou` +
+          ` para ${userLogin}: ${detail || 'credenciais rejeitadas'} ` +
+          `[senha_len=${newPassword.length}]`
+      );
+    }
+    logger?.info?.('Login de verificação OK; senha WP utilizável', {
+      user_login: userLogin,
+    });
     await ensureLoggedOutOfWordPress(mailPage, loginUrl);
     return newPassword;
   } finally {
@@ -793,94 +814,160 @@ async function markCurrentMessageRead(page) {
   }
 }
 
-async function setWordPressPassword(page, resetLink, newPassword) {
+async function setWordPressPassword(page, resetLink, newPassword, logger) {
   await page.goto(resetLink, { waitUntil: 'domcontentloaded', timeout: 60000 });
 
-  // Expired / invalid key
+  // Expired / invalid key lands on the login form with #login_error.
   const loginError = page.locator('#login_error');
   if (await loginError.count()) {
     const text = ((await loginError.innerText()) || '').trim();
-    if (/expired|invalid|expirad|inválid|nao é válido|não é válido/i.test(text)) {
+    if (/expired|expirou|expirad|invalid|inválid|nao é válido|não é válido|not valid/i.test(text)) {
       throw new Error(`Link de redefinição inválido ou expirado: ${text}`);
     }
   }
 
   // WP shows #pass1 (and often a visible #pass1-text). #pass2 is frequently
   // present but hidden — Playwright fill() refuses hidden fields.
+  // action=rp usually redirects to action=resetpass before the form appears.
   const pass1 = page.locator('#pass1, input[name="pass1"], #pass1-text').first();
-  await pass1.waitFor({ state: 'attached', timeout: 30000 });
+  try {
+    await pass1.waitFor({ state: 'attached', timeout: 30000 });
+  } catch {
+    throw new Error(
+      'Formulário de nova senha WordPress (#pass1) não apareceu após o link action=rp.'
+    );
+  }
 
-  await page.evaluate((pwd) => {
-    const pass1El =
-      document.querySelector('#pass1') ||
-      document.querySelector('input[name="pass1"]');
-    const pass1Text = document.querySelector('#pass1-text');
-    const pass2El =
-      document.querySelector('#pass2') ||
-      document.querySelector('input[name="pass2"]');
-    if (!pass1El && !pass1Text) {
-      throw new Error('Campos de nova senha WordPress (#pass1) não encontrados.');
-    }
-    for (const el of [pass1El, pass1Text, pass2El]) {
-      if (!el) continue;
-      el.focus();
-      el.value = '';
-      el.dispatchEvent(new Event('input', { bubbles: true }));
-      el.value = pwd;
+  // WP's strength meter often leaves #wp-submit disabled for short passwords and
+  // may keep the auto-generated value. Set OUR password with the native value
+  // setter, force #pw-weak, unlock submit, then native form.submit() (bypasses
+  // disabled button). Never trust a broad page HTML match like /updated/.
+  const submitResult = await page.evaluate((pwd) => {
+    const nativeSet = Object.getOwnPropertyDescriptor(
+      window.HTMLInputElement.prototype,
+      'value'
+    )?.set;
+    const setVal = (el, value) => {
+      if (!el) {
+        return;
+      }
+      if (nativeSet) {
+        nativeSet.call(el, value);
+      } else {
+        el.value = value;
+      }
       el.dispatchEvent(new Event('input', { bubbles: true }));
       el.dispatchEvent(new Event('keyup', { bubbles: true }));
       el.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+
+    const pass1El =
+      document.querySelector('#pass1') || document.querySelector('input[name="pass1"]');
+    const pass1Text = document.querySelector('#pass1-text');
+    const pass2El =
+      document.querySelector('#pass2') || document.querySelector('input[name="pass2"]');
+    if (!pass1El && !pass1Text) {
+      return { ok: false, reason: 'missing-pass1' };
+    }
+
+    setVal(pass1El, pwd);
+    setVal(pass1Text, pwd);
+    setVal(pass2El, pwd);
+
+    const weakRow = document.querySelector('.pw-weak');
+    if (weakRow) {
+      weakRow.classList.remove('hidden');
+      weakRow.style.display = '';
     }
     const weak = document.querySelector('#pw-weak');
     if (weak instanceof HTMLInputElement) {
       weak.checked = true;
       weak.dispatchEvent(new Event('change', { bubbles: true }));
     }
-    // Confirm values stuck (password managers / WP generate-password JS).
-    const final1 = pass1El ? String(pass1El.value || '') : String(pass1Text?.value || '');
-    if (final1 !== pwd) {
-      if (pass1El) pass1El.value = pwd;
-      if (pass1Text) pass1Text.value = pwd;
-      if (pass2El) pass2El.value = pwd;
+
+    const submit = document.querySelector('#wp-submit');
+    if (submit) {
+      submit.disabled = false;
+      submit.removeAttribute('disabled');
+      submit.classList.remove('disabled');
     }
+
+    const form =
+      document.querySelector('#resetpassform') ||
+      (pass1El && pass1El.form) ||
+      (pass1Text && pass1Text.form) ||
+      document.querySelector('form');
+    if (!form) {
+      return { ok: false, reason: 'missing-form' };
+    }
+
+    let named = form.querySelector('input[name="pass1"]');
+    if (!named) {
+      named = document.createElement('input');
+      named.type = 'hidden';
+      named.name = 'pass1';
+      form.appendChild(named);
+    }
+    setVal(named, pwd);
+    const named2 = form.querySelector('input[name="pass2"]');
+    if (named2) {
+      setVal(named2, pwd);
+    }
+
+    const finalPass = String(named.value || '');
+    if (finalPass !== pwd) {
+      return { ok: false, reason: 'value-mismatch', gotLen: finalPass.length };
+    }
+
+    HTMLFormElement.prototype.submit.call(form);
+    return { ok: true, passLen: pwd.length };
   }, newPassword);
 
-  // Re-assert once more right before submit (WP strength UI can rewrite fields).
-  await page.evaluate((pwd) => {
-    const pass1El = document.querySelector('#pass1') || document.querySelector('input[name="pass1"]');
-    const pass2El = document.querySelector('#pass2') || document.querySelector('input[name="pass2"]');
-    const pass1Text = document.querySelector('#pass1-text');
-    if (pass1El) pass1El.value = pwd;
-    if (pass1Text) pass1Text.value = pwd;
-    if (pass2El) pass2El.value = pwd;
-    const weak = document.querySelector('#pw-weak');
-    if (weak instanceof HTMLInputElement) weak.checked = true;
-  }, newPassword);
-
-  await Promise.all([
-    page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 60000 }).catch(() => {}),
-    page.locator('#wp-submit, button[type="submit"]').first().click(),
-  ]);
-
-  // Success: confirmation message, login form, or already redirected away from rp.
-  await page.waitForTimeout(400);
-  const body = await page.content();
-  const url = page.url();
-  const stillOnRp = /[?&]action=rp\b/i.test(url) || /[?&]action=resetpass\b/i.test(url);
-  const hasLoginForm = (await page.locator('#user_login, #loginform').count()) > 0;
-  const okText =
-    /password.?has been reset|password.?updated|foi redefinida|redefinida com sucesso|your new password|senha foi|updated|check your email/i.test(
-      body
+  if (!submitResult?.ok) {
+    throw new Error(
+      `Não foi possível enviar a nova senha no WordPress (${submitResult?.reason || 'unknown'}).`
     );
-
-  if (stillOnRp && (await page.locator('#pass1, input[name="pass1"]').count()) && !okText) {
-    const err = page.locator('#login_error');
-    const detail = (await err.count()) ? ((await err.innerText()) || '').trim() : 'ainda no formulário rp';
-    throw new Error(`Não foi possível confirmar a alteração de senha no WordPress: ${detail}`);
   }
 
-  if (!okText && !hasLoginForm && stillOnRp) {
-    throw new Error('Não foi possível confirmar a alteração de senha no WordPress após o submit.');
+  await page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 60000 }).catch(() => {});
+  await page.waitForTimeout(500);
+
+  const bodyText = ((await page.locator('body').innerText().catch(() => '')) || '').trim();
+  const url = page.url();
+  const err = page.locator('#login_error');
+  if (await err.count()) {
+    const detail = ((await err.innerText()) || '').trim();
+    throw new Error(`WordPress recusou a nova senha: ${detail || 'erro no formulário'}`);
+  }
+
+  const successBanner =
+    /password has been reset|your password has been reset|senha foi redefinida|palavra-passe foi redefinida|contraseña ha sido restablecida|mot de passe a été réinitialisé/i.test(
+      bodyText
+    );
+
+  const stillOnResetForm =
+    (/[?&]action=rp\b/i.test(url) || /[?&]action=resetpass\b/i.test(url)) &&
+    (await page.locator('#pass1, input[name="pass1"]').count()) > 0;
+
+  if (stillOnResetForm && !successBanner) {
+    throw new Error(
+      'Ainda no formulário de redefinição após o submit — a senha provavelmente não foi gravada.'
+    );
+  }
+
+  if (!successBanner) {
+    const hasLogin = (await page.locator('#user_login, #loginform').count()) > 0;
+    const hasPass1 = (await page.locator('#pass1, input[name="pass1"]').count()) > 0;
+    if (!(hasLogin && !hasPass1)) {
+      throw new Error(
+        `Não foi possível confirmar a alteração de senha no WordPress (url=${String(url).slice(0, 140)}).`
+      );
+    }
+    logger?.warn?.(
+      'Banner de sucesso da redefinição não encontrado; seguindo com formulário de login visível'
+    );
+  } else {
+    logger?.info?.('WordPress confirmou a redefinição de senha no formulário rp');
   }
 }
 

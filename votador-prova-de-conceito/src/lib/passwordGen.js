@@ -4,10 +4,11 @@ const DIGITS = '23456789';
 const ALL = UPPER + LOWER + DIGITS;
 
 /**
- * Secure 8-char password: upper + lower + digit, no ambiguous glyphs (0Oo1lIi).
+ * Secure password: upper + lower + digit, no ambiguous glyphs (0Oo1lIi).
+ * Default 12 chars so the WP strength meter does not leave #wp-submit disabled.
  */
-export function generateSecurePassword(length = 8) {
-  const size = Math.max(8, length);
+export function generateSecurePassword(length = 12) {
+  const size = Math.max(12, length);
   const bytes = new Uint8Array(size);
   crypto.getRandomValues(bytes);
 

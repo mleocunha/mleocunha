@@ -144,6 +144,7 @@ async function authenticateElector(page, opts) {
       });
       return { password: stored.password, didReset: false };
     }
+    passwordStore?.delete?.(elector.user_login);
     logger.warn('Senha gerada anterior não autenticou; iniciando reset via Roundcube', {
       user_login: elector.user_login,
     });
@@ -162,17 +163,19 @@ async function authenticateElector(page, opts) {
     logger,
   });
 
-  passwordStore?.set(elector.user_login, newPassword, elector.user_email || '');
-  logger.info('Nova senha WP gerada e gravada localmente (senha de e-mail inalterada)', {
-    user_login: elector.user_login,
-  });
-
-  // Fresh session: logout/cookies already cleared inside reset; login then vote.
+  // Fresh session: reset already verified login once; login again then vote.
+  // Only persist the password after this login succeeds (avoids reset loops on
+  // a password that never authenticated).
   logger.info('Login WordPress com a senha nova (após reset); em seguida vota', {
     user_login: elector.user_login,
   });
   await page.context().clearCookies();
   await loginWithPassword(page, loginUrl, elector.user_login, newPassword);
+
+  passwordStore?.set(elector.user_login, newPassword, elector.user_email || '');
+  logger.info('Nova senha WP gerada e gravada localmente (senha de e-mail inalterada)', {
+    user_login: elector.user_login,
+  });
 
   let welcome = journeyCache.current.welcome;
   if (welcome) {

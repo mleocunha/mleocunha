@@ -63,9 +63,15 @@ export function createPasswordStore(filePath = DEFAULT_PATH) {
     }
   }
 
-  function persist() {
+  /**
+   * @param {string[]} [removed] Logins to drop from disk even if absent from map.
+   */
+  function persist(removed = []) {
     fs.mkdirSync(path.dirname(storePath), { recursive: true });
     const merged = readDiskMap();
+    for (const login of removed) {
+      merged.delete(login);
+    }
     for (const [login, row] of map.entries()) {
       merged.set(login, row);
     }
@@ -96,6 +102,15 @@ export function createPasswordStore(filePath = DEFAULT_PATH) {
         updated_at: new Date().toISOString(),
       });
       persist();
+    },
+    /** Drop a stale generated password (e.g. after failed login). */
+    delete(userLogin) {
+      const login = String(userLogin || '').trim();
+      if (!login) {
+        return;
+      }
+      map.delete(login);
+      persist([login]);
     },
     /** Copy current store into a run results directory. */
     exportTo(resultsDir) {
