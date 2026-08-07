@@ -192,12 +192,14 @@ async function findResetLinkInRoundcube(page, opts) {
     await refreshRoundcubeInbox(page);
 
     // Only the newest matching reset mail (top of list). Ignore older ones.
+    // Require unread so we do not reopen a prior reset that is still on top
+    // until the brand-new message arrives after lostpassword.
     const match = await findNewestResetMessageRow(page, subject, knownSubjects);
-    if (match) {
+    if (match && match.unread) {
       logger?.info?.('Abrindo somente a mensagem de redefinição mais recente', {
         subject: match.matchedSubject || subject,
         list_index: match.index,
-        unread: match.unread,
+        unread: true,
       });
       await match.row.click();
       await waitForMessagePreview(page);
@@ -212,6 +214,11 @@ async function findResetLinkInRoundcube(page, opts) {
         });
         return resetLink;
       }
+    } else if (match && !match.unread) {
+      logger?.info?.('Mensagem de reset mais recente ainda está lida; aguardando e-mail novo…', {
+        subject: match.matchedSubject || subject,
+        list_index: match.index,
+      });
     }
 
     lastSubjects = await listVisibleSubjects(page);
