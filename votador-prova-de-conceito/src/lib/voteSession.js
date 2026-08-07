@@ -168,6 +168,9 @@ async function authenticateElector(page, opts) {
   });
 
   // Fresh session: logout/cookies already cleared inside reset; login then vote.
+  logger.info('Login WordPress com a senha nova (após reset); em seguida vota', {
+    user_login: elector.user_login,
+  });
   await page.context().clearCookies();
   await loginWithPassword(page, loginUrl, elector.user_login, newPassword);
 

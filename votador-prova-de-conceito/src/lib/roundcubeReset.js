@@ -149,7 +149,7 @@ async function requestPasswordResetFromLogin(page, opts) {
   const confirm = page.locator('#login-message, .message, #login p.message').first();
   if (await confirm.count()) {
     logger?.info?.('Pedido de redefinição aceito pelo WordPress', {
-      message: ((await confirm.innerText()) || '').trim().slice(0, 160),
+      wp_notice: ((await confirm.innerText()) || '').trim().slice(0, 160),
     });
     return;
   }
@@ -162,23 +162,7 @@ async function findResetLinkInRoundcube(page, opts) {
   const { mailUrl, userEmail, mailPassword, subject, knownSubjects, timeoutMs, logger } = opts;
 
   await page.goto(mailUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
-  await page.locator('#rcmloginuser').waitFor({ state: 'visible', timeout: 30000 });
-  await page.fill('#rcmloginuser', userEmail);
-  await page.fill('#rcmloginpwd', mailPassword);
-  await Promise.all([
-    page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 60000 }).catch(() => {}),
-    page.click('#rcmloginsubmit'),
-  ]);
-
-  // Wait until login form is gone or error appears.
-  await page.waitForTimeout(800);
-  if (await page.locator('#rcmloginuser').count()) {
-    const loginErr = page.locator('#login-form .boxerror, #login-form .error, .boxwarning').first();
-    const detail = (await loginErr.count()) ? ((await loginErr.innerText()) || '').trim() : '';
-    throw new Error(
-      `Falha no login Roundcube (use a senha de e-mail do CSV, inalterada). ${detail}`.trim()
-    );
-  }
+  await loginRoundcubeIfNeeded(page, { userEmail, mailPassword, logger });
 
   await page.locator('#messagelist, #mailboxlist, #layout-content').first().waitFor({
     state: 'visible',
@@ -200,9 +184,11 @@ async function findResetLinkInRoundcube(page, opts) {
 
       const resetLink = await extractResetLink(page);
       if (resetLink) {
+        // Mark read only after we have a link; password set happens on this page next.
         await markCurrentMessageRead(page);
         logger?.info?.('E-mail de redefinição aberto na INBOX', {
           subject: match.matchedSubject || subject,
+          unread_preferred: true,
         });
         return resetLink;
       }
@@ -216,6 +202,57 @@ async function findResetLinkInRoundcube(page, opts) {
     `E-mail de redefinição não encontrado na INBOX em ${Math.round(timeoutMs / 1000)}s ` +
       `(procurava "${subject}" / assuntos conhecidos). Assuntos visíveis: ${JSON.stringify(lastSubjects.slice(0, 12))}`
   );
+}
+
+/**
+ * Roundcube may already have a session from a previous insistência in the same
+ * BrowserContext — then #rcmloginuser is absent and we must not wait for it.
+ */
+async function loginRoundcubeIfNeeded(page, { userEmail, mailPassword, logger }) {
+  const inboxReady = page.locator('#messagelist, #mailboxlist, #layout-list, #layout-content');
+  const loginUser = page.locator('#rcmloginuser');
+
+  // Brief settle after goto.
+  await page.waitForTimeout(500);
+
+  if (await inboxReady.first().isVisible().catch(() => false)) {
+    logger?.info?.('Roundcube já autenticado; reutilizando sessão');
+    return;
+  }
+
+  // Some skins show a splash then redirect; wait for either login or inbox.
+  try {
+    await Promise.race([
+      loginUser.waitFor({ state: 'visible', timeout: 30000 }),
+      inboxReady.first().waitFor({ state: 'visible', timeout: 30000 }),
+    ]);
+  } catch {
+    throw new Error(
+      'Roundcube não mostrou login (#rcmloginuser) nem INBOX — confira a URL do webmail.'
+    );
+  }
+
+  if (await inboxReady.first().isVisible().catch(() => false)) {
+    logger?.info?.('Roundcube já autenticado; reutilizando sessão');
+    return;
+  }
+
+  await loginUser.waitFor({ state: 'visible', timeout: 10000 });
+  await page.fill('#rcmloginuser', userEmail);
+  await page.fill('#rcmloginpwd', mailPassword);
+  await Promise.all([
+    page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 60000 }).catch(() => {}),
+    page.click('#rcmloginsubmit'),
+  ]);
+
+  await page.waitForTimeout(800);
+  if (await loginUser.isVisible().catch(() => false)) {
+    const loginErr = page.locator('#login-form .boxerror, #login-form .error, .boxwarning').first();
+    const detail = (await loginErr.count()) ? ((await loginErr.innerText()) || '').trim() : '';
+    throw new Error(
+      `Falha no login Roundcube (use a senha de e-mail do CSV, inalterada). ${detail}`.trim()
+    );
+  }
 }
 
 async function openInboxFolder(page) {
@@ -444,35 +481,81 @@ async function setWordPressPassword(page, resetLink, newPassword) {
     }
   }
 
-  const pass1 = page.locator('#pass1, input[name="pass1"]').first();
-  await pass1.waitFor({ state: 'visible', timeout: 30000 });
-  await pass1.fill(newPassword);
+  // WP shows #pass1 (and often a visible #pass1-text). #pass2 is frequently
+  // present but hidden — Playwright fill() refuses hidden fields.
+  const pass1 = page.locator('#pass1, input[name="pass1"], #pass1-text').first();
+  await pass1.waitFor({ state: 'attached', timeout: 30000 });
 
-  const pass2 = page.locator('#pass2, input[name="pass2"]').first();
-  if (await pass2.count()) {
-    await pass2.fill(newPassword);
-  }
+  await page.evaluate((pwd) => {
+    const pass1El =
+      document.querySelector('#pass1') ||
+      document.querySelector('input[name="pass1"]');
+    const pass1Text = document.querySelector('#pass1-text');
+    const pass2El =
+      document.querySelector('#pass2') ||
+      document.querySelector('input[name="pass2"]');
+    if (!pass1El && !pass1Text) {
+      throw new Error('Campos de nova senha WordPress (#pass1) não encontrados.');
+    }
+    for (const el of [pass1El, pass1Text, pass2El]) {
+      if (!el) continue;
+      el.focus();
+      el.value = '';
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.value = pwd;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('keyup', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    const weak = document.querySelector('#pw-weak');
+    if (weak instanceof HTMLInputElement) {
+      weak.checked = true;
+      weak.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    // Confirm values stuck (password managers / WP generate-password JS).
+    const final1 = pass1El ? String(pass1El.value || '') : String(pass1Text?.value || '');
+    if (final1 !== pwd) {
+      if (pass1El) pass1El.value = pwd;
+      if (pass1Text) pass1Text.value = pwd;
+      if (pass2El) pass2El.value = pwd;
+    }
+  }, newPassword);
 
-  const weak = page.locator('#pw-weak');
-  if (await weak.count()) {
-    await weak.check({ force: true }).catch(() => {});
-  }
+  // Re-assert once more right before submit (WP strength UI can rewrite fields).
+  await page.evaluate((pwd) => {
+    const pass1El = document.querySelector('#pass1') || document.querySelector('input[name="pass1"]');
+    const pass2El = document.querySelector('#pass2') || document.querySelector('input[name="pass2"]');
+    const pass1Text = document.querySelector('#pass1-text');
+    if (pass1El) pass1El.value = pwd;
+    if (pass1Text) pass1Text.value = pwd;
+    if (pass2El) pass2El.value = pwd;
+    const weak = document.querySelector('#pw-weak');
+    if (weak instanceof HTMLInputElement) weak.checked = true;
+  }, newPassword);
 
   await Promise.all([
     page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 60000 }).catch(() => {}),
     page.locator('#wp-submit, button[type="submit"]').first().click(),
   ]);
 
+  // Success: confirmation message, login form, or already redirected away from rp.
+  await page.waitForTimeout(400);
   const body = await page.content();
   const url = page.url();
-  const ok =
-    /password.?has been reset|password.?updated|foi redefinida|redefinida com sucesso|your new password|senha foi|updated/i.test(
+  const stillOnRp = /[?&]action=rp\b/i.test(url) || /[?&]action=resetpass\b/i.test(url);
+  const hasLoginForm = (await page.locator('#user_login, #loginform').count()) > 0;
+  const okText =
+    /password.?has been reset|password.?updated|foi redefinida|redefinida com sucesso|your new password|senha foi|updated|check your email/i.test(
       body
-    ) ||
-    /wp-login\.php/i.test(url) ||
-    (await page.locator('#user_login, #loginform').count()) > 0;
+    );
 
-  if (!ok) {
+  if (stillOnRp && (await page.locator('#pass1, input[name="pass1"]').count()) && !okText) {
+    const err = page.locator('#login_error');
+    const detail = (await err.count()) ? ((await err.innerText()) || '').trim() : 'ainda no formulário rp';
+    throw new Error(`Não foi possível confirmar a alteração de senha no WordPress: ${detail}`);
+  }
+
+  if (!okText && !hasLoginForm && stillOnRp) {
     throw new Error('Não foi possível confirmar a alteração de senha no WordPress após o submit.');
   }
 }
