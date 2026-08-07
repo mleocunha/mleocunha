@@ -47,62 +47,75 @@ export async function resetPasswordViaRoundcube(page, opts) {
     wp_origin: wpOrigin,
   });
 
-  // Open Roundcube FIRST and snapshot the current top reset mail, then request a
-  // new WP reset. Otherwise the brand-new message may already be on top when we
-  // baseline — and we would wait forever for something "newer".
+  // Open Roundcube FIRST. Prefer a still-valid unread reset mail (avoids flooding
+  // the inbox when previous PoC attempts left unread messages). Only call
+  // lostpassword when no usable key remains — then wait for a UID that was not
+  // in the pre-request baseline set.
   const mailPage = await page.context().newPage();
   try {
     await mailPage.goto(mailUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
     await loginRoundcubeIfNeeded(mailPage, { userEmail, mailPassword, logger });
     await waitForRoundcubeMessageList(mailPage, logger);
     await openInboxFolder(mailPage);
-    const baseline = await snapshotTopResetMessage(mailPage, subject, knownSubjects);
-    logger?.info?.('Baseline da INBOX (antes do lostpassword)', {
-      baseline_uid: baseline?.uid || null,
-      baseline_unread: baseline?.unread ?? null,
-    });
 
-    logger?.info?.('Solicitando redefinição via Recuperar minha senha (antes do login WP)', {
-      user_login: userLogin,
-      user_email: userEmail,
-      subject,
-      locale: batchLocale,
-    });
-    const requestedAtMs = Date.now();
-    await requestPasswordResetFromLogin(page, {
-      loginUrl,
-      userLogin,
-      userEmail,
-      logger,
-    });
-    await page.waitForTimeout(2000);
-
-    const resetLink = await waitForNewResetLinkInRoundcube(mailPage, {
+    let resetLink = await tryReuseUnreadResetLink(mailPage, {
       mailUrl,
       subject,
       knownSubjects,
       userLogin,
       wpOrigin,
-      timeoutMs,
-      requestedAtMs,
-      baseline,
       logger,
     });
 
-    logger?.info?.('Link de redefinição encontrado; definindo nova senha WP…', {
+    if (!resetLink) {
+      const baseline = await snapshotResetMessageIds(mailPage, subject, knownSubjects);
+      logger?.info?.('Baseline da INBOX (antes do lostpassword)', {
+        baseline_uids: baseline.uids.size,
+        baseline_top_uid: baseline.topUid || null,
+      });
+
+      logger?.info?.('Solicitando redefinição via Recuperar minha senha (antes do login WP)', {
+        user_login: userLogin,
+        user_email: userEmail,
+        subject,
+        locale: batchLocale,
+      });
+      const requestedAtMs = Date.now();
+      await requestPasswordResetFromLogin(page, {
+        loginUrl,
+        userLogin,
+        userEmail,
+        logger,
+      });
+      await page.waitForTimeout(2000);
+
+      resetLink = await waitForNewResetLinkInRoundcube(mailPage, {
+        mailUrl,
+        subject,
+        knownSubjects,
+        userLogin,
+        wpOrigin,
+        timeoutMs,
+        requestedAtMs,
+        baseline,
+        logger,
+      });
+    }
+
+    logger?.info?.('Link de redefinição encontrado; confirmando senha gerada pelo WordPress…', {
       login_in_link: safeLoginFromResetLink(resetLink),
       key_len: keyLenFromResetLink(resetLink),
       link_host: safeHostFromResetLink(resetLink),
     });
-    const newPassword = generateSecurePassword(12);
-    await setWordPressPassword(mailPage, resetLink, newPassword, logger);
+    // Use the password WordPress itself generates on the reset form (strong,
+    // accepted by the strength meter). Do not force a votador-made pattern.
+    const newPassword = await setWordPressPassword(mailPage, resetLink, logger);
     await ensureLoggedOutOfWordPress(mailPage, loginUrl);
 
-    // Prove WP accepted OUR password before returning — otherwise the PoC
-    // stores a password that never authenticates and loops on Roundcube reset.
     logger?.info?.('Verificando login WP com a senha recém-definida…', {
       user_login: userLogin,
       senha_len: newPassword.length,
+      senha_source: 'wordpress-generated',
     });
     const verified = await tryWpLogin(mailPage, loginUrl, userLogin, newPassword);
     if (!verified) {
@@ -204,7 +217,8 @@ async function requestPasswordResetFromLogin(page, opts) {
 }
 
 /**
- * Poll an already-open Roundcube inbox for a reset mail newer than baseline.
+ * Poll an already-open Roundcube inbox for a reset mail whose UID was not in
+ * the pre-lostpassword baseline set (not merely "different from top message").
  */
 async function waitForNewResetLinkInRoundcube(page, opts) {
   const {
@@ -219,14 +233,15 @@ async function waitForNewResetLinkInRoundcube(page, opts) {
     logger,
   } = opts;
 
+  const seenUids = baseline?.uids instanceof Set ? baseline.uids : new Set();
+  const seenFingerprints =
+    baseline?.fingerprints instanceof Set ? baseline.fingerprints : new Set();
   const deadline = Date.now() + timeoutMs;
   let lastSubjects = [];
   let poll = 0;
 
   while (Date.now() < deadline) {
     poll += 1;
-    // Hard refresh of the inbox view every other poll so new mail shows up
-    // quickly (checkmail alone can lag for minutes on some hosts).
     await refreshRoundcubeInbox(page, {
       mailUrl,
       forceReload: poll === 1 || poll % 2 === 0,
@@ -241,20 +256,20 @@ async function waitForNewResetLinkInRoundcube(page, opts) {
       continue;
     }
 
-    const isNewerThanBaseline =
-      !baseline ||
-      (match.uid && baseline.uid && String(match.uid) !== String(baseline.uid)) ||
-      (match.uid && !baseline.uid) ||
-      (!match.uid &&
-        match.fingerprint &&
-        baseline.fingerprint &&
-        match.fingerprint !== baseline.fingerprint);
+    const uid = match.uid ? String(match.uid) : '';
+    const isNewUid = uid ? !seenUids.has(uid) : false;
+    const isNewFingerprint =
+      !uid &&
+      match.fingerprint &&
+      !seenFingerprints.has(String(match.fingerprint));
+    const isNew = isNewUid || isNewFingerprint || (seenUids.size === 0 && seenFingerprints.size === 0);
 
-    if (!match.unread || !isNewerThanBaseline) {
-      logger?.info?.('Aguardando e-mail de redefinição NOVO (não lido, mais recente que o baseline)…', {
-        top_uid: match.uid || null,
+    if (!match.unread || !isNew) {
+      logger?.info?.('Aguardando e-mail de redefinição NOVO (não lido, UID fora do baseline)…', {
+        top_uid: uid || null,
         unread: match.unread,
-        newer: isNewerThanBaseline,
+        is_new: isNew,
+        baseline_uids: seenUids.size,
         poll,
       });
       lastSubjects = await listVisibleSubjects(page);
@@ -265,7 +280,7 @@ async function waitForNewResetLinkInRoundcube(page, opts) {
     logger?.info?.('Abrindo somente a mensagem de redefinição mais recente', {
       subject: match.matchedSubject || subject,
       list_index: match.index,
-      uid: match.uid || null,
+      uid: uid || null,
       unread: true,
     });
     await openMessageRow(page, match.row);
@@ -273,11 +288,21 @@ async function waitForNewResetLinkInRoundcube(page, opts) {
 
     const resetLink = await extractResetLink(page, { userLogin, wpOrigin });
     if (resetLink) {
+      const usable = await probeResetLinkUsable(page, resetLink, logger);
+      if (!usable) {
+        logger?.warn?.('E-mail novo, mas a chave rp já é inválida; continuando a poll…', {
+          uid: uid || null,
+        });
+        await refreshRoundcubeInbox(page, { mailUrl, forceReload: true, logger, poll });
+        lastSubjects = await listVisibleSubjects(page);
+        await page.waitForTimeout(1200);
+        continue;
+      }
       await markCurrentMessageRead(page);
       logger?.info?.('E-mail de redefinição aberto na INBOX', {
         subject: match.matchedSubject || subject,
         newest_only: true,
-        uid: match.uid || null,
+        uid: uid || null,
         requested_at_ms: requestedAtMs || null,
         login_in_link: safeLoginFromResetLink(resetLink),
         key_len: keyLenFromResetLink(resetLink),
@@ -292,9 +317,76 @@ async function waitForNewResetLinkInRoundcube(page, opts) {
 
   throw new Error(
     `E-mail de redefinição NOVO não encontrado na INBOX em ${Math.round(timeoutMs / 1000)}s ` +
-      `(procurava "${subject}"; só a mais recente não lida após o pedido). ` +
+      `(procurava mensagem com UID fora do baseline de ${seenUids.size} ids; assunto "${subject}"). ` +
       `Assuntos visíveis: ${JSON.stringify(lastSubjects.slice(0, 12))}`
   );
+}
+
+/**
+ * If the inbox already has an unread reset mail with a still-valid key, use it
+ * instead of requesting another lostpassword (stops the unread flood / refresh loop).
+ */
+async function tryReuseUnreadResetLink(page, opts) {
+  const { mailUrl, subject, knownSubjects, userLogin, wpOrigin, logger } = opts;
+  await refreshRoundcubeInbox(page, { mailUrl, forceReload: true, logger, poll: 0 });
+  const match = await findNewestResetMessageRow(page, subject, knownSubjects);
+  if (!match?.unread) {
+    logger?.info?.('Nenhum e-mail de redefinição não lido reutilizável; será pedido lostpassword');
+    return '';
+  }
+
+  logger?.info?.('Tentando reutilizar e-mail de redefinição não lido (chave ainda válida?)', {
+    uid: match.uid || null,
+    subject: match.matchedSubject || subject,
+  });
+  await openMessageRow(page, match.row);
+  await waitForMessagePreview(page, { userLogin });
+  const resetLink = await extractResetLink(page, { userLogin, wpOrigin });
+  if (!resetLink) {
+    logger?.info?.('Não foi possível extrair action=rp do não lido; pedindo lostpassword');
+    await refreshRoundcubeInbox(page, { mailUrl, forceReload: true, logger, poll: 0 });
+    return '';
+  }
+
+  const usable = await probeResetLinkUsable(page, resetLink, logger);
+  if (!usable) {
+    logger?.info?.('Chave do não lido expirada/inválida; pedindo lostpassword');
+    await markCurrentMessageRead(page).catch(() => {});
+    await refreshRoundcubeInbox(page, { mailUrl, forceReload: true, logger, poll: 0 });
+    return '';
+  }
+
+  await markCurrentMessageRead(page).catch(() => {});
+  logger?.info?.('Reutilizando e-mail de redefinição não lido com chave válida', {
+    uid: match.uid || null,
+    login_in_link: safeLoginFromResetLink(resetLink),
+    key_len: keyLenFromResetLink(resetLink),
+  });
+  return resetLink;
+}
+
+/**
+ * Visit action=rp and return true when the password form is usable.
+ * Leaves the page on the reset form when usable so the caller can set the password.
+ */
+async function probeResetLinkUsable(page, resetLink, logger) {
+  await page.goto(resetLink, { waitUntil: 'domcontentloaded', timeout: 60000 });
+  const loginError = page.locator('#login_error');
+  if (await loginError.count()) {
+    const text = ((await loginError.innerText()) || '').trim();
+    if (/expired|expirou|expirad|invalid|inválid|nao é válido|não é válido|not valid/i.test(text)) {
+      logger?.info?.('Probe rp: chave inválida/expirada', { detail: text.slice(0, 120) });
+      return false;
+    }
+  }
+  const pass1 = page.locator('#pass1, input[name="pass1"], #pass1-text').first();
+  try {
+    await pass1.waitFor({ state: 'attached', timeout: 15000 });
+    return true;
+  } catch {
+    logger?.info?.('Probe rp: formulário #pass1 não apareceu');
+    return false;
+  }
 }
 
 /**
@@ -545,18 +637,29 @@ async function findNewestResetMessageRow(page, preferredSubject, knownSubjects) 
       const subjectText = ((subjectEl && subjectEl.textContent) || '').replace(/\s+/g, ' ').trim();
       const dateEl = tr.querySelector('td.date, .date');
       const dateText = ((dateEl && dateEl.textContent) || '').replace(/\s+/g, ' ').trim();
+      const statusTitle =
+        (tr.querySelector('.status, td.status, span.status')?.getAttribute('title') || '') +
+        ' ' +
+        (tr.getAttribute('title') || '') +
+        ' ' +
+        (tr.getAttribute('aria-label') || '');
+      const unread =
+        /\bunread\b/i.test(cls) ||
+        (typeof tr.classList !== 'undefined' && tr.classList.contains('unread')) ||
+        Boolean(tr.querySelector('.unread')) ||
+        /unread|não\s*lid|nao\s*lid|unseen/i.test(statusTitle);
       return {
         text,
         cls,
         uid: String(uid || ''),
         subjectText,
         dateText,
+        unread,
         fingerprint: `${subjectText}|${dateText}|${text.slice(0, 80)}`,
       };
     });
 
     const lower = String(meta.text || '').toLowerCase();
-    const unread = /\bunread\b/i.test(meta.cls);
 
     let matchedSubject = '';
     if (preferred && lower.includes(preferred)) {
@@ -578,7 +681,7 @@ async function findNewestResetMessageRow(page, preferredSubject, knownSubjects) 
         row,
         matchedSubject,
         index: i,
-        unread,
+        unread: Boolean(meta.unread),
         uid: meta.uid,
         fingerprint: meta.fingerprint,
       };
@@ -586,6 +689,64 @@ async function findNewestResetMessageRow(page, preferredSubject, knownSubjects) 
   }
 
   return null;
+}
+
+/**
+ * Collect every visible reset-message UID/fingerprint before lostpassword so
+ * the poll can accept ANY newly arrived message, not only “different from top”.
+ */
+async function snapshotResetMessageIds(page, preferredSubject, knownSubjects) {
+  const preferred = String(preferredSubject || '').trim().toLowerCase();
+  const known = (knownSubjects || []).map((s) => String(s).trim().toLowerCase()).filter(Boolean);
+  const data = await page.evaluate(
+    ({ preferredSubj, knownSubs }) => {
+      const rows = Array.from(
+        document.querySelectorAll('#messagelist tr.message, #messagelist tbody tr, tr.message')
+      );
+      const uids = [];
+      const fingerprints = [];
+      let topUid = '';
+      for (const tr of rows) {
+        const text = (tr.innerText || '').replace(/\s+/g, ' ').trim().toLowerCase();
+        const subjectEl = tr.querySelector('td.subject, .subject');
+        const subjectText = ((subjectEl && subjectEl.textContent) || '').replace(/\s+/g, ' ').trim();
+        const dateEl = tr.querySelector('td.date, .date');
+        const dateText = ((dateEl && dateEl.textContent) || '').replace(/\s+/g, ' ').trim();
+        let matched = false;
+        if (preferredSubj && text.includes(preferredSubj)) matched = true;
+        if (!matched) {
+          for (const s of knownSubs) {
+            if (s && text.includes(s)) {
+              matched = true;
+              break;
+            }
+          }
+        }
+        if (!matched && /redefin|password.?reset|restablec|réinitial|elektoral|electoral|eleitor/i.test(text)) {
+          matched = true;
+        }
+        if (!matched) continue;
+        const uid =
+          tr.getAttribute('uid') ||
+          tr.getAttribute('data-uid') ||
+          tr.dataset?.uid ||
+          (String(tr.id || '').match(/(\d+)/) || [])[1] ||
+          '';
+        const fp = `${subjectText}|${dateText}|${text.slice(0, 80)}`;
+        if (uid) uids.push(String(uid));
+        fingerprints.push(fp);
+        if (!topUid && uid) topUid = String(uid);
+      }
+      return { uids, fingerprints, topUid };
+    },
+    { preferredSubj: preferred, knownSubs: known }
+  );
+
+  return {
+    uids: new Set(data.uids || []),
+    fingerprints: new Set(data.fingerprints || []),
+    topUid: data.topUid || '',
+  };
 }
 
 async function snapshotTopResetMessage(page, preferredSubject, knownSubjects) {
@@ -606,8 +767,10 @@ async function listVisibleSubjects(page) {
 
 async function waitForMessagePreview(page, { userLogin } = {}) {
   // Elastic uses #messagecontframe; older skins may use #messageframe.
+  // Do NOT require the full user_login in the body — mail clients truncate
+  // dotted logins in auto-links; we rebuild the URL from key + CSV login.
   const frameSelectors = ['#messagecontframe', '#messageframe', 'iframe.iframe-content'];
-  const loginNeedle = String(userLogin || '').trim();
+  void userLogin;
   for (const sel of frameSelectors) {
     const frameEl = page.locator(sel).first();
     if (!(await frameEl.count())) {
@@ -615,7 +778,7 @@ async function waitForMessagePreview(page, { userLogin } = {}) {
     }
     try {
       await page.waitForFunction(
-        ({ selector, login }) => {
+        (selector) => {
           const el = document.querySelector(selector);
           if (!el || !el.contentDocument) {
             return false;
@@ -627,18 +790,12 @@ async function waitForMessagePreview(page, { userLogin } = {}) {
           const html = body.innerHTML || '';
           const text = body.innerText || '';
           const blob = `${html}\n${text}`;
-          if (!/action=rp|wp-login\.php/i.test(blob)) {
-            return text.trim().length > 40 ? 'body' : false;
+          if (/action=rp|wp-login\.php|[?&]key=/i.test(blob)) {
+            return true;
           }
-          if (login) {
-            const decoded = blob.replace(/&amp;/g, '&');
-            if (!decoded.includes(login) && !decoded.includes(encodeURIComponent(login))) {
-              return false;
-            }
-          }
-          return true;
+          return text.trim().length > 40;
         },
-        { selector: sel, login: loginNeedle },
+        sel,
         { timeout: 12000 }
       );
       return;
@@ -814,10 +971,15 @@ async function markCurrentMessageRead(page) {
   }
 }
 
-async function setWordPressPassword(page, resetLink, newPassword, logger) {
+/**
+ * Open the WP reset form and save the password WordPress generates (preferred).
+ * Returns the password that was submitted.
+ *
+ * @returns {Promise<string>}
+ */
+async function setWordPressPassword(page, resetLink, logger) {
   await page.goto(resetLink, { waitUntil: 'domcontentloaded', timeout: 60000 });
 
-  // Expired / invalid key lands on the login form with #login_error.
   const loginError = page.locator('#login_error');
   if (await loginError.count()) {
     const text = ((await loginError.innerText()) || '').trim();
@@ -826,9 +988,6 @@ async function setWordPressPassword(page, resetLink, newPassword, logger) {
     }
   }
 
-  // WP shows #pass1 (and often a visible #pass1-text). #pass2 is frequently
-  // present but hidden — Playwright fill() refuses hidden fields.
-  // action=rp usually redirects to action=resetpass before the form appears.
   const pass1 = page.locator('#pass1, input[name="pass1"], #pass1-text').first();
   try {
     await pass1.waitFor({ state: 'attached', timeout: 30000 });
@@ -838,10 +997,48 @@ async function setWordPressPassword(page, resetLink, newPassword, logger) {
     );
   }
 
-  // WP's strength meter often leaves #wp-submit disabled for short passwords and
-  // may keep the auto-generated value. Set OUR password with the native value
-  // setter, force #pw-weak, unlock submit, then native form.submit() (bypasses
-  // disabled button). Never trust a broad page HTML match like /updated/.
+  // Let WP user-profile.js auto-generate a strong password, or click Generate.
+  await page.waitForTimeout(600);
+  const hasGenerated = await page.evaluate(() => {
+    const pass1El =
+      document.querySelector('#pass1') || document.querySelector('input[name="pass1"]');
+    const pass1Text = document.querySelector('#pass1-text');
+    const val = String(pass1El?.value || pass1Text?.value || '');
+    return val.length >= 8;
+  });
+  if (!hasGenerated) {
+    const genBtn = page
+      .locator(
+        '.wp-generate-pw, button.wp-generate-pw, button.button.wp-generate-pw, .generate-pw'
+      )
+      .first();
+    if ((await genBtn.count()) && (await genBtn.isVisible().catch(() => false))) {
+      await genBtn.click().catch(() => {});
+      await page.waitForTimeout(500);
+    }
+  }
+
+  // Prefer the value WP put in the field (already accepted by the strength meter).
+  let password = await page.evaluate(() => {
+    const pass1El =
+      document.querySelector('#pass1') || document.querySelector('input[name="pass1"]');
+    const pass1Text = document.querySelector('#pass1-text');
+    return String(pass1El?.value || pass1Text?.value || '').trim();
+  });
+
+  let source = 'wordpress-generated';
+  if (!password || password.length < 8) {
+    password = generateSecurePassword(16);
+    source = 'votador-fallback';
+    logger?.warn?.('WordPress não preencheu senha gerada; usando fallback do Votador', {
+      senha_len: password.length,
+    });
+  } else {
+    logger?.info?.('Usando senha gerada pelo WordPress no formulário de redefinição', {
+      senha_len: password.length,
+    });
+  }
+
   const navPromise = page
     .waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 60000 })
     .catch(() => null);
@@ -852,14 +1049,9 @@ async function setWordPressPassword(page, resetLink, newPassword, logger) {
       'value'
     )?.set;
     const setVal = (el, value) => {
-      if (!el) {
-        return;
-      }
-      if (nativeSet) {
-        nativeSet.call(el, value);
-      } else {
-        el.value = value;
-      }
+      if (!el) return;
+      if (nativeSet) nativeSet.call(el, value);
+      else el.value = value;
       el.dispatchEvent(new Event('input', { bubbles: true }));
       el.dispatchEvent(new Event('keyup', { bubbles: true }));
       el.dispatchEvent(new Event('change', { bubbles: true }));
@@ -914,18 +1106,15 @@ async function setWordPressPassword(page, resetLink, newPassword, logger) {
     }
     setVal(named, pwd);
     const named2 = form.querySelector('input[name="pass2"]');
-    if (named2) {
-      setVal(named2, pwd);
-    }
+    if (named2) setVal(named2, pwd);
 
-    const finalPass = String(named.value || '');
-    if (finalPass !== pwd) {
-      return { ok: false, reason: 'value-mismatch', gotLen: finalPass.length };
+    if (String(named.value || '') !== pwd) {
+      return { ok: false, reason: 'value-mismatch', gotLen: String(named.value || '').length };
     }
 
     HTMLFormElement.prototype.submit.call(form);
     return { ok: true, passLen: pwd.length };
-  }, newPassword);
+  }, password);
 
   if (!submitResult?.ok) {
     throw new Error(
@@ -968,11 +1157,17 @@ async function setWordPressPassword(page, resetLink, newPassword, logger) {
       );
     }
     logger?.warn?.(
-      'Banner de sucesso da redefinição não encontrado; seguindo com formulário de login visível'
+      'Banner de sucesso da redefinição não encontrado; seguindo com formulário de login visível',
+      { senha_source: source }
     );
   } else {
-    logger?.info?.('WordPress confirmou a redefinição de senha no formulário rp');
+    logger?.info?.('WordPress confirmou a redefinição de senha no formulário rp', {
+      senha_source: source,
+      senha_len: password.length,
+    });
   }
+
+  return password;
 }
 
 /**

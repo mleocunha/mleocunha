@@ -11,7 +11,7 @@ import { discoverBatchLocale } from './discoverLocale.js';
 import { startDisplayCaffeinate } from './caffeinate.js';
 
 /** Bumped when PoC runtime behaviour changes — look for this in startup logs / UI. */
-export const VOTADOR_BUILD = 'poc-lostpassword-roundcube-10';
+export const VOTADOR_BUILD = 'poc-lostpassword-roundcube-11';
 
 export const DEFAULTS = {
   windows: 5,

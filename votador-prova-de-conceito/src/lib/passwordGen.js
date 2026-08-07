@@ -1,14 +1,16 @@
 const UPPER = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
 const LOWER = 'abcdefghjkmnpqrstuvwxyz';
 const DIGITS = '23456789';
-const ALL = UPPER + LOWER + DIGITS;
+const SYMBOLS = '!@#$%&*';
+const ALL = UPPER + LOWER + DIGITS + SYMBOLS;
 
 /**
- * Secure password: upper + lower + digit, no ambiguous glyphs (0Oo1lIi).
- * Default 12 chars so the WP strength meter does not leave #wp-submit disabled.
+ * Fallback password only when WordPress does not auto-fill the reset form.
+ * Prefer the WP-generated value on the reset screen in normal PoC flow.
+ * Includes upper/lower/digit/symbol so common host policies accept it.
  */
-export function generateSecurePassword(length = 12) {
-  const size = Math.max(12, length);
+export function generateSecurePassword(length = 16) {
+  const size = Math.max(16, length);
   const bytes = new Uint8Array(size);
   crypto.getRandomValues(bytes);
 
@@ -16,13 +18,13 @@ export function generateSecurePassword(length = 12) {
     UPPER[bytes[0] % UPPER.length],
     LOWER[bytes[1] % LOWER.length],
     DIGITS[bytes[2] % DIGITS.length],
+    SYMBOLS[bytes[3] % SYMBOLS.length],
   ];
 
-  for (let i = 3; i < size; i += 1) {
+  for (let i = 4; i < size; i += 1) {
     chars.push(ALL[bytes[i] % ALL.length]);
   }
 
-  // Shuffle with fresh entropy.
   const shuffleBytes = new Uint8Array(size);
   crypto.getRandomValues(shuffleBytes);
   for (let i = size - 1; i > 0; i -= 1) {
