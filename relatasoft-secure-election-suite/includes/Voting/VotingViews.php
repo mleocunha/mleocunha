@@ -563,7 +563,7 @@ class VotingViews {
 							</tr>
 							<tr>
 								<td><code>[enviar_redefinicao_senha]</code></td>
-								<td><?php esc_html_e( 'Sends a password-reset email to the currently logged-in user (plain text). Place on the welcome page for the Votador PoC password-change flow.', 'relatasoft-secure-election-suite' ); ?></td>
+								<td><?php esc_html_e( 'Optional: sends a password-reset email to the currently logged-in user (plain text). The Votador PoC now triggers reset via “Recuperar minha senha” before login; this shortcode is for manual tests.', 'relatasoft-secure-election-suite' ); ?></td>
 							</tr>
 						</tbody>
 					</table>

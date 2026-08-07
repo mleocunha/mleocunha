@@ -77,12 +77,20 @@ Senha admin também pode vir de `RSES_ADMIN_PASS`.
 
 Opção desmarcada por padrão. Quando marcada:
 
-1. Exige `[enviar_redefinicao_senha]` na página de boas-vindas (plugin RSES ≥ 1.0.20).
-2. Descobre o **locale do primeiro eleitor** e usa esse assunto de e-mail para todo o lote.
-3. Por eleitor (ainda em paralelo entre contextos): login → disparar shortcode → Roundcube (URL configurável, default `https://relatasoft.com.br/mail/`) com `user_email` + senha WP atual → ler INBOX (assunto traduzido, ex. pt_BR *Redefinição de Senha Eleitora*) → redefinir senha (8 chars, sem caracteres ambíguos) → marcar e-mail como lido → login com senha nova → votar.
-4. Senhas geradas em `credentials/generated-passwords.csv` (reutilizadas automaticamente; cópia também em `results/<timestamp>/passwords.csv`).
+1. Campo **URL do Roundcube** aparece logo abaixo do checkbox (default `https://relatasoft.com.br/mail/`).
+2. Descobre o locale preferido a partir de `html[lang]` na página de login (sem autenticar o eleitor).
+3. Por eleitor (Chrome **headed**, nunca headless; paralelo entre contextos):
+   1. Se já existir senha WP em `credentials/generated-passwords.csv` e ela autenticar → pula o reset.
+   2. Senão: na URL de login da plataforma, clica **Recuperar minha senha** / lostpassword (ainda **sem** sessão WP).
+   3. Roundcube com `user_email` + senha de e-mail do CSV (`password` — **inalterada**).
+   4. Aguarda INBOX (assunto traduzido, ex. pt_BR *Redefinição de Senha Eleitora*, com fallback para outros locales / assuntos de reset).
+   5. Abre o link `action=rp`, define nova senha WP (8 chars, sem ambíguos), marca o e-mail como lido.
+   6. Grava a senha WP em `credentials/generated-passwords.csv` → logoff/cookies limpos → login WP com a senha nova → vota.
+4. Cópia das senhas também em `results/<timestamp>/passwords.csv`.
 
 CLI: `--password-change --mail-url https://relatasoft.com.br/mail/`
+
+> O shortcode `[enviar_redefinicao_senha]` permanece disponível no plugin (útil para testes manuais logados), mas o Votador PoC **não** depende mais dele: o disparo é pelo fluxo nativo *Recuperar minha senha*.
 
 ## Notas
 

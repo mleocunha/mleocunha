@@ -22,9 +22,18 @@ loginPath.addEventListener('change', () => {
 
 const passwordChangePoc = document.getElementById('passwordChangePoc');
 const mailUrlWrap = document.getElementById('mailUrlWrap');
-passwordChangePoc.addEventListener('change', () => {
-  mailUrlWrap.classList.toggle('hidden', !passwordChangePoc.checked);
-});
+const mailUrl = document.getElementById('mailUrl');
+
+function syncMailUrlField() {
+  const on = passwordChangePoc.checked;
+  mailUrlWrap.classList.toggle('hidden', !on);
+  if (mailUrl) {
+    mailUrl.required = on;
+  }
+}
+
+passwordChangePoc.addEventListener('change', syncMailUrlField);
+syncMailUrlField();
 
 function clearLog() {
   logEl.replaceChildren();

@@ -11,7 +11,7 @@ import { discoverBatchLocale } from './discoverLocale.js';
 import { startDisplayCaffeinate } from './caffeinate.js';
 
 /** Bumped when PoC runtime behaviour changes — look for this in startup logs. */
-export const VOTADOR_BUILD = 'login-fill-1';
+export const VOTADOR_BUILD = 'poc-lostpassword-roundcube-1';
 
 export const DEFAULTS = {
   windows: 5,
@@ -149,28 +149,29 @@ export async function runVotador(config, hooks = {}) {
 
     let batchLocale = 'en_US';
     if (passwordChangePoc) {
-      if (!electors[0]?.user_email) {
-        throw new Error('PoC com troca de senha exige user_email no CSV de cada eleitor.');
+      const missingEmail = electors.find((e) => !e.user_email);
+      if (missingEmail) {
+        throw new Error(
+          `PoC com troca de senha exige user_email no CSV (faltando em ${missingEmail.user_login}, linha ${missingEmail.row}).`
+        );
       }
       const localeContext = await browsers[0].newContext({
         ignoreHTTPSErrors: Boolean(cfg.ignoreHTTPSErrors),
       });
       try {
-        const first = { ...electors[0] };
-        const stored = passwordStore.get(first.user_login);
-        if (stored?.password) {
-          first.password = stored.password;
-        }
+        // Locale for preferred subject only — no WP login required (reset is
+        // requested via "Recuperar minha senha" before any elector session).
         batchLocale = await discoverBatchLocale(localeContext, {
           loginUrl,
-          elector: first,
-          platformUrl: cfg.platformUrl.replace(/\/+$/, ''),
           logger,
         });
       } finally {
         await localeContext.close().catch(() => {});
       }
-      logger.info('PoC com troca de senha ativo', { batchLocale, mailUrl });
+      logger.info('PoC com troca de senha ativo (lostpassword → Roundcube → login → voto)', {
+        batchLocale,
+        mailUrl,
+      });
     }
 
     const state = {

@@ -6,48 +6,73 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_PATH = path.resolve(__dirname, '../../credentials/generated-passwords.csv');
 
 /**
- * Persistent local map of user_login → generated password (gitignored).
+ * Persistent local map of user_login → generated WordPress password (gitignored).
+ * Email / Roundcube password is never stored here.
+ *
+ * Writes are synchronous and merge with any rows already on disk so parallel
+ * workers in the same Node process (and reloads) do not clobber each other.
  */
 export function createPasswordStore(filePath = DEFAULT_PATH) {
   const storePath = filePath;
   /** @type {Map<string, { password: string, user_email: string, updated_at: string }>} */
   const map = new Map();
 
+  function readDiskMap() {
+    /** @type {Map<string, { password: string, user_email: string, updated_at: string }>} */
+    const disk = new Map();
+    if (!fs.existsSync(storePath)) {
+      return disk;
+    }
+    try {
+      const text = fs.readFileSync(storePath, 'utf8').replace(/^\uFEFF/, '');
+      const lines = text.split(/\r?\n/).filter(Boolean);
+      if (lines.length < 2) {
+        return disk;
+      }
+      const headers = lines[0].split(',').map((h) => h.trim().toLowerCase());
+      const loginIdx = headers.indexOf('user_login');
+      const passIdx = headers.indexOf('password');
+      const emailIdx = headers.indexOf('user_email');
+      const updatedIdx = headers.indexOf('updated_at');
+      if (loginIdx < 0 || passIdx < 0) {
+        return disk;
+      }
+      for (let i = 1; i < lines.length; i += 1) {
+        const cols = splitCsvLine(lines[i]);
+        const login = String(cols[loginIdx] ?? '').trim();
+        const password = String(cols[passIdx] ?? '');
+        if (!login || !password) {
+          continue;
+        }
+        disk.set(login, {
+          password,
+          user_email: emailIdx >= 0 ? String(cols[emailIdx] ?? '').trim() : '',
+          updated_at: updatedIdx >= 0 ? String(cols[updatedIdx] ?? '') : '',
+        });
+      }
+    } catch {
+      /* keep empty */
+    }
+    return disk;
+  }
+
   function load() {
     map.clear();
-    if (!fs.existsSync(storePath)) {
-      return;
-    }
-    const text = fs.readFileSync(storePath, 'utf8').replace(/^\uFEFF/, '');
-    const lines = text.split(/\r?\n/).filter(Boolean);
-    if (lines.length < 2) {
-      return;
-    }
-    const headers = lines[0].split(',').map((h) => h.trim().toLowerCase());
-    const loginIdx = headers.indexOf('user_login');
-    const passIdx = headers.indexOf('password');
-    const emailIdx = headers.indexOf('user_email');
-    const updatedIdx = headers.indexOf('updated_at');
-    if (loginIdx < 0 || passIdx < 0) {
-      return;
-    }
-    for (let i = 1; i < lines.length; i += 1) {
-      const cols = splitCsvLine(lines[i]);
-      const login = String(cols[loginIdx] ?? '').trim();
-      const password = String(cols[passIdx] ?? '');
-      if (!login || !password) {
-        continue;
-      }
-      map.set(login, {
-        password,
-        user_email: emailIdx >= 0 ? String(cols[emailIdx] ?? '').trim() : '',
-        updated_at: updatedIdx >= 0 ? String(cols[updatedIdx] ?? '') : '',
-      });
+    for (const [login, row] of readDiskMap().entries()) {
+      map.set(login, row);
     }
   }
 
   function persist() {
     fs.mkdirSync(path.dirname(storePath), { recursive: true });
+    const merged = readDiskMap();
+    for (const [login, row] of map.entries()) {
+      merged.set(login, row);
+    }
+    map.clear();
+    for (const [login, row] of merged.entries()) {
+      map.set(login, row);
+    }
     const lines = ['user_login,user_email,password,updated_at'];
     for (const [login, row] of map.entries()) {
       lines.push(
@@ -74,6 +99,11 @@ export function createPasswordStore(filePath = DEFAULT_PATH) {
     },
     /** Copy current store into a run results directory. */
     exportTo(resultsDir) {
+      try {
+        persist();
+      } catch {
+        /* ignore */
+      }
       fs.mkdirSync(resultsDir, { recursive: true });
       const dest = path.join(resultsDir, 'passwords.csv');
       if (fs.existsSync(storePath)) {
