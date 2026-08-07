@@ -177,11 +177,7 @@ async function findResetLinkInRoundcube(page, opts) {
   await page.goto(mailUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
   await loginRoundcubeIfNeeded(page, { userEmail, mailPassword, logger });
 
-  // Real mailbox UI only — never treat the login shell (#layout-content) as inbox.
-  await page.locator('#messagelist, #mailboxlist').first().waitFor({
-    state: 'visible',
-    timeout: 60000,
-  });
+  await waitForRoundcubeMessageList(page, logger);
 
   await openInboxFolder(page);
 
@@ -201,7 +197,7 @@ async function findResetLinkInRoundcube(page, opts) {
         list_index: match.index,
         unread: true,
       });
-      await match.row.click();
+      await openMessageRow(page, match.row);
       await waitForMessagePreview(page);
 
       const resetLink = await extractResetLink(page);
@@ -233,20 +229,42 @@ async function findResetLinkInRoundcube(page, opts) {
 }
 
 /**
+ * Roundcube Elastic often keeps #mailboxlist in the DOM but hidden (narrow layout).
+ * Never wait on #mailboxlist visibility — use the message list / rows instead.
+ */
+async function waitForRoundcubeMessageList(page, logger) {
+  const list = page.locator('#messagelist');
+  const rows = page.locator('#messagelist tr.message, #messagelist tbody tr.message, tr.message');
+  try {
+    await Promise.race([
+      list.waitFor({ state: 'visible', timeout: 60000 }),
+      rows.first().waitFor({ state: 'visible', timeout: 60000 }),
+    ]);
+  } catch {
+    throw new Error(
+      'Roundcube autenticou, mas a lista de mensagens (#messagelist) não ficou visível.'
+    );
+  }
+  logger?.info?.('Lista de mensagens Roundcube visível');
+}
+
+/**
  * Roundcube Elastic login page also has #layout-content — that is NOT a session.
- * Only skip login when the real mailbox (#messagelist / #mailboxlist) is visible
- * and #rcmloginuser is not.
+ * Only skip login when #messagelist (or message rows) is visible and #rcmloginuser is not.
+ * Do not use #mailboxlist for "logged in" — it is often present but hidden.
  */
 async function loginRoundcubeIfNeeded(page, { userEmail, mailPassword, logger }) {
   const loginUser = page.locator('#rcmloginuser');
-  const mailboxUi = page.locator('#messagelist, #mailboxlist');
+  const messageList = page.locator('#messagelist');
+  const messageRows = page.locator('#messagelist tr.message, tr.message');
 
   await page.waitForTimeout(400);
 
   try {
     await Promise.race([
       loginUser.waitFor({ state: 'visible', timeout: 30000 }),
-      mailboxUi.first().waitFor({ state: 'visible', timeout: 30000 }),
+      messageList.waitFor({ state: 'visible', timeout: 30000 }),
+      messageRows.first().waitFor({ state: 'visible', timeout: 30000 }),
     ]);
   } catch {
     throw new Error(
@@ -255,7 +273,9 @@ async function loginRoundcubeIfNeeded(page, { userEmail, mailPassword, logger })
   }
 
   const onLogin = await loginUser.isVisible().catch(() => false);
-  const inMailbox = await mailboxUi.first().isVisible().catch(() => false);
+  const inMailbox =
+    (await messageList.isVisible().catch(() => false)) ||
+    (await messageRows.first().isVisible().catch(() => false));
 
   if (inMailbox && !onLogin) {
     logger?.info?.('Roundcube já autenticado; reutilizando sessão');
@@ -285,17 +305,46 @@ async function loginRoundcubeIfNeeded(page, { userEmail, mailPassword, logger })
     );
   }
 
-  await mailboxUi.first().waitFor({ state: 'visible', timeout: 60000 });
+  await waitForRoundcubeMessageList(page, logger);
 }
 
 async function openInboxFolder(page) {
+  // Folder tree is often hidden in Elastic; only click if visible.
   const inbox = page
     .locator('#mailboxlist a, #folderlist-content a, .mailbox a')
     .filter({ hasText: /^(Inbox|INBOX|Caixa de entrada|Boîte|Bandeja)/i })
     .first();
-  if (await inbox.count()) {
+  if ((await inbox.count()) && (await inbox.isVisible().catch(() => false))) {
     await inbox.click().catch(() => {});
     await page.waitForTimeout(400);
+  }
+}
+
+/**
+ * Click the message row in a Roundcube-friendly way (subject link preferred).
+ * @param {import('playwright').Page} page
+ * @param {import('playwright').Locator} row
+ */
+async function openMessageRow(page, row) {
+  await row.scrollIntoViewIfNeeded().catch(() => {});
+  const subjectLink = row.locator('td.subject a, .subject a, a.subject').first();
+  if ((await subjectLink.count()) && (await subjectLink.isVisible().catch(() => false))) {
+    await subjectLink.click({ timeout: 10000 });
+  } else {
+    await row.click({ timeout: 10000 });
+  }
+  // Elastic sometimes needs a second activation for the preview pane.
+  await page.waitForTimeout(300);
+  const previewHasBody = await page.evaluate(() => {
+    const frame =
+      document.querySelector('#messagecontframe') || document.querySelector('#messageframe');
+    if (frame && frame.contentDocument && frame.contentDocument.body) {
+      return (frame.contentDocument.body.innerText || '').trim().length > 20;
+    }
+    return false;
+  }).catch(() => false);
+  if (!previewHasBody) {
+    await row.dblclick({ timeout: 5000 }).catch(() => {});
   }
 }
 

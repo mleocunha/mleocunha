@@ -46,7 +46,7 @@ npm install
 npm start
 ```
 
-Confirme no terminal e na UI: build **`poc-lostpassword-roundcube-5`** (nunca `login-fill-1`).
+Confirme no terminal e na UI: build **`poc-lostpassword-roundcube-6`** (nunca `login-fill-1`).
 
 ## Interface (recomendado)
 
