@@ -37,43 +37,50 @@ export async function resetPasswordViaRoundcube(page, opts) {
   const subject = subjectForLocale(batchLocale);
   const knownSubjects = uniqueSubjects(batchLocale);
 
-  logger?.info?.('Solicitando redefinição via Recuperar minha senha (antes do login WP)', {
+  logger?.info?.('Preparando Roundcube antes do pedido de redefinição', {
     user_login: userLogin,
     user_email: userEmail,
     subject,
     locale: batchLocale,
   });
 
-  // Only the newest reset mail AFTER this request should be opened.
-  // Snapshot inbox identity after Roundcube login so we ignore older unread mail.
-  const requestedAtMs = Date.now();
-
-  await requestPasswordResetFromLogin(page, {
-    loginUrl,
-    userLogin,
-    userEmail,
-    logger,
-  });
-
-  // Give WP/mail delivery a moment before polling.
-  await page.waitForTimeout(1500);
-
-  logger?.info?.('Abrindo Roundcube headed (nova aba Chrome)', {
-    mailUrl,
-    user_email: userEmail,
-  });
-
+  // Open Roundcube FIRST and snapshot the current top reset mail, then request a
+  // new WP reset. Otherwise the brand-new message may already be on top when we
+  // baseline — and we would wait forever for something "newer".
   const mailPage = await page.context().newPage();
   try {
-    const resetLink = await findResetLinkInRoundcube(mailPage, {
-      mailUrl,
-      userEmail,
+    await mailPage.goto(mailUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
+    await loginRoundcubeIfNeeded(mailPage, { userEmail, mailPassword, logger });
+    await waitForRoundcubeMessageList(mailPage, logger);
+    await openInboxFolder(mailPage);
+    const baseline = await snapshotTopResetMessage(mailPage, subject, knownSubjects);
+    logger?.info?.('Baseline da INBOX (antes do lostpassword)', {
+      baseline_uid: baseline?.uid || null,
+      baseline_unread: baseline?.unread ?? null,
+    });
+
+    logger?.info?.('Solicitando redefinição via Recuperar minha senha (antes do login WP)', {
+      user_login: userLogin,
+      user_email: userEmail,
+      subject,
+      locale: batchLocale,
+    });
+    const requestedAtMs = Date.now();
+    await requestPasswordResetFromLogin(page, {
+      loginUrl,
       userLogin,
-      mailPassword,
+      userEmail,
+      logger,
+    });
+    await page.waitForTimeout(1500);
+
+    const resetLink = await waitForNewResetLinkInRoundcube(mailPage, {
       subject,
       knownSubjects,
+      userLogin,
       timeoutMs,
       requestedAtMs,
+      baseline,
       logger,
     });
 
@@ -169,31 +176,19 @@ async function requestPasswordResetFromLogin(page, opts) {
   logger?.info?.('Formulário de redefinição enviado; aguardando e-mail no Roundcube…');
 }
 
-async function findResetLinkInRoundcube(page, opts) {
+/**
+ * Poll an already-open Roundcube inbox for a reset mail newer than baseline.
+ */
+async function waitForNewResetLinkInRoundcube(page, opts) {
   const {
-    mailUrl,
-    userEmail,
-    userLogin,
-    mailPassword,
     subject,
     knownSubjects,
+    userLogin,
     timeoutMs,
     requestedAtMs = 0,
+    baseline = null,
     logger,
   } = opts;
-
-  await page.goto(mailUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
-  await loginRoundcubeIfNeeded(page, { userEmail, mailPassword, logger });
-
-  await waitForRoundcubeMessageList(page, logger);
-  await openInboxFolder(page);
-
-  // Identity of whatever is currently on top — we must wait for a NEWER unread mail.
-  const baseline = await snapshotTopResetMessage(page, subject, knownSubjects);
-  logger?.info?.('Baseline da INBOX antes de aguardar e-mail novo', {
-    baseline_uid: baseline?.uid || null,
-    baseline_unread: baseline?.unread ?? null,
-  });
 
   const deadline = Date.now() + timeoutMs;
   let lastSubjects = [];
@@ -212,9 +207,11 @@ async function findResetLinkInRoundcube(page, opts) {
       !baseline ||
       (match.uid && baseline.uid && String(match.uid) !== String(baseline.uid)) ||
       (match.uid && !baseline.uid) ||
-      (!match.uid && match.fingerprint && match.fingerprint !== baseline.fingerprint);
+      (!match.uid &&
+        match.fingerprint &&
+        baseline.fingerprint &&
+        match.fingerprint !== baseline.fingerprint);
 
-    // Must be unread AND newer than what was already in the inbox when we started.
     if (!match.unread || !isNewerThanBaseline) {
       logger?.info?.('Aguardando e-mail de redefinição NOVO (não lido, mais recente que o baseline)…', {
         top_uid: match.uid || null,
