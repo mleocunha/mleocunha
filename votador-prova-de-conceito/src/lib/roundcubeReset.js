@@ -115,7 +115,6 @@ export async function resetPasswordViaRoundcube(page, opts) {
     logger?.info?.('Verificando login WP com a senha recém-definida…', {
       user_login: userLogin,
       senha_len: newPassword.length,
-      senha_source: 'wordpress-generated',
     });
     const verified = await tryWpLogin(mailPage, loginUrl, userLogin, newPassword);
     if (!verified) {
