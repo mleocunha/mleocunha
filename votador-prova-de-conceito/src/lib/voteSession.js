@@ -106,6 +106,11 @@ export async function voteElector(context, opts) {
 
 /**
  * Login; optionally reset via Roundcube when PoC password-change is enabled.
+ *
+ * PoC order (legal headed Chrome):
+ *   stored WP password? → login → vote
+ *   else: Recuperar minha senha (no WP session) → Roundcube (CSV email password
+ *   unchanged) → set WP password → CSV → logout → login → vote
  */
 async function authenticateElector(page, opts) {
   const {
@@ -124,60 +129,60 @@ async function authenticateElector(page, opts) {
     return { password: elector.password, didReset: false };
   }
 
+  if (!elector.user_email) {
+    throw new Error(
+      `PoC com troca de senha exige user_email no CSV (${elector.user_login}).`
+    );
+  }
+
   const stored = passwordStore?.get(elector.user_login);
   if (stored?.password) {
     const ok = await tryLogin(page, loginUrl, elector.user_login, stored.password);
     if (ok) {
-      logger.info('Usando senha gerada anteriormente (sem novo reset)', {
+      logger.info('Usando senha WP gerada anteriormente (sem novo reset)', {
         user_login: elector.user_login,
       });
       return { password: stored.password, didReset: false };
     }
-  }
-
-  const csvOk = await tryLogin(page, loginUrl, elector.user_login, elector.password);
-  if (!csvOk) {
-    throw new Error(
-      `Login falhou para ${elector.user_login}: nem a senha gerada local nem a do CSV funcionaram.`
-    );
-  }
-
-  // Ensure welcome (shortcode lives there).
-  let welcome = journeyCache.current.welcome;
-  if (!welcome) {
-    const discovered = await discoverJourneyFromWelcome(page, {}, logger);
-    welcome = discovered.welcome || stripQuery(page.url());
-    fillJourneyIfEmpty(journeyCache, {
-      welcome,
-      booth: discovered.booth || '',
-      thank_you: discovered.thank_you || '',
+    passwordStore?.delete?.(elector.user_login);
+    logger.warn('Senha gerada anterior não autenticou; iniciando reset via Roundcube', {
+      user_login: elector.user_login,
     });
-  } else {
-    await page.goto(welcome, { waitUntil: 'domcontentloaded', timeout: 60000 });
   }
 
+  // Do NOT log into WordPress with the CSV password first.
+  // CSV `password` is the Roundcube / mailbox secret and stays unchanged.
   const newPassword = await resetPasswordViaRoundcube(page, {
+    loginUrl,
     mailUrl,
+    userLogin: elector.user_login,
     userEmail: elector.user_email,
-    currentPassword: elector.password,
+    mailPassword: elector.password,
     batchLocale,
     timeoutMs: 120000,
     logger,
   });
 
+  // Fresh session: reset already verified login once; login again then vote.
+  // Only persist the password after this login succeeds (avoids reset loops on
+  // a password that never authenticated).
+  logger.info('Login WordPress com a senha nova (após reset); em seguida vota', {
+    user_login: elector.user_login,
+  });
+  await page.context().clearCookies();
+  await loginWithPassword(page, loginUrl, elector.user_login, newPassword);
+
   passwordStore?.set(elector.user_login, newPassword, elector.user_email || '');
-  logger.info('Nova senha gerada e gravada localmente', {
+  logger.info('Nova senha WP gerada e gravada localmente (senha de e-mail inalterada)', {
     user_login: elector.user_login,
   });
 
-  // Re-login with the new password before voting.
-  await page.context().clearCookies();
-  await loginWithPassword(page, loginUrl, elector.user_login, newPassword);
+  let welcome = journeyCache.current.welcome;
   if (welcome) {
     await page.goto(welcome, { waitUntil: 'domcontentloaded', timeout: 60000 });
   }
 
-  return { password: newPassword, didReset: true, welcomeHint: welcome };
+  return { password: newPassword, didReset: true, welcomeHint: welcome || '' };
 }
 
 async function tryLogin(page, loginUrl, userLogin, password) {

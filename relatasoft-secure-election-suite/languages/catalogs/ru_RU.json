@@ -514,7 +514,6 @@
   "Optional. Leave empty to return electors to the welcome page.": "Optional. Leave empty to return electors to the welcome page.",
   "Save redirections": "Save redirections",
   "Create journey pages": "Create journey pages",
-  "Creates (or reuses) welcome, voting booth, and thank-you pages with default shortcode content. You can edit them in Pages afterward. For the password-change PoC, also add [enviar_redefinicao_senha] to the welcome page.": "Creates (or reuses) welcome, voting booth, and thank-you pages with default shortcode content. You can edit them in Pages afterward. For the password-change PoC, also add [enviar_redefinicao_senha] to the welcome page.",
   "Create welcome, booth & thank-you pages": "Create welcome, booth & thank-you pages",
   "— Select —": "— Select —",
   "Elector journey & login": "Elector journey & login",
@@ -604,7 +603,6 @@
   "The reset email was sent. Check your inbox and spam folder.": "Письмо для сброса пароля отправлено. Проверьте также папку «Спам».",
   "Could not send the reset email. Try again or contact support.": "Не удалось отправить письмо. Повторите попытку или обратитесь в поддержку.",
   "Receive email to reset my password": "Получить письмо для сброса пароля",
-  "Elector Password Reset": "Сброс пароля избирателя",
   "A password reset was requested for your elector account on %s.": "Для вашей учётной записи избирателя на %s был запрошен сброс пароля.",
   "Open the following address to choose a new password:": "Откройте следующий адрес, чтобы выбрать новый пароль:",
   "If you did not request this, ignore this message.": "Если вы не запрашивали это, проигнорируйте это сообщение.",
@@ -616,6 +614,8 @@
   "Continue voting": "Продолжить голосование",
   "Elector welcome and open-election links.": "Приветствие избирателя и ссылки на открытые выборы.",
   "Thank-you page with vote receipt hash.": "Страница благодарности с хэшем квитанции о голосовании.",
-  "Sends a password-reset email to the currently logged-in user (plain text). Place on the welcome page for the Votador PoC password-change flow.": "Отправляет письмо для сброса пароля текущему пользователю (простой текст). Разместите на странице приветствия для потока смены пароля Votador PoC.",
-  "Voting Booth": "Voting Booth"
+  "Voting Booth": "Voting Booth",
+  "Creates (or reuses) welcome, voting booth, and thank-you pages with default shortcode content. You can edit them in Pages afterward. The Votador password-change PoC uses WordPress “Lost password” / “Recuperar minha senha” before login (Roundcube); [enviar_redefinicao_senha] remains optional for manual logged-in tests.": "Creates (or reuses) welcome, voting booth, and thank-you pages with default shortcode content. You can edit them in Pages afterward. The Votador password-change PoC uses WordPress “Lost password” / “Recuperar minha senha” before login (Roundcube); [enviar_redefinicao_senha] remains optional for manual logged-in tests.",
+  "Optional: sends a password-reset email to the currently logged-in user (plain text). The Votador PoC now triggers reset via “Recuperar minha senha” before login; this shortcode is for manual tests.": "Optional: sends a password-reset email to the currently logged-in user (plain text). The Votador PoC now triggers reset via “Recuperar minha senha” before login; this shortcode is for manual tests.",
+  "Electoral Password Reset": "Сброс электорального пароля"
 }

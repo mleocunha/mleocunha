@@ -3,6 +3,7 @@ const logEl = document.getElementById('log');
 const runState = document.getElementById('runState');
 const startBtn = document.getElementById('startBtn');
 const stopBtn = document.getElementById('stopBtn');
+const copyLogBtn = document.getElementById('copyLogBtn');
 const loginPath = document.getElementById('loginPath');
 const customLoginWrap = document.getElementById('customLoginWrap');
 const macBanner = document.getElementById('macBanner');
@@ -16,14 +17,24 @@ if (/Mac|iPhone|iPad/.test(navigator.platform) || navigator.userAgent.includes('
   macBanner.hidden = false;
 }
 
-loginPath.addEventListener('change', () => {
-  customLoginWrap.classList.toggle('hidden', loginPath.value !== 'custom');
-});
-
+const buildIdEl = document.getElementById('buildId');
 const passwordChangePoc = document.getElementById('passwordChangePoc');
 const mailUrlWrap = document.getElementById('mailUrlWrap');
-passwordChangePoc.addEventListener('change', () => {
-  mailUrlWrap.classList.toggle('hidden', !passwordChangePoc.checked);
+const mailUrl = document.getElementById('mailUrl');
+
+function syncMailUrlField() {
+  const on = passwordChangePoc.checked;
+  mailUrlWrap.classList.toggle('hidden', !on);
+  if (mailUrl) {
+    mailUrl.required = on;
+  }
+}
+
+passwordChangePoc.addEventListener('change', syncMailUrlField);
+syncMailUrlField();
+
+loginPath.addEventListener('change', () => {
+  customLoginWrap.classList.toggle('hidden', loginPath.value !== 'custom');
 });
 
 function clearLog() {
@@ -52,6 +63,28 @@ function appendLog(ev) {
   logEl.appendChild(line);
   logEl.scrollTop = logEl.scrollHeight;
 }
+
+async function showBuild() {
+  try {
+    const res = await fetch('/api/status');
+    const data = await res.json();
+    const build = data.build || '(desconhecido)';
+    if (buildIdEl) {
+      buildIdEl.textContent = build;
+      if (String(build).includes('login-fill')) {
+        buildIdEl.classList.add('build-stale');
+        appendLog({
+          level: 'error',
+          message:
+            'Build antigo (login-fill-*). Pare este servidor e substitua ~/votador-prova-de-conceito pelo código do PR #20 (poc-lostpassword-roundcube-*).',
+        });
+      }
+    }
+  } catch {
+    if (buildIdEl) buildIdEl.textContent = '(falha ao ler /api/status)';
+  }
+}
+showBuild();
 
 function handleEvent(ev) {
   if (!ev || typeof ev !== 'object') {
@@ -158,4 +191,40 @@ form.addEventListener('submit', async (e) => {
 stopBtn.addEventListener('click', async () => {
   await fetch('/api/stop', { method: 'POST' });
   appendLog({ level: 'warn', message: 'Pedido de parada enviado…' });
+});
+
+async function copyProgressLog() {
+  const text = Array.from(logEl.children)
+    .map((el) => el.textContent || '')
+    .join('\n')
+    .trim();
+  const payload = text || '(Progresso vazio)';
+  const label = copyLogBtn.textContent;
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(payload);
+    } else {
+      const ta = document.createElement('textarea');
+      ta.value = payload;
+      ta.setAttribute('readonly', '');
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      ta.remove();
+    }
+    copyLogBtn.textContent = 'Copiado';
+    copyLogBtn.classList.add('copied');
+  } catch {
+    copyLogBtn.textContent = 'Falha ao copiar';
+  }
+  window.setTimeout(() => {
+    copyLogBtn.textContent = label;
+    copyLogBtn.classList.remove('copied');
+  }, 1600);
+}
+
+copyLogBtn?.addEventListener('click', () => {
+  copyProgressLog();
 });

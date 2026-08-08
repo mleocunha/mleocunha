@@ -514,7 +514,6 @@
   "Optional. Leave empty to return electors to the welcome page.": "Optional. Leave empty to return electors to the welcome page.",
   "Save redirections": "Save redirections",
   "Create journey pages": "Create journey pages",
-  "Creates (or reuses) welcome, voting booth, and thank-you pages with default shortcode content. You can edit them in Pages afterward. For the password-change PoC, also add [enviar_redefinicao_senha] to the welcome page.": "Creates (or reuses) welcome, voting booth, and thank-you pages with default shortcode content. You can edit them in Pages afterward. For the password-change PoC, also add [enviar_redefinicao_senha] to the welcome page.",
   "Create welcome, booth & thank-you pages": "Create welcome, booth & thank-you pages",
   "— Select —": "— Select —",
   "Elector journey & login": "Elector journey & login",
@@ -604,7 +603,6 @@
   "The reset email was sent. Check your inbox and spam folder.": "重置邮件已发送。请同时检查垃圾邮件文件夹。",
   "Could not send the reset email. Try again or contact support.": "无法发送重置邮件。请重试或联系支持。",
   "Receive email to reset my password": "接收重置密码的电子邮件",
-  "Elector Password Reset": "选民密码重置",
   "A password reset was requested for your elector account on %s.": "已请求重置您在 %s 上的选民账户密码。",
   "Open the following address to choose a new password:": "请打开以下地址以设置新密码：",
   "If you did not request this, ignore this message.": "如果您未提出此请求，请忽略此消息。",
@@ -616,6 +614,8 @@
   "Continue voting": "继续投票",
   "Elector welcome and open-election links.": "选民欢迎页与已开放选举链接。",
   "Thank-you page with vote receipt hash.": "带有投票回执哈希的感谢页。",
-  "Sends a password-reset email to the currently logged-in user (plain text). Place on the welcome page for the Votador PoC password-change flow.": "向当前登录用户发送密码重置邮件（纯文本）。放在欢迎页上，供 Votador PoC 密码更换流程使用。",
-  "Voting Booth": "Voting Booth"
+  "Voting Booth": "Voting Booth",
+  "Creates (or reuses) welcome, voting booth, and thank-you pages with default shortcode content. You can edit them in Pages afterward. The Votador password-change PoC uses WordPress “Lost password” / “Recuperar minha senha” before login (Roundcube); [enviar_redefinicao_senha] remains optional for manual logged-in tests.": "Creates (or reuses) welcome, voting booth, and thank-you pages with default shortcode content. You can edit them in Pages afterward. The Votador password-change PoC uses WordPress “Lost password” / “Recuperar minha senha” before login (Roundcube); [enviar_redefinicao_senha] remains optional for manual logged-in tests.",
+  "Optional: sends a password-reset email to the currently logged-in user (plain text). The Votador PoC now triggers reset via “Recuperar minha senha” before login; this shortcode is for manual tests.": "Optional: sends a password-reset email to the currently logged-in user (plain text). The Votador PoC now triggers reset via “Recuperar minha senha” before login; this shortcode is for manual tests.",
+  "Electoral Password Reset": "选举密码重置"
 }

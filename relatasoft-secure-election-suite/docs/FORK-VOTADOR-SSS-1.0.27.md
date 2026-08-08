@@ -43,4 +43,4 @@ Cherry-pick candidates for the evolved line (no crypto):
 15. **Tally import rejected validation (1.0.27.6)** — empty `encrypted_tallies` after low-memory close. Stream tally compute on close/export; on import rebuild tallies from `encrypted-votes.json` when missing; normalize public_key aliases; persist validation errors in the stored manifest.
 16. **Tally UI election identity (1.0.27.7)** — denormalize `election_title` / `round_title` / `ballot_count` on import; show them on Import, Share Submission, and Certification so multiple concurrent elections are distinguishable.
 
-Password-change PoC still requires `[enviar_redefinicao_senha]` on the welcome page (documented in Redirections admin copy).
+Password-change PoC (Votador): uses WordPress lostpassword / “Recuperar minha senha” **before** WP login, then headed Roundcube at the configured mail URL, then new WP password → CSV → logout → login → vote. Email password (CSV `password`) is unchanged. Shortcode `[enviar_redefinicao_senha]` is optional for manual logged-in tests.

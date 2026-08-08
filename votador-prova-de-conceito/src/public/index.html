@@ -12,6 +12,7 @@
       <p class="brand">Votador</p>
       <h1>Prova de Conceito</h1>
       <p class="lead">Stress de votação com Google Chrome real (Playwright headed). Credenciais e CSV ficam só nesta máquina.</p>
+      <p class="build-line">Build: <code id="buildId">…</code> — com PoC ativo deve abrir Roundcube em <code>mailUrl</code> <em>antes</em> do login WP.</p>
     </header>
 
     <aside class="mac-banner" id="macBanner" hidden>
@@ -72,13 +73,15 @@
           PoC com troca de senha
         </label>
         <p class="hint">
-          Quando marcado: cada aba completa reset (shortcode na boas-vindas → Roundcube → nova senha WP) e só então vota.
-          Senhas geradas ficam em <code>credentials/generated-passwords.csv</code> (reutilizadas nas próximas corridas).
-          Insira <code>[enviar_redefinicao_senha]</code> na página de boas-vindas do plugin.
+          Quando marcado: <strong>antes</strong> de logar no WordPress, cada aba usa
+          <em>Recuperar minha senha</em> na URL da plataforma → aguarda o e-mail no Roundcube
+          (Chrome headed, nunca headless) → define nova senha WP → grava em
+          <code>credentials/generated-passwords.csv</code> → faz logoff → login com a senha nova → só então vota.
+          A senha de e-mail (coluna <code>password</code> do CSV) permanece inalterada e é usada só no Roundcube.
         </p>
         <label id="mailUrlWrap" class="hidden">
           URL do Roundcube
-          <input name="mailUrl" type="url" value="https://relatasoft.com.br/mail/" autocomplete="off" />
+          <input name="mailUrl" id="mailUrl" type="url" value="https://relatasoft.com.br/mail/" placeholder="https://relatasoft.com.br/mail/" autocomplete="off" />
         </label>
       </section>
 
@@ -131,7 +134,12 @@
     <section class="block log-block">
       <div class="log-head">
         <h2>Progresso</h2>
-        <span id="runState" class="pill">ocioso</span>
+        <div class="log-head-actions">
+          <button type="button" id="copyLogBtn" class="ghost small" title="Copiar todo o Progresso">
+            Copiar progresso
+          </button>
+          <span id="runState" class="pill">ocioso</span>
+        </div>
       </div>
       <pre id="log" class="log" aria-live="polite"></pre>
     </section>

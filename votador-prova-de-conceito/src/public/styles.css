@@ -63,6 +63,22 @@ body {
   line-height: 1.5;
 }
 
+.build-line {
+  margin: 0.75rem 0 0;
+  font-size: 0.92rem;
+  color: var(--muted);
+}
+
+.build-line code {
+  font-size: 0.9em;
+}
+
+.build-line .build-stale,
+code.build-stale {
+  color: var(--danger);
+  font-weight: 700;
+}
+
 .mac-banner {
   margin-bottom: 1.25rem;
   padding: 0.85rem 1rem;
@@ -204,6 +220,24 @@ button.ghost {
   justify-content: space-between;
   gap: 1rem;
   margin-bottom: 0.75rem;
+}
+
+.log-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
+button.ghost.small {
+  padding: 0.35rem 0.7rem;
+  font-size: 0.82rem;
+  border-radius: 8px;
+}
+
+button.ghost.small.copied {
+  border-color: var(--accent);
+  color: var(--accent-dark);
 }
 
 .log-head h2 {

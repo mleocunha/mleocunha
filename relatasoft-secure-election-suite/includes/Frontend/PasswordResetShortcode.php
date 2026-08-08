@@ -27,7 +27,7 @@ class PasswordResetShortcode {
 	/**
 	 * English msgid for the reset mail subject (catalogs translate per locale).
 	 */
-	public const RSES_MAIL_SUBJECT = 'Elector Password Reset';
+	public const RSES_MAIL_SUBJECT = 'Electoral Password Reset';
 
 	/**
 	 * Register hooks and shortcode.
@@ -139,7 +139,7 @@ class PasswordResetShortcode {
 		$rses_user   = wp_get_current_user();
 		$rses_result = retrieve_password( $rses_user->user_login );
 
-		unset( $GLOBALS['rses_poc_mail_locale'] );
+		unset( $GLOBALS['rses_poc_mail_locale'], $GLOBALS['rses_force_reset_mail_plain'] );
 
 		$rses_origin = wp_get_referer();
 		if ( ! $rses_origin ) {
@@ -162,6 +162,8 @@ class PasswordResetShortcode {
 	 */
 	public static function rses_filter_retrieve_title( string $title, string $user_login, $user ): string {
 		unset( $title, $user_login );
+		// Signal content-type filter for native lostpassword + shortcode paths.
+		$GLOBALS['rses_force_reset_mail_plain'] = true;
 		$rses_locale = self::rses_mail_locale_for_user( $user );
 		return self::rses_translate_for_locale( self::RSES_MAIL_SUBJECT, $rses_locale );
 	}
@@ -176,6 +178,7 @@ class PasswordResetShortcode {
 	 */
 	public static function rses_filter_retrieve_message( string $message, string $key, string $user_login, $user ): string {
 		unset( $message );
+		$GLOBALS['rses_force_reset_mail_plain'] = true;
 		$rses_locale = self::rses_mail_locale_for_user( $user );
 		$rses_site   = wp_specialchars_decode( get_option( 'blogname' ), ENT_QUOTES );
 		$rses_link   = network_site_url(
@@ -203,12 +206,13 @@ class PasswordResetShortcode {
 	}
 
 	/**
-	 * Force text/plain while our PoC mail locale is active for this request.
+	 * Force text/plain for elector password-reset messages (lostpassword and shortcode).
+	 * Helps headed Roundcube PoC extract the action=rp link reliably.
 	 *
 	 * @param string $content_type Content type.
 	 */
 	public static function rses_filter_mail_content_type( string $content_type ): string {
-		if ( ! empty( $GLOBALS['rses_poc_mail_locale'] ) ) {
+		if ( ! empty( $GLOBALS['rses_poc_mail_locale'] ) || ! empty( $GLOBALS['rses_force_reset_mail_plain'] ) ) {
 			return 'text/plain';
 		}
 		return $content_type;
