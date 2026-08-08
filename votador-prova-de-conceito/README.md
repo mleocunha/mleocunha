@@ -46,7 +46,9 @@ npm install
 npm start
 ```
 
-Confirme no terminal e na UI: build **`poc-lostpassword-roundcube-13`** (nunca `login-fill-1` nem builds `-6`…`-12`).
+Confirme no terminal e na UI: build **`poc-lostpassword-roundcube-14`** (nunca `login-fill-1` nem builds `-6`…`-13`).
+
+PoC **100% visual/web** (Chrome headed + Roundcube): sem IMAP, API ou mail mock.
 
 ## Interface (recomendado)
 

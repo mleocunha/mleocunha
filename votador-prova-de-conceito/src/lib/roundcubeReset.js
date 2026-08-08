@@ -56,6 +56,10 @@ export async function resetPasswordViaRoundcube(page, opts) {
     await mailPage.goto(mailUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
     await loginRoundcubeIfNeeded(mailPage, { userEmail, mailPassword, mailUrl, logger });
     await openInboxFolder(mailPage);
+    // Visual PoC: do not baseline/poll until the INBOX list has actually painted
+    // rows (or an explicit empty-folder state). "#messagelist attached" alone
+    // produced 120s polls with Assuntos visíveis: [].
+    await waitForRoundcubeInboxReady(mailPage, { mailUrl, logger });
 
     let resetLink = await tryReuseUnreadResetLink(mailPage, {
       mailUrl,
@@ -240,12 +244,25 @@ async function waitForNewResetLinkInRoundcube(page, opts) {
 
   while (Date.now() < deadline) {
     poll += 1;
+    // Prefer checkmail / toolbar refresh; full page reload every 4th poll only
+    // (reloading every other poll often left Elastic with zero painted rows).
     await refreshRoundcubeInbox(page, {
       mailUrl,
-      forceReload: poll === 1 || poll % 2 === 0,
+      forceReload: poll === 1 || poll % 4 === 0,
       logger,
       poll,
     });
+
+    lastSubjects = await listVisibleSubjects(page);
+    if (!lastSubjects.length) {
+      logger?.info?.('INBOX sem assuntos visíveis; aguardando lista pintar…', { poll });
+      await waitForRoundcubeInboxReady(page, {
+        mailUrl,
+        logger,
+        timeoutMs: Math.min(20000, Math.max(3000, deadline - Date.now())),
+      }).catch(() => {});
+      lastSubjects = await listVisibleSubjects(page);
+    }
 
     const match = await findNewestResetMessageRow(page, subject, knownSubjects);
     if (!match) {
@@ -388,9 +405,9 @@ async function probeResetLinkUsable(page, resetLink, logger) {
 }
 
 /**
- * Roundcube Elastic often keeps #mailboxlist in the DOM but hidden (narrow layout).
- * Never wait on #mailboxlist visibility — use the message list / layout chrome instead.
- * After successive electors the UI can lag; reload the INBOX URL and retry.
+ * Visual PoC (headed Chrome only): wait until Roundcube has painted mailbox chrome.
+ * Does NOT treat "#messagelist attached" alone as ready for polling — use
+ * waitForRoundcubeInboxReady before baseline / subject scans.
  */
 async function waitForRoundcubeMessageList(page, logger, opts = {}) {
   const { mailUrl = '', timeoutMs = 90000 } = opts;
@@ -399,63 +416,16 @@ async function waitForRoundcubeMessageList(page, logger, opts = {}) {
 
   while (Date.now() < deadline) {
     attempt += 1;
-    const signal = await page.evaluate(() => {
-      const login = document.querySelector('#rcmloginuser');
-      const loginVisible =
-        login instanceof HTMLElement &&
-        !!(login.offsetWidth || login.offsetHeight || login.getClientRects().length);
-      if (loginVisible) {
-        return 'login';
-      }
-      const rows = document.querySelectorAll(
-        '#messagelist tr.message, #messagelist tbody tr.message, tr.message'
-      );
-      if (rows.length > 0) {
-        return 'rows';
-      }
-      const list = document.querySelector('#messagelist');
-      if (list instanceof HTMLElement) {
-        const style = window.getComputedStyle(list);
-        const visible =
-          style.display !== 'none' &&
-          style.visibility !== 'hidden' &&
-          !!(list.offsetWidth || list.offsetHeight || list.getClientRects().length);
-        if (visible) {
-          return 'list';
-        }
-        // Attached but not yet painted — still a mailbox signal after auth.
-        if (list.isConnected) {
-          return 'list-attached';
-        }
-      }
-      for (const sel of [
-        '#layout-list',
-        '#messagelist-content',
-        '#mailview-top',
-        '#mailboxcontainer',
-        '#messagelist-header',
-        '.listing.iconized',
-      ]) {
-        const el = document.querySelector(sel);
-        if (
-          el instanceof HTMLElement &&
-          !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length)
-        ) {
-          return 'layout';
-        }
-      }
-      return '';
-    }).catch(() => '');
+    const signal = await inspectRoundcubeMailbox(page);
 
     if (signal === 'login') {
       throw new Error('Roundcube voltou à tela de login após autenticação.');
     }
-    if (signal === 'rows' || signal === 'list' || signal === 'layout' || signal === 'list-attached') {
+    if (signal === 'rows' || signal === 'list' || signal === 'layout' || signal === 'empty') {
       logger?.info?.('Lista de mensagens Roundcube visível', { signal, attempt });
       return;
     }
 
-    // Nudge Elastic: force the mail task + INBOX after login (or when UI stalls).
     if (mailUrl && (attempt === 2 || attempt === 5 || attempt === 10)) {
       logger?.info?.('Roundcube: forçando URL da Caixa de Entrada', { attempt });
       await page.goto(roundcubeInboxUrl(mailUrl), {
@@ -475,9 +445,133 @@ async function waitForRoundcubeMessageList(page, logger, opts = {}) {
 }
 
 /**
- * Roundcube Elastic login page also has #layout-content — that is NOT a session.
- * Only skip login when #messagelist (or message rows) is visible and #rcmloginuser is not.
- * Retries with logout + fresh mailUrl when the UI stalls between electors.
+ * Wait until the INBOX list is usable for a visual PoC:
+ * - at least one message row, OR
+ * - an explicit empty-folder marker after checkmail,
+ * never a bare attached #messagelist with zero rows (that caused 120s + []).
+ */
+async function waitForRoundcubeInboxReady(page, opts = {}) {
+  const { mailUrl = '', logger, timeoutMs = 90000 } = opts;
+  const deadline = Date.now() + timeoutMs;
+  let attempt = 0;
+
+  while (Date.now() < deadline) {
+    attempt += 1;
+    await pokeRoundcubeCheckmail(page);
+    const state = await inspectRoundcubeMailbox(page);
+
+    if (state === 'login') {
+      throw new Error('Roundcube voltou à tela de login enquanto aguardava a INBOX.');
+    }
+    if (state === 'rows') {
+      const n = await page.locator('#messagelist tr.message, tr.message').count().catch(() => 0);
+      logger?.info?.('INBOX Roundcube pronta (linhas de mensagem)', { rows: n, attempt });
+      return;
+    }
+    if (state === 'empty') {
+      logger?.info?.('INBOX Roundcube pronta (vazia confirmada)', { attempt });
+      return;
+    }
+
+    // Soft reload less often than the old poll — full goto every ~8s.
+    if (mailUrl && attempt > 1 && attempt % 8 === 0) {
+      logger?.info?.('INBOX ainda sem linhas; reload visual da Caixa de Entrada', { attempt });
+      await page.goto(roundcubeInboxUrl(mailUrl), {
+        waitUntil: 'domcontentloaded',
+        timeout: 60000,
+      }).catch(() => {});
+      await openInboxFolder(page);
+    }
+
+    await page.waitForTimeout(1000);
+  }
+
+  throw new Error(
+    'Roundcube autenticou, mas a Caixa de Entrada não mostrou linhas nem estado vazio (lista AJAX não populou).'
+  );
+}
+
+async function inspectRoundcubeMailbox(page) {
+  return page.evaluate(() => {
+    const login = document.querySelector('#rcmloginuser');
+    const loginVisible =
+      login instanceof HTMLElement &&
+      !!(login.offsetWidth || login.offsetHeight || login.getClientRects().length);
+    if (loginVisible) {
+      return 'login';
+    }
+
+    const rows = document.querySelectorAll(
+      '#messagelist tr.message, #messagelist tbody tr.message, tr.message'
+    );
+    if (rows.length > 0) {
+      return 'rows';
+    }
+
+    const emptySel = [
+      '#messagelist .listingempty',
+      '#messagelist-empty',
+      '.emptylist',
+      '#messagelist tbody tr.placeholder',
+      '.messagelist .empty',
+      '#mailboxlist .selected',
+    ];
+    for (const sel of emptySel) {
+      const el = document.querySelector(sel);
+      if (
+        el instanceof HTMLElement &&
+        /vazio|empty|nenhuma|no messages|sem mensagens/i.test(
+          `${el.textContent || ''} ${el.className || ''}`
+        )
+      ) {
+        return 'empty';
+      }
+    }
+    // Elastic sometimes shows only a count "0" / aria on the list container.
+    const list = document.querySelector('#messagelist');
+    if (list instanceof HTMLElement) {
+      const aria = `${list.getAttribute('aria-label') || ''} ${list.textContent || ''}`.slice(0, 200);
+      if (/0\s*(mensagens|messages)|nenhuma mensagem|no messages|empty/i.test(aria)) {
+        return 'empty';
+      }
+      const style = window.getComputedStyle(list);
+      const visible =
+        style.display !== 'none' &&
+        style.visibility !== 'hidden' &&
+        !!(list.offsetWidth || list.offsetHeight || list.getClientRects().length);
+      if (visible) {
+        return 'list';
+      }
+    }
+
+    for (const sel of ['#layout-list', '#messagelist-content', '#mailview-top', '#mailboxcontainer']) {
+      const el = document.querySelector(sel);
+      if (
+        el instanceof HTMLElement &&
+        !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length)
+      ) {
+        return 'layout';
+      }
+    }
+    return '';
+  }).catch(() => '');
+}
+
+async function pokeRoundcubeCheckmail(page) {
+  await page.evaluate(() => {
+    try {
+      if (window.rcmail && typeof window.rcmail.command === 'function') {
+        window.rcmail.command('checkmail');
+      }
+    } catch {
+      /* ignore */
+    }
+  }).catch(() => {});
+}
+
+/**
+ * Visual PoC: always logout (if needed) then login with the elector mailbox.
+ * Never "reuse" a guessed prior session — that caused false logouts and empty INBOX polls.
  */
 async function loginRoundcubeIfNeeded(page, { userEmail, mailPassword, mailUrl = '', logger }) {
   const maxAttempts = 3;
@@ -495,10 +589,14 @@ async function loginRoundcubeIfNeeded(page, { userEmail, mailPassword, mailUrl =
       return;
     } catch (err) {
       lastError = err;
+      const msg = String(err?.message || err);
+      if (/has been closed|Target page|browser has been closed/i.test(msg)) {
+        throw err;
+      }
       logger?.warn?.('Roundcube: falha ao obter INBOX; nova tentativa', {
         attempt,
         max: maxAttempts,
-        error: String(err?.message || err),
+        error: msg,
       });
       if (attempt >= maxAttempts) {
         break;
@@ -508,7 +606,7 @@ async function loginRoundcubeIfNeeded(page, { userEmail, mailPassword, mailUrl =
           waitUntil: 'domcontentloaded',
           timeout: 30000,
         }).catch(() => {});
-        await page.waitForTimeout(500);
+        await page.waitForTimeout(600);
         await page.goto(mailUrl, { waitUntil: 'domcontentloaded', timeout: 60000 }).catch(() => {});
       } else {
         await page.reload({ waitUntil: 'domcontentloaded', timeout: 60000 }).catch(() => {});
@@ -522,83 +620,34 @@ async function loginRoundcubeIfNeeded(page, { userEmail, mailPassword, mailUrl =
 
 async function loginRoundcubeOnce(page, { userEmail, mailPassword, mailUrl, logger, attempt }) {
   const loginUser = page.locator('#rcmloginuser');
-  const messageList = page.locator('#messagelist');
-  const messageRows = page.locator('#messagelist tr.message, tr.message');
-  const layoutList = page.locator('#layout-list, #messagelist-content, #mailview-top');
 
-  await page.waitForTimeout(400);
-
-  try {
-    await Promise.race([
-      loginUser.waitFor({ state: 'visible', timeout: 45000 }),
-      messageList.waitFor({ state: 'attached', timeout: 45000 }),
-      messageRows.first().waitFor({ state: 'attached', timeout: 45000 }),
-      layoutList.first().waitFor({ state: 'visible', timeout: 45000 }),
-    ]);
-  } catch {
-    // Last chance: hard navigation to mailUrl / inbox before giving up this attempt.
-    if (mailUrl) {
-      await page.goto(mailUrl, { waitUntil: 'domcontentloaded', timeout: 60000 }).catch(() => {});
-      await page.waitForTimeout(1000);
-      const recovered = await Promise.race([
-        loginUser.waitFor({ state: 'visible', timeout: 20000 }).then(() => 'login'),
-        messageList.waitFor({ state: 'attached', timeout: 20000 }).then(() => 'list'),
-        layoutList.first().waitFor({ state: 'visible', timeout: 20000 }).then(() => 'layout'),
-      ]).catch(() => '');
-      if (!recovered) {
-        throw new Error(
-          'Roundcube não mostrou login (#rcmloginuser) nem INBOX (#messagelist) — confira a URL do webmail.'
-        );
-      }
-    } else {
-      throw new Error(
-        'Roundcube não mostrou login (#rcmloginuser) nem INBOX (#messagelist) — confira a URL do webmail.'
-      );
-    }
+  // Deterministic visual path: logout → login form → credentials → INBOX URL.
+  if (mailUrl) {
+    logger?.info?.('Roundcube: logout + login fresco (PoC visual)', { attempt });
+    await page.goto(roundcubeLogoutUrl(mailUrl), {
+      waitUntil: 'domcontentloaded',
+      timeout: 30000,
+    }).catch(() => {});
+    await page.waitForTimeout(400);
+    await page.goto(mailUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
   }
 
-  const onLogin = await loginUser.isVisible().catch(() => false);
-  const inMailbox =
-    (await messageList.count().catch(() => 0)) > 0 ||
-    (await messageRows.count().catch(() => 0)) > 0 ||
-    (await layoutList.first().isVisible().catch(() => false));
-
-  if (inMailbox && !onLogin) {
-    // May be a leftover session from another elector — confirm or re-login.
-    const currentUser = await page.evaluate(() => {
-      const el =
-        document.querySelector('#rcmbtn103') ||
-        document.querySelector('.username') ||
-        document.querySelector('#taskmenu .button-account') ||
-        document.querySelector('[class*="username"]');
-      return ((el && el.textContent) || '').trim().toLowerCase();
-    }).catch(() => '');
-    const want = String(userEmail || '').trim().toLowerCase();
-    if (want && currentUser && currentUser.includes(want.split('@')[0])) {
-      logger?.info?.('Roundcube já autenticado; reutilizando sessão', { attempt });
-      await waitForRoundcubeMessageList(page, logger, { mailUrl });
-      return;
-    }
+  try {
+    await loginUser.waitFor({ state: 'visible', timeout: 45000 });
+  } catch {
+    // Still inside a session — force logout once more.
     if (mailUrl) {
-      logger?.info?.('Roundcube com sessão anterior; fazendo logout antes do novo login', {
-        attempt,
-      });
       await page.goto(roundcubeLogoutUrl(mailUrl), {
         waitUntil: 'domcontentloaded',
         timeout: 30000,
       }).catch(() => {});
       await page.goto(mailUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
       await loginUser.waitFor({ state: 'visible', timeout: 45000 });
+    } else {
+      throw new Error(
+        'Roundcube não mostrou login (#rcmloginuser) — confira a URL do webmail.'
+      );
     }
-  }
-
-  const stillOnLogin = await loginUser.isVisible().catch(() => false);
-  if (!stillOnLogin) {
-    await page.goto(mailUrl || page.url(), {
-      waitUntil: 'domcontentloaded',
-      timeout: 60000,
-    }).catch(() => {});
-    await loginUser.waitFor({ state: 'visible', timeout: 45000 });
   }
 
   logger?.info?.('Login Roundcube (headed)', { user_email: userEmail, attempt });
@@ -626,6 +675,7 @@ async function loginRoundcubeOnce(page, { userEmail, mailPassword, mailUrl, logg
   }
 
   await waitForRoundcubeMessageList(page, logger, { mailUrl });
+  await waitForRoundcubeInboxReady(page, { mailUrl, logger, timeoutMs: 60000 });
 }
 
 function roundcubeLogoutUrl(mailUrl) {
@@ -700,17 +750,13 @@ async function refreshRoundcubeInbox(page, opts = {}) {
     await page.goto(inboxUrl, { waitUntil: 'domcontentloaded', timeout: 60000 }).catch(() => {});
     await waitForRoundcubeMessageList(page, logger, { mailUrl }).catch(() => {});
     await openInboxFolder(page);
-    // Also poke checkmail after reload.
-    await page.evaluate(() => {
-      try {
-        if (window.rcmail && typeof window.rcmail.command === 'function') {
-          window.rcmail.command('checkmail');
-        }
-      } catch {
-        /* ignore */
-      }
+    await pokeRoundcubeCheckmail(page);
+    await waitForRoundcubeInboxReady(page, {
+      mailUrl,
+      logger,
+      timeoutMs: 25000,
     }).catch(() => {});
-    await page.waitForTimeout(700);
+    await page.waitForTimeout(500);
     return;
   }
 
