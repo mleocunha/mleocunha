@@ -19,7 +19,7 @@ except ImportError as exc:
         "ERROR: cannot import virtualmin_snappymail.\n"
         f"  Expected package under: {_SRC}\n"
         "  Prefer system install:\n"
-        f"    sudo {_ROOT / 'bin' / 'install-to-system.sh'}\n"
+        f"    sudo bash {_ROOT / 'bin' / 'install-to-system.sh'}\n"
         f"  Import error: {exc}\n"
     )
     raise SystemExit(127) from exc
