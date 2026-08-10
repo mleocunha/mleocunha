@@ -1,0 +1,4 @@
+# Defaults for virtualmin-snappymail Webmin module
+cli_path=/usr/local/bin/virtualmin-snappymail
+auto_install=0
+webmail_prefix=webmail

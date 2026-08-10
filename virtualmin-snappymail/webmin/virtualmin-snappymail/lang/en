@@ -1,0 +1,9 @@
+index_title=SnappyMail
+index_global=Status across virtual servers
+index_cli_error=CLI error: $1
+index_install=Install for domain
+index_discover=Discover installations
+index=Virtualmin
+acl_domains=Domains this user may manage
+acl_all=All domains
+acl_owned=Only owned domains

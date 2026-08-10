@@ -1,0 +1,3 @@
+cli_path=Path to virtualmin-snappymail CLI
+auto_install=Auto-install SnappyMail on new top-level mail domains (dangerous; default no)
+webmail_prefix=Webmail subdomain prefix
