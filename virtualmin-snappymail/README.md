@@ -27,15 +27,36 @@ This repository’s cloud CI host may not have Virtualmin; use `audit` on the ta
 
 ## Quick start (on a Virtualmin server)
 
+Do **not** rely on a bare symlink into `/usr/local/bin`: `sudo` often uses
+`secure_path` and may not see that directory. Install into `/usr/sbin` (same
+place as the official `virtualmin` CLI):
+
 ```bash
 cd virtualmin-snappymail
-sudo ln -sf "$PWD/bin/virtualmin-snappymail" /usr/local/bin/virtualmin-snappymail
+sudo ./bin/install-to-system.sh
 sudo virtualmin-snappymail audit
 sudo virtualmin-snappymail install exemplo.com.br
 sudo virtualmin-snappymail status --all
 sudo virtualmin-snappymail diagnose exemplo.com.br
 ```
 
+Immediate workaround without installing:
+
+```bash
+cd virtualmin-snappymail
+sudo ./bin/virtualmin-snappymail audit
+# or
+sudo /usr/sbin/virtualmin-snappymail audit   # after install-to-system.sh
+```
+
+If you still get `command not found`, check:
+
+```bash
+ls -l /usr/sbin/virtualmin-snappymail /usr/local/bin/virtualmin-snappymail
+sudo /usr/sbin/virtualmin-snappymail --version
+type virtualmin-snappymail || true
+sudo sh -c 'echo "$PATH"'
+```
 ## CLI
 
 ```bash
