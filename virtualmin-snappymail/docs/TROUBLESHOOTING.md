@@ -3,42 +3,50 @@
 ## Symptom
 
 ```text
-sudo virtualmin-snappymail audit
-sudo: virtualmin-snappymail: command not found
-```
-
-## Cause
-
-`sudo` uses `secure_path` from `/etc/sudoers`. On many hosts that path includes
-`/usr/sbin` (where `virtualmin` lives) but a manual symlink under
-`/usr/local/bin` may be missing, dangling, or ignored.
-
-Also: a symlink created with `ln -sf` to a wrong source path becomes **dangling**;
-running it often surfaces as `command not found` under sudo.
-
-## Fix
-
-From the package directory:
-
-```bash
-cd /path/to/virtualmin-snappymail
-chmod +x bin/virtualmin-snappymail bin/install-to-system.sh
 sudo ./bin/install-to-system.sh
-sudo virtualmin-snappymail --version
+sudo: ./bin/install-to-system.sh: command not found
+```
+
+even though `ls bin/install-to-system.sh` shows the file.
+
+## Causes
+
+1. **CRLF line endings** after ZIP/Windows transfer — shebang becomes `bash\r` → ENOENT → sudo says "command not found".
+2. **Missing execute bit** (`chmod +x` lost on copy).
+3. **Invoked with `sh`** (Debian `dash`) — `pipefail` / bashisms fail.
+4. **`sudo` secure_path** missing `/usr/local/bin` after a manual symlink.
+
+## Fix (copy-paste)
+
+```bash
+cd /home/cunha/virtualmin-snappymail
+
+# strip CRLF if present
+sed -i 's/\r$//' bin/install-to-system.sh bin/virtualmin-snappymail bin/run-tests.sh
+
+# install via bash (no +x required)
+sudo bash bin/install-to-system.sh
+
+# verify
+/usr/sbin/virtualmin-snappymail --version
 sudo virtualmin-snappymail audit
+sudo virtualmin-snappymail install votoeletronico.com.br
 ```
 
-Or run the checkout entrypoint directly (no PATH needed):
+## One-shot without installer
 
 ```bash
-sudo ./bin/virtualmin-snappymail audit
+cd /home/cunha/virtualmin-snappymail
+sudo env PYTHONPATH="$PWD/src${PYTHONPATH:+:$PYTHONPATH}" python3 -m virtualmin_snappymail audit
 ```
 
-## Verify
+## Verify diagnostics
 
 ```bash
-ls -l /usr/sbin/virtualmin-snappymail
-head -5 /usr/sbin/virtualmin-snappymail
-python3 -c 'import sys; print(sys.version)'
-sudo /usr/sbin/virtualmin-snappymail --version
+ls -l bin/install-to-system.sh
+file bin/install-to-system.sh
+head -1 bin/install-to-system.sh | od -c | head
+command -v bash
+command -v python3
+sudo bash -n bin/install-to-system.sh && echo syntax_ok
 ```

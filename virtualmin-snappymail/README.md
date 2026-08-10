@@ -27,37 +27,28 @@ This repository’s cloud CI host may not have Virtualmin; use `audit` on the ta
 
 ## Quick start (on a Virtualmin server)
 
-Do **not** rely on a bare symlink into `/usr/local/bin`: `sudo` often uses
-`secure_path` and may not see that directory. Install into `/usr/sbin` (same
-place as the official `virtualmin` CLI):
+Use **`bash`** explicitly (do not use `sh`, and do not depend on `./` +x alone —
+transfers sometimes strip execute bits or introduce CRLF, which makes sudo
+report `command not found`):
 
 ```bash
-cd virtualmin-snappymail
-sudo ./bin/install-to-system.sh
+cd /home/cunha/virtualmin-snappymail   # or your checkout path
+sudo bash bin/install-to-system.sh
 sudo virtualmin-snappymail audit
-sudo virtualmin-snappymail install exemplo.com.br
+sudo virtualmin-snappymail install votoeletronico.com.br
 sudo virtualmin-snappymail status --all
-sudo virtualmin-snappymail diagnose exemplo.com.br
+sudo virtualmin-snappymail diagnose votoeletronico.com.br
 ```
 
-Immediate workaround without installing:
+Run from checkout without installing:
 
 ```bash
-cd virtualmin-snappymail
-sudo ./bin/virtualmin-snappymail audit
+sudo bash -c 'export PYTHONPATH="$PWD/src:$PYTHONPATH"; python3 -m virtualmin_snappymail audit'
 # or
-sudo /usr/sbin/virtualmin-snappymail audit   # after install-to-system.sh
+sudo python3 bin/virtualmin-snappymail audit
 ```
 
-If you still get `command not found`, check:
-
-```bash
-ls -l /usr/sbin/virtualmin-snappymail /usr/local/bin/virtualmin-snappymail
-sudo /usr/sbin/virtualmin-snappymail --version
-type virtualmin-snappymail || true
-sudo sh -c 'echo "$PATH"'
-```
-## CLI
+If you still get `command not found`, see `docs/TROUBLESHOOTING.md`.## CLI
 
 ```bash
 virtualmin-snappymail audit
