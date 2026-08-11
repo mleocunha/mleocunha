@@ -203,11 +203,43 @@ button.ghost {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  margin-bottom: 0.75rem;
+  margin-bottom: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.log-title {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
 }
 
 .log-head h2 {
   margin: 0;
+}
+
+.log-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+button.compact {
+  padding: 0.4rem 0.75rem;
+  font-size: 0.85rem;
+}
+
+.log-hint {
+  margin: 0 0 0.65rem;
+}
+
+.log-action-status {
+  margin: 0.5rem 0 0;
+  font-size: 0.85rem;
+  color: var(--accent-dark);
+}
+
+.log-action-status.is-error {
+  color: var(--danger);
 }
 
 .pill {
