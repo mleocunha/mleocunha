@@ -78,6 +78,27 @@ class DomainInfo:
         return None
 
     @property
+    def ip_is_shared(self) -> bool | None:
+        """True/False when multiline labels the IP; None if unknown."""
+        for key in (
+            "IP address",
+            "IPv4 address",
+            "IP Address",
+            "Real IP address",
+            "External IP address",
+        ):
+            val = (self.values.get(key) or "").strip()
+            if not val or val.lower() in {"", "none", "n/a"}:
+                continue
+            lowered = val.lower()
+            if "shared" in lowered:
+                return True
+            if "private" in lowered or "dedicated" in lowered or "virtual" in lowered:
+                return False
+            return False
+        return None
+
+    @property
     def features(self) -> set[str]:
         raw = self.values.get("Features", "")
         plugins = self.values.get("Plugins", "")
@@ -354,6 +375,56 @@ class VirtualminClient:
                 return token
         return None
 
+    def list_shared_ips(self) -> set[str]:
+        """IPs from ``virtualmin list-shared-addresses`` (empty if unavailable)."""
+        shared: set[str] = set()
+        for args in (
+            ["list-shared-addresses", "--name-only"],
+            ["list-shared-addresses"],
+        ):
+            proc = self.run(args, check=False)
+            if proc.returncode != 0:
+                continue
+            for line in (proc.stdout or "").splitlines():
+                token = line.strip().split()[0] if line.strip() else ""
+                if re.match(r"^\d{1,3}(?:\.\d{1,3}){3}$", token):
+                    shared.add(token)
+                elif ":" in token and re.match(r"^[0-9A-Fa-f:]+$", token):
+                    shared.add(token)
+            if shared:
+                break
+        return shared
+
+    def resolve_parent_ip_flags(
+        self,
+        *,
+        parent_domain: str,
+        parent_ip: str | None,
+        parent: DomainInfo | None = None,
+    ) -> list[str]:
+        """Choose ``--ip/--ip-already`` vs ``--shared-ip`` for a subserver.
+
+        Dedicated parent IPs (common) are NOT on Virtualmin's shared-IP list, so
+        ``--shared-ip`` fails with "is not in the shared IP addresses list".
+        """
+        if not parent_ip:
+            return []
+        parent = parent or self.get_domain(parent_domain)
+        shared = self.list_shared_ips()
+        is_shared = parent_ip in shared
+        if parent and parent.ip_is_shared is True:
+            is_shared = True
+        elif parent and parent.ip_is_shared is False and parent_ip not in shared:
+            is_shared = False
+
+        if is_shared:
+            return ["--shared-ip", parent_ip]
+        # Private/dedicated IP already active on the parent virtual server.
+        flags = ["--ip", parent_ip]
+        if self.supports_flag("create-domain", "--ip-already"):
+            flags.append("--ip-already")
+        return flags
+
     def disable_parent_webmail_redirect(self, parent_domain: str) -> bool:
         """Remove Virtualmin webmail/admin redirects on the parent.
 
@@ -493,6 +564,20 @@ class VirtualminClient:
             return "ssl"
         return None
 
+    @staticmethod
+    def _is_ip_mode_failure(err: str) -> bool:
+        lowered = (err or "").lower()
+        return any(
+            needle in lowered
+            for needle in (
+                "not in the shared ip",
+                "already in use",
+                "virtual interface",
+                "unknown --shared-ip",
+                "unknown --ip",
+            )
+        )
+
     def _create_domain_base_args(
         self,
         *,
@@ -500,7 +585,7 @@ class VirtualminClient:
         parent_domain: str,
         description: str,
         features: Iterable[str],
-        parent_ip: str | None,
+        ip_flags: Sequence[str],
         with_letsencrypt: bool,
         profile: WebStackProfile,
         include_website: bool,
@@ -526,14 +611,9 @@ class VirtualminClient:
         for f in feats:
             args.append(f"--{f}")
 
-        # Subservers share the parent IP. Passing it explicitly avoids
-        # virtualmin-nginx-ssl feature_warnings blowing up on undef $d->{'ip'}.
-        # Always pass when known: Nginx SSL is often auto-chained with the site
-        # feature even if we omit --virtualmin-nginx-ssl.
-        if parent_ip:
-            args.extend(["--shared-ip", parent_ip])
-            if self.supports_flag("create-domain", "--ip-already"):
-                args.append("--ip-already")
+        # Explicit IP flags (dedicated --ip/--ip-already or --shared-ip). Empty
+        # means inherit from --parent (Virtualmin default for subservers).
+        args.extend(list(ip_flags))
 
         if include_website and include_ssl and ssl_feat:
             if self.supports_flag("create-domain", "--generate-ssl-cert"):
@@ -599,10 +679,15 @@ class VirtualminClient:
         parent_ip = self.get_domain_ip(parent_domain)
         if parent and parent_ip and not parent.ip:
             parent.values["IP address"] = parent_ip
+        ip_flags = self.resolve_parent_ip_flags(
+            parent_domain=parent_domain,
+            parent_ip=parent_ip,
+            parent=parent,
+        )
         if profile.flavor == "nginx" and not parent_ip:
             raise VirtualminError(
                 f"Cannot determine IP address for parent {parent_domain}. "
-                "Nginx SSL setup requires --shared-ip. Run: "
+                "Nginx SSL setup needs the parent IP. Run: "
                 f"`virtualmin list-domains --domain {parent_domain} --ip-only` "
                 "and retry after Virtualmin shows an IP."
             )
@@ -614,47 +699,54 @@ class VirtualminClient:
         )
 
         # Attempt order:
-        # 1) Full create with website+SSL (+ shared-ip / cert flags)
-        # 2) Staged: create dir/dns/logrotate only (IP assigned, no nginx yet),
-        #    then enable-feature website/SSL. Needed because virtualmin-nginx-ssl
-        #    is often auto-chained when --virtualmin-nginx is passed, so a
-        #    "without SSL" create still hits the SSL plugin bug.
-        attempts: list[tuple[str, list[str]]] = [
-            (
-                "full",
-                self._create_domain_base_args(
-                    webmail_domain=webmail_domain,
-                    parent_domain=parent_domain,
-                    description=description,
-                    features=profile.create_features,
-                    parent_ip=parent_ip,
-                    with_letsencrypt=with_letsencrypt,
-                    profile=profile,
-                    include_website=True,
-                    include_ssl=True,
-                ),
-            ),
-            (
-                "staged-no-website",
-                self._create_domain_base_args(
-                    webmail_domain=webmail_domain,
-                    parent_domain=parent_domain,
-                    description=description,
-                    features=profile.create_features,
-                    parent_ip=parent_ip,
-                    with_letsencrypt=False,
-                    profile=profile,
-                    include_website=False,
-                    include_ssl=False,
-                ),
-            ),
-        ]
+        # 1) Full create with website+SSL + resolved IP flags
+        # 2) Staged: no website features + resolved IP flags, then enable-feature
+        # 3) Staged with no IP flags (inherit from --parent)
+        # 4) Full with no IP flags
+        ip_variants: list[tuple[str, Sequence[str]]] = [("resolved-ip", ip_flags)]
+        if ip_flags:
+            ip_variants.append(("inherit-parent-ip", ()))
+
+        attempts: list[tuple[str, list[str]]] = []
+        for ip_label, flags in ip_variants:
+            attempts.append(
+                (
+                    f"full/{ip_label}",
+                    self._create_domain_base_args(
+                        webmail_domain=webmail_domain,
+                        parent_domain=parent_domain,
+                        description=description,
+                        features=profile.create_features,
+                        ip_flags=flags,
+                        with_letsencrypt=with_letsencrypt,
+                        profile=profile,
+                        include_website=True,
+                        include_ssl=True,
+                    ),
+                )
+            )
+            attempts.append(
+                (
+                    f"staged-no-website/{ip_label}",
+                    self._create_domain_base_args(
+                        webmail_domain=webmail_domain,
+                        parent_domain=parent_domain,
+                        description=description,
+                        features=profile.create_features,
+                        ip_flags=flags,
+                        with_letsencrypt=False,
+                        profile=profile,
+                        include_website=False,
+                        include_ssl=False,
+                    ),
+                )
+            )
 
         last_error: VirtualminError | None = None
         for mode, args in attempts:
             try:
                 self.run(args)
-                if mode == "staged-no-website":
+                if mode.startswith("staged-no-website"):
                     self._enable_website_after_create(
                         webmail_domain=webmail_domain,
                         profile=profile,
@@ -680,10 +772,10 @@ class VirtualminClient:
                         f"Webmin → Servers → Nginx, reload nginx, and re-run install. "
                         f"Original error: {exc.message}"
                     ) from exc
-                # Retry staged create for SSL plugin / uninitialized-IP failures,
-                # and also when full create fails for other nginx-ssl related reasons.
-                if mode == "full" and (
+                # Continue through IP-mode / SSL-plugin / staged fallbacks.
+                if (
                     self._is_ssl_plugin_failure(exc.message)
+                    or self._is_ip_mode_failure(exc.message)
                     or profile.flavor == "nginx"
                 ):
                     self._cleanup_failed_webmail_create(webmail_domain)
@@ -692,7 +784,8 @@ class VirtualminClient:
 
         assert last_error is not None
         raise VirtualminError(
-            f"Failed to create {webmail_domain} (parent IP={parent_ip or 'unknown'}). "
+            f"Failed to create {webmail_domain} "
+            f"(parent IP={parent_ip or 'unknown'}, ip_flags={list(ip_flags) or 'inherit'}). "
             f"Last error: {last_error.message}"
         ) from last_error
 

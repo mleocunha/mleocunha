@@ -365,6 +365,9 @@ votoeletronico.com.br
                 P.stdout = "dir\ndns\nlogrotate\nvirtualmin-nginx\nvirtualmin-nginx-ssl\n"
             elif "list-domains" in cmd and "--ip-only" in cmd:
                 P.stdout = "203.0.113.10\n"
+            elif "list-shared-addresses" in cmd:
+                P.stdout = ""  # dedicated IP — not on shared list
+                P.returncode = 0
             elif "list-domains" in cmd and "--multiline" in cmd and "--domain" in cmd:
                 idx = cmd.index("--domain")
                 domain = cmd[idx + 1]
@@ -407,12 +410,14 @@ votoeletronico.com.br
         self.assertEqual(profile.flavor, "nginx")
         self.assertGreaterEqual(len(create_calls), 2)
         self.assertIn("--virtualmin-nginx", create_calls[0])
-        self.assertIn("--shared-ip", create_calls[0])
+        # Dedicated parent IP (not on shared list) → --ip --ip-already
+        self.assertIn("--ip", create_calls[0])
         self.assertIn("203.0.113.10", create_calls[0])
+        self.assertNotIn("--shared-ip", create_calls[0])
         # Staged fallback: no website features on create
         self.assertNotIn("--virtualmin-nginx", create_calls[1])
         self.assertNotIn("--virtualmin-nginx-ssl", create_calls[1])
-        self.assertIn("--shared-ip", create_calls[1])
+        self.assertIn("--ip", create_calls[1])
         self.assertTrue(any("--virtualmin-nginx" in c for c in enable_calls))
 
     def test_domaininfo_parses_shared_ip(self):
@@ -421,6 +426,57 @@ votoeletronico.com.br
             values={"IP address": "203.0.113.10 (shared)"},
         )
         self.assertEqual(d.ip, "203.0.113.10")
+        self.assertTrue(d.ip_is_shared)
+
+    def test_resolve_parent_ip_flags_dedicated(self):
+        def runner(cmd, **kw):
+            class P:
+                returncode = 0
+                stdout = ""
+                stderr = ""
+
+            if len(cmd) >= 2 and cmd[1] == "help":
+                P.stdout = "[--ip address] [--ip-already] [--shared-ip address]\n"
+            elif "list-shared-addresses" in cmd:
+                P.stdout = "10.0.0.1\n"  # parent IP not listed
+            elif "list-domains" in cmd and "--multiline" in cmd:
+                P.stdout = (
+                    "votoeletronico.com.br\n"
+                    "    IP address: 191.176.16.2\n"
+                    "    Features: unix dir dns mail\n"
+                )
+            elif "list-domains" in cmd and "--ip-only" in cmd:
+                P.stdout = "191.176.16.2\n"
+            return P()
+
+        client = VirtualminClient(binary="/usr/sbin/virtualmin", runner=runner)
+        flags = client.resolve_parent_ip_flags(
+            parent_domain="votoeletronico.com.br",
+            parent_ip="191.176.16.2",
+        )
+        self.assertEqual(flags[:2], ["--ip", "191.176.16.2"])
+        self.assertIn("--ip-already", flags)
+        self.assertNotIn("--shared-ip", flags)
+
+    def test_resolve_parent_ip_flags_shared(self):
+        def runner(cmd, **kw):
+            class P:
+                returncode = 0
+                stdout = ""
+                stderr = ""
+
+            if "list-shared-addresses" in cmd:
+                P.stdout = "203.0.113.10\n"
+            elif "list-domains" in cmd:
+                P.returncode = 1
+            return P()
+
+        client = VirtualminClient(binary="/usr/sbin/virtualmin", runner=runner)
+        flags = client.resolve_parent_ip_flags(
+            parent_domain="example.com",
+            parent_ip="203.0.113.10",
+        )
+        self.assertEqual(flags, ["--shared-ip", "203.0.113.10"])
 
     def test_get_domain_ip_falls_back_to_ip_only(self):
         def runner(cmd, **kw):

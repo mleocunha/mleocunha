@@ -117,10 +117,13 @@ is enabled, so omitting the SSL flag does not avoid the bug.
 `install` now:
 
 1. Resolves parent IP via multiline + `list-domains --ip-only`
-2. Always passes `--shared-ip <parent-ip> --ip-already`
+2. Chooses IP flags correctly:
+   - dedicated parent IP → `--ip <ip> --ip-already`
+   - shared IP (on Virtualmin shared list) → `--shared-ip <ip>`
 3. Passes `--generate-ssl-cert` / `--link-ssl-cert` / `--acme` when available
 4. On failure, creates the Sub-server **without website features**, then
    `enable-feature` for nginx/SSL after the domain already has an IP
+5. Falls back to inheriting the parent IP (no explicit IP flags) if needed
 
 ### Manual workaround
 
@@ -136,11 +139,11 @@ virtualmin list-domains --domain "$WM" --name-only >/dev/null 2>&1 \
 rm -f /etc/nginx/sites-available/"$WM".conf /etc/nginx/sites-enabled/"$WM".conf
 nginx -t && systemctl reload nginx
 
-# staged create (no website first)
+# staged create — use --ip (dedicated), NOT --shared-ip
 virtualmin create-domain --domain "$WM" --parent "$PARENT" \
   --desc "SnappyMail webmail (web-only)" \
   --dir --dns --logrotate \
-  --shared-ip "$IP" --ip-already
+  --ip "$IP" --ip-already
 
 virtualmin enable-feature --domain "$WM" --virtualmin-nginx
 virtualmin enable-feature --domain "$WM" --virtualmin-nginx-ssl || true
