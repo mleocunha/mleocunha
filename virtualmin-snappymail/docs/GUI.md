@@ -1,6 +1,10 @@
-# Webmin / Virtualmin GUI
+# Webmin module (fleet UI)
 
-SnappyMail is managed as a **web-only webapp** per mail parent:
+> Prefer **Manage Web Apps** for per-domain install/upgrade/remove
+> (`docs/WEBAPP.md`). This Webmin module is an extra fleet dashboard and
+> remains installed until explicitly retired.
+
+SnappyMail fleet UI as a Webmin module under the Virtualmin category.
 
 - Sub-server `webmail.<parent>` (Mail OFF)
 - Full-copy install in the sub-server document root
