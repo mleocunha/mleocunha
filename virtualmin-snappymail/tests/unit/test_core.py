@@ -438,7 +438,7 @@ votoeletronico.com.br
             if len(cmd) >= 2 and cmd[1] == "help":
                 P.stdout = "[--ip address] [--ip-already] [--shared-ip address]\n"
             elif "list-shared-addresses" in cmd:
-                P.stdout = "10.0.0.1\n"  # parent IP not listed
+                P.stdout = "10.0.0.1\n"
             elif "list-domains" in cmd and "--multiline" in cmd:
                 P.stdout = (
                     "votoeletronico.com.br\n"
@@ -458,14 +458,18 @@ votoeletronico.com.br
         self.assertIn("--ip-already", flags)
         self.assertNotIn("--shared-ip", flags)
 
-    def test_resolve_parent_ip_flags_shared(self):
+    def test_resolve_parent_ip_flags_even_if_listed_shared(self):
+        """Subservers still get --ip/--ip-already (default shared breaks --shared-ip)."""
+
         def runner(cmd, **kw):
             class P:
                 returncode = 0
                 stdout = ""
                 stderr = ""
 
-            if "list-shared-addresses" in cmd:
+            if len(cmd) >= 2 and cmd[1] == "help":
+                P.stdout = "[--ip address] [--ip-already] [--shared-ip address]\n"
+            elif "list-shared-addresses" in cmd:
                 P.stdout = "203.0.113.10\n"
             elif "list-domains" in cmd:
                 P.returncode = 1
@@ -476,7 +480,9 @@ votoeletronico.com.br
             parent_domain="example.com",
             parent_ip="203.0.113.10",
         )
-        self.assertEqual(flags, ["--shared-ip", "203.0.113.10"])
+        self.assertEqual(flags[:2], ["--ip", "203.0.113.10"])
+        self.assertIn("--ip-already", flags)
+        self.assertNotIn("--shared-ip", flags)
 
     def test_get_domain_ip_falls_back_to_ip_only(self):
         def runner(cmd, **kw):

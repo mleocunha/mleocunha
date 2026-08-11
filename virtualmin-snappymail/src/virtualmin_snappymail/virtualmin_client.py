@@ -376,23 +376,17 @@ class VirtualminClient:
         return None
 
     def list_shared_ips(self) -> set[str]:
-        """IPs from ``virtualmin list-shared-addresses`` (empty if unavailable)."""
+        """Additional shared IPs from ``list-shared-addresses --name-only``."""
         shared: set[str] = set()
-        for args in (
-            ["list-shared-addresses", "--name-only"],
-            ["list-shared-addresses"],
-        ):
-            proc = self.run(args, check=False)
-            if proc.returncode != 0:
-                continue
-            for line in (proc.stdout or "").splitlines():
-                token = line.strip().split()[0] if line.strip() else ""
-                if re.match(r"^\d{1,3}(?:\.\d{1,3}){3}$", token):
-                    shared.add(token)
-                elif ":" in token and re.match(r"^[0-9A-Fa-f:]+$", token):
-                    shared.add(token)
-            if shared:
-                break
+        proc = self.run(["list-shared-addresses", "--name-only"], check=False)
+        if proc.returncode != 0:
+            return shared
+        for line in (proc.stdout or "").splitlines():
+            token = line.strip().split()[0] if line.strip() else ""
+            if re.match(r"^\d{1,3}(?:\.\d{1,3}){3}$", token):
+                shared.add(token)
+            elif ":" in token and re.match(r"^[0-9A-Fa-f:]+$", token):
+                shared.add(token)
         return shared
 
     def resolve_parent_ip_flags(
@@ -402,24 +396,15 @@ class VirtualminClient:
         parent_ip: str | None,
         parent: DomainInfo | None = None,
     ) -> list[str]:
-        """Choose ``--ip/--ip-already`` vs ``--shared-ip`` for a subserver.
+        """IP flags for a ``--parent`` subserver.
 
-        Dedicated parent IPs (common) are NOT on Virtualmin's shared-IP list, so
-        ``--shared-ip`` fails with "is not in the shared IP addresses list".
+        Always prefer ``--ip <parent> --ip-already``. Using ``--shared-ip`` is
+        wrong for dedicated parent addresses and for Virtualmin's *default*
+        shared address (``not in the shared IP addresses list``).
         """
+        _ = parent_domain, parent  # reserved for future heuristics
         if not parent_ip:
             return []
-        parent = parent or self.get_domain(parent_domain)
-        shared = self.list_shared_ips()
-        is_shared = parent_ip in shared
-        if parent and parent.ip_is_shared is True:
-            is_shared = True
-        elif parent and parent.ip_is_shared is False and parent_ip not in shared:
-            is_shared = False
-
-        if is_shared:
-            return ["--shared-ip", parent_ip]
-        # Private/dedicated IP already active on the parent virtual server.
         flags = ["--ip", parent_ip]
         if self.supports_flag("create-domain", "--ip-already"):
             flags.append("--ip-already")
@@ -575,6 +560,9 @@ class VirtualminClient:
                 "virtual interface",
                 "unknown --shared-ip",
                 "unknown --ip",
+                "no ip address",
+                "could not work out",
+                "default ip",
             )
         )
 
@@ -698,14 +686,17 @@ class VirtualminClient:
             webmail_domain=webmail_domain, parent_domain=parent_domain
         )
 
-        # Attempt order:
-        # 1) Full create with website+SSL + resolved IP flags
-        # 2) Staged: no website features + resolved IP flags, then enable-feature
-        # 3) Staged with no IP flags (inherit from --parent)
-        # 4) Full with no IP flags
-        ip_variants: list[tuple[str, Sequence[str]]] = [("resolved-ip", ip_flags)]
+        # Attempt order (IP modes):
+        # 1) --ip PARENT --ip-already  (correct for dedicated + default shared)
+        # 2) inherit from --parent (no explicit IP flags)
+        # 3) --shared-ip PARENT        (only for additional shared addresses)
+        ip_variants: list[tuple[str, Sequence[str]]] = [
+            ("ip-already", ip_flags),
+        ]
         if ip_flags:
             ip_variants.append(("inherit-parent-ip", ()))
+        if parent_ip:
+            ip_variants.append(("shared-ip", ["--shared-ip", parent_ip]))
 
         attempts: list[tuple[str, list[str]]] = []
         for ip_label, flags in ip_variants:
@@ -743,7 +734,9 @@ class VirtualminClient:
             )
 
         last_error: VirtualminError | None = None
+        last_mode = ""
         for mode, args in attempts:
+            last_mode = mode
             try:
                 self.run(args)
                 if mode.startswith("staged-no-website"):
@@ -776,6 +769,7 @@ class VirtualminClient:
                 if (
                     self._is_ssl_plugin_failure(exc.message)
                     or self._is_ip_mode_failure(exc.message)
+                    or "no ip address" in exc.message.lower()
                     or profile.flavor == "nginx"
                 ):
                     self._cleanup_failed_webmail_create(webmail_domain)
@@ -785,7 +779,8 @@ class VirtualminClient:
         assert last_error is not None
         raise VirtualminError(
             f"Failed to create {webmail_domain} "
-            f"(parent IP={parent_ip or 'unknown'}, ip_flags={list(ip_flags) or 'inherit'}). "
+            f"(parent IP={parent_ip or 'unknown'}, preferred_ip_flags={list(ip_flags) or 'inherit'}, "
+            f"last_mode={last_mode}). "
             f"Last error: {last_error.message}"
         ) from last_error
 
