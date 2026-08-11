@@ -131,10 +131,18 @@
 
     <section class="block log-block">
       <div class="log-head">
-        <h2>Progresso</h2>
-        <span id="runState" class="pill">ocioso</span>
+        <div class="log-title">
+          <h2>Progresso</h2>
+          <span id="runState" class="pill">ocioso</span>
+        </div>
+        <div class="log-actions">
+          <button type="button" id="copyLogBtn" class="ghost compact" title="Copiar o progresso para a área de transferência">Copiar</button>
+          <button type="button" id="saveLogBtn" class="ghost compact" title="Salvar o progresso como arquivo .txt">Salvar</button>
+        </div>
       </div>
+      <p class="hint log-hint">Horários no fuso desta máquina. Use Copiar ou Salvar para enviar o log.</p>
       <pre id="log" class="log" aria-live="polite"></pre>
+      <p id="logActionStatus" class="log-action-status" hidden aria-live="polite"></p>
     </section>
   </div>
   <script src="/app.js" type="module"></script>

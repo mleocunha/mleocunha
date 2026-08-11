@@ -3,6 +3,9 @@ const logEl = document.getElementById('log');
 const runState = document.getElementById('runState');
 const startBtn = document.getElementById('startBtn');
 const stopBtn = document.getElementById('stopBtn');
+const copyLogBtn = document.getElementById('copyLogBtn');
+const saveLogBtn = document.getElementById('saveLogBtn');
+const logActionStatus = document.getElementById('logActionStatus');
 const loginPath = document.getElementById('loginPath');
 const customLoginWrap = document.getElementById('customLoginWrap');
 const macBanner = document.getElementById('macBanner');
@@ -11,6 +14,13 @@ const macBanner = document.getElementById('macBanner');
 let activeRunId = null;
 /** Ignore stale SSE traffic until /api/start returns the new runId. */
 let awaitingRunId = false;
+
+const localTimeFmt = new Intl.DateTimeFormat(undefined, {
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+  hour12: false,
+});
 
 if (/Mac|iPhone|iPad/.test(navigator.platform) || navigator.userAgent.includes('Mac OS')) {
   macBanner.hidden = false;
@@ -26,8 +36,58 @@ passwordChangePoc.addEventListener('change', () => {
   mailUrlWrap.classList.toggle('hidden', !passwordChangePoc.checked);
 });
 
+/**
+ * Format event timestamp in the local timezone of this machine (browser = PoC host).
+ * @param {string|undefined} iso
+ */
+function formatLocalTime(iso) {
+  const d = iso ? new Date(iso) : new Date();
+  if (Number.isNaN(d.getTime())) {
+    return localTimeFmt.format(new Date());
+  }
+  return localTimeFmt.format(d);
+}
+
+/**
+ * Filename-safe local stamp for downloads.
+ */
+function localFileStamp() {
+  const d = new Date();
+  const pad = (n) => String(n).padStart(2, '0');
+  return [
+    d.getFullYear(),
+    pad(d.getMonth() + 1),
+    pad(d.getDate()),
+    '-',
+    pad(d.getHours()),
+    pad(d.getMinutes()),
+    pad(d.getSeconds()),
+  ].join('');
+}
+
 function clearLog() {
   logEl.replaceChildren();
+  hideLogActionStatus();
+}
+
+function progressText() {
+  return (logEl.innerText || '').trim();
+}
+
+function showLogActionStatus(message, isError = false) {
+  logActionStatus.hidden = false;
+  logActionStatus.textContent = message;
+  logActionStatus.classList.toggle('is-error', isError);
+  window.clearTimeout(showLogActionStatus._timer);
+  showLogActionStatus._timer = window.setTimeout(() => {
+    hideLogActionStatus();
+  }, 2500);
+}
+
+function hideLogActionStatus() {
+  logActionStatus.hidden = true;
+  logActionStatus.textContent = '';
+  logActionStatus.classList.remove('is-error');
 }
 
 function appendLog(ev) {
@@ -38,7 +98,7 @@ function appendLog(ev) {
   const level = ev.level || 'info';
   if (level === 'error') line.className = 'err';
   if (level === 'warn') line.className = 'warn';
-  const ts = ev.ts ? ev.ts.slice(11, 19) : '';
+  const ts = formatLocalTime(ev.ts);
   const extraBits = {};
   if (ev.build) extraBits.build = ev.build;
   if (ev.user_login) extraBits.user_login = ev.user_login;
@@ -140,7 +200,7 @@ form.addEventListener('submit', async (e) => {
   if (!res.ok) {
     awaitingRunId = false;
     activeRunId = null;
-    appendLog({ level: 'error', message: data.error || 'Falha ao iniciar' });
+    appendLog({ level: 'error', message: data.error || 'Falha ao iniciar', ts: new Date().toISOString() });
     startBtn.disabled = false;
     stopBtn.disabled = true;
     runState.textContent = 'erro';
@@ -157,5 +217,53 @@ form.addEventListener('submit', async (e) => {
 
 stopBtn.addEventListener('click', async () => {
   await fetch('/api/stop', { method: 'POST' });
-  appendLog({ level: 'warn', message: 'Pedido de parada enviado…' });
+  appendLog({
+    level: 'warn',
+    message: 'Pedido de parada enviado…',
+    ts: new Date().toISOString(),
+  });
+});
+
+copyLogBtn.addEventListener('click', async () => {
+  const text = progressText();
+  if (!text) {
+    showLogActionStatus('Nada para copiar ainda.', true);
+    return;
+  }
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+    } else {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.setAttribute('readonly', '');
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      ta.remove();
+    }
+    showLogActionStatus('Progresso copiado.');
+  } catch (err) {
+    showLogActionStatus(`Não foi possível copiar: ${err.message || err}`, true);
+  }
+});
+
+saveLogBtn.addEventListener('click', () => {
+  const text = progressText();
+  if (!text) {
+    showLogActionStatus('Nada para salvar ainda.', true);
+    return;
+  }
+  const blob = new Blob([`${text}\n`], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `votador-progresso-${localFileStamp()}.txt`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+  showLogActionStatus('Arquivo de progresso baixado.');
 });
