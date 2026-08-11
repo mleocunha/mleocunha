@@ -40,7 +40,8 @@ already exists”. See `docs/TROUBLESHOOTING.md`.
 
 ## Nginx SSL create quirks
 
-Create passes `--shared-ip` (parent IP), `--generate-ssl-cert`, and ACME when
-available. If `virtualmin-nginx-ssl` still crashes (`uninitialized value in
-string eq`), install retries without SSL and enables SSL after the Sub-server
-exists. See `docs/TROUBLESHOOTING.md`.
+Create resolves the parent IP (`list-domains --ip-only`), always passes
+`--shared-ip`, and on `virtualmin-nginx-ssl` failures creates the Sub-server
+**without website features first**, then `enable-feature` for nginx/SSL (SSL is
+often auto-chained with nginx, so “create without SSL” is not enough).
+See `docs/TROUBLESHOOTING.md`.
