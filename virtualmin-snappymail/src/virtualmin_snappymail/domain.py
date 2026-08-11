@@ -29,6 +29,17 @@ def normalize_domain(value: str) -> str:
     return domain
 
 
+def try_normalize_domain(value: str) -> str | None:
+    """Like :func:`normalize_domain`, but returns ``None`` for noise tokens.
+
+    Soft-skips Virtualmin banners and non-FQDN names such as ``localhost``.
+    """
+    try:
+        return normalize_domain(value)
+    except DomainInvalidError:
+        return None
+
+
 def webmail_domain_for(parent_domain: str) -> str:
     parent = normalize_domain(parent_domain)
     if parent.startswith(_WEBMAIL_PREFIX):

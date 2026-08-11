@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterable, Sequence
 
-from .domain import normalize_domain
+from .domain import normalize_domain, try_normalize_domain
 from .errors import SubserverConflictError, VirtualminError
 from .security import assert_safe_argv_token, redact_secrets
 from .webstack import (
@@ -246,9 +246,11 @@ class VirtualminClient:
         # re-parse a filtered dump.
         proc = self.run(["list-domains", "--name-only", "--domain", want], check=False)
         names = {
-            normalize_domain(line)
+            nd
             for line in (proc.stdout or "").splitlines()
             if line.strip() and proc.returncode == 0
+            for nd in (try_normalize_domain(line),)
+            if nd
         }
         if want not in names:
             return None
@@ -266,9 +268,11 @@ class VirtualminClient:
         if proc.returncode != 0:
             return False
         names = {
-            normalize_domain(line)
+            nd
             for line in (proc.stdout or "").splitlines()
             if line.strip()
+            for nd in (try_normalize_domain(line),)
+            if nd
         }
         return want in names
 
@@ -277,7 +281,12 @@ class VirtualminClient:
         proc = self.run(["list-domains", "--parent", parent, "--name-only"], check=False)
         if proc.returncode != 0:
             return []
-        return [normalize_domain(line) for line in (proc.stdout or "").splitlines() if line.strip()]
+        out: list[str] = []
+        for line in (proc.stdout or "").splitlines():
+            nd = try_normalize_domain(line)
+            if nd:
+                out.append(nd)
+        return out
 
     def available_create_domain_flags(self) -> set[str]:
         """Return creatable flag names from `virtualmin help create-domain`.
@@ -405,11 +414,12 @@ class VirtualminClient:
         proc = self.run(["list-domains", "--ip", ip, "--name-only"], check=False)
         if proc.returncode != 0:
             return []
-        return [
-            normalize_domain(line)
-            for line in (proc.stdout or "").splitlines()
-            if line.strip()
-        ]
+        out: list[str] = []
+        for line in (proc.stdout or "").splitlines():
+            nd = try_normalize_domain(line)
+            if nd:
+                out.append(nd)
+        return out
 
     def convert_domain_to_default_ip(self, domain: str) -> bool:
         """Revert a private-IP virtual server to the system default shared IP."""
@@ -422,21 +432,133 @@ class VirtualminClient:
         proc = self.run(args, check=False)
         return proc.returncode == 0
 
+    def detect_os_iface_for_ip(self, ip: str) -> str | None:
+        """Return the Linux interface that owns ``ip`` (via ``ip -4 addr``)."""
+        ip = (ip or "").strip().split()[0]
+        if not ip:
+            return None
+        try:
+            proc = self._runner(
+                ["ip", "-4", "-o", "addr", "show"],
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+        except Exception:  # noqa: BLE001
+            return None
+        for line in (getattr(proc, "stdout", "") or "").splitlines():
+            # Example: "2: eth0    inet 191.176.16.2/24 ..."
+            if f" inet {ip}/" in f" {line} " or f" inet {ip} " in f" {line} ":
+                parts = line.split()
+                if len(parts) >= 2:
+                    iface = parts[1].split("@", 1)[0]
+                    if iface and iface != "lo":
+                        return iface
+        # Fallback: route get
+        try:
+            proc = self._runner(
+                ["ip", "-4", "route", "get", ip],
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+        except Exception:  # noqa: BLE001
+            return None
+        parts = (getattr(proc, "stdout", "") or "").split()
+        if "dev" in parts:
+            iface = parts[parts.index("dev") + 1]
+            if iface and iface != "lo":
+                return iface
+        return None
+
+    def ensure_default_network_ip(
+        self,
+        ip: str,
+        *,
+        config_path: Path | None = None,
+    ) -> list[str]:
+        """Ensure Virtualmin can resolve the system default shared IP.
+
+        Fixes ``New virtual server has no IP address! Perhaps Virtualmin could
+        not work out the system's default IP`` by filling blank ``iface=`` /
+        ``localip=`` in ``/etc/webmin/virtual-server/config``.
+
+        Does **not** overwrite non-empty admin-set values.
+        """
+        actions: list[str] = []
+        ip = (ip or "").strip().split()[0]
+        if not ip:
+            return actions
+
+        config = config_path or Path("/etc/webmin/virtual-server/config")
+        if not config.is_file():
+            return actions
+
+        iface = self.detect_os_iface_for_ip(ip)
+        raw = config.read_text(encoding="utf-8", errors="replace")
+        lines = raw.splitlines()
+        kv: dict[str, str] = {}
+        for line in lines:
+            if "=" in line and not line.lstrip().startswith("#"):
+                key, _, val = line.partition("=")
+                kv[key.strip()] = val.strip()
+
+        updates: dict[str, str] = {}
+        current_iface = (kv.get("iface") or "").strip()
+        if iface and not current_iface:
+            updates["iface"] = iface
+        current_localip = (kv.get("localip") or "").strip()
+        if not current_localip:
+            updates["localip"] = ip
+
+        if not updates:
+            return actions
+
+        new_lines = list(lines)
+        for key, value in updates.items():
+            found = False
+            rebuilt: list[str] = []
+            for line in new_lines:
+                if line.startswith(f"{key}="):
+                    found = True
+                    rebuilt.append(f"{key}={value}")
+                    actions.append(f"set virtual-server {key}={value} (was blank)")
+                else:
+                    rebuilt.append(line)
+            if not found:
+                rebuilt.append(f"{key}={value}")
+                actions.append(f"set virtual-server {key}={value}")
+            new_lines = rebuilt
+
+        backup = Path(str(config) + ".vsm-bak")
+        if not backup.exists():
+            backup.write_text(raw, encoding="utf-8")
+            actions.append(f"backup {backup}")
+        config.write_text("\n".join(new_lines) + "\n", encoding="utf-8")
+        return actions
+
     def ensure_shared_address(self, ip: str) -> bool:
         """Register ``ip`` as a Virtualmin shared address if missing.
 
-        If a domain still holds the address as a *private* IP, Virtualmin
-        refuses ``create-shared-address`` with::
+        On many hosts the public IP is already assigned to an existing server
+        (often the *default* address, not a private/virt IP), so
+        ``create-shared-address`` refuses with "already using address" and
+        ``--default-ip`` refuses with "can only be used when the virtual server
+        has a private address".
 
-            The virtual server X is already using address A.B.C.D
-
-        Convert that domain to ``--default-ip`` and retry.
+        In that topology we heal Virtualmin's ``iface``/``localip`` so new
+        subservers can inherit the parent IP without ``--shared-ip``.
         """
         ip = (ip or "").strip().split()[0]
         if not ip:
             return False
         if ip in self.list_shared_ips():
             return True
+
+        # Always try to heal default-IP detection first (needed for --parent creates).
+        self.ensure_default_network_ip(ip)
 
         proc = self.run(["create-shared-address", "--ip", ip], check=False)
         if ip in self.list_shared_ips():
@@ -450,7 +572,9 @@ class VirtualminClient:
             flags=re.IGNORECASE,
         )
         if m:
-            holders.append(normalize_domain(m.group(1).rstrip(".")))
+            nd = try_normalize_domain(m.group(1).rstrip("."))
+            if nd:
+                holders.append(nd)
         for dom in self.find_domains_on_ip(ip):
             if dom not in holders:
                 holders.append(dom)
@@ -475,14 +599,16 @@ class VirtualminClient:
         parent_ip: str | None,
         parent: DomainInfo | None = None,
     ) -> list[str]:
-        """Preferred explicit IP flags after healing shared-IP topology.
+        """Preferred explicit IP flags after healing network/default IP.
 
-        Returns ``--shared-ip`` when the parent IP is (or was made) shareable.
-        Otherwise returns ``[]`` so create inherits from ``--parent``.
+        Returns ``--shared-ip`` when the parent IP is on the shared list.
+        Otherwise returns ``[]`` so create inherits from ``--parent`` (works
+        once Virtualmin default IP / iface is configured).
         """
         _ = parent_domain, parent
         if not parent_ip:
             return []
+        self.ensure_default_network_ip(parent_ip)
         if self.ensure_shared_address(parent_ip):
             return ["--shared-ip", parent_ip]
         return []

@@ -40,7 +40,8 @@ already exists”. See `docs/TROUBLESHOOTING.md`.
 
 ## Nginx SSL / IP create quirks
 
-On name-based hosts a public IP may still be marked **private** on one domain
-(e.g. `licenciamento.relatasoft.com.br`). Install converts that domain to
-`--default-ip`, registers `create-shared-address`, then creates the Sub-server
-(prefer inherit / `--shared-ip`). See `docs/TROUBLESHOOTING.md`.
+On name-based hosts Virtualmin may fail to resolve a default IP (`iface` /
+`localip` blank), while `create-shared-address` / `--default-ip` are refused
+because the public IP is already assigned (but not as a private/virt address).
+Install heals blank Network Settings, then creates the Sub-server preferring
+inherit / `--shared-ip`. See `docs/TROUBLESHOOTING.md`.

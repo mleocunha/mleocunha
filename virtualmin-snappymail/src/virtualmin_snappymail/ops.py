@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from . import get_manager_version
-from .domain import normalize_domain, parent_from_webmail, webmail_domain_for
+from .domain import normalize_domain, parent_from_webmail, try_normalize_domain, webmail_domain_for
 from .errors import (
     AlreadyInstalledError,
     MailOnSubserverError,
@@ -74,9 +74,11 @@ def list_mail_parents(client: VirtualminClient) -> list[str]:
         if proc.returncode == 0 and (proc.stdout or "").strip():
             return sorted(
                 {
-                    normalize_domain(line)
+                    nd
                     for line in (proc.stdout or "").splitlines()
                     if line.strip()
+                    for nd in (try_normalize_domain(line),)
+                    if nd
                 }
             )
     except Exception:  # noqa: BLE001
@@ -133,9 +135,11 @@ def _require_parent_with_mail(client: VirtualminClient, parent: str) -> DomainIn
                 check=False,
             )
             names = {
-                normalize_domain(line)
+                nd
                 for line in (proc.stdout or "").splitlines()
                 if line.strip()
+                for nd in (try_normalize_domain(line),)
+                if nd
             }
             if parent in names:
                 info.values["Features"] = "mail"
@@ -419,7 +423,13 @@ def status_all(client: VirtualminClient) -> list[StatusRow]:
     # Prefer domains that have mail feature as parents
     try:
         proc = client.run(["list-domains", "--with-feature", "mail", "--toplevel", "--name-only"], check=False)
-        parents = [normalize_domain(x) for x in (proc.stdout or "").splitlines() if x.strip()]
+        parents = [
+            nd
+            for x in (proc.stdout or "").splitlines()
+            if x.strip()
+            for nd in (try_normalize_domain(x),)
+            if nd
+        ]
     except Exception:  # noqa: BLE001
         parents = []
         for d in client.list_domains_multiline():

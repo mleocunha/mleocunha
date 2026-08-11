@@ -117,41 +117,75 @@ is enabled, so omitting the SSL flag does not avoid the bug.
 `install` now:
 
 1. Resolves parent IP via multiline + `list-domains --ip-only`
-2. Makes the parent IP usable by multiple servers:
-   - `virtualmin create-shared-address --ip <parent-ip>` when missing
-   - then `--shared-ip <ip>` (name-based hosting)
-   - fallback: inherit / `--ip --ip-already`
-   - always passes `--skip-warnings` when available
-3. Passes `--generate-ssl-cert` / `--link-ssl-cert` / `--acme` when available
-4. On failure, creates the Sub-server **without website features**, then
+2. Heals Virtualmin Network Settings (`iface=` / `localip=`) when blank so the
+   default shared IP can be resolved
+3. Tries `create-shared-address` + `--shared-ip` when possible; otherwise
+   inherits from `--parent`
+4. Passes `--generate-ssl-cert` / `--link-ssl-cert` / `--acme` when available
+5. On failure, creates the Sub-server **without website features**, then
    `enable-feature` for nginx/SSL after the domain already has an IP
 
-### Manual workaround (ns1) — private IP blocker
+## Symptom: New virtual server has no IP address / default IP
 
-`191.176.16.2` is still marked as a **private IP** on
-`licenciamento.relatasoft.com.br`, so Virtualmin refuses both
-`create-shared-address` and `--shared-ip`. Convert it to the default shared
-address first:
+```text
+Beginning server creation ..
+New virtual server has no IP address! Perhaps Virtualmin could not work out
+the system's default IP.
+```
+
+and often together:
+
+```text
+The --default-ip flag can only be used when the virtual server has a private address
+The virtual server licenciamento.relatasoft.com.br is already using address 191.176.16.2
+```
+
+### Cause (ns1 / name-based Nginx)
+
+`191.176.16.2` is the host’s real public IP, already assigned to existing
+virtual servers. It is **not** a Virtualmin private/virt IP, so:
+
+- `--default-ip` is refused
+- `create-shared-address --ip 191.176.16.2` is refused (“already using address”)
+- create without IP flags fails because Network Settings have no usable
+  `iface` / `localip` (Virtualmin cannot compute a default IP)
+
+### Automatic fix
+
+`install` fills blank `iface=` / `localip=` in
+`/etc/webmin/virtual-server/config` from the OS NIC that owns the parent IP,
+then creates `webmail.<parent>` inheriting the parent address (no `--ip` /
+`--shared-ip` required).
+
+### Manual fix (ns1)
 
 ```bash
 IP=191.176.16.2
-
-# 1) release private ownership (name-based hosting)
-virtualmin modify-domain --domain licenciamento.relatasoft.com.br --default-ip --skip-warnings
-
-# if votoeletronico also shows as private, convert it too:
-virtualmin list-domains --domain votoeletronico.com.br --multiline | egrep -i 'IP address'
-virtualmin modify-domain --domain votoeletronico.com.br --default-ip --skip-warnings || true
-
-# 2) register shared address
-virtualmin create-shared-address --ip "$IP"
-virtualmin list-shared-addresses --name-only
-
-# 3) create webmail inheriting parent IP (no --ip / --shared-ip)
 PARENT=votoeletronico.com.br
 WM=webmail.$PARENT
+
+# 1) find NIC that owns the public IP
+ip -4 -o addr show | grep "$IP"
+# example: 2: eth0    inet 191.176.16.2/24 ...
+
+# 2) set Virtualmin Network Settings (backup first)
+cp -a /etc/webmin/virtual-server/config /etc/webmin/virtual-server/config.vsm-bak
+# set iface=<nic> and localip=$IP when blank — or in Webmin:
+# System Settings → Network Settings → Network interface / Default IP
+
+grep -E '^(iface|localip)=' /etc/webmin/virtual-server/config || true
+# if missing, append (replace eth0 with the NIC from step 1):
+#   echo "iface=eth0" >> /etc/webmin/virtual-server/config
+#   echo "localip=$IP" >> /etc/webmin/virtual-server/config
+
+systemctl restart webmin || service webmin restart
+virtualmin check-config || true
+
+# 3) create webmail inheriting parent IP (no --ip / --shared-ip)
 virtualmin list-domains --domain "$WM" --name-only >/dev/null 2>&1 \
   && virtualmin delete-domain --domain "$WM" || true
+
+virtualmin modify-web --domain "$PARENT" --no-webmail || true
 
 virtualmin create-domain --domain "$WM" --parent "$PARENT" \
   --desc "SnappyMail webmail (web-only)" \
@@ -160,7 +194,19 @@ virtualmin create-domain --domain "$WM" --parent "$PARENT" \
 virtualmin enable-feature --domain "$WM" --virtualmin-nginx --skip-warnings
 virtualmin enable-feature --domain "$WM" --virtualmin-nginx-ssl --skip-warnings || true
 
+# 4) install SnappyMail into the new subserver
 cd /home/cunha/mleocunha-snappymail && git pull
 cd virtualmin-snappymail && sudo bash bin/install-to-system.sh
 sudo virtualmin-snappymail install "$PARENT"
+```
+
+### Note on `VSM-DOMAIN-INVALID: localhost`
+
+`virtualmin-snappymail install` requires a real parent FQDN
+(e.g. `votoeletronico.com.br`). A bare `localhost` (or a mangled paste that
+drops the domain) is rejected. Use:
+
+```bash
+sudo virtualmin-snappymail list-parents
+sudo virtualmin-snappymail install votoeletronico.com.br
 ```

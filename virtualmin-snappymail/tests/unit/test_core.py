@@ -16,6 +16,7 @@ from virtualmin_snappymail.domain import (  # noqa: E402
     DomainInvalidError,
     normalize_domain,
     parent_from_webmail,
+    try_normalize_domain,
     webmail_domain_for,
 )
 from virtualmin_snappymail.errors import DomainInvalidError as DIE  # noqa: E402
@@ -46,6 +47,11 @@ class DomainTests(unittest.TestCase):
 
     def test_parent_from_webmail(self):
         self.assertEqual(parent_from_webmail("webmail.votoeletronico.com.br"), "votoeletronico.com.br")
+
+    def test_try_normalize_skips_localhost(self):
+        self.assertIsNone(try_normalize_domain("localhost"))
+        self.assertIsNone(try_normalize_domain("unknown"))
+        self.assertEqual(try_normalize_domain("Example.COM."), "example.com")
 
 
 class ManifestTests(unittest.TestCase):
@@ -544,6 +550,71 @@ votoeletronico.com.br
             parent_ip="203.0.113.10",
         )
         self.assertEqual(flags, [])
+
+    def test_find_domains_on_ip_skips_localhost(self):
+        def runner(cmd, **kw):
+            class P:
+                returncode = 0
+                stdout = "localhost\nvotoeletronico.com.br\nunknown\n"
+                stderr = ""
+
+            return P()
+
+        client = VirtualminClient(binary="/usr/sbin/virtualmin", runner=runner)
+        self.assertEqual(
+            client.find_domains_on_ip("191.176.16.2"),
+            ["votoeletronico.com.br"],
+        )
+
+    def test_ensure_default_network_ip_fills_blank_iface_localip(self):
+        with tempfile.TemporaryDirectory() as td:
+            cfg = Path(td) / "config"
+            cfg.write_text("home_base=/home\niface=\n", encoding="utf-8")
+
+            def runner(cmd, **kw):
+                class P:
+                    returncode = 0
+                    stdout = ""
+                    stderr = ""
+
+                if cmd[:4] == ["ip", "-4", "-o", "addr"]:
+                    P.stdout = "2: eth0    inet 191.176.16.2/24 brd 191.176.16.255 scope global eth0\n"
+                return P()
+
+            client = VirtualminClient(binary="/usr/sbin/virtualmin", runner=runner)
+            actions = client.ensure_default_network_ip(
+                "191.176.16.2", config_path=cfg
+            )
+            text = cfg.read_text(encoding="utf-8")
+            self.assertIn("iface=eth0", text)
+            self.assertIn("localip=191.176.16.2", text)
+            self.assertTrue(any("iface=eth0" in a for a in actions))
+            self.assertTrue((Path(str(cfg) + ".vsm-bak")).is_file())
+
+    def test_ensure_default_network_ip_does_not_clobber_existing(self):
+        with tempfile.TemporaryDirectory() as td:
+            cfg = Path(td) / "config"
+            cfg.write_text(
+                "iface=ens3\nlocalip=198.51.100.1\n",
+                encoding="utf-8",
+            )
+
+            def runner(cmd, **kw):
+                class P:
+                    returncode = 0
+                    stdout = "2: eth0    inet 191.176.16.2/24 scope global eth0\n"
+                    stderr = ""
+
+                return P()
+
+            client = VirtualminClient(binary="/usr/sbin/virtualmin", runner=runner)
+            actions = client.ensure_default_network_ip(
+                "191.176.16.2", config_path=cfg
+            )
+            self.assertEqual(actions, [])
+            text = cfg.read_text(encoding="utf-8")
+            self.assertIn("iface=ens3", text)
+            self.assertIn("localip=198.51.100.1", text)
 
     def test_get_domain_ip_falls_back_to_ip_only(self):
         def runner(cmd, **kw):
