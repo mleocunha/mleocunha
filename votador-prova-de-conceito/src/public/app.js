@@ -318,6 +318,7 @@ refreshStatus();
 
 form.addEventListener('submit', async (e) => {
   e.preventDefault();
+  persistFormPrefs();
   clearLog();
   activeRunId = null;
   awaitingRunId = true;
