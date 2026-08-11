@@ -178,40 +178,67 @@ async function findResetLinkInSnappyMail(page, opts) {
  * @param {object} [logger]
  */
 async function loginToSnappyMail(page, userEmail, currentPassword, mailUrl, logger) {
-  const emailInput = page.locator('input[name="Email"]').first();
-  await emailInput.waitFor({ state: 'visible', timeout: 60000 });
+  // Prefer login-form scoped selectors so Identity popup Email is not mistaken for login.
+  const emailInput = page.locator('form:has(button.buttonLogin) input[name="Email"]').first();
+  const passInput = page.locator('form:has(button.buttonLogin) input[name="Password"]').first();
+  const loginBtn = page.locator('button.buttonLogin').first();
+  const inboxReady = page.locator('.messageList, .messageListPlace, .b-folders').first();
 
+  // Retries reuse the same browser context — session cookie may already be logged in.
+  const gate = await Promise.race([
+    loginBtn.waitFor({ state: 'visible', timeout: 60000 }).then(() => 'login'),
+    inboxReady.waitFor({ state: 'visible', timeout: 60000 }).then(() => 'inbox'),
+  ]).catch(() => null);
+
+  const loginVisible = await loginBtn.isVisible().catch(() => false);
+  const inboxVisible = await inboxReady.isVisible().catch(() => false);
+
+  if ((gate === 'inbox' || inboxVisible) && !loginVisible) {
+    logger?.info?.('SnappyMail já autenticado; a reutilizar sessão', {
+      mail_url: mailUrl,
+      user_email: userEmail,
+    });
+    return;
+  }
+
+  if (!loginVisible) {
+    throw new Error(
+      `Falha no login SnappyMail em ${mailUrl} — formulário de login e INBOX indisponíveis`
+    );
+  }
+
+  await emailInput.waitFor({ state: 'visible', timeout: 15000 });
   await typeIntoKnockoutField(emailInput, userEmail);
-  const passInput = page.locator('input[name="Password"]').first();
   await typeIntoKnockoutField(passInput, currentPassword);
 
-  const loginBtn = page.locator('button.buttonLogin').first();
   if (await loginBtn.count()) {
     await loginBtn.click();
   } else {
     await passInput.press('Enter');
   }
 
-  const inboxReady = page.locator('.messageList, .messageListPlace, .b-folders').first();
   const started = Date.now();
   while (Date.now() - started < 60000) {
-    if (await inboxReady.isVisible().catch(() => false)) {
+    const inboxUp = await inboxReady.isVisible().catch(() => false);
+    const loginStill = await loginBtn.isVisible().catch(() => false);
+    if (inboxUp && !loginStill) {
       logger?.info?.('Login SnappyMail OK', { mail_url: mailUrl, user_email: userEmail });
       return;
     }
     const submitting = (await page.locator('form.submitting').count()) > 0;
     if (!submitting && Date.now() - started > 1200) {
       const errText = await readSnappyLoginError(page);
-      const emailStill = await emailInput.isVisible().catch(() => false);
       // Meaningful alert, or idle login form after several seconds → fail.
-      if (errText || (emailStill && Date.now() - started > 8000)) {
+      if (errText || (loginStill && Date.now() - started > 8000)) {
         break;
       }
     }
     await page.waitForTimeout(200);
   }
 
-  if (await inboxReady.isVisible().catch(() => false)) {
+  const inboxUp = await inboxReady.isVisible().catch(() => false);
+  const loginStill = await loginBtn.isVisible().catch(() => false);
+  if (inboxUp && !loginStill) {
     logger?.info?.('Login SnappyMail OK', { mail_url: mailUrl, user_email: userEmail });
     return;
   }
@@ -236,8 +263,8 @@ async function loginToSnappyMail(page, userEmail, currentPassword, mailUrl, logg
 
 /**
  * First login often opens "Update Identity" (~1s after identities load).
- * Fill Name/Label and Save so the modal does not block INBOX automation.
- * Also dismiss Ask confirmations that appear if the identity dialog is closed.
+ * Fill Name/Email/Label and Save so the modal does not block INBOX automation.
+ * If Save fails (HTML5 validity), force-close via × + Ask Yes.
  *
  * @param {import('playwright').Page} page
  * @param {{ userEmail?: string, logger?: object, quiet?: boolean, waitForMs?: number }} [opts]
@@ -251,13 +278,15 @@ async function dismissSnappyStartupPopups(page, opts = {}) {
       .replace(/[._+-]+/g, ' ')
       .replace(/\s+/g, ' ')
       .trim() || 'Eleitor';
+  const email = String(userEmail || '').trim();
 
-  const deadline = Date.now() + Math.max(0, waitForMs) + 8000;
+  const deadline = Date.now() + Math.max(0, waitForMs) + 10000;
   const waitUntil = Date.now() + Math.max(0, waitForMs);
   let handledIdentity = false;
+  let saveAttempts = 0;
 
   while (Date.now() < deadline) {
-    const identityForm = page.locator('#identityForm, #identityform, form#identityform').first();
+    const identityForm = page.locator('#identityform, form#identityform').first();
     const identityVisible = await identityForm.isVisible().catch(() => false);
 
     if (identityVisible) {
@@ -265,26 +294,37 @@ async function dismissSnappyStartupPopups(page, opts = {}) {
         logger?.info?.('SnappyMail: a fechar popup de identidade…');
       }
       handledIdentity = true;
+      saveAttempts += 1;
 
-      const nameInput = identityForm.locator('input[name="Name"]').first();
-      if (await nameInput.count()) {
-        const current = String((await nameInput.inputValue().catch(() => '')) || '').trim();
-        if (!current) {
-          await typeIntoKnockoutField(nameInput, displayName);
-        }
-      }
-      const labelInput = identityForm.locator('input[name="Label"]').first();
-      if (await labelInput.count()) {
-        const current = String((await labelInput.inputValue().catch(() => '')) || '').trim();
-        if (!current) {
-          await typeIntoKnockoutField(labelInput, displayName);
-        }
-      }
+      await identityForm
+        .evaluate(
+          (form, vals) => {
+            const setVal = (sel, val) => {
+              const el = form.querySelector(sel);
+              if (!el || val == null || val === '') {
+                return;
+              }
+              el.focus();
+              el.value = val;
+              el.dispatchEvent(new Event('input', { bubbles: true }));
+              el.dispatchEvent(new Event('change', { bubbles: true }));
+              if (typeof InputEvent === 'function') {
+                el.dispatchEvent(new InputEvent('input', { bubbles: true, data: val }));
+              }
+            };
+            // Editing main identity requires Email in the DOM (reportValidity).
+            setVal('input[name="Name"]', vals.name);
+            setVal('input[name="Email"]', vals.email);
+            setVal('input[name="Label"]', vals.label);
+          },
+          { name: displayName, email, label: displayName }
+        )
+        .catch(() => {});
 
-      const saveBtn = page
-        .locator('button.buttonAddIdentity, footer button[form="identityform"], footer button[form="identityForm"]')
-        .first();
-      if (await saveBtn.count()) {
+      await page.waitForTimeout(150);
+
+      const saveBtn = page.locator('button.buttonAddIdentity').first();
+      if (await saveBtn.isVisible().catch(() => false)) {
         await saveBtn.click({ force: true }).catch(() => {});
       } else {
         await identityForm
@@ -298,8 +338,40 @@ async function dismissSnappyStartupPopups(page, opts = {}) {
           .catch(() => {});
       }
 
-      await identityForm.waitFor({ state: 'hidden', timeout: 8000 }).catch(() => {});
-      await page.waitForTimeout(250);
+      const closed = await identityForm
+        .waitFor({ state: 'hidden', timeout: 4000 })
+        .then(() => true)
+        .catch(() => false);
+
+      if (closed) {
+        if (!quiet) {
+          logger?.info?.('SnappyMail: popup de identidade fechado');
+        }
+        await page.waitForTimeout(200);
+        continue;
+      }
+
+      // Save stuck (often empty required Email) — force-close so INBOX is usable.
+      if (saveAttempts >= 2) {
+        if (!quiet) {
+          logger?.warn?.('SnappyMail: Save da identidade falhou; a forçar fecho');
+        }
+        await page
+          .locator('.popups .modal:visible header a.close, .modal:visible header a.close')
+          .first()
+          .click({ force: true })
+          .catch(() => {});
+        await page.waitForTimeout(300);
+        const askYes = page.locator('button.buttonYes').first();
+        if (await askYes.isVisible().catch(() => false)) {
+          await askYes.click({ force: true }).catch(() => {});
+        }
+        await identityForm.waitFor({ state: 'hidden', timeout: 4000 }).catch(() => {});
+        await page.waitForTimeout(200);
+        continue;
+      }
+
+      await page.waitForTimeout(400);
       continue;
     }
 
@@ -321,6 +393,14 @@ async function dismissSnappyStartupPopups(page, opts = {}) {
       continue;
     }
     break;
+  }
+
+  // Last resort: any leftover modal close buttons
+  const stillIdentity = await page.locator('#identityform').isVisible().catch(() => false);
+  if (stillIdentity) {
+    if (!quiet) {
+      logger?.warn?.('SnappyMail: identidade ainda visível após tentativas');
+    }
   }
 }
 
