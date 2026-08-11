@@ -1,5 +1,9 @@
 import { generateSecurePassword } from './passwordGen.js';
-import { subjectForLocale } from './mailSubjects.js';
+import {
+  looksLikeResetSubject,
+  subjectForLocale,
+  subjectsToMatch,
+} from './mailSubjects.js';
 
 /** Stock default (RelataSoft lab). Prefer webmail.<domínio-do-e-mail> when different. */
 const DEFAULT_MAIL_URL = 'https://webmail.relatasoft.com.br/';
@@ -55,9 +59,11 @@ export async function resetPasswordViaSnappyMail(page, opts) {
   const resolved = resolveMailUrlForEmail(mailUrl, userEmail);
   const effectiveMailUrl = resolved.url;
   const subject = subjectForLocale(batchLocale);
+  const subjectCandidates = subjectsToMatch(batchLocale);
   logger?.info?.('Disparando e-mail de redefinição', {
     user_email: userEmail,
     subject,
+    subjects: subjectCandidates,
     locale: batchLocale,
     mail_url: effectiveMailUrl,
     mail_url_configured: mailUrl,
@@ -101,6 +107,7 @@ export async function resetPasswordViaSnappyMail(page, opts) {
       userEmail,
       currentPassword,
       subject,
+      subjectCandidates,
       timeoutMs,
       logger,
     });
@@ -125,44 +132,223 @@ async function ensureOnWelcomeWithResetForm(page) {
 }
 
 async function findResetLinkInSnappyMail(page, opts) {
-  const { mailUrl, userEmail, currentPassword, subject, timeoutMs, logger } = opts;
+  const {
+    mailUrl,
+    userEmail,
+    currentPassword,
+    subject,
+    subjectCandidates = [subject],
+    timeoutMs,
+    logger,
+  } = opts;
 
   await page.goto(mailUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
   await rejectRoundcubeSurface(page);
+  // Always re-auth so we do not read a stale / wrong mailbox view.
+  await snappyLogoutIfNeeded(page, mailUrl, logger);
   await loginToSnappyMail(page, userEmail, currentPassword, mailUrl, logger);
+  await dismissSnappyStartupPopups(page, { userEmail, logger, waitForMs: 5000 });
   await openInboxFolder(page);
 
   const deadline = Date.now() + timeoutMs;
-  let resetLink = '';
+  let lastSubjectsLog = 0;
+  let searchedOnce = false;
+  let peekedJunk = false;
 
   while (Date.now() < deadline) {
+    await dismissSnappyStartupPopups(page, { userEmail, logger, quiet: true });
     await reloadMessageList(page);
 
-    const row = page
-      .locator('.messageListItem')
-      .filter({ has: page.locator('.subjectParent', { hasText: subject }) })
-      .first();
+    const subjectsNow = await listVisibleSubjects(page);
+    if (Date.now() - lastSubjectsLog > 15000) {
+      lastSubjectsLog = Date.now();
+      logger?.info?.('SnappyMail INBOX (assuntos visíveis)', {
+        user_email: userEmail,
+        count: subjectsNow.length,
+        subjects: subjectsNow.slice(0, 12),
+      });
+    }
 
-    if (await row.count()) {
-      await row.click();
-      await page.locator('.bodyText, .b-message, .messageView').first().waitFor({
-        state: 'visible',
-        timeout: 15000,
-      }).catch(() => {});
-      await page.waitForTimeout(600);
+    const resetLink = await tryOpenResetFromList(page, {
+      subjectCandidates,
+      logger,
+    });
+    if (resetLink) {
+      return resetLink;
+    }
 
-      resetLink = await extractResetLink(page);
-      if (resetLink) {
-        await markCurrentMessageSeen(page);
-        logger?.info?.('E-mail de redefinição aberto na INBOX (SnappyMail)', { subject });
-        return resetLink;
+    // Use SnappyMail search once for the preferred subject.
+    if (!searchedOnce && Date.now() > deadline - timeoutMs + 8000) {
+      searchedOnce = true;
+      await searchMailbox(page, subject);
+      const viaSearch = await tryOpenResetFromList(page, { subjectCandidates, logger });
+      if (viaSearch) {
+        return viaSearch;
+      }
+      await openInboxFolder(page);
+    }
+
+    // Mid-wait: also open newest unread messages and scan body for rp link.
+    if (Date.now() > deadline - timeoutMs / 2) {
+      const viaScan = await scanRecentMessagesForResetLink(page, logger);
+      if (viaScan) {
+        return viaScan;
+      }
+      if (!peekedJunk) {
+        peekedJunk = true;
+        await openMaybeJunkFolder(page);
       }
     }
 
     await page.waitForTimeout(2000);
   }
 
-  throw new Error(`E-mail "${subject}" não encontrado na INBOX em ${Math.round(timeoutMs / 1000)}s.`);
+  const finalSubjects = await listVisibleSubjects(page);
+  throw new Error(
+    `E-mail de redefinição não encontrado na INBOX em ${Math.round(timeoutMs / 1000)}s ` +
+      `(procurava "${subject}"; visíveis: ${finalSubjects.slice(0, 8).join(' | ') || 'nenhum'}).`
+  );
+}
+
+/**
+ * @param {import('playwright').Page} page
+ * @param {{ subjectCandidates: string[], logger?: object }} opts
+ */
+async function tryOpenResetFromList(page, opts) {
+  const { subjectCandidates, logger } = opts;
+  const items = page.locator('.messageListItem');
+  const n = await items.count();
+  for (let i = 0; i < n; i += 1) {
+    const item = items.nth(i);
+    const text = ((await item.innerText().catch(() => '')) || '').replace(/\s+/g, ' ').trim();
+    const subjectHit =
+      subjectCandidates.some((s) => s && text.includes(s)) || looksLikeResetSubject(text);
+    if (!subjectHit) {
+      continue;
+    }
+    await item.click({ force: true });
+    await page.locator('.bodyText, .b-message, .messageView').first().waitFor({
+      state: 'visible',
+      timeout: 15000,
+    }).catch(() => {});
+    await page.waitForTimeout(500);
+    const link = await extractResetLink(page);
+    if (link) {
+      await markCurrentMessageSeen(page);
+      logger?.info?.('E-mail de redefinição aberto na INBOX (SnappyMail)', {
+        matched: text.slice(0, 120),
+      });
+      return link;
+    }
+  }
+  return '';
+}
+
+/**
+ * Open a few recent messages and look for wp-login.php?action=rp regardless of subject.
+ * @param {import('playwright').Page} page
+ * @param {object} [logger]
+ */
+async function scanRecentMessagesForResetLink(page, logger) {
+  const items = page.locator('.messageListItem');
+  const n = Math.min(await items.count(), 8);
+  for (let i = 0; i < n; i += 1) {
+    const item = items.nth(i);
+    await item.click({ force: true });
+    await page.waitForTimeout(500);
+    const link = await extractResetLink(page);
+    if (link) {
+      await markCurrentMessageSeen(page);
+      const text = ((await item.innerText().catch(() => '')) || '').replace(/\s+/g, ' ').trim();
+      logger?.info?.('Link de reset encontrado ao varrer mensagens recentes', {
+        matched: text.slice(0, 120),
+      });
+      return link;
+    }
+  }
+  return '';
+}
+
+async function listVisibleSubjects(page) {
+  return page.evaluate(() => {
+    const nodes = Array.from(document.querySelectorAll('.messageListItem .subjectParent, .messageListItem'));
+    const out = [];
+    for (const n of nodes) {
+      const t = (n.textContent || '').replace(/\s+/g, ' ').trim();
+      if (t && !out.includes(t)) {
+        out.push(t.slice(0, 160));
+      }
+      if (out.length >= 20) {
+        break;
+      }
+    }
+    return out;
+  }).catch(() => []);
+}
+
+async function searchMailbox(page, query) {
+  const search = page.locator('input.inputSearch').first();
+  if (!(await search.count())) {
+    return;
+  }
+  await search.click({ force: true }).catch(() => {});
+  await search.fill('');
+  await search.pressSequentially(String(query || ''), { delay: 10 }).catch(async () => {
+    await search.fill(String(query || ''));
+  });
+  await search.press('Enter').catch(() => {});
+  await page.waitForTimeout(1200);
+}
+
+/**
+ * If a prior attempt left the mailbox open, log out so we re-authenticate cleanly.
+ * @param {import('playwright').Page} page
+ * @param {string} mailUrl
+ * @param {object} [logger]
+ */
+async function snappyLogoutIfNeeded(page, mailUrl, logger) {
+  const inboxReady = page.locator('.messageList, .messageListPlace, .b-folders').first();
+  const loginBtn = page.locator('button.buttonLogin').first();
+  const loggedIn =
+    (await inboxReady.isVisible().catch(() => false)) &&
+    !(await loginBtn.isVisible().catch(() => false));
+  if (!loggedIn) {
+    return;
+  }
+
+  logger?.info?.('SnappyMail: a terminar sessão anterior antes de novo login');
+  const loggedOut = await page
+    .evaluate(() => {
+      try {
+        if (typeof window.rl?.logout === 'function') {
+          window.rl.logout();
+          return true;
+        }
+      } catch {
+        /* ignore */
+      }
+      return false;
+    })
+    .catch(() => false);
+
+  if (!loggedOut) {
+    const logoutLink = page
+      .locator('a')
+      .filter({ hasText: /^(Sair|Logout|Sign out|Terminar sessão|Encerrar)$/i })
+      .first();
+    if (await logoutLink.count()) {
+      await logoutLink.click({ force: true }).catch(() => {});
+    } else {
+      const u = new URL(mailUrl);
+      u.searchParams.set('logout', '1');
+      await page.goto(u.toString(), { waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => {});
+    }
+  }
+
+  await loginBtn.waitFor({ state: 'visible', timeout: 20000 }).catch(() => {});
+  if (!(await loginBtn.isVisible().catch(() => false))) {
+    await page.goto(mailUrl, { waitUntil: 'domcontentloaded', timeout: 60000 }).catch(() => {});
+  }
 }
 
 /**
@@ -175,40 +361,67 @@ async function findResetLinkInSnappyMail(page, opts) {
  * @param {object} [logger]
  */
 async function loginToSnappyMail(page, userEmail, currentPassword, mailUrl, logger) {
-  const emailInput = page.locator('input[name="Email"]').first();
-  await emailInput.waitFor({ state: 'visible', timeout: 60000 });
+  // Prefer login-form scoped selectors so Identity popup Email is not mistaken for login.
+  const emailInput = page.locator('form:has(button.buttonLogin) input[name="Email"]').first();
+  const passInput = page.locator('form:has(button.buttonLogin) input[name="Password"]').first();
+  const loginBtn = page.locator('button.buttonLogin').first();
+  const inboxReady = page.locator('.messageList, .messageListPlace, .b-folders').first();
 
+  // Retries reuse the same browser context — session cookie may already be logged in.
+  const gate = await Promise.race([
+    loginBtn.waitFor({ state: 'visible', timeout: 60000 }).then(() => 'login'),
+    inboxReady.waitFor({ state: 'visible', timeout: 60000 }).then(() => 'inbox'),
+  ]).catch(() => null);
+
+  const loginVisible = await loginBtn.isVisible().catch(() => false);
+  const inboxVisible = await inboxReady.isVisible().catch(() => false);
+
+  if ((gate === 'inbox' || inboxVisible) && !loginVisible) {
+    logger?.info?.('SnappyMail já autenticado; a reutilizar sessão', {
+      mail_url: mailUrl,
+      user_email: userEmail,
+    });
+    return;
+  }
+
+  if (!loginVisible) {
+    throw new Error(
+      `Falha no login SnappyMail em ${mailUrl} — formulário de login e INBOX indisponíveis`
+    );
+  }
+
+  await emailInput.waitFor({ state: 'visible', timeout: 15000 });
   await typeIntoKnockoutField(emailInput, userEmail);
-  const passInput = page.locator('input[name="Password"]').first();
   await typeIntoKnockoutField(passInput, currentPassword);
 
-  const loginBtn = page.locator('button.buttonLogin').first();
   if (await loginBtn.count()) {
     await loginBtn.click();
   } else {
     await passInput.press('Enter');
   }
 
-  const inboxReady = page.locator('.messageList, .messageListPlace, .b-folders').first();
   const started = Date.now();
   while (Date.now() - started < 60000) {
-    if (await inboxReady.isVisible().catch(() => false)) {
+    const inboxUp = await inboxReady.isVisible().catch(() => false);
+    const loginStill = await loginBtn.isVisible().catch(() => false);
+    if (inboxUp && !loginStill) {
       logger?.info?.('Login SnappyMail OK', { mail_url: mailUrl, user_email: userEmail });
       return;
     }
     const submitting = (await page.locator('form.submitting').count()) > 0;
     if (!submitting && Date.now() - started > 1200) {
       const errText = await readSnappyLoginError(page);
-      const emailStill = await emailInput.isVisible().catch(() => false);
       // Meaningful alert, or idle login form after several seconds → fail.
-      if (errText || (emailStill && Date.now() - started > 8000)) {
+      if (errText || (loginStill && Date.now() - started > 8000)) {
         break;
       }
     }
     await page.waitForTimeout(200);
   }
 
-  if (await inboxReady.isVisible().catch(() => false)) {
+  const inboxUp = await inboxReady.isVisible().catch(() => false);
+  const loginStill = await loginBtn.isVisible().catch(() => false);
+  if (inboxUp && !loginStill) {
     logger?.info?.('Login SnappyMail OK', { mail_url: mailUrl, user_email: userEmail });
     return;
   }
@@ -229,6 +442,149 @@ async function loginToSnappyMail(page, userEmail, currentPassword, mailUrl, logg
     hints.push('Confirme e-mail/senha do CSV e a URL do SnappyMail');
   }
   throw new Error(hints.join(' — '));
+}
+
+/**
+ * First login often opens "Update Identity" (~1s after identities load).
+ * Fill Name/Email/Label and Save so the modal does not block INBOX automation.
+ * If Save fails (HTML5 validity), force-close via × + Ask Yes.
+ *
+ * @param {import('playwright').Page} page
+ * @param {{ userEmail?: string, logger?: object, quiet?: boolean, waitForMs?: number }} [opts]
+ */
+async function dismissSnappyStartupPopups(page, opts = {}) {
+  const { userEmail, logger, quiet } = opts;
+  const waitForMs = Number.isFinite(opts.waitForMs) ? opts.waitForMs : quiet ? 0 : 5000;
+  const displayName =
+    String(userEmail || '')
+      .split('@')[0]
+      .replace(/[._+-]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim() || 'Eleitor';
+  const email = String(userEmail || '').trim();
+
+  const deadline = Date.now() + Math.max(0, waitForMs) + 10000;
+  const waitUntil = Date.now() + Math.max(0, waitForMs);
+  let handledIdentity = false;
+  let saveAttempts = 0;
+
+  while (Date.now() < deadline) {
+    const identityForm = page.locator('#identityform, form#identityform').first();
+    const identityVisible = await identityForm.isVisible().catch(() => false);
+
+    if (identityVisible) {
+      if (!quiet && !handledIdentity) {
+        logger?.info?.('SnappyMail: a fechar popup de identidade…');
+      }
+      handledIdentity = true;
+      saveAttempts += 1;
+
+      await identityForm
+        .evaluate(
+          (form, vals) => {
+            const setVal = (sel, val) => {
+              const el = form.querySelector(sel);
+              if (!el || val == null || val === '') {
+                return;
+              }
+              el.focus();
+              el.value = val;
+              el.dispatchEvent(new Event('input', { bubbles: true }));
+              el.dispatchEvent(new Event('change', { bubbles: true }));
+              if (typeof InputEvent === 'function') {
+                el.dispatchEvent(new InputEvent('input', { bubbles: true, data: val }));
+              }
+            };
+            // Editing main identity requires Email in the DOM (reportValidity).
+            setVal('input[name="Name"]', vals.name);
+            setVal('input[name="Email"]', vals.email);
+            setVal('input[name="Label"]', vals.label);
+          },
+          { name: displayName, email, label: displayName }
+        )
+        .catch(() => {});
+
+      await page.waitForTimeout(150);
+
+      const saveBtn = page.locator('button.buttonAddIdentity').first();
+      if (await saveBtn.isVisible().catch(() => false)) {
+        await saveBtn.click({ force: true }).catch(() => {});
+      } else {
+        await identityForm
+          .evaluate((form) => {
+            if (typeof form.requestSubmit === 'function') {
+              form.requestSubmit();
+            } else {
+              form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+            }
+          })
+          .catch(() => {});
+      }
+
+      const closed = await identityForm
+        .waitFor({ state: 'hidden', timeout: 4000 })
+        .then(() => true)
+        .catch(() => false);
+
+      if (closed) {
+        if (!quiet) {
+          logger?.info?.('SnappyMail: popup de identidade fechado');
+        }
+        await page.waitForTimeout(200);
+        continue;
+      }
+
+      // Save stuck (often empty required Email) — force-close so INBOX is usable.
+      if (saveAttempts >= 2) {
+        if (!quiet) {
+          logger?.warn?.('SnappyMail: Save da identidade falhou; a forçar fecho');
+        }
+        await page
+          .locator('.popups .modal:visible header a.close, .modal:visible header a.close')
+          .first()
+          .click({ force: true })
+          .catch(() => {});
+        await page.waitForTimeout(300);
+        const askYes = page.locator('button.buttonYes').first();
+        if (await askYes.isVisible().catch(() => false)) {
+          await askYes.click({ force: true }).catch(() => {});
+        }
+        await identityForm.waitFor({ state: 'hidden', timeout: 4000 }).catch(() => {});
+        await page.waitForTimeout(200);
+        continue;
+      }
+
+      await page.waitForTimeout(400);
+      continue;
+    }
+
+    // "Want to close this window?" / similar Ask popup
+    const askYes = page.locator('button.buttonYes').first();
+    const askVisible = await askYes.isVisible().catch(() => false);
+    if (askVisible) {
+      if (!quiet) {
+        logger?.info?.('SnappyMail: a confirmar diálogo Ask…');
+      }
+      await askYes.click({ force: true }).catch(() => {});
+      await page.waitForTimeout(250);
+      continue;
+    }
+
+    // Identity popup is delayed ~1s after login — keep polling briefly.
+    if (!handledIdentity && Date.now() < waitUntil) {
+      await page.waitForTimeout(300);
+      continue;
+    }
+    break;
+  }
+
+  // Last resort: any leftover modal close buttons
+  const stillIdentity = await page.locator('#identityform').isVisible().catch(() => false);
+  if (stillIdentity) {
+    if (!quiet) {
+      logger?.warn?.('SnappyMail: identidade ainda visível após tentativas');
+    }
+  }
 }
 
 /**
@@ -318,7 +674,18 @@ async function openInboxFolder(page) {
     .filter({ hasText: /^(Inbox|INBOX|Caixa de entrada|Entrada)$/i })
     .first();
   if (await inbox.count()) {
-    await inbox.click().catch(() => {});
+    await inbox.click({ force: true }).catch(() => {});
+    await page.waitForTimeout(400);
+  }
+}
+
+async function openMaybeJunkFolder(page) {
+  const junk = page
+    .locator('.b-folders a, .b-folders li, .b-folders span')
+    .filter({ hasText: /^(Junk|Spam|Lixo eletr[oó]nico|Indesejável|Indesejado)$/i })
+    .first();
+  if (await junk.count()) {
+    await junk.click({ force: true }).catch(() => {});
     await page.waitForTimeout(400);
   }
 }
