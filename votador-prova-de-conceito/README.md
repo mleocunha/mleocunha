@@ -79,12 +79,12 @@ Opção desmarcada por padrão. Quando marcada:
 
 1. Exige `[enviar_redefinicao_senha]` na página de boas-vindas (plugin RSES ≥ 1.0.20).
 2. Descobre o **locale do primeiro eleitor** e usa esse assunto de e-mail para todo o lote.
-3. Por eleitor (ainda em paralelo entre contextos): login → disparar shortcode → **SnappyMail** (URL configurável, default `https://webmail.relatasoft.com.br/`) com `user_email` + senha WP atual → ler INBOX (assunto traduzido, ex. pt_BR *Redefinição de Senha Eleitora*) → redefinir senha (8 chars, sem caracteres ambíguos) → marcar e-mail como lido → login com senha nova → votar.
+3. Por eleitor (ainda em paralelo entre contextos): login → disparar shortcode → **SnappyMail** com `user_email` + senha do CSV → ler INBOX (assunto traduzido, ex. pt_BR *Redefinição de Senha Eleitora*) → redefinir senha (8 chars, sem caracteres ambíguos) → marcar e-mail como lido → login com senha nova → votar.
 4. Senhas geradas em `credentials/generated-passwords.csv` (reutilizadas automaticamente; cópia também em `results/<timestamp>/passwords.csv`).
 
-Roundcube em `https://relatasoft.com.br/mail/` foi abandonado. Se `--mail-url` ainda apontar para Roundcube, o PoC falha de propósito com mensagem clara.
+URL do webmail: use `https://webmail.<domínio-do-e-mail>/` (mesmo domínio dos mailboxes do CSV). Se o campo ficar no padrão RelataSoft e o e-mail for de outro domínio, o PoC deriva `https://webmail.<domínio>/` automaticamente. Roundcube (`/mail/`) é rejeitado.
 
-CLI: `--password-change --mail-url https://webmail.relatasoft.com.br/`
+CLI: `--password-change --mail-url https://webmail.votoeletronico.com.br/`
 
 ## Notas
 

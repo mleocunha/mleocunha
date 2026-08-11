@@ -11,7 +11,7 @@ import { discoverBatchLocale } from './discoverLocale.js';
 import { startDisplayCaffeinate } from './caffeinate.js';
 
 /** Bumped when PoC runtime behaviour changes — look for this in startup logs. */
-export const VOTADOR_BUILD = 'progress-local-ts-1';
+export const VOTADOR_BUILD = 'snappymail-login-2';
 
 export const DEFAULTS = {
   windows: 5,

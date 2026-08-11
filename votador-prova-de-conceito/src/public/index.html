@@ -79,8 +79,13 @@
         </p>
         <label id="mailUrlWrap" class="hidden">
           URL do SnappyMail
-          <input name="mailUrl" type="url" value="https://webmail.relatasoft.com.br/" autocomplete="off" />
+          <input name="mailUrl" type="url" value="https://webmail.relatasoft.com.br/" placeholder="https://webmail.seudominio.com.br/" autocomplete="off" />
         </label>
+        <p class="hint" id="mailUrlHint" hidden>
+          Use o SnappyMail do <strong>mesmo domínio dos e-mails do CSV</strong>
+          (ex.: <code>https://webmail.votoeletronico.com.br/</code>). Se deixar o padrão RelataSoft
+          com e-mails de outro domínio, o PoC tenta <code>https://webmail.&lt;domínio&gt;/</code> automaticamente.
+        </p>
       </section>
 
       <section class="block">
@@ -137,12 +142,12 @@
         </div>
         <div class="log-actions">
           <button type="button" id="copyLogBtn" class="ghost compact" title="Copiar o progresso para a área de transferência">Copiar</button>
-          <button type="button" id="saveLogBtn" class="ghost compact" title="Salvar o progresso como arquivo .txt">Salvar</button>
+          <button type="button" id="saveLogBtn" class="ghost compact" title="Gravar o progresso como arquivo .txt">Gravar</button>
+          <span id="logActionStatus" class="log-action-status" hidden aria-live="polite"></span>
         </div>
       </div>
-      <p class="hint log-hint">Horários no fuso desta máquina. Use Copiar ou Salvar para enviar o log.</p>
+      <p class="hint log-hint">Horários no fuso desta máquina. Use Copiar ou Gravar para enviar o log.</p>
       <pre id="log" class="log" aria-live="polite"></pre>
-      <p id="logActionStatus" class="log-action-status" hidden aria-live="polite"></p>
     </section>
   </div>
   <script src="/app.js" type="module"></script>

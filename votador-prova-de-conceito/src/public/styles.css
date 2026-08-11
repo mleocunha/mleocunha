@@ -221,11 +221,19 @@ button.ghost {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  flex-wrap: wrap;
 }
 
 button.compact {
   padding: 0.4rem 0.75rem;
   font-size: 0.85rem;
+  min-width: 5.5rem;
+}
+
+button.compact.is-flash {
+  border-color: var(--accent);
+  color: var(--accent-dark);
+  background: rgba(11, 110, 79, 0.12);
 }
 
 .log-hint {
@@ -233,9 +241,11 @@ button.compact {
 }
 
 .log-action-status {
-  margin: 0.5rem 0 0;
+  margin: 0;
   font-size: 0.85rem;
+  font-weight: 600;
   color: var(--accent-dark);
+  white-space: nowrap;
 }
 
 .log-action-status.is-error {

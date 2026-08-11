@@ -1,8 +1,40 @@
 import { generateSecurePassword } from './passwordGen.js';
 import { subjectForLocale } from './mailSubjects.js';
 
-/** Default after abandoning Roundcube at /mail/ — SnappyMail subserver. */
+/** Stock default (RelataSoft lab). Prefer webmail.<domínio-do-e-mail> when different. */
 const DEFAULT_MAIL_URL = 'https://webmail.relatasoft.com.br/';
+
+/**
+ * Pick SnappyMail URL: if the configured host is the stock RelataSoft default but the
+ * elector mailbox is on another domain, use https://webmail.<domain>/ instead.
+ *
+ * @param {string} configured
+ * @param {string} userEmail
+ * @returns {{ url: string, derived: boolean, emailDomain: string }}
+ */
+export function resolveMailUrlForEmail(configured, userEmail) {
+  const emailDomain = String(userEmail || '')
+    .split('@')[1]
+    ?.trim()
+    .toLowerCase() || '';
+  const fallback = String(configured || DEFAULT_MAIL_URL).trim() || DEFAULT_MAIL_URL;
+  if (!emailDomain) {
+    return { url: fallback, derived: false, emailDomain: '' };
+  }
+  const derivedUrl = `https://webmail.${emailDomain}/`;
+  try {
+    const host = new URL(fallback).hostname.toLowerCase();
+    const stockRelata = host === 'webmail.relatasoft.com.br' || host === 'relatasoft.com.br';
+    const hostMatchesMail =
+      host === `webmail.${emailDomain}` || host.endsWith(`.${emailDomain}`) || host === emailDomain;
+    if (stockRelata && !hostMatchesMail && !emailDomain.endsWith('relatasoft.com.br')) {
+      return { url: derivedUrl, derived: true, emailDomain };
+    }
+  } catch {
+    return { url: derivedUrl, derived: true, emailDomain };
+  }
+  return { url: fallback, derived: false, emailDomain };
+}
 
 /**
  * Trigger WP shortcode reset, read SnappyMail INBOX, set new WP password.
@@ -20,13 +52,23 @@ export async function resetPasswordViaSnappyMail(page, opts) {
     logger,
   } = opts;
 
+  const resolved = resolveMailUrlForEmail(mailUrl, userEmail);
+  const effectiveMailUrl = resolved.url;
   const subject = subjectForLocale(batchLocale);
   logger?.info?.('Disparando e-mail de redefinição', {
     user_email: userEmail,
     subject,
     locale: batchLocale,
-    mail_url: mailUrl,
+    mail_url: effectiveMailUrl,
+    mail_url_configured: mailUrl,
+    mail_url_derived: resolved.derived,
   });
+  if (resolved.derived) {
+    logger?.info?.(
+      `URL SnappyMail ajustada para o domínio do e-mail (${resolved.emailDomain})`,
+      { mail_url: effectiveMailUrl }
+    );
+  }
 
   await ensureOnWelcomeWithResetForm(page);
 
@@ -55,7 +97,7 @@ export async function resetPasswordViaSnappyMail(page, opts) {
   const mailPage = await page.context().newPage();
   try {
     const resetLink = await findResetLinkInSnappyMail(mailPage, {
-      mailUrl,
+      mailUrl: effectiveMailUrl,
       userEmail,
       currentPassword,
       subject,
@@ -87,36 +129,7 @@ async function findResetLinkInSnappyMail(page, opts) {
 
   await page.goto(mailUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
   await rejectRoundcubeSurface(page);
-
-  const emailInput = page.locator('input[name="Email"]').first();
-  await emailInput.waitFor({ state: 'visible', timeout: 60000 });
-  await emailInput.fill(userEmail);
-  await page.locator('input[name="Password"]').first().fill(currentPassword);
-
-  const loginBtn = page.locator('button.buttonLogin, button[data-i18n="LOGIN/BUTTON_SIGN_IN"]').first();
-  if (await loginBtn.count()) {
-    await loginBtn.click();
-  } else {
-    await page.locator('input[name="Password"]').first().press('Enter');
-  }
-
-  // SnappyMail is a SPA — no full navigation on login.
-  const inboxReady = page.locator('.messageList, .messageListPlace, .b-folders').first();
-  const loginError = page.locator('.alert:visible, form.errorAnimated').first();
-  await Promise.race([
-    inboxReady.waitFor({ state: 'visible', timeout: 60000 }),
-    loginError.waitFor({ state: 'visible', timeout: 60000 }).catch(() => {}),
-  ]);
-
-  if (await page.locator('input[name="Email"]').isVisible().catch(() => false)) {
-    const errText = ((await loginError.textContent().catch(() => '')) || '').trim();
-    throw new Error(
-      errText
-        ? `Falha no login SnappyMail: ${errText}`
-        : 'Falha no login SnappyMail (e-mail/senha).'
-    );
-  }
-
+  await loginToSnappyMail(page, userEmail, currentPassword, mailUrl, logger);
   await openInboxFolder(page);
 
   const deadline = Date.now() + timeoutMs;
@@ -153,6 +166,127 @@ async function findResetLinkInSnappyMail(page, opts) {
 }
 
 /**
+ * SnappyMail/Knockout: type into bound fields (fill() often leaves observables empty).
+ *
+ * @param {import('playwright').Page} page
+ * @param {string} userEmail
+ * @param {string} currentPassword
+ * @param {string} mailUrl
+ * @param {object} [logger]
+ */
+async function loginToSnappyMail(page, userEmail, currentPassword, mailUrl, logger) {
+  const emailInput = page.locator('input[name="Email"]').first();
+  await emailInput.waitFor({ state: 'visible', timeout: 60000 });
+
+  await typeIntoKnockoutField(emailInput, userEmail);
+  const passInput = page.locator('input[name="Password"]').first();
+  await typeIntoKnockoutField(passInput, currentPassword);
+
+  const loginBtn = page.locator('button.buttonLogin').first();
+  if (await loginBtn.count()) {
+    await loginBtn.click();
+  } else {
+    await passInput.press('Enter');
+  }
+
+  const inboxReady = page.locator('.messageList, .messageListPlace, .b-folders').first();
+  const started = Date.now();
+  while (Date.now() - started < 60000) {
+    if (await inboxReady.isVisible().catch(() => false)) {
+      logger?.info?.('Login SnappyMail OK', { mail_url: mailUrl, user_email: userEmail });
+      return;
+    }
+    const submitting = (await page.locator('form.submitting').count()) > 0;
+    if (!submitting && Date.now() - started > 1200) {
+      const errText = await readSnappyLoginError(page);
+      const emailStill = await emailInput.isVisible().catch(() => false);
+      // Meaningful alert, or idle login form after several seconds → fail.
+      if (errText || (emailStill && Date.now() - started > 8000)) {
+        break;
+      }
+    }
+    await page.waitForTimeout(200);
+  }
+
+  if (await inboxReady.isVisible().catch(() => false)) {
+    logger?.info?.('Login SnappyMail OK', { mail_url: mailUrl, user_email: userEmail });
+    return;
+  }
+
+  const errText = await readSnappyLoginError(page);
+  const domain = String(userEmail || '').split('@')[1] || '';
+  throw new Error(
+    [
+      `Falha no login SnappyMail em ${mailUrl}`,
+      errText ? `servidor: ${errText}` : 'credenciais rejeitadas ou webmail sem domínio IMAP',
+      domain
+        ? `Confirme mailbox ${userEmail} (senha = CSV) e URL https://webmail.${domain}/`
+        : 'Confirme e-mail/senha do CSV e a URL do SnappyMail',
+    ].join(' — ')
+  );
+}
+
+/**
+ * @param {import('playwright').Locator} locator
+ * @param {string} value
+ */
+async function typeIntoKnockoutField(locator, value) {
+  await locator.click();
+  await locator.evaluate((el) => {
+    el.focus();
+    el.value = '';
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  // pressSequentially feeds Knockout textInput; fill() often does not.
+  await locator.pressSequentially(String(value ?? ''), { delay: 12 });
+  const ok = await locator.evaluate((el, expected) => el.value === expected, String(value ?? ''));
+  if (!ok) {
+    await locator.evaluate((el, expected) => {
+      el.value = expected;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+      if (typeof InputEvent === 'function') {
+        el.dispatchEvent(new InputEvent('input', { bubbles: true, data: expected }));
+      }
+    }, String(value ?? ''));
+  }
+}
+
+/**
+ * @param {import('playwright').Page} page
+ */
+async function readSnappyLoginError(page) {
+  return page.evaluate(() => {
+    const alert = document.querySelector('.alert');
+    if (!alert) {
+      return '';
+    }
+    const hidden = alert.hasAttribute('hidden') || getComputedStyle(alert).display === 'none';
+    if (hidden) {
+      return '';
+    }
+    const parts = [];
+    const main = alert.querySelector('span:not(.close)');
+    if (main?.textContent?.trim()) {
+      parts.push(main.textContent.trim());
+    }
+    const add = alert.querySelector('p');
+    if (add?.textContent?.trim()) {
+      const t = add.textContent.replace(/\s+/g, ' ').trim();
+      if (!/^mensagem do servidor\s*:?\s*$/i.test(t)) {
+        parts.push(t);
+      }
+    }
+    const raw = (alert.textContent || '').replace(/\s+/g, ' ').replace(/^×\s*/, '').trim();
+    if (!parts.length && raw && !/^mensagem do servidor\s*:?\s*$/i.test(raw)) {
+      parts.push(raw);
+    }
+    return parts.join(' — ');
+  });
+}
+
+/**
  * Fail fast if --mail-url still points at Roundcube after the cut-over.
  * @param {import('playwright').Page} page
  */
@@ -163,7 +297,7 @@ async function rejectRoundcubeSurface(page) {
     (await page.locator('#rcmloginuser, #login-form #rcmloginpwd, form#login-form').count()) > 0;
   if (hasRc) {
     throw new Error(
-      'A URL de webmail ainda serve Roundcube. Use SnappyMail (ex.: https://webmail.relatasoft.com.br/) via --mail-url / campo URL.'
+      'A URL de webmail ainda serve Roundcube. Use SnappyMail (ex.: https://webmail.<domínio>/) via --mail-url / campo URL.'
     );
   }
 }

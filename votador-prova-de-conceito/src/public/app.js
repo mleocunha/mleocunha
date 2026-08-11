@@ -32,8 +32,13 @@ loginPath.addEventListener('change', () => {
 
 const passwordChangePoc = document.getElementById('passwordChangePoc');
 const mailUrlWrap = document.getElementById('mailUrlWrap');
+const mailUrlHint = document.getElementById('mailUrlHint');
 passwordChangePoc.addEventListener('change', () => {
-  mailUrlWrap.classList.toggle('hidden', !passwordChangePoc.checked);
+  const on = passwordChangePoc.checked;
+  mailUrlWrap.classList.toggle('hidden', !on);
+  if (mailUrlHint) {
+    mailUrlHint.hidden = !on;
+  }
 });
 
 /**
@@ -75,19 +80,72 @@ function progressText() {
 }
 
 function showLogActionStatus(message, isError = false) {
+  if (!logActionStatus) {
+    return;
+  }
   logActionStatus.hidden = false;
   logActionStatus.textContent = message;
   logActionStatus.classList.toggle('is-error', isError);
   window.clearTimeout(showLogActionStatus._timer);
   showLogActionStatus._timer = window.setTimeout(() => {
     hideLogActionStatus();
-  }, 2500);
+  }, 2800);
 }
 
 function hideLogActionStatus() {
+  if (!logActionStatus) {
+    return;
+  }
   logActionStatus.hidden = true;
   logActionStatus.textContent = '';
   logActionStatus.classList.remove('is-error');
+}
+
+/**
+ * Reliable copy for local http://127.0.0.1 (Clipboard API can fail without gesture/permission).
+ * @param {string} text
+ */
+async function copyTextReliable(text) {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return;
+    }
+  } catch {
+    /* fall through to execCommand */
+  }
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.setAttribute('readonly', '');
+  ta.style.position = 'fixed';
+  ta.style.top = '0';
+  ta.style.left = '0';
+  ta.style.width = '1px';
+  ta.style.height = '1px';
+  ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.focus();
+  ta.select();
+  ta.setSelectionRange(0, ta.value.length);
+  const ok = document.execCommand('copy');
+  ta.remove();
+  if (!ok) {
+    throw new Error('execCommand("copy") recusou');
+  }
+}
+
+function flashButton(btn, label, ms = 2000) {
+  if (!btn) {
+    return;
+  }
+  const prev = btn.textContent;
+  btn.textContent = label;
+  btn.classList.add('is-flash');
+  window.clearTimeout(btn._flashTimer);
+  btn._flashTimer = window.setTimeout(() => {
+    btn.textContent = prev;
+    btn.classList.remove('is-flash');
+  }, ms);
 }
 
 function appendLog(ev) {
@@ -228,32 +286,24 @@ copyLogBtn.addEventListener('click', async () => {
   const text = progressText();
   if (!text) {
     showLogActionStatus('Nada para copiar ainda.', true);
+    flashButton(copyLogBtn, 'Vazio');
     return;
   }
   try {
-    if (navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(text);
-    } else {
-      const ta = document.createElement('textarea');
-      ta.value = text;
-      ta.setAttribute('readonly', '');
-      ta.style.position = 'fixed';
-      ta.style.left = '-9999px';
-      document.body.appendChild(ta);
-      ta.select();
-      document.execCommand('copy');
-      ta.remove();
-    }
+    await copyTextReliable(text);
     showLogActionStatus('Progresso copiado.');
+    flashButton(copyLogBtn, 'Copiado!');
   } catch (err) {
     showLogActionStatus(`Não foi possível copiar: ${err.message || err}`, true);
+    flashButton(copyLogBtn, 'Falhou');
   }
 });
 
 saveLogBtn.addEventListener('click', () => {
   const text = progressText();
   if (!text) {
-    showLogActionStatus('Nada para salvar ainda.', true);
+    showLogActionStatus('Nada para gravar ainda.', true);
+    flashButton(saveLogBtn, 'Vazio');
     return;
   }
   const blob = new Blob([`${text}\n`], { type: 'text/plain;charset=utf-8' });
@@ -265,5 +315,6 @@ saveLogBtn.addEventListener('click', () => {
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
-  showLogActionStatus('Arquivo de progresso baixado.');
+  showLogActionStatus('Arquivo de progresso gravado.');
+  flashButton(saveLogBtn, 'Gravado!');
 });
