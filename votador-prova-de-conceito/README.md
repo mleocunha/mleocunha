@@ -84,6 +84,8 @@ Opção desmarcada por padrão. Quando marcada:
 
 URL do webmail: use `https://webmail.<domínio-do-e-mail>/` (mesmo domínio dos mailboxes do CSV). Se o campo ficar no padrão RelataSoft e o e-mail for de outro domínio, o PoC deriva `https://webmail.<domínio>/` automaticamente. Roundcube (`/mail/`) é rejeitado.
 
+Se o SnappyMail responder **not whitelisted** / *Esta conta não é permitida*: no Admin do SnappyMail → **Domains** → domínio → **White List**, deixe o campo **em branco** (permite todos os usuários do domínio) ou acrescente os endereços do CSV. Whitelist não vazia bloqueia qualquer conta fora da lista.
+
 CLI: `--password-change --mail-url https://webmail.votoeletronico.com.br/`
 
 ## Notas

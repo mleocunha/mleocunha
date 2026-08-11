@@ -215,15 +215,20 @@ async function loginToSnappyMail(page, userEmail, currentPassword, mailUrl, logg
 
   const errText = await readSnappyLoginError(page);
   const domain = String(userEmail || '').split('@')[1] || '';
-  throw new Error(
-    [
-      `Falha no login SnappyMail em ${mailUrl}`,
-      errText ? `servidor: ${errText}` : 'credenciais rejeitadas ou webmail sem domínio IMAP',
-      domain
-        ? `Confirme mailbox ${userEmail} (senha = CSV) e URL https://webmail.${domain}/`
-        : 'Confirme e-mail/senha do CSV e a URL do SnappyMail',
-    ].join(' — ')
-  );
+  const hints = [
+    `Falha no login SnappyMail em ${mailUrl}`,
+    errText ? `servidor: ${errText}` : 'credenciais rejeitadas ou webmail sem domínio IMAP',
+  ];
+  if (/whitelist|not whitelisted|não é permitida|nao e permitida|AccountNotAllowed/i.test(errText)) {
+    hints.push(
+      `Whitelist SnappyMail bloqueou ${userEmail}: no Admin do SnappyMail → Domains → ${domain || 'domínio'} → White List, deixe em branco (permite todos) ou inclua este endereço; depois tente de novo`
+    );
+  } else if (domain) {
+    hints.push(`Confirme mailbox ${userEmail} (senha = CSV) e URL https://webmail.${domain}/`);
+  } else {
+    hints.push('Confirme e-mail/senha do CSV e a URL do SnappyMail');
+  }
+  throw new Error(hints.join(' — '));
 }
 
 /**
