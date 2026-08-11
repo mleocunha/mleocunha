@@ -194,7 +194,7 @@ def install_domain(
                 f"{webmail} exists under parent {existing_sub.parent}, expected {parent_domain}"
             )
         _assert_web_only(existing_sub)
-        if not existing_sub.has_feature("web"):
+        if not existing_sub.has_website():
             raise SubserverConflictError(f"{webmail} exists but Website feature is off")
     else:
         client.create_web_only_subserver(
@@ -446,7 +446,7 @@ def diagnose_domain(client: VirtualminClient, parent_domain: str) -> list[CheckR
         return checks
     checks.append(CheckResult("parent_child_relation", sub.parent == parent_domain, f"parent={sub.parent}"))
     checks.append(CheckResult("subserver_is_subserver", sub.is_subserver(), sub.domain_type or ""))
-    checks.append(CheckResult("subserver_web_enabled", sub.has_feature("web"), "web"))
+    checks.append(CheckResult("subserver_web_enabled", sub.has_website(), "web|nginx"))
     checks.append(CheckResult("subserver_mail_disabled", not sub.has_feature("mail"), "mail_off" if not sub.has_feature("mail") else "MAIL_ON"))
     checks.append(CheckResult("subserver_web_only", sub.is_web_only(), "ok" if sub.is_web_only() else "not-web-only"))
 
@@ -525,13 +525,23 @@ def repair_domain(client: VirtualminClient, parent_domain: str, *, logger=None) 
         if sub.has_feature("mail"):
             raise MailOnSubserverError("Could not disable mail on webmail subserver")
 
-    for feat in ("dir", "web", "ssl"):
-        if not sub.has_feature(feat):
-            try:
-                client.enable_feature(webmail, feat)
-                actions.append(f"enabled_{feat}")
-            except Exception as exc:  # noqa: BLE001
-                actions.append(f"enable_{feat}_failed:{exc}")
+    if not sub.has_feature("dir"):
+        try:
+            client.enable_feature(webmail, "dir")
+            actions.append("enabled_dir")
+        except Exception as exc:  # noqa: BLE001
+            actions.append(f"enable_dir_failed:{exc}")
+
+    if not sub.has_website():
+        try:
+            resolved = client.resolve_web_only_features(parent=parent)
+            web_feats = [f for f in resolved if f not in ("dir", "dns", "logrotate")]
+            if web_feats:
+                client.enable_feature(webmail, *web_feats)
+                actions.append(f"enabled_{'+'.join(web_feats)}")
+                sub = client.get_domain(webmail) or sub
+        except Exception as exc:  # noqa: BLE001
+            actions.append(f"enable_website_failed:{exc}")
 
     topo = discover_mail_topology()
     docroot = sub.html_dir

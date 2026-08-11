@@ -1,9 +1,8 @@
 """Adapter around the official Virtualmin CLI.
 
-Never invents flags at runtime without probing help when possible.
-Feature flags used for web-only create are the documented set:
-  --dir --dns --web --ssl --logrotate
-and intentionally omit --mail.
+Web-only feature set is discovered at runtime from `virtualmin help create-domain`
+because hosts may use Apache (`--web`/`--ssl`) or Nginx plugins
+(`--virtualmin-nginx`/`--virtualmin-nginx-ssl`). Mail is never enabled.
 """
 
 from __future__ import annotations
@@ -19,9 +18,13 @@ from .domain import normalize_domain
 from .errors import VirtualminError
 from .security import assert_safe_argv_token, redact_secrets
 
-WEB_ONLY_FEATURES = ("dir", "dns", "web", "ssl", "logrotate")
+# Candidate feature codes, ordered. Runtime selection picks what create-domain help allows.
+APACHE_WEB_FEATURES = ("web", "ssl")
+NGINX_WEB_FEATURES = ("virtualmin-nginx", "virtualmin-nginx-ssl")
+BASE_WEB_ONLY_FEATURES = ("dir", "dns", "logrotate")
 # Features that must never be enabled on the webmail subserver.
 FORBIDDEN_SUB_FEATURES = ("mail", "spam", "virus")
+WEBSITE_FEATURE_CODES = frozenset(APACHE_WEB_FEATURES + NGINX_WEB_FEATURES)
 
 
 @dataclass
@@ -59,12 +62,17 @@ class DomainInfo:
     def has_feature(self, feature: str) -> bool:
         return feature in self.features
 
+    def has_website(self) -> bool:
+        return bool(self.features & WEBSITE_FEATURE_CODES) or bool(
+            self.values.get("URL")
+        )
+
     def is_subserver(self) -> bool:
         t = (self.domain_type or "").lower()
         return "sub-server" in t or bool(self.parent)
 
     def is_web_only(self) -> bool:
-        return self.has_feature("web") and not self.has_feature("mail")
+        return self.has_website() and not self.has_feature("mail")
 
 
 def parse_multiline_domains(text: str) -> list[DomainInfo]:
@@ -217,6 +225,71 @@ class VirtualminClient:
             return []
         return [normalize_domain(line) for line in (proc.stdout or "").splitlines() if line.strip()]
 
+    def available_create_domain_flags(self) -> set[str]:
+        """Return flag names (without --) advertised by `virtualmin help create-domain`."""
+        help_text = self.help("create-domain")
+        return {m.group(1) for m in re.finditer(r"--([A-Za-z0-9-]+)", help_text)}
+
+    def resolve_web_only_features(
+        self,
+        *,
+        parent: DomainInfo | None = None,
+        extra_features: Iterable[str] = (),
+    ) -> list[str]:
+        """Pick web-only features that this Virtualmin build actually supports."""
+        flags = self.available_create_domain_flags()
+        chosen: list[str] = []
+
+        for f in BASE_WEB_ONLY_FEATURES:
+            if not flags or f in flags:
+                chosen.append(f)
+
+        parent_feats = parent.features if parent else set()
+        prefer_nginx = (
+            "virtualmin-nginx" in flags
+            or "virtualmin-nginx" in parent_feats
+            or "virtualmin-nginx-ssl" in parent_feats
+        )
+        prefer_apache = "web" in flags or "web" in parent_feats
+
+        if prefer_nginx and "virtualmin-nginx" in flags:
+            for f in NGINX_WEB_FEATURES:
+                if f in flags:
+                    chosen.append(f)
+        elif prefer_apache and "web" in flags:
+            for f in APACHE_WEB_FEATURES:
+                if f in flags:
+                    chosen.append(f)
+        else:
+            # Fall back to whichever website stack the help text documents.
+            if "virtualmin-nginx" in flags:
+                for f in NGINX_WEB_FEATURES:
+                    if f in flags:
+                        chosen.append(f)
+            elif "web" in flags:
+                for f in APACHE_WEB_FEATURES:
+                    if f in flags:
+                        chosen.append(f)
+            else:
+                raise VirtualminError(
+                    "Neither Apache (--web/--ssl) nor Nginx (--virtualmin-nginx/"
+                    "--virtualmin-nginx-ssl) website features are available in "
+                    "`virtualmin help create-domain`. Enable a webserver feature "
+                    "in Virtualmin module configuration."
+                )
+
+        for f in extra_features:
+            if f in FORBIDDEN_SUB_FEATURES:
+                continue
+            if f not in chosen and (not flags or f in flags):
+                chosen.append(f)
+
+        if not (set(chosen) & WEBSITE_FEATURE_CODES):
+            raise VirtualminError(
+                f"Resolved feature set has no website feature: {chosen}"
+            )
+        return chosen
+
     def create_web_only_subserver(
         self,
         *,
@@ -228,13 +301,11 @@ class VirtualminClient:
     ) -> None:
         webmail_domain = normalize_domain(webmail_domain)
         parent_domain = normalize_domain(parent_domain)
-
-        # Probe create-domain help once; fall back to documented flags.
-        help_text = self.help("create-domain")
-        features = list(WEB_ONLY_FEATURES)
-        for f in extra_features:
-            if f not in features and f not in FORBIDDEN_SUB_FEATURES:
-                features.append(f)
+        parent = self.get_domain(parent_domain)
+        features = self.resolve_web_only_features(
+            parent=parent, extra_features=extra_features
+        )
+        flags = self.available_create_domain_flags()
 
         args = [
             "create-domain",
@@ -246,17 +317,18 @@ class VirtualminClient:
             description,
         ]
         for f in features:
-            flag = f"--{f}"
-            if help_text and flag not in help_text and f not in ("dir", "web", "dns", "ssl", "logrotate"):
-                # Skip unknown optional features; keep core web set.
-                continue
-            args.append(flag)
+            args.append(f"--{f}")
 
-        if with_letsencrypt and (not help_text or "--letsencrypt" in help_text):
-            args.append("--letsencrypt")
+        if with_letsencrypt:
+            # Newer Virtualmin: --acme / --acme-always; older: --letsencrypt
+            if "acme" in flags:
+                args.append("--acme")
+            elif "letsencrypt" in flags:
+                args.append("--letsencrypt")
 
         # Explicitly never pass --mail.
-        assert "--mail" not in args
+        if "--mail" in args:
+            raise VirtualminError("Internal error: refusing to create webmail host with --mail")
         self.run(args)
 
     def delete_domain(self, domain: str) -> None:
@@ -282,16 +354,23 @@ class VirtualminClient:
 
     def generate_letsencrypt(self, domain: str) -> None:
         domain = normalize_domain(domain)
-        # Prefer generate-letsencrypt-cert; fall back to enable ssl + create flag semantics.
-        help_text = self.help("generate-letsencrypt-cert")
-        if "Unknown" in help_text and "generate-letsencrypt" in help_text.lower():
-            pass
-        self.run(["generate-letsencrypt-cert", "--domain", domain])
+        # Prefer generate-letsencrypt-cert when present; some hosts only expose ACME at create time.
+        help_le = self.help("generate-letsencrypt-cert")
+        if help_le and "unknown" not in help_le.lower() and "not found" not in help_le.lower():
+            self.run(["generate-letsencrypt-cert", "--domain", domain], check=False)
+            return
+        help_gen = self.help("generate-cert")
+        if "--acme" in help_gen or "letsencrypt" in help_gen.lower():
+            # Best-effort; ignore failure so install can continue to manual ACME.
+            self.run(["generate-cert", "--domain", domain, "--letsencrypt"], check=False)
 
     def modify_web_php(self, domain: str, *, mode: str = "fpm") -> None:
         domain = normalize_domain(domain)
+        # modify-web works for both Apache and Nginx plugins on current Virtualmin.
         help_text = self.help("modify-web")
+        if help_text and "unknown" in help_text.lower() and "not found" in help_text.lower():
+            return
         args = ["modify-web", "--domain", domain]
-        if "--mode" in help_text or not help_text:
+        if not help_text or "--mode" in help_text:
             args.extend(["--mode", mode])
-        self.run(args)
+        self.run(args, check=False)

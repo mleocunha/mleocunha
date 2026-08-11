@@ -21,7 +21,11 @@ from virtualmin_snappymail.domain import (  # noqa: E402
 from virtualmin_snappymail.errors import DomainInvalidError as DIE  # noqa: E402
 from virtualmin_snappymail.manifest import Manifest, load_manifest, save_manifest  # noqa: E402
 from virtualmin_snappymail.security import confined_path, redact_secrets  # noqa: E402
-from virtualmin_snappymail.virtualmin_client import parse_multiline_domains  # noqa: E402
+from virtualmin_snappymail.virtualmin_client import (  # noqa: E402
+    DomainInfo,
+    VirtualminClient,
+    parse_multiline_domains,
+)
 from virtualmin_snappymail.mail_discovery import snappymail_domain_ini, MailTopology, Endpoint  # noqa: E402
 
 
@@ -114,6 +118,47 @@ example.com:
         self.assertEqual(len(domains), 1)
         self.assertEqual(domains[0].name, "example.com")
         self.assertTrue(domains[0].has_feature("mail"))
+
+    def test_nginx_features_count_as_website(self):
+        d = DomainInfo(
+            name="webmail.example.com",
+            values={
+                "Type": "Sub-server",
+                "Parent domain": "example.com",
+                "Features": "dir dns virtualmin-nginx virtualmin-nginx-ssl logrotate",
+            },
+        )
+        self.assertTrue(d.has_website())
+        self.assertTrue(d.is_web_only())
+
+
+class FeatureResolveTests(unittest.TestCase):
+    def test_resolves_nginx_when_apache_web_absent(self):
+        help_text = """
+virtualmin create-domain --domain domain.name
+                        [--dir]
+                        [--dns]
+                        [--mail]
+                        [--logrotate]
+                        [--virtualmin-nginx]
+                        [--virtualmin-nginx-ssl]
+                        [--acme]
+"""
+
+        def runner(cmd, **kw):
+            class P:
+                returncode = 0
+                stdout = help_text if "help" in cmd else ""
+                stderr = ""
+
+            return P()
+
+        client = VirtualminClient(binary="/usr/sbin/virtualmin", runner=runner)
+        feats = client.resolve_web_only_features()
+        self.assertIn("virtualmin-nginx", feats)
+        self.assertIn("virtualmin-nginx-ssl", feats)
+        self.assertNotIn("web", feats)
+        self.assertNotIn("mail", feats)
 
 
 class DomainIniTests(unittest.TestCase):
