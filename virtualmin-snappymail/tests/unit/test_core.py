@@ -224,6 +224,102 @@ logrotate
         self.assertNotIn("virtualmin-nginx", feats)
 
 
+class WebmailPrepTests(unittest.TestCase):
+    def test_prepare_disables_parent_webmail_redirect(self):
+        calls: list[list[str]] = []
+
+        def runner(cmd, **kw):
+            class P:
+                returncode = 0
+                stdout = ""
+                stderr = ""
+
+            calls.append(list(cmd))
+            if len(cmd) >= 3 and cmd[1] == "help" and cmd[2] == "modify-web":
+                P.stdout = "virtualmin modify-web [--webmail] [--no-webmail] [--mode fpm]\n"
+            elif "list-domains" in cmd:
+                P.returncode = 1
+            return P()
+
+        client = VirtualminClient(binary="/usr/sbin/virtualmin", runner=runner)
+        actions = client.prepare_webmail_hostname(
+            webmail_domain="webmail.votoeletronico.com.br",
+            parent_domain="votoeletronico.com.br",
+        )
+        self.assertTrue(any("no-webmail" in a for a in actions))
+        self.assertTrue(
+            any(
+                cmd[1:] == ["modify-web", "--domain", "votoeletronico.com.br", "--no-webmail"]
+                for cmd in calls
+            )
+        )
+
+    def test_create_maps_nginx_name_conflict_to_sub_conflict(self):
+        from virtualmin_snappymail.errors import SubserverConflictError
+
+        help_create = """
+virtualmin create-domain
+                        [--dir] [--dns] [--logrotate]
+                        [--virtualmin-nginx] [--virtualmin-nginx-ssl] [--acme]
+"""
+        features_ml = """\
+virtualmin-nginx
+    Enabled: Yes
+virtualmin-nginx-ssl
+    Enabled: Yes
+dir
+    Enabled: Yes
+dns
+    Enabled: Yes
+logrotate
+    Enabled: Yes
+"""
+        parent_ml = """\
+votoeletronico.com.br
+    Type: Top-level server
+    Features: unix dir dns mail virtualmin-nginx virtualmin-nginx-ssl logrotate
+"""
+
+        def runner(cmd, **kw):
+            class P:
+                returncode = 0
+                stdout = ""
+                stderr = ""
+
+            if len(cmd) >= 2 and cmd[1] == "help":
+                if len(cmd) >= 3 and cmd[2] == "modify-web":
+                    P.stdout = "[--no-webmail] [--mode fpm]\n"
+                else:
+                    P.stdout = help_create
+            elif "list-features" in cmd and "--multiline" in cmd:
+                P.stdout = features_ml
+            elif "list-features" in cmd:
+                P.stdout = "dir\ndns\nlogrotate\nvirtualmin-nginx\nvirtualmin-nginx-ssl\n"
+            elif "list-domains" in cmd and "--multiline" in cmd and "--domain" in cmd:
+                # parent lookup vs missing webmail
+                idx = cmd.index("--domain")
+                domain = cmd[idx + 1]
+                if domain == "votoeletronico.com.br":
+                    P.stdout = parent_ml
+                else:
+                    P.returncode = 1
+            elif "list-domains" in cmd and "--name-only" in cmd:
+                P.returncode = 1
+            elif cmd[1] == "create-domain":
+                P.returncode = 1
+                P.stderr = "An Nginx virtual host with the same name already exists\n"
+            return P()
+
+        client = VirtualminClient(binary="/usr/sbin/virtualmin", runner=runner)
+        with self.assertRaises(SubserverConflictError) as ctx:
+            client.create_web_only_subserver(
+                webmail_domain="webmail.votoeletronico.com.br",
+                parent_domain="votoeletronico.com.br",
+            )
+        self.assertIn("no-webmail", ctx.exception.message)
+        self.assertIn("webmail.votoeletronico.com.br", ctx.exception.message)
+
+
 class DomainIniTests(unittest.TestCase):
     def test_ini_uses_parent_whitelist(self):
         topo = MailTopology(

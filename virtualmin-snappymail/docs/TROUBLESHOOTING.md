@@ -50,3 +50,49 @@ command -v bash
 command -v python3
 sudo bash -n bin/install-to-system.sh && echo syntax_ok
 ```
+
+## Symptom: Nginx virtual host with the same name already exists
+
+```text
+sudo virtualmin-snappymail install votoeletronico.com.br
+ERROR [VSM-VIRTUALMIN] ... create-domain ... failed:
+An Nginx virtual host with the same name already exists
+```
+
+### Cause
+
+Virtualmin’s **Redirect webmail and admin** option adds `webmail.<parent>` (and
+`admin.<parent>`) as extra `server_name` entries on the **parent** Nginx/Apache
+vhost. Creating a real Sub-server named `webmail.<parent>` then collides.
+
+Leftover `/etc/nginx/sites-*/webmail.<parent>.conf` from a failed earlier create
+can cause the same error.
+
+### Automatic fix
+
+Current `virtualmin-snappymail install` runs before `create-domain`:
+
+1. `virtualmin modify-web --domain PARENT --no-webmail`
+2. Removes orphan nginx confs for that hostname when Virtualmin does not own it
+
+### Manual fix (if still failing)
+
+```bash
+PARENT=votoeletronico.com.br
+WM=webmail.$PARENT
+
+virtualmin modify-web --domain "$PARENT" --no-webmail
+
+# confirm Virtualmin does NOT already own webmail.*
+virtualmin list-domains --domain "$WM" --name-only
+
+# remove orphan nginx files if present
+ls -l /etc/nginx/sites-available/"$WM".conf /etc/nginx/sites-enabled/"$WM".conf 2>/dev/null
+rm -f /etc/nginx/sites-available/"$WM".conf /etc/nginx/sites-enabled/"$WM".conf
+nginx -t && systemctl reload nginx
+
+# reinstall CLI then retry
+cd /home/cunha/mleocunha-snappymail && git pull
+cd virtualmin-snappymail && sudo bash bin/install-to-system.sh
+sudo virtualmin-snappymail install "$PARENT"
+```

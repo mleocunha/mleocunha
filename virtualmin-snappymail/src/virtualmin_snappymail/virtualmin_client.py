@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Iterable, Sequence
 
 from .domain import normalize_domain
-from .errors import VirtualminError
+from .errors import SubserverConflictError, VirtualminError
 from .security import assert_safe_argv_token, redact_secrets
 from .webstack import (
     FORBIDDEN as FORBIDDEN_SUB_FEATURES,
@@ -25,6 +25,12 @@ from .webstack import (
     domain_has_website,
     domain_is_web_only,
     flavor_from_features,
+)
+
+_NGINX_VHOST_DIRS = (
+    Path("/etc/nginx/sites-available"),
+    Path("/etc/nginx/sites-enabled"),
+    Path("/etc/nginx/conf.d"),
 )
 
 # Re-export legacy names used by tests/docs.
@@ -305,6 +311,113 @@ class VirtualminClient:
             )
         return list(profile.create_features)
 
+    def disable_parent_webmail_redirect(self, parent_domain: str) -> bool:
+        """Remove Virtualmin webmail/admin redirects on the parent.
+
+        Those redirects claim ``webmail.<parent>`` / ``admin.<parent>`` as
+        extra ``server_name`` entries on the parent's Nginx/Apache vhost.
+        Creating a real ``webmail.*`` sub-server then fails with::
+
+            An Nginx virtual host with the same name already exists
+
+        Returns True when ``modify-web --no-webmail`` was attempted.
+        """
+        parent_domain = normalize_domain(parent_domain)
+        help_text = self.help("modify-web")
+        if not help_text:
+            return False
+        lowered = help_text.lower()
+        if "unknown" in lowered and "not found" in lowered:
+            return False
+        if "--no-webmail" not in help_text and "no-webmail" not in lowered:
+            return False
+        self.run(
+            ["modify-web", "--domain", parent_domain, "--no-webmail"],
+            check=False,
+        )
+        return True
+
+    def find_orphan_nginx_vhost_files(self, domain: str) -> list[Path]:
+        """Nginx conf files for ``domain`` when Virtualmin has no such domain."""
+        domain = normalize_domain(domain)
+        if self.domain_exists(domain):
+            return []
+        names = {
+            f"{domain}.conf",
+            f"{domain}",
+            f"{domain}.nginx.conf",
+        }
+        found: list[Path] = []
+        for directory in _NGINX_VHOST_DIRS:
+            if not directory.is_dir():
+                continue
+            for name in names:
+                path = directory / name
+                if path.is_file() or path.is_symlink():
+                    found.append(path)
+        # Deduplicate while preserving order.
+        seen: set[str] = set()
+        unique: list[Path] = []
+        for path in found:
+            key = str(path.resolve()) if path.exists() else str(path)
+            if key in seen:
+                continue
+            seen.add(key)
+            unique.append(path)
+        return unique
+
+    def remove_orphan_nginx_vhost_files(self, domain: str) -> list[str]:
+        """Best-effort removal of orphan nginx confs for a non-Virtualmin hostname.
+
+        Only touches exact basename matches under standard nginx conf dirs.
+        Does nothing when Virtualmin already owns ``domain``.
+        """
+        removed: list[str] = []
+        for path in self.find_orphan_nginx_vhost_files(domain):
+            try:
+                path.unlink()
+                removed.append(str(path))
+            except OSError:
+                continue
+        if removed and shutil.which("nginx"):
+            # Validate + reload so create-domain sees a clean nginx state.
+            test = self._runner(
+                ["nginx", "-t"],
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            if getattr(test, "returncode", 1) == 0:
+                self._runner(
+                    ["nginx", "-s", "reload"],
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                )
+        return removed
+
+    def prepare_webmail_hostname(self, *, webmail_domain: str, parent_domain: str) -> list[str]:
+        """Clear parent webmail redirects / orphan nginx names before create-domain."""
+        actions: list[str] = []
+        webmail_domain = normalize_domain(webmail_domain)
+        parent_domain = normalize_domain(parent_domain)
+        if self.disable_parent_webmail_redirect(parent_domain):
+            actions.append(f"modify-web --domain {parent_domain} --no-webmail")
+        orphans = self.remove_orphan_nginx_vhost_files(webmail_domain)
+        for path in orphans:
+            actions.append(f"removed orphan nginx vhost {path}")
+        return actions
+
+    @staticmethod
+    def _is_vhost_name_conflict(err: str) -> bool:
+        lowered = (err or "").lower()
+        return (
+            "virtual host with the same name already exists" in lowered
+            or "vhost with the same name already exists" in lowered
+        )
+
     def create_web_only_subserver(
         self,
         *,
@@ -326,6 +439,12 @@ class VirtualminClient:
                 f"available. notes={list(profile.notes)} sources={list(profile.sources)}"
             )
 
+        # Parent "Redirect webmail and admin" claims webmail.<parent> as a
+        # server_name on the parent's vhost. Clear that before create-domain.
+        prep_actions = self.prepare_webmail_hostname(
+            webmail_domain=webmail_domain, parent_domain=parent_domain
+        )
+
         args = [
             "create-domain",
             "--domain",
@@ -343,7 +462,25 @@ class VirtualminClient:
 
         if "--mail" in args:
             raise VirtualminError("Internal error: refusing to create webmail host with --mail")
-        self.run(args)
+        try:
+            self.run(args)
+        except VirtualminError as exc:
+            if not self._is_vhost_name_conflict(exc.message):
+                raise
+            leftover = self.find_orphan_nginx_vhost_files(webmail_domain)
+            leftover_txt = ", ".join(str(p) for p in leftover) or "(none found under /etc/nginx)"
+            prep_txt = "; ".join(prep_actions) or "(no automatic prep actions applied)"
+            raise SubserverConflictError(
+                f"Hostname {webmail_domain} is still claimed by an existing Nginx/Apache "
+                f"virtual host (Virtualmin create-domain refused). "
+                f"Prep attempted: {prep_txt}. "
+                f"Orphan nginx confs still present: {leftover_txt}. "
+                f"Manual fix: "
+                f"`virtualmin modify-web --domain {parent_domain} --no-webmail` then "
+                f"remove any leftover `/etc/nginx/sites-*/{webmail_domain}.conf` in "
+                f"Webmin → Servers → Nginx, reload nginx, and re-run install. "
+                f"Original error: {exc.message}"
+            ) from exc
         return profile
 
     def delete_domain(self, domain: str) -> None:

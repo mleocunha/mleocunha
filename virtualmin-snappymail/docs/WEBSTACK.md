@@ -30,3 +30,10 @@ sudo virtualmin-snappymail diagnose exemplo.com.br
 ```
 
 Mail is never enabled on `webmail.*` subservers, on either stack.
+
+## Parent webmail redirect conflict
+
+Before `create-domain`, install clears the parent’s Virtualmin **webmail/admin
+redirect** (`modify-web --no-webmail`). Otherwise Nginx/Apache already claims
+`webmail.<parent>` and create fails with “virtual host with the same name
+already exists”. See `docs/TROUBLESHOOTING.md`.
