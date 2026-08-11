@@ -141,13 +141,14 @@ async function findResetLinkInSnappyMail(page, opts) {
     await dismissSnappyStartupPopups(page, { userEmail, logger, quiet: true });
     await reloadMessageList(page);
 
+    // Subject match on the row text (not only .subjectParent) — SnappyMail DOM varies.
     const row = page
-      .locator('.messageListItem')
-      .filter({ has: page.locator('.subjectParent', { hasText: subject }) })
+      .locator('.messageListItem, .messageList .listItem, [data-message-uid]')
+      .filter({ hasText: subject })
       .first();
 
     if (await row.count()) {
-      await row.click();
+      await row.click({ force: true });
       await page.locator('.bodyText, .b-message, .messageView').first().waitFor({
         state: 'visible',
         timeout: 15000,
@@ -160,6 +161,12 @@ async function findResetLinkInSnappyMail(page, opts) {
         logger?.info?.('E-mail de redefinição aberto na INBOX (SnappyMail)', { subject });
         return resetLink;
       }
+    }
+
+    // Halfway through: also peek Junk/Spam once.
+    const remaining = deadline - Date.now();
+    if (remaining < timeoutMs / 2) {
+      await openMaybeJunkFolder(page);
     }
 
     await page.waitForTimeout(2000);
@@ -491,7 +498,18 @@ async function openInboxFolder(page) {
     .filter({ hasText: /^(Inbox|INBOX|Caixa de entrada|Entrada)$/i })
     .first();
   if (await inbox.count()) {
-    await inbox.click().catch(() => {});
+    await inbox.click({ force: true }).catch(() => {});
+    await page.waitForTimeout(400);
+  }
+}
+
+async function openMaybeJunkFolder(page) {
+  const junk = page
+    .locator('.b-folders a, .b-folders li, .b-folders span')
+    .filter({ hasText: /^(Junk|Spam|Lixo eletr[oó]nico|Indesejável|Indesejado)$/i })
+    .first();
+  if (await junk.count()) {
+    await junk.click({ force: true }).catch(() => {});
     await page.waitForTimeout(400);
   }
 }
