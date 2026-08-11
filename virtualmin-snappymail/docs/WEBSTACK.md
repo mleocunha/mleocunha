@@ -40,7 +40,7 @@ already exists”. See `docs/TROUBLESHOOTING.md`.
 
 ## Nginx SSL create quirks
 
-Create resolves the parent IP and prefers `--ip/--ip-already` for Sub-servers
-(not `--shared-ip`, which breaks on dedicated/default addresses). On
-`virtualmin-nginx-ssl` failures it creates without website features first, then
-`enable-feature`. See `docs/TROUBLESHOOTING.md`.
+Create registers the parent IP as a Virtualmin **shared address** when needed
+(`create-shared-address`), then uses `--shared-ip` + `--skip-warnings` for
+name-based multi-domain hosts. Falls back to inherit / `--ip/--ip-already`.
+On SSL plugin failures it stages website enablement. See `docs/TROUBLESHOOTING.md`.

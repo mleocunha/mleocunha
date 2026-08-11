@@ -117,36 +117,38 @@ is enabled, so omitting the SSL flag does not avoid the bug.
 `install` now:
 
 1. Resolves parent IP via multiline + `list-domains --ip-only`
-2. Chooses IP flags correctly for ``--parent`` subservers:
-   - preferred: `--ip <ip> --ip-already` (dedicated or default shared address)
-   - fallback: inherit parent IP (no explicit flags)
-   - last resort: `--shared-ip <ip>` (additional shared addresses only)
+2. Makes the parent IP usable by multiple servers:
+   - `virtualmin create-shared-address --ip <parent-ip>` when missing
+   - then `--shared-ip <ip>` (name-based hosting)
+   - fallback: inherit / `--ip --ip-already`
+   - always passes `--skip-warnings` when available
 3. Passes `--generate-ssl-cert` / `--link-ssl-cert` / `--acme` when available
 4. On failure, creates the Sub-server **without website features**, then
    `enable-feature` for nginx/SSL after the domain already has an IP
 
-### Manual workaround
+### Manual workaround (ns1)
 
 ```bash
+IP=191.176.16.2
+# critical: register the public IP as shared (many domains already use it)
+virtualmin create-shared-address --ip "$IP"
+virtualmin list-shared-addresses --name-only
+
 PARENT=votoeletronico.com.br
 WM=webmail.$PARENT
-IP=$(virtualmin list-domains --domain "$PARENT" --ip-only | awk '{print $1; exit}')
-echo "parent IP=$IP"
 
-# clean leftovers
 virtualmin list-domains --domain "$WM" --name-only >/dev/null 2>&1 \
   && virtualmin delete-domain --domain "$WM" || true
 rm -f /etc/nginx/sites-available/"$WM".conf /etc/nginx/sites-enabled/"$WM".conf
 nginx -t && systemctl reload nginx
 
-# staged create — MUST use --ip/--ip-already (NOT --shared-ip on ns1)
 virtualmin create-domain --domain "$WM" --parent "$PARENT" \
   --desc "SnappyMail webmail (web-only)" \
   --dir --dns --logrotate \
-  --ip "$IP" --ip-already
+  --shared-ip "$IP" --skip-warnings
 
-virtualmin enable-feature --domain "$WM" --virtualmin-nginx
-virtualmin enable-feature --domain "$WM" --virtualmin-nginx-ssl || true
+virtualmin enable-feature --domain "$WM" --virtualmin-nginx --skip-warnings
+virtualmin enable-feature --domain "$WM" --virtualmin-nginx-ssl --skip-warnings || true
 virtualmin generate-letsencrypt-cert --domain "$WM" || true
 
 cd /home/cunha/mleocunha-snappymail && git pull

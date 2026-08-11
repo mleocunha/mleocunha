@@ -325,8 +325,8 @@ votoeletronico.com.br
 virtualmin create-domain
                         [--dir] [--dns] [--logrotate]
                         [--virtualmin-nginx] [--virtualmin-nginx-ssl] [--acme]
-                        [--shared-ip address] [--ip-already]
-                        [--generate-ssl-cert] [--link-ssl-cert]
+                        [--shared-ip address] [--ip] [--ip-already]
+                        [--generate-ssl-cert] [--link-ssl-cert] [--skip-warnings]
 """
         features_ml = """\
 virtualmin-nginx
@@ -347,6 +347,7 @@ votoeletronico.com.br
 """
         create_calls: list[list[str]] = []
         enable_calls: list[list[str]] = []
+        shared_ips: set[str] = set()
 
         def runner(cmd, **kw):
             class P:
@@ -366,8 +367,9 @@ votoeletronico.com.br
             elif "list-domains" in cmd and "--ip-only" in cmd:
                 P.stdout = "203.0.113.10\n"
             elif "list-shared-addresses" in cmd:
-                P.stdout = ""  # dedicated IP — not on shared list
-                P.returncode = 0
+                P.stdout = "\n".join(sorted(shared_ips)) + ("\n" if shared_ips else "")
+            elif cmd[1] == "create-shared-address":
+                shared_ips.add(cmd[cmd.index("--ip") + 1])
             elif "list-domains" in cmd and "--multiline" in cmd and "--domain" in cmd:
                 idx = cmd.index("--domain")
                 domain = cmd[idx + 1]
@@ -410,14 +412,13 @@ votoeletronico.com.br
         self.assertEqual(profile.flavor, "nginx")
         self.assertGreaterEqual(len(create_calls), 2)
         self.assertIn("--virtualmin-nginx", create_calls[0])
-        # Dedicated parent IP (not on shared list) → --ip --ip-already
-        self.assertIn("--ip", create_calls[0])
+        # After ensure_shared_address → --shared-ip
+        self.assertIn("--shared-ip", create_calls[0])
         self.assertIn("203.0.113.10", create_calls[0])
-        self.assertNotIn("--shared-ip", create_calls[0])
+        self.assertIn("--skip-warnings", create_calls[0])
         # Staged fallback: no website features on create
         self.assertNotIn("--virtualmin-nginx", create_calls[1])
         self.assertNotIn("--virtualmin-nginx-ssl", create_calls[1])
-        self.assertIn("--ip", create_calls[1])
         self.assertTrue(any("--virtualmin-nginx" in c for c in enable_calls))
 
     def test_domaininfo_parses_shared_ip(self):
@@ -428,7 +429,33 @@ votoeletronico.com.br
         self.assertEqual(d.ip, "203.0.113.10")
         self.assertTrue(d.ip_is_shared)
 
-    def test_resolve_parent_ip_flags_dedicated(self):
+    def test_ensure_shared_address_registers_missing_ip(self):
+        shared: set[str] = set()
+        calls: list[list[str]] = []
+
+        def runner(cmd, **kw):
+            class P:
+                returncode = 0
+                stdout = ""
+                stderr = ""
+
+            calls.append(list(cmd))
+            if cmd[1] == "list-shared-addresses":
+                P.stdout = "\n".join(sorted(shared)) + ("\n" if shared else "")
+            elif cmd[1] == "create-shared-address":
+                shared.add(cmd[cmd.index("--ip") + 1])
+            return P()
+
+        client = VirtualminClient(binary="/usr/sbin/virtualmin", runner=runner)
+        self.assertTrue(client.ensure_shared_address("191.176.16.2"))
+        self.assertIn("191.176.16.2", shared)
+        self.assertTrue(
+            any(c[1] == "create-shared-address" and "191.176.16.2" in c for c in calls)
+        )
+
+    def test_resolve_parent_ip_flags_uses_shared_after_ensure(self):
+        shared: set[str] = set()
+
         def runner(cmd, **kw):
             class P:
                 returncode = 0
@@ -438,15 +465,11 @@ votoeletronico.com.br
             if len(cmd) >= 2 and cmd[1] == "help":
                 P.stdout = "[--ip address] [--ip-already] [--shared-ip address]\n"
             elif "list-shared-addresses" in cmd:
-                P.stdout = "10.0.0.1\n"
-            elif "list-domains" in cmd and "--multiline" in cmd:
-                P.stdout = (
-                    "votoeletronico.com.br\n"
-                    "    IP address: 191.176.16.2\n"
-                    "    Features: unix dir dns mail\n"
-                )
-            elif "list-domains" in cmd and "--ip-only" in cmd:
-                P.stdout = "191.176.16.2\n"
+                P.stdout = "\n".join(sorted(shared)) + ("\n" if shared else "")
+            elif cmd[1] == "create-shared-address":
+                shared.add(cmd[cmd.index("--ip") + 1])
+            elif "list-domains" in cmd:
+                P.returncode = 1
             return P()
 
         client = VirtualminClient(binary="/usr/sbin/virtualmin", runner=runner)
@@ -454,13 +477,10 @@ votoeletronico.com.br
             parent_domain="votoeletronico.com.br",
             parent_ip="191.176.16.2",
         )
-        self.assertEqual(flags[:2], ["--ip", "191.176.16.2"])
-        self.assertIn("--ip-already", flags)
-        self.assertNotIn("--shared-ip", flags)
+        self.assertEqual(flags, ["--shared-ip", "191.176.16.2"])
+        self.assertIn("191.176.16.2", shared)
 
-    def test_resolve_parent_ip_flags_even_if_listed_shared(self):
-        """Subservers still get --ip/--ip-already (default shared breaks --shared-ip)."""
-
+    def test_resolve_parent_ip_flags_falls_back_to_ip_when_share_fails(self):
         def runner(cmd, **kw):
             class P:
                 returncode = 0
@@ -470,7 +490,10 @@ votoeletronico.com.br
             if len(cmd) >= 2 and cmd[1] == "help":
                 P.stdout = "[--ip address] [--ip-already] [--shared-ip address]\n"
             elif "list-shared-addresses" in cmd:
-                P.stdout = "203.0.113.10\n"
+                P.stdout = ""
+            elif cmd[1] == "create-shared-address":
+                P.returncode = 1
+                P.stderr = "failed\n"
             elif "list-domains" in cmd:
                 P.returncode = 1
             return P()
@@ -482,7 +505,6 @@ votoeletronico.com.br
         )
         self.assertEqual(flags[:2], ["--ip", "203.0.113.10"])
         self.assertIn("--ip-already", flags)
-        self.assertNotIn("--shared-ip", flags)
 
     def test_get_domain_ip_falls_back_to_ip_only(self):
         def runner(cmd, **kw):
