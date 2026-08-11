@@ -5,14 +5,15 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from typing import Any, Callable
+from typing import Any
 
 from . import get_manager_version
-from .domain import normalize_domain
+from .domain import coerce_mail_parent_domain, suggest_domains
 from .environment import audit_environment
 from .errors import AlreadyInstalledError, VSMError
 from .logging_util import setup_logging
 from .ops import (
+    admin_password_info,
     adopt_all,
     adopt_domain,
     diagnose_domain,
@@ -32,13 +33,32 @@ def _print_json(data: Any) -> None:
     print(json.dumps(data, indent=2, sort_keys=True, default=str))
 
 
-def _print_status_table(rows) -> None:
+def _print_status_table(rows, *, client: VirtualminClient | None = None) -> None:
     header = f"{'DOMAIN':<32} {'SNAPPYMAIL':<12} {'HTTPS':<7} {'IMAP':<7} {'SMTP':<7} {'MODE'}"
     print(header)
     for r in rows:
         print(
             f"{r.domain:<32} {r.snappymail:<12} {r.https:<7} {r.imap:<7} {r.smtp:<7} {r.mode}"
         )
+    missing = [r for r in rows if (r.mode or "").lower() == "missing"]
+    if not missing or client is None:
+        return
+    parents = list_mail_parents(client)
+    print()
+    print("Hints:")
+    for r in missing:
+        close = suggest_domains(r.domain, parents) if parents else []
+        if close and close[0] != r.domain:
+            print(
+                f"  - {r.domain}: MODE missing — no webmail.{r.domain} subserver. "
+                f"Did you mean: {', '.join(close)}? "
+                f"Try: virtualmin-snappymail status {close[0]}"
+            )
+        else:
+            print(
+                f"  - {r.domain}: MODE missing — install with: "
+                f"virtualmin-snappymail install {r.domain}"
+            )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -55,7 +75,10 @@ def build_parser() -> argparse.ArgumentParser:
     sub = p.add_subparsers(dest="command", required=True)
 
     def add_domain_arg(sp):
-        sp.add_argument("domain", help="Parent virtual server domain (e.g. exemplo.com.br)")
+        sp.add_argument(
+            "domain",
+            help="Parent mail domain (e.g. exemplo.com.br or webmail.exemplo.com.br)",
+        )
 
     sp = sub.add_parser("audit", help="Audit local Virtualmin/mail/web environment (read-only)")
     sp = sub.add_parser(
@@ -97,6 +120,12 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--remove-subserver", action="store_true", help="Also delete webmail sub-server")
     sp.add_argument("--yes", action="store_true", help="Confirm removal")
 
+    sp = sub.add_parser(
+        "admin-password",
+        help="Show SnappyMail admin login path/password file (after opening /?Admin once)",
+    )
+    add_domain_arg(sp)
+
     sp = sub.add_parser("discover", help="Discover existing SnappyMail installations")
     sp = sub.add_parser("adopt", help="Adopt existing installations without destructive reinstall")
     sp.add_argument("domain", nargs="?", default=None)
@@ -110,6 +139,14 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     logger = setup_logging(verbose=args.verbose, debug=args.debug)
     client = VirtualminClient(binary=args.virtualmin_bin)
+
+    # Accept webmail.<parent> as shorthand for the mail parent on domain commands.
+    if getattr(args, "domain", None):
+        try:
+            args.domain = coerce_mail_parent_domain(args.domain)
+        except VSMError:
+            # Let the command surface the domain error with its own context.
+            pass
 
     try:
         if args.command == "audit":
@@ -167,6 +204,7 @@ def main(argv: list[str] | None = None) -> int:
             "repair",
             "upgrade",
             "remove",
+            "admin-password",
             "discover",
             "adopt",
         } and args.command != "audit":
@@ -193,6 +231,8 @@ def main(argv: list[str] | None = None) -> int:
             else:
                 print(f"Installed SnappyMail {result['version']} for {result['parent_domain']}")
                 print(f"URL: {result['url']}")
+                if result.get("admin_url"):
+                    print(f"Admin: {result['admin_url']} (user: admin)")
                 if result.get("install_mode") == "path":
                     print(f"Mode: path (/{result.get('install_path') or ''})")
                     print(f"Document root: {result['document_root']}")
@@ -201,6 +241,10 @@ def main(argv: list[str] | None = None) -> int:
                     print(f"Web stack: {result.get('webstack', 'unknown')}")
                     print(f"Document root: {result['document_root']}")
                 print(f"Mail identity domain: {result['mail_identity_domain']}")
+                print(
+                    "Tip: open Admin once to generate admin_password.txt, then: "
+                    f"virtualmin-snappymail admin-password {result['parent_domain']}"
+                )
             return 0
 
         if args.command == "status":
@@ -211,7 +255,7 @@ def main(argv: list[str] | None = None) -> int:
             if args.json:
                 _print_json([r.to_dict() for r in rows])
             else:
-                _print_status_table(rows)
+                _print_status_table(rows, client=client)
             return 0
 
         if args.command == "diagnose":
@@ -273,6 +317,23 @@ def main(argv: list[str] | None = None) -> int:
                     print(f"Deleted subserver {result['webmail_domain']}")
                 if result.get("backup"):
                     print(f"Backup: {result['backup']}")
+            return 0
+
+        if args.command == "admin-password":
+            info = admin_password_info(client, args.domain)
+            if args.json:
+                _print_json(info)
+            else:
+                print(f"Parent: {info['parent_domain']}")
+                print(f"Webmail: {info['webmail_domain']} ({info['install_mode']})")
+                print(f"Document root: {info['document_root']}")
+                print(f"Admin URL: {info['admin_url']}")
+                print(f"Admin user: {info['admin_user']}")
+                print(f"Password file: {info['admin_password_file']}")
+                if info.get("admin_password"):
+                    print(f"Admin password: {info['admin_password']}")
+                for n in info.get("notes") or []:
+                    print(f"Note: {n}")
             return 0
 
         if args.command == "discover":

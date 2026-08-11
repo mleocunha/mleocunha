@@ -14,8 +14,10 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from virtualmin_snappymail.domain import (  # noqa: E402
     DomainInvalidError,
+    coerce_mail_parent_domain,
     normalize_domain,
     parent_from_webmail,
+    suggest_domains,
     try_normalize_domain,
     webmail_domain_for,
 )
@@ -27,7 +29,13 @@ from virtualmin_snappymail.virtualmin_client import (  # noqa: E402
     VirtualminClient,
     parse_multiline_domains,
 )
-from virtualmin_snappymail.mail_discovery import snappymail_domain_ini, MailTopology, Endpoint  # noqa: E402
+from virtualmin_snappymail.mail_discovery import (  # noqa: E402
+    snappymail_domain_ini,
+    MailTopology,
+    Endpoint,
+    parse_white_list_value,
+    invalid_white_list_tokens,
+)
 
 
 class DomainTests(unittest.TestCase):
@@ -61,6 +69,37 @@ class DomainTests(unittest.TestCase):
         self.assertEqual(_normalize_url_path("/mail/"), "mail")
         with self.assertRaises(Exception):
             _normalize_url_path("../etc")
+
+    def test_coerce_webmail_to_parent(self):
+        self.assertEqual(
+            coerce_mail_parent_domain("webmail.relatasoft.com.br"),
+            "relatasoft.com.br",
+        )
+        self.assertEqual(coerce_mail_parent_domain("relatasoft.com.br"), "relatasoft.com.br")
+
+    def test_suggest_domains_typo(self):
+        pool = ["relatasoft.com.br", "votoeletronico.com.br", "example.com"]
+        hits = suggest_domains("relatosoft.com.br", pool)
+        self.assertEqual(hits[0], "relatasoft.com.br")
+
+
+class WhiteListTests(unittest.TestCase):
+    def test_parse_empty(self):
+        self.assertEqual(parse_white_list_value('""'), [])
+        self.assertEqual(parse_white_list_value(""), [])
+
+    def test_invalid_bare_domain(self):
+        bad = invalid_white_list_tokens(
+            ["relatasoft.com.br"], parent_domain="relatasoft.com.br"
+        )
+        self.assertEqual(bad, ["relatasoft.com.br"])
+
+    def test_valid_forms(self):
+        bad = invalid_white_list_tokens(
+            ["user@relatasoft.com.br", "@relatasoft.com.br", "eleitor0001"],
+            parent_domain="relatasoft.com.br",
+        )
+        self.assertEqual(bad, [])
 
 
 class ManifestTests(unittest.TestCase):
@@ -756,13 +795,16 @@ votoeletronico.com.br
 
 
 class DomainIniTests(unittest.TestCase):
-    def test_ini_uses_parent_whitelist(self):
+    def test_ini_leaves_whitelist_empty(self):
         topo = MailTopology(
             imap=Endpoint("127.0.0.1", 993, "ssl"),
             smtp=Endpoint("127.0.0.1", 587, "starttls"),
         )
         ini = snappymail_domain_ini(parent_domain="votoeletronico.com.br", topo=topo)
-        self.assertIn('white_list = "votoeletronico.com.br"', ini)
+        # Bare "domain.tld" does not match SnappyMail ValidateWhiteList (needs
+        # "@domain.tld"); empty whitelist allows all mailboxes on the domain.
+        self.assertIn('white_list = ""', ini)
+        self.assertNotIn('white_list = "votoeletronico.com.br"', ini)
         self.assertIn("993", ini)
         self.assertIn("587", ini)
 

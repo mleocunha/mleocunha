@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import difflib
 import re
+from collections.abc import Iterable
 
 from .errors import DomainInvalidError
 
@@ -63,3 +65,28 @@ def is_webmail_hostname(domain: str) -> bool:
     except DomainInvalidError:
         return False
     return d.startswith(_WEBMAIL_PREFIX) and d.count(".") >= 2
+
+
+def coerce_mail_parent_domain(value: str) -> str:
+    """Accept ``exemplo.com.br`` or ``webmail.exemplo.com.br``; return the mail parent."""
+    domain = normalize_domain(value)
+    if domain.startswith(_WEBMAIL_PREFIX):
+        return parent_from_webmail(domain)
+    return domain
+
+
+def suggest_domains(needle: str, candidates: Iterable[str], *, n: int = 5) -> list[str]:
+    """Close matches for typos (e.g. relatosoft → relatasoft)."""
+    try:
+        needle_n = normalize_domain(needle)
+    except DomainInvalidError:
+        needle_n = (needle or "").strip().lower()
+    pool: list[str] = []
+    for c in candidates:
+        nd = try_normalize_domain(str(c))
+        if nd:
+            pool.append(nd)
+    # Prefer parents (no webmail. prefix) when suggesting install targets.
+    parents = [p for p in pool if not p.startswith(_WEBMAIL_PREFIX)]
+    search_in = parents or pool
+    return difflib.get_close_matches(needle_n, search_in, n=n, cutoff=0.72)

@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.2.3 — 2026-08-11
+
+- CLI accepts `webmail.<parent>` as shorthand for the mail parent.
+- Suggest close domain names on missing parent / `status` MODE missing
+  (typos like `relatosoft` → `relatasoft`).
+- New command `admin-password`: show Admin URL + `admin_password.txt` path
+  (file is created by SnappyMail on first `/?Admin` visit).
+- `diagnose` checks `snappymail_white_list` (bare domain tokens fail) and
+  whether `admin_password.txt` exists.
+- Install success prints Admin URL; TROUBLESHOOTING covers `/mnt/…/home`
+  Virtualmin homes and exact domain spelling.
+
+## 0.2.2 — 2026-08-11
+
+- Fix domain INI `white_list`: stop writing bare `domínio.com` (SnappyMail never
+  matches it → every login “not whitelisted”). Empty whitelist = allow all
+  mailboxes on the configured domain. `repair` rewrites the INI.
+- Document where White List lives (SnappyMail `/?Admin` → Domains → tab) and
+  SSH one-shot clear in `docs/TROUBLESHOOTING.md`.
+
 ## 0.2.1 — 2026-08-11
 
 - Virtualmin **Manage Web Apps** installer (`scripts/snappymail.pl`), hybrid option C:

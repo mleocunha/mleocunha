@@ -213,3 +213,77 @@ drops the domain) is rejected. Use:
 sudo virtualmin-snappymail list-parents
 sudo virtualmin-snappymail install votoeletronico.com.br
 ```
+
+## Login: “not whitelisted” / “Esta conta não é permitida”
+
+### Where the White List is (not in the Webmin module list)
+
+Whitelist is **inside SnappyMail’s own Admin Panel**, not under Webmin → Virtualmin → SnappyMail menu items.
+
+1. Open `https://webmail.<domínio>/?Admin` (capital **A**; some installs use `/?admin`)
+2. Sign in with user **`admin`** and the password from `admin_password.txt` (created on first visit to `/?Admin` — the manager does not invent this file at install time)
+3. Menu **Domains** → click `relatasoft.com.br` (or your mail domain)
+4. Open the tab **White List** (icon of people / last tab in the domain popup — label may be “Lista branca”)
+5. **Clear the textarea completely** and save  
+   Empty = allow every mailbox on that domain.  
+   If you keep a list, each line must be a full address, a local part, or `@domínio` (with `@`). A bare `domínio.com` matches **nothing**.
+
+Optional: **Packages** → if plugin **Whitelist** is enabled, open its config and clear `White List` or set `*@relatasoft.com.br`.
+
+### One-shot fix on the server (SSH)
+
+Older `virtualmin-snappymail` wrote `white_list = "domínio.com"` (invalid). Clear it.
+
+Virtualmin **Sub-server** layout (not a top-level `/home/webmail.…` home). Homes may be under `/home/…` or a bind such as `/mnt/8GB/home/…`:
+
+```text
+{Home directory from Virtualmin}/domains/webmail.<domínio-pai>/public_html/
+# often:
+/home/<unix-user-do-pai>/domains/webmail.<domínio-pai>/public_html/
+```
+
+Example if the parent `relatasoft.com.br` is owned by Unix user `relatasoft` on ns1:
+
+```text
+/mnt/8GB/home/relatasoft/domains/webmail.relatasoft.com.br/public_html/
+```
+
+Discover + clear:
+
+```bash
+# Resolve HTML dir from Virtualmin (preferred — works with /mnt homes)
+virtualmin list-domains --domain webmail.relatasoft.com.br --multiline \
+  | sed -n 's/^[[:space:]]*HTML directory:[[:space:]]*//p'
+
+HTML=$(virtualmin list-domains --domain webmail.relatasoft.com.br --multiline \
+  | sed -n 's/^[[:space:]]*HTML directory:[[:space:]]*//p' | head -1)
+
+# Clear invalid whitelist:
+sudo sed -i 's/^white_list = .*/white_list = ""/' \
+  "$HTML/data/_data_/_default_/domains/"*.ini
+sudo grep white_list "$HTML/data/_data_/_default_/domains/"*.ini
+
+# Or locate under common home roots:
+sudo find /home /mnt/*/home -path '*/domains/webmail.*/public_html/data/_data_/_default_/domains/*.ini' \
+  2>/dev/null -exec grep -l '^white_list' {} \; \
+  -exec sed -i 's/^white_list = .*/white_list = ""/' {} \;
+```
+
+Admin password (after opening `/?Admin` once):
+
+```bash
+sudo virtualmin-snappymail admin-password relatasoft.com.br
+# spelling must match Virtualmin exactly: relatAsoft.com.br
+sudo cat "$HTML/data/_data_/_default_/admin_password.txt"
+# login: user "admin" + that passphrase at https://webmail.relatasoft.com.br/?Admin
+```
+
+Then retry login / the Votador PoC. After upgrading the manager:
+
+```bash
+sudo virtualmin-snappymail list-parents          # exact names
+sudo virtualmin-snappymail repair relatasoft.com.br
+sudo virtualmin-snappymail diagnose relatasoft.com.br
+```
+
+`repair` rewrites the domain INI with an empty whitelist. `diagnose` fails `snappymail_white_list` if a bare domain is still present. Typos like `relatosoft` (o) vs `relatasoft` (a) make `status` show `MODE missing` — use `list-parents` or accept the “Did you mean …?” hint.

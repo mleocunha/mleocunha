@@ -13,7 +13,14 @@ from pathlib import Path
 from typing import Any
 
 from . import get_manager_version
-from .domain import normalize_domain, parent_from_webmail, try_normalize_domain, webmail_domain_for
+from .domain import (
+    coerce_mail_parent_domain,
+    normalize_domain,
+    parent_from_webmail,
+    suggest_domains,
+    try_normalize_domain,
+    webmail_domain_for,
+)
 from .errors import (
     AlreadyInstalledError,
     MailOnSubserverError,
@@ -25,7 +32,13 @@ from .errors import (
     VSMError,
 )
 from .logging_util import audit_event, utc_now_iso
-from .mail_discovery import discover_mail_topology, probe_tcp
+from .mail_discovery import (
+    discover_mail_topology,
+    invalid_white_list_tokens,
+    parse_white_list_value,
+    probe_tcp,
+    read_domain_ini_white_list,
+)
 from .manifest import Manifest, load_manifest, manifest_path_for_home, save_manifest
 from .snappymail_app import (
     configure_domain,
@@ -93,23 +106,29 @@ def list_mail_parents(client: VirtualminClient) -> list[str]:
     return sorted(set(out))
 
 
-def _hint_mail_parents(client: VirtualminClient) -> str:
+def _hint_mail_parents(client: VirtualminClient, *, needle: str | None = None) -> str:
     parents = list_mail_parents(client)
     if not parents:
         return (
             "No top-level domains with Mail were found. "
             "Create/enable Mail on a Virtual Server first, then retry."
         )
+    parts: list[str] = []
+    if needle:
+        close = suggest_domains(needle, parents)
+        if close:
+            parts.append(f"Did you mean: {', '.join(close)}?")
     preview = ", ".join(parents[:20])
     more = "" if len(parents) <= 20 else f" (+{len(parents) - 20} more)"
-    return (
+    parts.append(
         f"Mail-enabled top-level domains on this host: {preview}{more}. "
         "Use one of these exact names with: virtualmin-snappymail install <domain>"
     )
+    return " ".join(parts)
 
 
 def _require_parent_with_mail(client: VirtualminClient, parent: str) -> DomainInfo:
-    parent = normalize_domain(parent)
+    parent = coerce_mail_parent_domain(parent)
     info = client.get_domain(parent)
     if not info:
         # Distinguish "parser miss" from true absence using name-only.
@@ -120,12 +139,12 @@ def _require_parent_with_mail(client: VirtualminClient, parent: str) -> DomainIn
                 f"virtualmin-snappymail and retry."
             )
         raise ParentMissingError(
-            f"Virtual server not found: {parent}. {_hint_mail_parents(client)}"
+            f"Virtual server not found: {parent}. {_hint_mail_parents(client, needle=parent)}"
         )
     if info.parent:
         raise ParentMissingError(
             f"{parent} is a sub-server; provide the top-level mail domain. "
-            f"{_hint_mail_parents(client)}"
+            f"{_hint_mail_parents(client, needle=parent)}"
         )
     if not info.has_feature("mail"):
         # If features were not parsed (fallback DomainInfo), re-check via CLI.
@@ -147,13 +166,13 @@ def _require_parent_with_mail(client: VirtualminClient, parent: str) -> DomainIn
                 raise ParentNoMailError(
                     f"Mail for Domain is not enabled on {parent}. "
                     "Enable mail on the parent before installing SnappyMail. "
-                    f"{_hint_mail_parents(client)}"
+                    f"{_hint_mail_parents(client, needle=parent)}"
                 )
         else:
             raise ParentNoMailError(
                 f"Mail for Domain is not enabled on {parent}. "
                 "Enable mail on the parent before installing SnappyMail. "
-                f"{_hint_mail_parents(client)}"
+                f"{_hint_mail_parents(client, needle=parent)}"
             )
     return info
 
@@ -177,6 +196,7 @@ def install_domain(
     mode: str = "subserver",
     path: str | None = None,
 ) -> dict[str, Any]:
+    parent_domain = coerce_mail_parent_domain(parent_domain)
     mode = (mode or "subserver").strip().lower()
     if mode not in {"subserver", "path"}:
         raise VSMError(f"Unknown install mode: {mode!r} (use subserver|path)", code="VSM-DOMAIN-INVALID")
@@ -320,6 +340,7 @@ def _install_path_mode(
         "home": str(info.home),
         "document_root": str(docroot),
         "url": f"https://{domain}{url_path}",
+        "admin_url": f"https://{domain}{url_path.rstrip('/')}/?Admin",
         "mode": "path",
         "install_mode": "path",
         "install_path": rel,
@@ -445,6 +466,7 @@ def _install_subserver_mode(
         "home": str(existing_sub.home),
         "document_root": str(existing_sub.html_dir),
         "url": f"https://{webmail}/",
+        "admin_url": f"https://{webmail}/?Admin",
         "mode": "web-only",
         "install_mode": "subserver",
         "webstack": webstack_flavor,
@@ -630,7 +652,7 @@ def _endpoint_status(host: str | None, port: int | None) -> str:
 
 
 def status_for_domain(client: VirtualminClient, parent_domain: str) -> StatusRow:
-    parent_domain = normalize_domain(parent_domain)
+    parent_domain = coerce_mail_parent_domain(parent_domain)
     topo = discover_mail_topology()
 
     # Path-mode install on the domain itself (Manage Web Apps path option)
@@ -705,14 +727,19 @@ def status_all(client: VirtualminClient) -> list[StatusRow]:
 
 
 def diagnose_domain(client: VirtualminClient, parent_domain: str) -> list[CheckResult]:
-    parent_domain = normalize_domain(parent_domain)
+    parent_domain = coerce_mail_parent_domain(parent_domain)
     webmail = webmail_domain_for(parent_domain)
     checks: list[CheckResult] = []
 
     parent = client.get_domain(parent_domain)
-    checks.append(CheckResult("parent_exists", bool(parent), parent_domain))
     if not parent:
+        detail = parent_domain
+        close = suggest_domains(parent_domain, list_mail_parents(client))
+        if close:
+            detail = f"{parent_domain} (did you mean: {', '.join(close)}?)"
+        checks.append(CheckResult("parent_exists", False, detail))
         return checks
+    checks.append(CheckResult("parent_exists", True, parent_domain))
     checks.append(CheckResult("parent_mail_enabled", parent.has_feature("mail"), "mail" if parent.has_feature("mail") else "missing"))
     checks.append(CheckResult("parent_unix_user", bool(parent.username), parent.username or ""))
     checks.append(CheckResult("parent_home", bool(parent.home and parent.home.exists()), str(parent.home or "")))
@@ -785,16 +812,128 @@ def diagnose_domain(client: VirtualminClient, parent_domain: str) -> list[CheckR
         )
     )
 
-    # SnappyMail domain ini coherence
+    # SnappyMail domain ini coherence + whitelist validity
     if docroot and snappy:
         ini = docroot / "data" / "_data_" / "_default_" / "domains" / f"{parent_domain}.ini"
         checks.append(CheckResult("snappymail_domain_ini", ini.is_file(), str(ini)))
+        if ini.is_file():
+            raw_wl = read_domain_ini_white_list(ini)
+            tokens = parse_white_list_value(raw_wl or "")
+            bad = invalid_white_list_tokens(tokens, parent_domain=parent_domain)
+            if raw_wl is None:
+                checks.append(CheckResult("snappymail_white_list", True, "absent (allow all)"))
+            elif not tokens:
+                checks.append(CheckResult("snappymail_white_list", True, 'empty (allow all)'))
+            elif bad:
+                checks.append(
+                    CheckResult(
+                        "snappymail_white_list",
+                        False,
+                        f"invalid tokens {bad!r} — use full email, local-part, @domain, or empty; "
+                        f"run: virtualmin-snappymail repair {parent_domain}",
+                    )
+                )
+            else:
+                checks.append(CheckResult("snappymail_white_list", True, f"{len(tokens)} token(s)"))
+
+        pwd_file = docroot / "data" / "_data_" / "_default_" / "admin_password.txt"
+        checks.append(
+            CheckResult(
+                "snappymail_admin_password_file",
+                pwd_file.is_file(),
+                str(pwd_file) if pwd_file.is_file() else f"missing — open https://{webmail}/?Admin once to generate",
+            )
+        )
 
     return checks
 
 
+def resolve_snappy_install(
+    client: VirtualminClient, parent_domain: str
+) -> dict[str, Any]:
+    """Locate SnappyMail document root / URL for a mail parent (subserver or path mode)."""
+    parent_domain = coerce_mail_parent_domain(parent_domain)
+    info = client.get_domain(parent_domain)
+    if not info:
+        close = suggest_domains(parent_domain, list_mail_parents(client))
+        hint = f" Did you mean: {', '.join(close)}?" if close else ""
+        raise ParentMissingError(f"Virtual server not found: {parent_domain}.{hint}")
+
+    # Path-mode on the parent itself
+    if info.home:
+        man = load_manifest(manifest_path_for_home(info.home))
+        if man and man.managed and man.install_mode == "path":
+            html = info.html_dir or (info.home / "public_html")
+            rel = (man.install_path or "").strip().strip("/")
+            docroot = html if not rel else html / rel
+            url_path = f"/{rel}" if rel else ""
+            return {
+                "parent_domain": parent_domain,
+                "webmail_domain": parent_domain,
+                "install_mode": "path",
+                "document_root": docroot,
+                "url": f"https://{parent_domain}{url_path}/",
+                "admin_url": f"https://{parent_domain}{url_path}/?Admin",
+                "present": looks_like_snappymail(docroot),
+            }
+
+    webmail = webmail_domain_for(parent_domain)
+    sub = client.get_domain(webmail)
+    if not sub:
+        raise NotManagedError(
+            f"No webmail subserver {webmail} for {parent_domain}. "
+            f"Install with: virtualmin-snappymail install {parent_domain}"
+        )
+    docroot = sub.html_dir or (sub.home / "public_html" if sub.home else None)
+    if not docroot:
+        raise NotManagedError(f"Could not resolve HTML directory for {webmail}")
+    return {
+        "parent_domain": parent_domain,
+        "webmail_domain": webmail,
+        "install_mode": "subserver",
+        "document_root": docroot,
+        "url": f"https://{webmail}/",
+        "admin_url": f"https://{webmail}/?Admin",
+        "present": looks_like_snappymail(docroot),
+    }
+
+
+def admin_password_info(client: VirtualminClient, parent_domain: str) -> dict[str, Any]:
+    """Show where SnappyMail admin credentials live (does not invent a password)."""
+    loc = resolve_snappy_install(client, parent_domain)
+    docroot = Path(loc["document_root"])
+    pwd_path = docroot / "data" / "_data_" / "_default_" / "admin_password.txt"
+    app_ini = docroot / "data" / "_data_" / "_default_" / "configs" / "application.ini"
+    password: str | None = None
+    if pwd_path.is_file():
+        password = pwd_path.read_text(encoding="utf-8", errors="replace").strip() or None
+    notes: list[str] = []
+    if not loc["present"]:
+        notes.append("Document root does not look like SnappyMail yet.")
+    if password is None:
+        notes.append(
+            f"admin_password.txt missing — open {loc['admin_url']} once as root/admin "
+            "to let SnappyMail generate it, then re-run this command."
+        )
+        notes.append(
+            "Login user is always 'admin'. To regenerate: comment out admin_password in "
+            f"{app_ini} (if present) and reopen {loc['admin_url']}."
+        )
+    return {
+        "parent_domain": loc["parent_domain"],
+        "webmail_domain": loc["webmail_domain"],
+        "install_mode": loc["install_mode"],
+        "document_root": str(docroot),
+        "admin_url": loc["admin_url"],
+        "admin_user": "admin",
+        "admin_password_file": str(pwd_path),
+        "admin_password": password,
+        "notes": notes,
+    }
+
+
 def repair_domain(client: VirtualminClient, parent_domain: str, *, logger=None) -> dict[str, Any]:
-    parent_domain = normalize_domain(parent_domain)
+    parent_domain = coerce_mail_parent_domain(parent_domain)
     webmail = webmail_domain_for(parent_domain)
     parent = _require_parent_with_mail(client, parent_domain)
     sub = client.get_domain(webmail)
