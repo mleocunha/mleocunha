@@ -11,7 +11,7 @@ import { discoverBatchLocale } from './discoverLocale.js';
 import { startDisplayCaffeinate } from './caffeinate.js';
 
 /** Bumped when PoC runtime behaviour changes — look for this in startup logs. */
-export const VOTADOR_BUILD = 'login-fill-1';
+export const VOTADOR_BUILD = 'snappymail-whitelist-hint-1';
 
 export const DEFAULTS = {
   windows: 5,
@@ -26,7 +26,7 @@ export const DEFAULTS = {
    */
   limiteRetentativas: 3,
   passwordChangePoc: false,
-  mailUrl: 'https://relatasoft.com.br/mail/',
+  mailUrl: 'https://webmail.relatasoft.com.br/',
 };
 
 /**

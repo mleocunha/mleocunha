@@ -6,7 +6,7 @@
 
 ## Purpose
 
-Isolate work on the **Votador Prova de Conceito** and its relationship with WordPress (login, roles, shortcodes, session, scrape hooks, credentials, Roundcube password flow, timing) without mixing in the crypto evolution line.
+Isolate work on the **Votador Prova de Conceito** and its relationship with WordPress (login, roles, shortcodes, session, scrape hooks, credentials, SnappyMail password-reset flow, timing) without mixing in the crypto evolution line.
 
 ## Parallel lines
 
@@ -42,5 +42,6 @@ Cherry-pick candidates for the evolved line (no crypto):
 14. **Tally import “Failed to parse” (1.0.27.5)** — after raising PHP memory, ZIP opened but members were not found (subfolder / name mismatch / JSON-in-ZIP). Index by basename, strip BOM, keep stable ZIP entry names on export, surface entry list in the error.
 15. **Tally import rejected validation (1.0.27.6)** — empty `encrypted_tallies` after low-memory close. Stream tally compute on close/export; on import rebuild tallies from `encrypted-votes.json` when missing; normalize public_key aliases; persist validation errors in the stored manifest.
 16. **Tally UI election identity (1.0.27.7)** — denormalize `election_title` / `round_title` / `ballot_count` on import; show them on Import, Share Submission, and Certification so multiple concurrent elections are distinguishable.
+17. **Webmail Roundcube → SnappyMail** — password-change PoC now drives SnappyMail (`snappymailReset.js`, default `https://webmail.relatasoft.com.br/`). Roundcube `/mail/` is rejected on purpose. Server provisioning for other domains: `virtualmin-snappymail` (PR #21).
 
 Password-change PoC still requires `[enviar_redefinicao_senha]` on the welcome page (documented in Redirections admin copy).

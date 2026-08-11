@@ -203,11 +203,53 @@ button.ghost {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  margin-bottom: 0.75rem;
+  margin-bottom: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.log-title {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
 }
 
 .log-head h2 {
   margin: 0;
+}
+
+.log-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+button.compact {
+  padding: 0.4rem 0.75rem;
+  font-size: 0.85rem;
+  min-width: 5.5rem;
+}
+
+button.compact.is-flash {
+  border-color: var(--accent);
+  color: var(--accent-dark);
+  background: rgba(11, 110, 79, 0.12);
+}
+
+.log-hint {
+  margin: 0 0 0.65rem;
+}
+
+.log-action-status {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--accent-dark);
+  white-space: nowrap;
+}
+
+.log-action-status.is-error {
+  color: var(--danger);
 }
 
 .pill {

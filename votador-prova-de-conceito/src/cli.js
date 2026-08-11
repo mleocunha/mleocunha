@@ -19,8 +19,8 @@ Opções:
   --insistencias     n — retentativas por falha (default ${DEFAULTS.insistencias})
   --limite           y — teto por falha; ao atingir y nessa falha, para o teste (default ${DEFAULTS.limiteRetentativas})
   --ignore-https     Ignorar erros de certificado
-  --password-change  Ativa PoC com troca de senha (Roundcube)
-  --mail-url         URL Roundcube (default ${DEFAULTS.mailUrl})
+  --password-change  Ativa PoC com troca de senha (SnappyMail)
+  --mail-url         URL SnappyMail (default ${DEFAULTS.mailUrl})
 `);
 }
 
@@ -69,7 +69,8 @@ const summary = await runVotador({
   mailUrl: arg('mail-url', DEFAULTS.mailUrl),
 }, {
   onEvent: (ev) => {
-    const line = `[${ev.level || 'info'}] ${ev.message || ''}`;
+    const ts = formatLocalClock(ev.ts);
+    const line = `${ts} [${ev.level || 'info'}] ${ev.message || ''}`;
     if (ev.level === 'error') {
       console.error(line, ev.error || '');
     } else {
@@ -77,5 +78,18 @@ const summary = await runVotador({
     }
   },
 });
+
+/**
+ * Local wall-clock of the machine running the CLI (not UTC slice of ISO).
+ * @param {string|undefined} iso
+ */
+function formatLocalClock(iso) {
+  const d = iso ? new Date(iso) : new Date();
+  if (Number.isNaN(d.getTime())) {
+    return '';
+  }
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
 
 console.log(JSON.stringify(summary, null, 2));

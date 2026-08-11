@@ -1,5 +1,5 @@
 import { boothUrlFor } from './urls.js';
-import { resetPasswordViaRoundcube } from './roundcubeReset.js';
+import { resetPasswordViaSnappyMail } from './snappymailReset.js';
 import { readLoginError, tryWpLogin } from './wpLogin.js';
 
 /**
@@ -105,7 +105,7 @@ export async function voteElector(context, opts) {
 }
 
 /**
- * Login; optionally reset via Roundcube when PoC password-change is enabled.
+ * Login; optionally reset via SnappyMail when PoC password-change is enabled.
  */
 async function authenticateElector(page, opts) {
   const {
@@ -156,7 +156,7 @@ async function authenticateElector(page, opts) {
     await page.goto(welcome, { waitUntil: 'domcontentloaded', timeout: 60000 });
   }
 
-  const newPassword = await resetPasswordViaRoundcube(page, {
+  const newPassword = await resetPasswordViaSnappyMail(page, {
     mailUrl,
     userEmail: elector.user_email,
     currentPassword: elector.password,
