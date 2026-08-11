@@ -21,6 +21,7 @@ from .errors import (
     ParentMissingError,
     ParentNoMailError,
     SubserverConflictError,
+    VirtualminError,
     VSMError,
 )
 from .logging_util import audit_event, utc_now_iso
@@ -109,6 +110,13 @@ def _require_parent_with_mail(client: VirtualminClient, parent: str) -> DomainIn
     parent = normalize_domain(parent)
     info = client.get_domain(parent)
     if not info:
+        # Distinguish "parser miss" from true absence using name-only.
+        if client.domain_exists(parent):
+            raise VirtualminError(
+                f"Virtual server {parent} exists but could not be parsed from "
+                f"`virtualmin list-domains --multiline`. Reinstall the latest "
+                f"virtualmin-snappymail and retry."
+            )
         raise ParentMissingError(
             f"Virtual server not found: {parent}. {_hint_mail_parents(client)}"
         )
@@ -118,11 +126,31 @@ def _require_parent_with_mail(client: VirtualminClient, parent: str) -> DomainIn
             f"{_hint_mail_parents(client)}"
         )
     if not info.has_feature("mail"):
-        raise ParentNoMailError(
-            f"Mail for Domain is not enabled on {parent}. "
-            "Enable mail on the parent before installing SnappyMail. "
-            f"{_hint_mail_parents(client)}"
-        )
+        # If features were not parsed (fallback DomainInfo), re-check via CLI.
+        if not info.features:
+            proc = client.run(
+                ["list-domains", "--with-feature", "mail", "--name-only", "--domain", parent],
+                check=False,
+            )
+            names = {
+                normalize_domain(line)
+                for line in (proc.stdout or "").splitlines()
+                if line.strip()
+            }
+            if parent in names:
+                info.values["Features"] = "mail"
+            else:
+                raise ParentNoMailError(
+                    f"Mail for Domain is not enabled on {parent}. "
+                    "Enable mail on the parent before installing SnappyMail. "
+                    f"{_hint_mail_parents(client)}"
+                )
+        else:
+            raise ParentNoMailError(
+                f"Mail for Domain is not enabled on {parent}. "
+                "Enable mail on the parent before installing SnappyMail. "
+                f"{_hint_mail_parents(client)}"
+            )
     return info
 
 

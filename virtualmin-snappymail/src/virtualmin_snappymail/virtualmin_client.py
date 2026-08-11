@@ -168,19 +168,47 @@ class VirtualminClient:
         args = ["list-domains", "--multiline"]
         if domain:
             args.extend(["--domain", normalize_domain(domain)])
-        proc = self.run(args)
+        # Missing domains exit non-zero; callers that probe optional hosts need that.
+        proc = self.run(args, check=False)
+        if proc.returncode != 0:
+            return []
         return parse_multiline_domains(proc.stdout or "")
 
     def get_domain(self, domain: str) -> DomainInfo | None:
-        domains = self.list_domains_multiline(normalize_domain(domain))
         want = normalize_domain(domain)
+        domains = self.list_domains_multiline(want)
         for d in domains:
             if d.name == want:
                 return d
-        return None
+        # Fallback if multiline parsing ever drifts: confirm via --name-only then
+        # re-parse a filtered dump.
+        proc = self.run(["list-domains", "--name-only", "--domain", want], check=False)
+        names = {
+            normalize_domain(line)
+            for line in (proc.stdout or "").splitlines()
+            if line.strip() and proc.returncode == 0
+        }
+        if want not in names:
+            return None
+        # Domain exists but multiline parse missed it — fetch all multiline and find it.
+        for d in self.list_domains_multiline():
+            if d.name == want:
+                return d
+        # Last resort: synthesize a minimal DomainInfo so callers can proceed
+        # with feature probes via dedicated commands.
+        return DomainInfo(name=want, values={"Type": "Unknown"})
 
     def domain_exists(self, domain: str) -> bool:
-        return self.get_domain(domain) is not None
+        want = normalize_domain(domain)
+        proc = self.run(["list-domains", "--name-only", "--domain", want], check=False)
+        if proc.returncode != 0:
+            return False
+        names = {
+            normalize_domain(line)
+            for line in (proc.stdout or "").splitlines()
+            if line.strip()
+        }
+        return want in names
 
     def list_children(self, parent: str) -> list[str]:
         parent = normalize_domain(parent)

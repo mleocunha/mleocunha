@@ -45,6 +45,9 @@ class FakeClient:
     def get_domain(self, domain: str):
         return self.domains.get(domain)
 
+    def domain_exists(self, domain: str):
+        return domain in self.domains
+
     def list_domains_multiline(self, domain=None):
         vals = list(self.domains.values())
         if domain:
