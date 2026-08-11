@@ -135,6 +135,8 @@ example.com:
 class FeatureResolveTests(unittest.TestCase):
     def test_resolves_nginx_when_apache_web_absent(self):
         help_text = """
+Example narrative still mentions --web --ssl for old docs.
+
 virtualmin create-domain --domain domain.name
                         [--dir]
                         [--dns]

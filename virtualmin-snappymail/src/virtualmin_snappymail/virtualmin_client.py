@@ -234,9 +234,14 @@ class VirtualminClient:
         return [normalize_domain(line) for line in (proc.stdout or "").splitlines() if line.strip()]
 
     def available_create_domain_flags(self) -> set[str]:
-        """Return flag names (without --) advertised by `virtualmin help create-domain`."""
-        help_text = self.help("create-domain")
-        return {m.group(1) for m in re.finditer(r"--([A-Za-z0-9-]+)", help_text)}
+        """Return creatable flag names from `virtualmin help create-domain`.
+
+        Uses bracketed ``[--flag]`` forms so narrative POD examples mentioning
+        disabled features (e.g. ``--web`` on Nginx-only hosts) are ignored.
+        """
+        from .webstack import parse_create_domain_flags
+
+        return parse_create_domain_flags(self.help("create-domain"))
 
     def list_feature_codes(self, *, parent: str | None = None) -> set[str]:
         """Feature codes from `virtualmin list-features` (optional --parent)."""
