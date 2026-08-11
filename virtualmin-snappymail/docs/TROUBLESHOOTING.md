@@ -232,19 +232,45 @@ Optional: **Packages** → if plugin **Whitelist** is enabled, open its config a
 
 ### One-shot fix on the server (SSH)
 
-Older `virtualmin-snappymail` wrote `white_list = "domínio.com"` (invalid). Clear it:
+Older `virtualmin-snappymail` wrote `white_list = "domínio.com"` (invalid). Clear it.
+
+Virtualmin **Sub-server** layout (not a top-level `/home/webmail.…` home):
+
+```text
+/home/<unix-user-do-pai>/domains/webmail.<domínio-pai>/public_html/
+```
+
+Example if the parent `relatasoft.com.br` is owned by Unix user `relatasoft`:
+
+```text
+/home/relatasoft/domains/webmail.relatasoft.com.br/public_html/
+```
+
+Discover + clear:
 
 ```bash
-# adjust path if your HTML dir differs
-INI=$(find /home -path '*/webmail.*/public_html/data/_data_/_default_/domains/*.ini' 2>/dev/null | head -20)
-echo "$INI"
-# for relatosoft example:
+# Resolve HTML dir from Virtualmin (preferred)
+virtualmin list-domains --domain webmail.relatasoft.com.br --multiline | sed -n 's/^[[:space:]]*HTML directory:[[:space:]]*//p'
+
+# Or locate admin password / domain.ini under the parent home:
+sudo find /home/*/domains/webmail.*/public_html/data/_data_/_default_ \
+  \( -name admin_password.txt -o -path '*/domains/*.ini' \) 2>/dev/null
+
+# Clear invalid whitelist (adjust USER if needed):
 sudo sed -i 's/^white_list = .*/white_list = ""/' \
-  /home/webmail.relatasoft.com.br/public_html/data/_data_/_default_/domains/relatasoft.com.br.ini
-# or generic:
-sudo find /home -path '*/data/_data_/_default_/domains/*.ini' \
-  -exec grep -l '^white_list' {} \; \
+  /home/relatasoft/domains/webmail.relatasoft.com.br/public_html/data/_data_/_default_/domains/relatasoft.com.br.ini
+
+# Generic (all webmail.* subservers under /home/*/domains/):
+sudo find /home/*/domains/webmail.*/public_html/data/_data_/_default_/domains \
+  -name '*.ini' -exec grep -l '^white_list' {} \; \
   -exec sed -i 's/^white_list = .*/white_list = ""/' {} \;
+```
+
+Admin password file (same tree):
+
+```bash
+sudo cat /home/relatasoft/domains/webmail.relatasoft.com.br/public_html/data/_data_/_default_/admin_password.txt
+# login: user "admin" + that passphrase at https://webmail.relatasoft.com.br/?Admin
 ```
 
 Then retry login / the Votador PoC. After upgrading the manager, `sudo virtualmin-snappymail repair relatosoft.com.br` rewrites the domain INI with an empty whitelist.
