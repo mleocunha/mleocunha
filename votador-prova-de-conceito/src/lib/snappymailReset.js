@@ -130,12 +130,15 @@ async function findResetLinkInSnappyMail(page, opts) {
   await page.goto(mailUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
   await rejectRoundcubeSurface(page);
   await loginToSnappyMail(page, userEmail, currentPassword, mailUrl, logger);
+  // Identity popup is scheduled ~1s after identities load — wait and save it.
+  await dismissSnappyStartupPopups(page, { userEmail, logger, waitForMs: 5000 });
   await openInboxFolder(page);
 
   const deadline = Date.now() + timeoutMs;
   let resetLink = '';
 
   while (Date.now() < deadline) {
+    await dismissSnappyStartupPopups(page, { userEmail, logger, quiet: true });
     await reloadMessageList(page);
 
     const row = page
@@ -229,6 +232,96 @@ async function loginToSnappyMail(page, userEmail, currentPassword, mailUrl, logg
     hints.push('Confirme e-mail/senha do CSV e a URL do SnappyMail');
   }
   throw new Error(hints.join(' — '));
+}
+
+/**
+ * First login often opens "Update Identity" (~1s after identities load).
+ * Fill Name/Label and Save so the modal does not block INBOX automation.
+ * Also dismiss Ask confirmations that appear if the identity dialog is closed.
+ *
+ * @param {import('playwright').Page} page
+ * @param {{ userEmail?: string, logger?: object, quiet?: boolean, waitForMs?: number }} [opts]
+ */
+async function dismissSnappyStartupPopups(page, opts = {}) {
+  const { userEmail, logger, quiet } = opts;
+  const waitForMs = Number.isFinite(opts.waitForMs) ? opts.waitForMs : quiet ? 0 : 5000;
+  const displayName =
+    String(userEmail || '')
+      .split('@')[0]
+      .replace(/[._+-]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim() || 'Eleitor';
+
+  const deadline = Date.now() + Math.max(0, waitForMs) + 8000;
+  const waitUntil = Date.now() + Math.max(0, waitForMs);
+  let handledIdentity = false;
+
+  while (Date.now() < deadline) {
+    const identityForm = page.locator('#identityForm, #identityform, form#identityform').first();
+    const identityVisible = await identityForm.isVisible().catch(() => false);
+
+    if (identityVisible) {
+      if (!quiet && !handledIdentity) {
+        logger?.info?.('SnappyMail: a fechar popup de identidade…');
+      }
+      handledIdentity = true;
+
+      const nameInput = identityForm.locator('input[name="Name"]').first();
+      if (await nameInput.count()) {
+        const current = String((await nameInput.inputValue().catch(() => '')) || '').trim();
+        if (!current) {
+          await typeIntoKnockoutField(nameInput, displayName);
+        }
+      }
+      const labelInput = identityForm.locator('input[name="Label"]').first();
+      if (await labelInput.count()) {
+        const current = String((await labelInput.inputValue().catch(() => '')) || '').trim();
+        if (!current) {
+          await typeIntoKnockoutField(labelInput, displayName);
+        }
+      }
+
+      const saveBtn = page
+        .locator('button.buttonAddIdentity, footer button[form="identityform"], footer button[form="identityForm"]')
+        .first();
+      if (await saveBtn.count()) {
+        await saveBtn.click({ force: true }).catch(() => {});
+      } else {
+        await identityForm
+          .evaluate((form) => {
+            if (typeof form.requestSubmit === 'function') {
+              form.requestSubmit();
+            } else {
+              form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+            }
+          })
+          .catch(() => {});
+      }
+
+      await identityForm.waitFor({ state: 'hidden', timeout: 8000 }).catch(() => {});
+      await page.waitForTimeout(250);
+      continue;
+    }
+
+    // "Want to close this window?" / similar Ask popup
+    const askYes = page.locator('button.buttonYes').first();
+    const askVisible = await askYes.isVisible().catch(() => false);
+    if (askVisible) {
+      if (!quiet) {
+        logger?.info?.('SnappyMail: a confirmar diálogo Ask…');
+      }
+      await askYes.click({ force: true }).catch(() => {});
+      await page.waitForTimeout(250);
+      continue;
+    }
+
+    // Identity popup is delayed ~1s after login — keep polling briefly.
+    if (!handledIdentity && Date.now() < waitUntil) {
+      await page.waitForTimeout(300);
+      continue;
+    }
+    break;
+  }
 }
 
 /**

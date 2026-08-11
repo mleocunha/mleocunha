@@ -11,7 +11,7 @@ import { discoverBatchLocale } from './discoverLocale.js';
 import { startDisplayCaffeinate } from './caffeinate.js';
 
 /** Bumped when PoC runtime behaviour changes — look for this in startup logs. */
-export const VOTADOR_BUILD = 'snappymail-whitelist-hint-1';
+export const VOTADOR_BUILD = 'snappymail-identity-popup-1';
 
 export const DEFAULTS = {
   windows: 5,
