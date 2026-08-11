@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "virtualmin-snappymail"
+version = "0.1.0"
+description = "Manage per-domain SnappyMail web-only subservers on Virtualmin"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "AGPL-3.0-or-later" }
+authors = [{ name = "RelataSoft / mleocunha" }]
+
+[project.scripts]
+virtualmin-snappymail = "virtualmin_snappymail.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

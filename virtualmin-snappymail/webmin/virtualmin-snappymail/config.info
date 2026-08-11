@@ -1,0 +1,4 @@
+cli_path=Path to virtualmin-snappymail CLI
+auto_install=Auto-install SnappyMail when the feature is enabled on new domains|1|0,No|1,Yes (also used by hooks)
+webmail_prefix=Webmail subdomain prefix
+remove_subserver_on_feature_delete=Delete webmail sub-server when feature is removed|1|0,No (app only)|1,Yes
