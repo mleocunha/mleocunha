@@ -174,6 +174,167 @@ def install_domain(
     version: str | None = None,
     with_letsencrypt: bool = True,
     force_php_fpm: bool = True,
+    mode: str = "subserver",
+    path: str | None = None,
+) -> dict[str, Any]:
+    mode = (mode or "subserver").strip().lower()
+    if mode not in {"subserver", "path"}:
+        raise VSMError(f"Unknown install mode: {mode!r} (use subserver|path)", code="VSM-DOMAIN-INVALID")
+    if mode == "path":
+        return _install_path_mode(
+            client,
+            parent_domain,
+            logger=logger,
+            version=version,
+            path=path,
+        )
+    return _install_subserver_mode(
+        client,
+        parent_domain,
+        logger=logger,
+        version=version,
+        with_letsencrypt=with_letsencrypt,
+        force_php_fpm=force_php_fpm,
+    )
+
+
+def _normalize_url_path(path: str | None) -> str:
+    """Return a clean relative URL path segment (no leading/trailing slashes).
+
+    ``None`` defaults to ``webmail``. An empty string means site root.
+    """
+    if path is None:
+        path = "webmail"
+    raw = path.strip().strip("/")
+    if not raw:
+        return ""
+    if ".." in raw or raw.startswith("/") or "\\" in raw:
+        raise VSMError(f"Invalid install path: {path!r}", code="VSM-DOMAIN-INVALID")
+    for part in raw.split("/"):
+        if not part or part in {".", ".."} or any(ch in part for ch in " \t\n\r;|&$`\"'<>(){}[]"):
+            raise VSMError(f"Invalid install path: {path!r}", code="VSM-DOMAIN-INVALID")
+    return raw
+
+
+def _install_path_mode(
+    client: VirtualminClient,
+    domain: str,
+    *,
+    logger=None,
+    version: str | None = None,
+    path: str | None = None,
+) -> dict[str, Any]:
+    """Install SnappyMail under the domain's website path (Roundcube-style)."""
+    domain = normalize_domain(domain)
+    info = client.get_domain(domain)
+    if not info:
+        raise ParentMissingError(f"Virtual server not found: {domain}")
+    if not info.has_website() and not info.has_feature("dir"):
+        # Website check — allow if html_dir known
+        if not info.html_dir:
+            raise VSMError(
+                f"{domain} has no website/HTML directory for path install",
+                code="VSM-VIRTUALMIN",
+            )
+
+    rel = _normalize_url_path(path)
+    html = info.html_dir or (info.home / "public_html" if info.home else None)
+    if not html or not info.home:
+        raise VSMError(f"Cannot resolve HTML directory for {domain}", code="VSM-VIRTUALMIN")
+
+    docroot = html if not rel else html / rel
+    docroot.mkdir(parents=True, exist_ok=True)
+
+    mp = manifest_path_for_home(info.home)
+    existing = load_manifest(mp)
+    if existing and existing.managed and looks_like_snappymail(docroot):
+        raise AlreadyInstalledError(
+            f"SnappyMail already installed for {domain} at path /{rel or ''}. "
+            "Use upgrade, repair or remove."
+        )
+    # Also refuse if a managed subserver install exists for this mail parent
+    if not info.parent and info.has_feature("mail"):
+        wm = webmail_domain_for(domain)
+        sub = client.get_domain(wm)
+        if sub and sub.home and sub.html_dir:
+            man = load_manifest(manifest_path_for_home(sub.home))
+            if man and man.managed and looks_like_snappymail(sub.html_dir):
+                raise AlreadyInstalledError(
+                    f"SnappyMail already installed via webmail subserver {wm}. "
+                    "Remove that install first, or use upgrade on the parent."
+                )
+
+    mail_identity = domain
+    if info.parent:
+        mail_identity = info.parent
+    elif not info.has_feature("mail"):
+        # Path install on a non-mail domain: still whitelist this hostname.
+        mail_identity = domain
+
+    topo = discover_mail_topology(prefer_host=None)
+    installed_ver = install_fresh(
+        docroot,
+        parent_domain=mail_identity,
+        topo=topo,
+        version=version,
+        user=info.username,
+        group=info.username,
+    )
+
+    try:
+        rel_doc = str(docroot.relative_to(info.home))
+    except ValueError:
+        rel_doc = str(docroot)
+
+    url_path = f"/{rel}/" if rel else "/"
+    manifest = Manifest(
+        managed=True,
+        parent_domain=info.parent or domain,
+        webmail_domain=domain,
+        version=installed_ver,
+        installed_at=utc_now_iso(),
+        document_root=rel_doc,
+        mail_identity_domain=mail_identity,
+        install_mode="path",
+        install_path=rel,
+    )
+    save_manifest(mp, manifest)
+
+    if logger:
+        audit_event(
+            logger,
+            action="install",
+            parent_domain=domain,
+            webmail_domain=domain,
+            result="ok",
+            version_after=installed_ver,
+            manager_version=get_manager_version(),
+            install_mode="path",
+            install_path=rel,
+        )
+
+    return {
+        "parent_domain": info.parent or domain,
+        "webmail_domain": domain,
+        "version": installed_ver,
+        "home": str(info.home),
+        "document_root": str(docroot),
+        "url": f"https://{domain}{url_path}",
+        "mode": "path",
+        "install_mode": "path",
+        "install_path": rel,
+        "mail_identity_domain": mail_identity,
+    }
+
+
+def _install_subserver_mode(
+    client: VirtualminClient,
+    parent_domain: str,
+    *,
+    logger=None,
+    version: str | None = None,
+    with_letsencrypt: bool = True,
+    force_php_fpm: bool = True,
 ) -> dict[str, Any]:
     parent_domain = normalize_domain(parent_domain)
     webmail = webmail_domain_for(parent_domain)
@@ -260,6 +421,8 @@ def install_domain(
         installed_at=utc_now_iso(),
         document_root=rel_doc,
         mail_identity_domain=parent_domain,
+        install_mode="subserver",
+        install_path="",
     )
     save_manifest(manifest_path_for_home(existing_sub.home), manifest)
 
@@ -272,6 +435,7 @@ def install_domain(
             result="ok",
             version_after=installed_ver,
             manager_version=get_manager_version(),
+            install_mode="subserver",
         )
 
     return {
@@ -282,6 +446,7 @@ def install_domain(
         "document_root": str(existing_sub.html_dir),
         "url": f"https://{webmail}/",
         "mode": "web-only",
+        "install_mode": "subserver",
         "webstack": webstack_flavor,
         "mail_identity_domain": parent_domain,
     }
@@ -295,6 +460,19 @@ def remove_domain(
     logger=None,
 ) -> dict[str, Any]:
     parent_domain = normalize_domain(parent_domain)
+
+    # Path-mode install lives on the domain home itself.
+    domain_info = client.get_domain(parent_domain)
+    if domain_info and domain_info.home:
+        path_man = load_manifest(manifest_path_for_home(domain_info.home))
+        if path_man and path_man.managed and path_man.install_mode == "path":
+            return _remove_path_mode(
+                client,
+                domain_info,
+                path_man,
+                logger=logger,
+            )
+
     webmail = webmail_domain_for(parent_domain)
     sub = client.get_domain(webmail)
     if not sub:
@@ -361,6 +539,71 @@ def remove_domain(
         "application_removed": True,
         "subserver_removed": deleted_sub,
         "backup": backup_note,
+        "install_mode": "subserver",
+    }
+
+
+def _remove_path_mode(
+    client: VirtualminClient,
+    domain_info: DomainInfo,
+    man: Manifest,
+    *,
+    logger=None,
+) -> dict[str, Any]:
+    domain = domain_info.name
+    html = domain_info.html_dir or (domain_info.home / "public_html" if domain_info.home else None)
+    if not html or not domain_info.home:
+        raise VSMError(f"Cannot resolve HTML directory for {domain}", code="VSM-VIRTUALMIN")
+    rel = (man.install_path or "").strip().strip("/")
+    docroot = html if not rel else html / rel
+
+    backup_note = None
+    if docroot.is_dir() and looks_like_snappymail(docroot):
+        backup_dir = domain_info.home / ".snappymail-backups"
+        backup_dir.mkdir(parents=True, exist_ok=True)
+        stamp = utc_now_iso().replace(":", "")
+        archive = backup_dir / f"pre-remove-path-{stamp}.tar.gz"
+        import tarfile
+
+        with tarfile.open(archive, "w:gz") as tar:
+            tar.add(docroot, arcname=rel or "public_html")
+        backup_note = str(archive)
+        if not rel:
+            # Top-level path install: clear app files, keep directory
+            for child in list(docroot.iterdir()):
+                if child.is_dir():
+                    shutil.rmtree(child)
+                else:
+                    child.unlink()
+            (docroot / "index.html").write_text(
+                "<!-- SnappyMail removed by virtualmin-snappymail -->\n", encoding="utf-8"
+            )
+        else:
+            shutil.rmtree(docroot)
+
+    mp = manifest_path_for_home(domain_info.home)
+    if mp.is_file():
+        mp.unlink()
+
+    if logger:
+        audit_event(
+            logger,
+            action="remove",
+            parent_domain=domain,
+            webmail_domain=domain,
+            result="ok",
+            install_mode="path",
+            backup=backup_note,
+        )
+
+    return {
+        "parent_domain": man.parent_domain or domain,
+        "webmail_domain": domain,
+        "application_removed": True,
+        "subserver_removed": False,
+        "backup": backup_note,
+        "install_mode": "path",
+        "install_path": rel,
     }
 
 
@@ -388,9 +631,30 @@ def _endpoint_status(host: str | None, port: int | None) -> str:
 
 def status_for_domain(client: VirtualminClient, parent_domain: str) -> StatusRow:
     parent_domain = normalize_domain(parent_domain)
+    topo = discover_mail_topology()
+
+    # Path-mode install on the domain itself (Manage Web Apps path option)
+    info = client.get_domain(parent_domain)
+    if info and info.home:
+        man = load_manifest(manifest_path_for_home(info.home))
+        if man and man.managed and man.install_mode == "path":
+            html = info.html_dir or (info.home / "public_html")
+            rel = (man.install_path or "").strip().strip("/")
+            docroot = html if not rel else html / rel
+            ver = detect_installed_version(docroot) if looks_like_snappymail(docroot) else "-"
+            return StatusRow(
+                domain=parent_domain,
+                snappymail=ver or "-",
+                https=_https_status(parent_domain),
+                imap=_endpoint_status(topo.imap.host if topo.imap else None, topo.imap.port if topo.imap else None),
+                smtp=_endpoint_status(topo.smtp.host if topo.smtp else None, topo.smtp.port if topo.smtp else None),
+                mode="path",
+                webmail_domain=parent_domain,
+                managed=True,
+            )
+
     webmail = webmail_domain_for(parent_domain)
     sub = client.get_domain(webmail)
-    topo = discover_mail_topology()
     if not sub:
         return StatusRow(
             domain=parent_domain,
@@ -594,6 +858,48 @@ def repair_domain(client: VirtualminClient, parent_domain: str, *, logger=None) 
 
 def upgrade_domain(client: VirtualminClient, parent_domain: str, *, version: str | None = None, logger=None) -> dict[str, Any]:
     parent_domain = normalize_domain(parent_domain)
+
+    domain_info = client.get_domain(parent_domain)
+    if domain_info and domain_info.home:
+        path_man = load_manifest(manifest_path_for_home(domain_info.home))
+        if path_man and path_man.managed and path_man.install_mode == "path":
+            html = domain_info.html_dir or (domain_info.home / "public_html")
+            rel = (path_man.install_path or "").strip().strip("/")
+            docroot = html if not rel else html / rel
+            mail_identity = path_man.mail_identity_domain or parent_domain
+            topo = discover_mail_topology()
+            old, new, backup = upgrade_inplace(
+                docroot,
+                parent_domain=mail_identity,
+                topo=topo,
+                version=version,
+                user=domain_info.username,
+                group=domain_info.username,
+            )
+            path_man.version = new
+            path_man.managed = True
+            save_manifest(manifest_path_for_home(domain_info.home), path_man)
+            if logger:
+                audit_event(
+                    logger,
+                    action="upgrade",
+                    parent_domain=parent_domain,
+                    webmail_domain=parent_domain,
+                    result="ok",
+                    version_before=old,
+                    version_after=new,
+                    backup=str(backup) if backup else None,
+                    install_mode="path",
+                )
+            return {
+                "parent_domain": parent_domain,
+                "webmail_domain": parent_domain,
+                "version_before": old,
+                "version_after": new,
+                "backup": str(backup) if backup else None,
+                "install_mode": "path",
+            }
+
     webmail = webmail_domain_for(parent_domain)
     _require_parent_with_mail(client, parent_domain)
     sub = client.get_domain(webmail)
@@ -614,6 +920,7 @@ def upgrade_domain(client: VirtualminClient, parent_domain: str, *, version: str
         )
         man.version = new
         man.managed = True
+        man.install_mode = man.install_mode or "subserver"
         save_manifest(manifest_path_for_home(sub.home), man)
     if logger:
         audit_event(
@@ -632,6 +939,7 @@ def upgrade_domain(client: VirtualminClient, parent_domain: str, *, version: str
         "version_before": old,
         "version_after": new,
         "backup": str(backup) if backup else None,
+        "install_mode": "subserver",
     }
 
 

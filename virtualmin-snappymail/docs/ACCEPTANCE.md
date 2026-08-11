@@ -24,5 +24,8 @@ Run on a real Virtualmin host with a disposable test domain.
 | 21 | Webmin module installed | `install-to-system.sh` → module under Webmin root |
 | 22 | GUI status page loads | Virtualmin → SnappyMail |
 | 23 | Feature plugin listed | Features and Plugins → SnappyMail webmail |
+| 24 | Manage Web Apps lists SnappyMail | Install Scripts → Email → SnappyMail |
+| 25 | Path mode install | Install Scripts → mode Path → `/webmail` |
+| 26 | Sub-server mode from Scripts | Install Scripts → mode Sub-server → `webmail.DOM` |
 
 Cloud agent note: items requiring live Virtualmin are validated here via fake-client tests; full checklist needs the production host.

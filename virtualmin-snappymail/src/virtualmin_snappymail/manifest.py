@@ -29,6 +29,9 @@ class Manifest:
     document_root: str = "public_html"
     mail_identity_domain: str = ""
     notes: str = ""
+    # subserver = webmail.<parent> web-only host; path = under domain public_html
+    install_mode: str = "subserver"
+    install_path: str = ""  # URL path under domain, e.g. "webmail" or ""
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

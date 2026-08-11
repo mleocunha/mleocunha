@@ -66,6 +66,17 @@ def build_parser() -> argparse.ArgumentParser:
     add_domain_arg(sp)
     sp.add_argument("--snappy-version", default="latest")
     sp.add_argument("--no-letsencrypt", action="store_true")
+    sp.add_argument(
+        "--mode",
+        choices=("subserver", "path"),
+        default="subserver",
+        help="subserver=webmail.<domain> web-only host (default); path=under domain public_html",
+    )
+    sp.add_argument(
+        "--path",
+        default="webmail",
+        help="URL path under the domain for --mode path (default: webmail)",
+    )
 
     sp = sub.add_parser("status", help="Show SnappyMail status")
     sp.add_argument("domain", nargs="?", default=None)
@@ -174,15 +185,21 @@ def main(argv: list[str] | None = None) -> int:
                 logger=logger,
                 version=None if args.snappy_version == "latest" else args.snappy_version,
                 with_letsencrypt=not args.no_letsencrypt,
+                mode=args.mode,
+                path=args.path,
             )
             if args.json:
                 _print_json(result)
             else:
                 print(f"Installed SnappyMail {result['version']} for {result['parent_domain']}")
                 print(f"URL: {result['url']}")
-                print(f"Subserver: {result['webmail_domain']} (web-only)")
-                print(f"Web stack: {result.get('webstack', 'unknown')}")
-                print(f"Document root: {result['document_root']}")
+                if result.get("install_mode") == "path":
+                    print(f"Mode: path (/{result.get('install_path') or ''})")
+                    print(f"Document root: {result['document_root']}")
+                else:
+                    print(f"Subserver: {result['webmail_domain']} (web-only)")
+                    print(f"Web stack: {result.get('webstack', 'unknown')}")
+                    print(f"Document root: {result['document_root']}")
                 print(f"Mail identity domain: {result['mail_identity_domain']}")
             return 0
 

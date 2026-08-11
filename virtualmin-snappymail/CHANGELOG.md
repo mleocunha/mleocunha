@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.1 — 2026-08-11
+
+- Virtualmin **Manage Web Apps** installer (`scripts/snappymail.pl`), hybrid option C:
+  - **Sub-server mode**: `webmail.<parent>` web-only via CLI (recommended)
+  - **Path mode**: install under domain `public_html/<path>` (Roundcube-style)
+- CLI: `install --mode subserver|path --path …`
+- `install-to-system.sh` deploys the script to `/etc/webmin/virtual-server/scripts/`
+- Webmin module from 0.2.0 is **kept** (fleet UI), not removed
+
 ## 0.2.0 — 2026-08-11
 
 - Webmin/Virtualmin GUI module: manage SnappyMail as a web-only webapp.

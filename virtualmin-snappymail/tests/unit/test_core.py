@@ -53,6 +53,15 @@ class DomainTests(unittest.TestCase):
         self.assertIsNone(try_normalize_domain("unknown"))
         self.assertEqual(try_normalize_domain("Example.COM."), "example.com")
 
+    def test_normalize_url_path(self):
+        from virtualmin_snappymail.ops import _normalize_url_path
+
+        self.assertEqual(_normalize_url_path(None), "webmail")
+        self.assertEqual(_normalize_url_path(""), "")
+        self.assertEqual(_normalize_url_path("/mail/"), "mail")
+        with self.assertRaises(Exception):
+            _normalize_url_path("../etc")
+
 
 class ManifestTests(unittest.TestCase):
     def test_roundtrip(self):

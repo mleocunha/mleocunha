@@ -177,10 +177,35 @@ install_webmin_module() {
   echo "  Open: Virtualmin left menu → SnappyMail"
   echo "  Domain: Manage Virtual Server → Services → Manage SnappyMail"
   echo "  Feature: System Settings → Features and Plugins → SnappyMail webmail"
+  echo "  Web app: Manage Web Apps → Install Scripts → SnappyMail"
+}
+
+install_virtualmin_script() {
+  local script_src="$ROOT/scripts/snappymail.pl"
+  local script_dir="/etc/webmin/virtual-server/scripts"
+  if [ ! -f "$script_src" ]; then
+    echo "Virtualmin script source missing: $script_src (skipping)" >&2
+    return 0
+  fi
+  if [ ! -d /etc/webmin/virtual-server ]; then
+    echo "Virtualmin not detected — Manage Web Apps script skipped."
+    return 0
+  fi
+  install -d "$script_dir"
+  cp -a "$script_src" "$script_dir/snappymail.pl"
+  chmod 644 "$script_dir/snappymail.pl"
+  # Clear script caches so SnappyMail appears under Install Scripts.
+  rm -f /etc/webmin/virtual-server/script.cache \
+        /etc/webmin/virtual-server/script_versions.cache \
+        /var/webmin/virtual-server/script.cache 2>/dev/null || true
+  echo "Installed Virtualmin webapp installer:"
+  echo "  $script_dir/snappymail.pl"
+  echo "  Open: Manage Virtual Server → Manage Web Apps → Install Scripts → SnappyMail"
 }
 
 if [ "$SKIP_WEBMIN" != "1" ]; then
   install_webmin_module
+  install_virtualmin_script
 fi
 
 echo

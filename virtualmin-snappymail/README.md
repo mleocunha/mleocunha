@@ -86,14 +86,10 @@ Default behaviour is conservative (no auto-install).
 
 ## Webmin / Virtualmin GUI
 
-`install-to-system.sh` also installs a Webmin module and registers the Virtualmin
-plugin so SnappyMail is managed like a webapp:
+`install-to-system.sh` installs:
 
-- Left menu → **SnappyMail** (global status, install, discover, audit)
-- Domain → **Services → Manage SnappyMail**
-- **Features and Plugins** → optional “SnappyMail webmail” checkbox
-
-See `docs/GUI.md`.
+1. **Manage Web Apps installer** (`scripts/snappymail.pl`) — canonical Virtualmin webapp (hybrid subserver/path). See `docs/WEBAPP.md`.
+2. **Webmin module** — fleet dashboard under left menu → SnappyMail (kept alongside the webapp). See `docs/GUI.md`.
 
 ## Tests
 
@@ -103,6 +99,7 @@ python3 -m unittest discover -s tests -v
 
 ## Docs
 
+- `docs/WEBAPP.md` — Virtualmin Manage Web Apps (Scripts) hybrid installer
 - `docs/GUI.md` — Webmin / Virtualmin GUI
 - `docs/AUDIT-PHASE1.md` — environment / API audit
 - `docs/DESIGN.md` — architecture
