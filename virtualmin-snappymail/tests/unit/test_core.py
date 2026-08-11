@@ -148,9 +148,13 @@ virtualmin create-domain --domain domain.name
         def runner(cmd, **kw):
             class P:
                 returncode = 0
-                stdout = help_text if "help" in cmd else ""
+                stdout = ""
                 stderr = ""
 
+            if len(cmd) >= 2 and cmd[1] == "help":
+                P.stdout = help_text
+            elif "list-features" in cmd:
+                P.stdout = "dir\ndns\nmail\nlogrotate\nvirtualmin-nginx\nvirtualmin-nginx-ssl\n"
             return P()
 
         client = VirtualminClient(binary="/usr/sbin/virtualmin", runner=runner)
@@ -159,6 +163,31 @@ virtualmin create-domain --domain domain.name
         self.assertIn("virtualmin-nginx-ssl", feats)
         self.assertNotIn("web", feats)
         self.assertNotIn("mail", feats)
+
+    def test_resolves_apache_when_nginx_absent(self):
+        help_text = """
+virtualmin create-domain
+                        [--dir] [--dns] [--mail] [--logrotate]
+                        [--web] [--ssl] [--letsencrypt]
+"""
+
+        def runner(cmd, **kw):
+            class P:
+                returncode = 0
+                stdout = ""
+                stderr = ""
+
+            if len(cmd) >= 2 and cmd[1] == "help":
+                P.stdout = help_text
+            elif "list-features" in cmd:
+                P.stdout = "dir\ndns\nmail\nlogrotate\nweb\nssl\n"
+            return P()
+
+        client = VirtualminClient(binary="/usr/sbin/virtualmin", runner=runner)
+        feats = client.resolve_web_only_features()
+        self.assertIn("web", feats)
+        self.assertIn("ssl", feats)
+        self.assertNotIn("virtualmin-nginx", feats)
 
 
 class DomainIniTests(unittest.TestCase):

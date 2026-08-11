@@ -23,6 +23,7 @@ class EnvironmentReport:
     virtualmin_version: str | None = None
     php: dict[str, Any] = field(default_factory=dict)
     web_server: str | None = None
+    virtualmin_webstack: dict[str, Any] = field(default_factory=dict)
     mail: dict[str, Any] = field(default_factory=dict)
     virtualmin_available: bool = False
     notes: list[str] = field(default_factory=list)
@@ -83,7 +84,6 @@ def audit_environment(client: VirtualminClient | None = None) -> EnvironmentRepo
     if report.virtualmin_available:
         try:
             help_out = client.help()
-            # Prefer Virtualmin/Webmin version files; `virtualmin version` is not universal.
             ver = None
             for path in (
                 Path("/usr/share/webmin/virtual-server/version"),
@@ -95,17 +95,25 @@ def audit_environment(client: VirtualminClient | None = None) -> EnvironmentRepo
                     if ver:
                         break
             if not ver:
-                # Some builds expose module info via list-features help banner only.
                 ver = "available (CLI present; version.pl not shipped)"
             report.virtualmin_version = ver
             if "create-domain" in help_out:
                 report.notes.append("Virtualmin CLI help lists create-domain")
+            try:
+                profile = client.detect_web_stack_profile()
+                report.virtualmin_webstack = profile.to_dict()
+                report.notes.append(
+                    f"Virtualmin website stack for new web-only subservers: {profile.flavor} "
+                    f"features={list(profile.create_features)}"
+                )
+                report.notes.extend(list(profile.notes))
+            except Exception as exc:  # noqa: BLE001
+                report.notes.append(f"Webstack detection error: {exc}")
         except Exception as exc:  # noqa: BLE001
             report.notes.append(f"Virtualmin probe error: {exc}")
     else:
         report.notes.append("Virtualmin CLI not available on this host")
 
-    # Webmin version file
     for candidate in (
         Path("/usr/share/webmin/version"),
         Path("/usr/libexec/webmin/version"),
@@ -125,7 +133,12 @@ def audit_environment(client: VirtualminClient | None = None) -> EnvironmentRepo
     else:
         report.php = {"binary": None}
 
-    if report.tools.get("nginx"):
+    if report.tools.get("nginx") and (report.tools.get("apache2") or report.tools.get("httpd")):
+        report.web_server = "nginx+apache"
+        report.notes.append(
+            "Both nginx and apache binaries present; Virtualmin feature flags decide the stack"
+        )
+    elif report.tools.get("nginx"):
         report.web_server = "nginx"
     elif report.tools.get("apache2") or report.tools.get("httpd"):
         report.web_server = "apache"

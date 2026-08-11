@@ -1,8 +1,8 @@
 """Adapter around the official Virtualmin CLI.
 
-Web-only feature set is discovered at runtime from `virtualmin help create-domain`
-because hosts may use Apache (`--web`/`--ssl`) or Nginx plugins
-(`--virtualmin-nginx`/`--virtualmin-nginx-ssl`). Mail is never enabled.
+Website features are resolved via :mod:`webstack` so both Apache
+(``--web``/``--ssl``) and Nginx (``--virtualmin-nginx``/``--virtualmin-nginx-ssl``)
+Virtualmin flavours work. Mail is never enabled on webmail subservers.
 """
 
 from __future__ import annotations
@@ -17,14 +17,20 @@ from typing import Iterable, Sequence
 from .domain import normalize_domain
 from .errors import VirtualminError
 from .security import assert_safe_argv_token, redact_secrets
+from .webstack import (
+    FORBIDDEN as FORBIDDEN_SUB_FEATURES,
+    WEBSITE_CODES as WEBSITE_FEATURE_CODES,
+    WebStackProfile,
+    detect_web_stack,
+    domain_has_website,
+    domain_is_web_only,
+    flavor_from_features,
+)
 
-# Candidate feature codes, ordered. Runtime selection picks what create-domain help allows.
+# Re-export legacy names used by tests/docs.
 APACHE_WEB_FEATURES = ("web", "ssl")
 NGINX_WEB_FEATURES = ("virtualmin-nginx", "virtualmin-nginx-ssl")
 BASE_WEB_ONLY_FEATURES = ("dir", "dns", "logrotate")
-# Features that must never be enabled on the webmail subserver.
-FORBIDDEN_SUB_FEATURES = ("mail", "spam", "virus")
-WEBSITE_FEATURE_CODES = frozenset(APACHE_WEB_FEATURES + NGINX_WEB_FEATURES)
 
 
 @dataclass
@@ -53,7 +59,8 @@ class DomainInfo:
     @property
     def features(self) -> set[str]:
         raw = self.values.get("Features", "")
-        return {f for f in raw.split() if f}
+        plugins = self.values.get("Plugins", "")
+        return {f for f in (raw + " " + plugins).split() if f}
 
     @property
     def domain_type(self) -> str | None:
@@ -63,16 +70,17 @@ class DomainInfo:
         return feature in self.features
 
     def has_website(self) -> bool:
-        return bool(self.features & WEBSITE_FEATURE_CODES) or bool(
-            self.values.get("URL")
-        )
+        return domain_has_website(self.features, url=self.values.get("URL"))
+
+    def web_flavor(self) -> str:
+        return flavor_from_features(self.features)
 
     def is_subserver(self) -> bool:
         t = (self.domain_type or "").lower()
         return "sub-server" in t or bool(self.parent)
 
     def is_web_only(self) -> bool:
-        return self.has_website() and not self.has_feature("mail")
+        return domain_is_web_only(self.features, url=self.values.get("URL"))
 
 
 def parse_multiline_domains(text: str) -> list[DomainInfo]:
@@ -230,6 +238,37 @@ class VirtualminClient:
         help_text = self.help("create-domain")
         return {m.group(1) for m in re.finditer(r"--([A-Za-z0-9-]+)", help_text)}
 
+    def list_feature_codes(self, *, parent: str | None = None) -> set[str]:
+        """Feature codes from `virtualmin list-features` (optional --parent)."""
+        args = ["list-features", "--name-only"]
+        if parent:
+            args.extend(["--parent", normalize_domain(parent)])
+        proc = self.run(args, check=False)
+        if proc.returncode != 0:
+            return set()
+        return {line.strip() for line in (proc.stdout or "").splitlines() if line.strip()}
+
+    def detect_web_stack_profile(
+        self,
+        *,
+        parent: DomainInfo | None = None,
+        extra_features: Iterable[str] = (),
+    ) -> WebStackProfile:
+        flags = self.available_create_domain_flags()
+        listed: set[str] = set()
+        if parent:
+            listed = self.list_feature_codes(parent=parent.name)
+        else:
+            listed = self.list_feature_codes()
+        return detect_web_stack(
+            create_flags=flags,
+            parent_features=parent.features if parent else None,
+            list_feature_codes=listed,
+            os_has_nginx=bool(shutil.which("nginx")),
+            os_has_apache=bool(shutil.which("apache2") or shutil.which("httpd")),
+            extra_features=extra_features,
+        )
+
     def resolve_web_only_features(
         self,
         *,
@@ -237,58 +276,18 @@ class VirtualminClient:
         extra_features: Iterable[str] = (),
     ) -> list[str]:
         """Pick web-only features that this Virtualmin build actually supports."""
-        flags = self.available_create_domain_flags()
-        chosen: list[str] = []
-
-        for f in BASE_WEB_ONLY_FEATURES:
-            if not flags or f in flags:
-                chosen.append(f)
-
-        parent_feats = parent.features if parent else set()
-        prefer_nginx = (
-            "virtualmin-nginx" in flags
-            or "virtualmin-nginx" in parent_feats
-            or "virtualmin-nginx-ssl" in parent_feats
+        profile = self.detect_web_stack_profile(
+            parent=parent, extra_features=extra_features
         )
-        prefer_apache = "web" in flags or "web" in parent_feats
-
-        if prefer_nginx and "virtualmin-nginx" in flags:
-            for f in NGINX_WEB_FEATURES:
-                if f in flags:
-                    chosen.append(f)
-        elif prefer_apache and "web" in flags:
-            for f in APACHE_WEB_FEATURES:
-                if f in flags:
-                    chosen.append(f)
-        else:
-            # Fall back to whichever website stack the help text documents.
-            if "virtualmin-nginx" in flags:
-                for f in NGINX_WEB_FEATURES:
-                    if f in flags:
-                        chosen.append(f)
-            elif "web" in flags:
-                for f in APACHE_WEB_FEATURES:
-                    if f in flags:
-                        chosen.append(f)
-            else:
-                raise VirtualminError(
-                    "Neither Apache (--web/--ssl) nor Nginx (--virtualmin-nginx/"
-                    "--virtualmin-nginx-ssl) website features are available in "
-                    "`virtualmin help create-domain`. Enable a webserver feature "
-                    "in Virtualmin module configuration."
-                )
-
-        for f in extra_features:
-            if f in FORBIDDEN_SUB_FEATURES:
-                continue
-            if f not in chosen and (not flags or f in flags):
-                chosen.append(f)
-
-        if not (set(chosen) & WEBSITE_FEATURE_CODES):
+        if not profile.has_website:
             raise VirtualminError(
-                f"Resolved feature set has no website feature: {chosen}"
+                "Neither Apache (--web/--ssl) nor Nginx (--virtualmin-nginx/"
+                "--virtualmin-nginx-ssl) website features could be resolved. "
+                "Enable a webserver feature in Virtualmin module configuration. "
+                f"Detection notes: {'; '.join(profile.notes) or 'none'}; "
+                f"sources: {', '.join(profile.sources) or 'none'}"
             )
-        return chosen
+        return list(profile.create_features)
 
     def create_web_only_subserver(
         self,
@@ -298,14 +297,18 @@ class VirtualminClient:
         description: str = "SnappyMail webmail (web-only)",
         with_letsencrypt: bool = True,
         extra_features: Iterable[str] = (),
-    ) -> None:
+    ) -> WebStackProfile:
         webmail_domain = normalize_domain(webmail_domain)
         parent_domain = normalize_domain(parent_domain)
         parent = self.get_domain(parent_domain)
-        features = self.resolve_web_only_features(
+        profile = self.detect_web_stack_profile(
             parent=parent, extra_features=extra_features
         )
-        flags = self.available_create_domain_flags()
+        if not profile.has_website:
+            raise VirtualminError(
+                "Cannot create webmail subserver: no Apache/Nginx website feature "
+                f"available. notes={list(profile.notes)} sources={list(profile.sources)}"
+            )
 
         args = [
             "create-domain",
@@ -316,20 +319,16 @@ class VirtualminClient:
             "--desc",
             description,
         ]
-        for f in features:
+        for f in profile.create_features:
             args.append(f"--{f}")
 
-        if with_letsencrypt:
-            # Newer Virtualmin: --acme / --acme-always; older: --letsencrypt
-            if "acme" in flags:
-                args.append("--acme")
-            elif "letsencrypt" in flags:
-                args.append("--letsencrypt")
+        if with_letsencrypt and profile.acme_flag:
+            args.append(f"--{profile.acme_flag}")
 
-        # Explicitly never pass --mail.
         if "--mail" in args:
             raise VirtualminError("Internal error: refusing to create webmail host with --mail")
         self.run(args)
+        return profile
 
     def delete_domain(self, domain: str) -> None:
         domain = normalize_domain(domain)

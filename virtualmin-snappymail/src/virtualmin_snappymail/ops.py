@@ -196,12 +196,14 @@ def install_domain(
         _assert_web_only(existing_sub)
         if not existing_sub.has_website():
             raise SubserverConflictError(f"{webmail} exists but Website feature is off")
+        webstack_flavor = existing_sub.web_flavor()
     else:
-        client.create_web_only_subserver(
+        profile = client.create_web_only_subserver(
             webmail_domain=webmail,
             parent_domain=parent_domain,
             with_letsencrypt=with_letsencrypt,
         )
+        webstack_flavor = profile.flavor
         existing_sub = client.get_domain(webmail)
         if not existing_sub:
             raise VSMError(f"Sub-server {webmail} was not found after create-domain", code="VSM-VIRTUALMIN")
@@ -276,6 +278,7 @@ def install_domain(
         "document_root": str(existing_sub.html_dir),
         "url": f"https://{webmail}/",
         "mode": "web-only",
+        "webstack": webstack_flavor,
         "mail_identity_domain": parent_domain,
     }
 
@@ -447,6 +450,13 @@ def diagnose_domain(client: VirtualminClient, parent_domain: str) -> list[CheckR
     checks.append(CheckResult("parent_child_relation", sub.parent == parent_domain, f"parent={sub.parent}"))
     checks.append(CheckResult("subserver_is_subserver", sub.is_subserver(), sub.domain_type or ""))
     checks.append(CheckResult("subserver_web_enabled", sub.has_website(), "web|nginx"))
+    checks.append(
+        CheckResult(
+            "subserver_webstack",
+            sub.web_flavor() in {"apache", "nginx"},
+            sub.web_flavor(),
+        )
+    )
     checks.append(CheckResult("subserver_mail_disabled", not sub.has_feature("mail"), "mail_off" if not sub.has_feature("mail") else "MAIL_ON"))
     checks.append(CheckResult("subserver_web_only", sub.is_web_only(), "ok" if sub.is_web_only() else "not-web-only"))
 

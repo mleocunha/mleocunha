@@ -111,7 +111,13 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"Virtualmin available: {report.virtualmin_available}")
                 print(f"Virtualmin version: {report.virtualmin_version}")
                 print(f"Webmin version: {report.webmin_version}")
-                print(f"Web server: {report.web_server}")
+                print(f"Web server (OS): {report.web_server}")
+                if report.virtualmin_webstack:
+                    print(
+                        "Virtualmin webstack: "
+                        f"{report.virtualmin_webstack.get('flavor')} "
+                        f"{report.virtualmin_webstack.get('create_features')}"
+                    )
                 print(f"PHP: {report.php.get('version')}")
                 print("Tools:")
                 for k, v in report.tools.items():
@@ -168,6 +174,7 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"Installed SnappyMail {result['version']} for {result['parent_domain']}")
                 print(f"URL: {result['url']}")
                 print(f"Subserver: {result['webmail_domain']} (web-only)")
+                print(f"Web stack: {result.get('webstack', 'unknown')}")
                 print(f"Document root: {result['document_root']}")
                 print(f"Mail identity domain: {result['mail_identity_domain']}")
             return 0

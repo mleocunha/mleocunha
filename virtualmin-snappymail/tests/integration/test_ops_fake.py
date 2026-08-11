@@ -58,12 +58,15 @@ class FakeClient:
         return [d.name for d in self.domains.values() if d.parent == parent]
 
     def create_web_only_subserver(self, *, webmail_domain, parent_domain, with_letsencrypt=True, description="", extra_features=()):
+        from virtualmin_snappymail.webstack import WebStackProfile
+
         parent = self.domains[parent_domain]
         home = Path(parent.home) / "domains" / webmail_domain
         html = home / "public_html"
         home.mkdir(parents=True, exist_ok=True)
         html.mkdir(parents=True, exist_ok=True)
         (html / "index.html").write_text("placeholder\n", encoding="utf-8")
+        # Mimic Apache by default in unit fake; nginx hosts override Features in dedicated tests.
         info = DomainInfo(
             name=webmail_domain,
             values={
@@ -77,6 +80,14 @@ class FakeClient:
         )
         self.domains[webmail_domain] = info
         self.created.append(webmail_domain)
+        return WebStackProfile(
+            flavor="apache",
+            site_feature="web",
+            ssl_feature="ssl",
+            create_features=("dir", "dns", "logrotate", "web", "ssl"),
+            acme_flag="letsencrypt",
+            sources=("fake",),
+        )
 
     def delete_domain(self, domain: str):
         self.deleted.append(domain)

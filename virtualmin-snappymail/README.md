@@ -15,6 +15,7 @@ Login identity:         usuario@exemplo.com.br
 - Features: website/DNS/SSL/dir/logrotate — **Mail OFF**.
 - Full-copy install per domain (no shared `/opt/snappymail`, no symlinks).
 - Portable via Virtualmin backup/restore + `discover` / `adopt`.
+- **Apache and Nginx**: stack detected at runtime (`docs/WEBSTACK.md`).
 
 ## Requirements
 
