@@ -412,14 +412,12 @@ votoeletronico.com.br
         self.assertEqual(profile.flavor, "nginx")
         self.assertGreaterEqual(len(create_calls), 2)
         self.assertIn("--virtualmin-nginx", create_calls[0])
-        # After ensure_shared_address → --shared-ip
-        self.assertIn("--shared-ip", create_calls[0])
-        self.assertIn("203.0.113.10", create_calls[0])
         self.assertIn("--skip-warnings", create_calls[0])
         # Staged fallback: no website features on create
         self.assertNotIn("--virtualmin-nginx", create_calls[1])
         self.assertNotIn("--virtualmin-nginx-ssl", create_calls[1])
         self.assertTrue(any("--virtualmin-nginx" in c for c in enable_calls))
+        self.assertIn("203.0.113.10", shared_ips)
 
     def test_domaininfo_parses_shared_ip(self):
         d = DomainInfo(
@@ -453,6 +451,48 @@ votoeletronico.com.br
             any(c[1] == "create-shared-address" and "191.176.16.2" in c for c in calls)
         )
 
+    def test_ensure_shared_address_converts_private_holder(self):
+        shared: set[str] = set()
+        calls: list[list[str]] = []
+        released = {"done": False}
+
+        def runner(cmd, **kw):
+            class P:
+                returncode = 0
+                stdout = ""
+                stderr = ""
+
+            calls.append(list(cmd))
+            if len(cmd) >= 2 and cmd[1] == "help":
+                P.stdout = "[--default-ip] [--skip-warnings] [--shared-ip]\n"
+            elif cmd[1] == "list-shared-addresses":
+                P.stdout = "\n".join(sorted(shared)) + ("\n" if shared else "")
+            elif cmd[1] == "create-shared-address":
+                if not released["done"]:
+                    P.returncode = 1
+                    P.stderr = (
+                        "The virtual server licenciamento.relatasoft.com.br "
+                        "is already using address 191.176.16.2\n"
+                    )
+                else:
+                    shared.add(cmd[cmd.index("--ip") + 1])
+            elif cmd[1] == "modify-domain" and "--default-ip" in cmd:
+                released["done"] = True
+            elif "list-domains" in cmd and "--ip" in cmd and "--name-only" in cmd:
+                P.stdout = "licenciamento.relatasoft.com.br\n"
+            elif "list-domains" in cmd and "--multiline" in cmd:
+                P.stdout = (
+                    "licenciamento.relatasoft.com.br\n"
+                    "    Type: Top-level server\n"
+                    "    IP address: 191.176.16.2\n"
+                )
+            return P()
+
+        client = VirtualminClient(binary="/usr/sbin/virtualmin", runner=runner)
+        self.assertTrue(client.ensure_shared_address("191.176.16.2"))
+        self.assertIn("191.176.16.2", shared)
+        self.assertTrue(any(c[1] == "modify-domain" and "--default-ip" in c for c in calls))
+
     def test_resolve_parent_ip_flags_uses_shared_after_ensure(self):
         shared: set[str] = set()
 
@@ -480,7 +520,7 @@ votoeletronico.com.br
         self.assertEqual(flags, ["--shared-ip", "191.176.16.2"])
         self.assertIn("191.176.16.2", shared)
 
-    def test_resolve_parent_ip_flags_falls_back_to_ip_when_share_fails(self):
+    def test_resolve_parent_ip_flags_inherit_when_share_fails(self):
         def runner(cmd, **kw):
             class P:
                 returncode = 0
@@ -488,7 +528,7 @@ votoeletronico.com.br
                 stderr = ""
 
             if len(cmd) >= 2 and cmd[1] == "help":
-                P.stdout = "[--ip address] [--ip-already] [--shared-ip address]\n"
+                P.stdout = "[--ip address] [--ip-already] [--shared-ip address] [--default-ip]\n"
             elif "list-shared-addresses" in cmd:
                 P.stdout = ""
             elif cmd[1] == "create-shared-address":
@@ -503,8 +543,7 @@ votoeletronico.com.br
             parent_domain="example.com",
             parent_ip="203.0.113.10",
         )
-        self.assertEqual(flags[:2], ["--ip", "203.0.113.10"])
-        self.assertIn("--ip-already", flags)
+        self.assertEqual(flags, [])
 
     def test_get_domain_ip_falls_back_to_ip_only(self):
         def runner(cmd, **kw):

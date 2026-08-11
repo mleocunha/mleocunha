@@ -376,22 +376,19 @@ class VirtualminClient:
         return None
 
     def list_shared_ips(self) -> set[str]:
-        """Additional shared IPs from ``list-shared-addresses --name-only``."""
+        """Additional shared IPs from ``list-shared-addresses``."""
         shared: set[str] = set()
         proc = self.run(["list-shared-addresses", "--name-only"], check=False)
         if proc.returncode != 0:
-            # Some hosts only support plain list-shared-addresses.
             proc = self.run(["list-shared-addresses"], check=False)
             if proc.returncode != 0:
                 return shared
         for line in (proc.stdout or "").splitlines():
-            # Prefer bare IP lines; also accept "IP address: x.x.x.x".
             raw = line.strip()
             if not raw or raw.lower().startswith("default"):
                 # Default shared address is NOT usable with --shared-ip.
                 continue
             if ":" in raw and not re.match(r"^\d", raw):
-                # key: value form
                 raw = raw.split(":", 1)[-1].strip()
             token = raw.split()[0] if raw else ""
             if re.match(r"^\d{1,3}(?:\.\d{1,3}){3}$", token):
@@ -400,21 +397,75 @@ class VirtualminClient:
                 shared.add(token)
         return shared
 
+    def find_domains_on_ip(self, ip: str) -> list[str]:
+        """Domains Virtualmin associates with ``ip`` (``list-domains --ip``)."""
+        ip = (ip or "").strip().split()[0]
+        if not ip:
+            return []
+        proc = self.run(["list-domains", "--ip", ip, "--name-only"], check=False)
+        if proc.returncode != 0:
+            return []
+        return [
+            normalize_domain(line)
+            for line in (proc.stdout or "").splitlines()
+            if line.strip()
+        ]
+
+    def convert_domain_to_default_ip(self, domain: str) -> bool:
+        """Revert a private-IP virtual server to the system default shared IP."""
+        domain = normalize_domain(domain)
+        if not self.supports_flag("modify-domain", "--default-ip"):
+            return False
+        args = ["modify-domain", "--domain", domain, "--default-ip"]
+        if self.supports_flag("modify-domain", "--skip-warnings"):
+            args.append("--skip-warnings")
+        proc = self.run(args, check=False)
+        return proc.returncode == 0
+
     def ensure_shared_address(self, ip: str) -> bool:
         """Register ``ip`` as a Virtualmin shared address if missing.
 
-        On name-based hosts many domains already use one public IP, but that IP
-        is not always on Virtualmin's shared list. ``--ip`` then fails with
-        "already used by virtual server X" and ``--shared-ip`` fails with
-        "not in the shared IP addresses list". Registering it first fixes both.
+        If a domain still holds the address as a *private* IP, Virtualmin
+        refuses ``create-shared-address`` with::
+
+            The virtual server X is already using address A.B.C.D
+
+        Convert that domain to ``--default-ip`` and retry.
         """
         ip = (ip or "").strip().split()[0]
         if not ip:
             return False
         if ip in self.list_shared_ips():
             return True
-        # create-shared-address --ip <addr>
-        self.run(["create-shared-address", "--ip", ip], check=False)
+
+        proc = self.run(["create-shared-address", "--ip", ip], check=False)
+        if ip in self.list_shared_ips():
+            return True
+
+        err = ((proc.stderr or "") + "\n" + (proc.stdout or "")).strip()
+        holders: list[str] = []
+        m = re.search(
+            r"virtual server\s+(\S+)\s+is already using address",
+            err,
+            flags=re.IGNORECASE,
+        )
+        if m:
+            holders.append(normalize_domain(m.group(1).rstrip(".")))
+        for dom in self.find_domains_on_ip(ip):
+            if dom not in holders:
+                holders.append(dom)
+
+        converted = False
+        for dom in holders:
+            info = self.get_domain(dom)
+            if info and info.ip_is_shared is True:
+                continue
+            if self.convert_domain_to_default_ip(dom):
+                converted = True
+
+        if converted:
+            self.run(["create-shared-address", "--ip", ip], check=False)
+
         return ip in self.list_shared_ips()
 
     def resolve_parent_ip_flags(
@@ -424,21 +475,17 @@ class VirtualminClient:
         parent_ip: str | None,
         parent: DomainInfo | None = None,
     ) -> list[str]:
-        """IP flags for a ``--parent`` subserver on name-based hosting.
+        """Preferred explicit IP flags after healing shared-IP topology.
 
-        Prefer ``--shared-ip`` after ensuring the parent IP is registered as
-        shared. Fall back to ``--ip/--ip-already`` only when sharing cannot be
-        enabled (true dedicated IP).
+        Returns ``--shared-ip`` when the parent IP is (or was made) shareable.
+        Otherwise returns ``[]`` so create inherits from ``--parent``.
         """
         _ = parent_domain, parent
         if not parent_ip:
             return []
         if self.ensure_shared_address(parent_ip):
             return ["--shared-ip", parent_ip]
-        flags = ["--ip", parent_ip]
-        if self.supports_flag("create-domain", "--ip-already"):
-            flags.append("--ip-already")
-        return flags
+        return []
 
     def disable_parent_webmail_redirect(self, parent_domain: str) -> bool:
         """Remove Virtualmin webmail/admin redirects on the parent.
@@ -720,24 +767,24 @@ class VirtualminClient:
             webmail_domain=webmail_domain, parent_domain=parent_domain
         )
 
-        # Attempt order (IP modes) for name-based multi-domain hosts:
-        # 1) --shared-ip after ensure_shared_address (preferred)
-        # 2) inherit from --parent
-        # 3) --ip/--ip-already (true dedicated only)
+        # Attempt order after healing private→shared IP ownership:
+        # 1) inherit from --parent (correct for subservers)
+        # 2) --shared-ip when ensure_shared_address succeeded
+        # 3) --ip/--ip-already last resort
         preferred = list(ip_flags)
         ip_variants: list[tuple[str, Sequence[str]]] = [
-            ("preferred", preferred),
+            ("inherit-parent-ip", ()),
         ]
         if preferred:
-            ip_variants.append(("inherit-parent-ip", ()))
-        # If preferred was shared-ip, also try dedicated form (and vice versa).
-        if parent_ip and preferred[:1] == ["--shared-ip"]:
+            ip_variants.append(("preferred", preferred))
+        if parent_ip:
             alt = ["--ip", parent_ip]
             if self.supports_flag("create-domain", "--ip-already"):
                 alt.append("--ip-already")
-            ip_variants.append(("ip-already", alt))
-        elif parent_ip and preferred[:1] == ["--ip"]:
-            ip_variants.append(("shared-ip", ["--shared-ip", parent_ip]))
+            if alt != list(preferred):
+                ip_variants.append(("ip-already", alt))
+            if preferred[:1] != ["--shared-ip"]:
+                ip_variants.append(("shared-ip", ["--shared-ip", parent_ip]))
 
         attempts: list[tuple[str, list[str]]] = []
         for ip_label, flags in ip_variants:

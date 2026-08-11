@@ -126,30 +126,39 @@ is enabled, so omitting the SSL flag does not avoid the bug.
 4. On failure, creates the Sub-server **without website features**, then
    `enable-feature` for nginx/SSL after the domain already has an IP
 
-### Manual workaround (ns1)
+### Manual workaround (ns1) — private IP blocker
+
+`191.176.16.2` is still marked as a **private IP** on
+`licenciamento.relatasoft.com.br`, so Virtualmin refuses both
+`create-shared-address` and `--shared-ip`. Convert it to the default shared
+address first:
 
 ```bash
 IP=191.176.16.2
-# critical: register the public IP as shared (many domains already use it)
+
+# 1) release private ownership (name-based hosting)
+virtualmin modify-domain --domain licenciamento.relatasoft.com.br --default-ip --skip-warnings
+
+# if votoeletronico also shows as private, convert it too:
+virtualmin list-domains --domain votoeletronico.com.br --multiline | egrep -i 'IP address'
+virtualmin modify-domain --domain votoeletronico.com.br --default-ip --skip-warnings || true
+
+# 2) register shared address
 virtualmin create-shared-address --ip "$IP"
 virtualmin list-shared-addresses --name-only
 
+# 3) create webmail inheriting parent IP (no --ip / --shared-ip)
 PARENT=votoeletronico.com.br
 WM=webmail.$PARENT
-
 virtualmin list-domains --domain "$WM" --name-only >/dev/null 2>&1 \
   && virtualmin delete-domain --domain "$WM" || true
-rm -f /etc/nginx/sites-available/"$WM".conf /etc/nginx/sites-enabled/"$WM".conf
-nginx -t && systemctl reload nginx
 
 virtualmin create-domain --domain "$WM" --parent "$PARENT" \
   --desc "SnappyMail webmail (web-only)" \
-  --dir --dns --logrotate \
-  --shared-ip "$IP" --skip-warnings
+  --dir --dns --logrotate --skip-warnings
 
 virtualmin enable-feature --domain "$WM" --virtualmin-nginx --skip-warnings
 virtualmin enable-feature --domain "$WM" --virtualmin-nginx-ssl --skip-warnings || true
-virtualmin generate-letsencrypt-cert --domain "$WM" || true
 
 cd /home/cunha/mleocunha-snappymail && git pull
 cd virtualmin-snappymail && sudo bash bin/install-to-system.sh
