@@ -1,9 +1,99 @@
 index_title=SnappyMail
-index_global=Status across virtual servers
+index_global=Managed SnappyMail webapps
 index_cli_error=CLI error: $1
-index_install=Install for domain
+index_install=Install for domain…
 index_discover=Discover installations
+index_audit=Environment audit
+index_config=Module config
+index_none=No mail-enabled parent domains found, or SnappyMail is not installed for any of them yet.
+index_domain=Parent domain
+index_webmail=Webmail host
+index_version=SnappyMail
+index_https=HTTPS
+index_imap=IMAP
+index_smtp=SMTP
+index_mode=Mode
+index_managed=Managed
+index_actions=Actions
+index_manage=Manage
+index_missing=Not installed
+index_yes=Yes
+index_no=No
+index_return=SnappyMail
 index=Virtualmin
+
+install_title=Install SnappyMail
+install_header=Provision a web-only webmail sub-server
+install_desc=Creates <tt>webmail.&lt;parent&gt;</tt> (Mail OFF) and installs a full-copy SnappyMail webapp bound to the parent mail identity.
+install_domain=Parent virtual server
+install_version=SnappyMail version
+install_latest=latest
+install_le=Request Let's Encrypt certificate
+install_submit=Install
+install_noparents=No mail-enabled top-level domains are available as install targets.
+install_done=SnappyMail installed for $1
+
+domain_title=SnappyMail: $1
+domain_header=Webapp management
+domain_missing=SnappyMail is not installed for this domain.
+domain_install=Install now
+domain_diagnose=Diagnose
+domain_repair=Repair
+domain_upgrade=Upgrade
+domain_remove=Remove…
+domain_open=Open webmail
+domain_status=Current status
+
+diagnose_title=Diagnose SnappyMail
+repair_title=Repair SnappyMail
+upgrade_title=Upgrade SnappyMail
+upgrade_confirm=Upgrade SnappyMail for $1 to the latest release?
+upgrade_submit=Upgrade now
+
+remove_title=Remove SnappyMail
+remove_header=Remove SnappyMail for $1
+remove_app=Remove application files only (keep webmail sub-server)
+remove_sub=Also delete the <tt>webmail.$1</tt> sub-server
+remove_submit=Remove
+remove_confirm=This cannot be undone without a backup. Continue?
+
+discover_title=Discover SnappyMail
+discover_none=No SnappyMail installations discovered under Virtualmin homes.
+discover_webmail=Webmail domain
+discover_parent=Parent
+discover_version=Version
+discover_managed=Managed
+discover_adopt=Adopt
+discover_adopt_all=Adopt all unmanaged
+
+adopt_title=Adopt SnappyMail
+adopt_done=Adopted $1
+
+audit_title=Environment audit
+audit_run=Run audit
+
+feat_name=SnappyMail webmail
+feat_losing=The SnappyMail application will be removed for this domain (sub-server kept by default).
+feat_disname=SnappyMail management will be disabled for this domain.
+feat_label=Provision SnappyMail webmail subserver
+feat_label2=SnappyMail webmail (web-only subserver)
+feat_edepmail=Parent domain must have Mail enabled
+feat_esuitable=Only top-level mail domains are supported
+feat_setup=Installing SnappyMail webapp…
+feat_delete=Removing SnappyMail application…
+feat_disable=Leaving SnappyMail files in place (feature disable only)
+feat_enable=Re-checking SnappyMail configuration…
+feat_efail=Failed
+feat_evalidate=SnappyMail diagnose reported problems
+feat_module=SnappyMail manager
+links_manage=Manage SnappyMail
+
 acl_domains=Domains this user may manage
 acl_all=All domains
-acl_owned=Only owned domains
+acl_owned=Only owned domains (Virtualmin ACL)
+
+err_nocli=virtualmin-snappymail CLI not found at $1. Run <tt>sudo bash bin/install-to-system.sh</tt>.
+err_cli=Command failed
+err_domain_acl=You are not allowed to manage SnappyMail for $1
+err_domain_invalid=Invalid domain name: $1
+ok_done=Done

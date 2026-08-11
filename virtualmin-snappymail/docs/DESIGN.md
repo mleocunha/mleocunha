@@ -2,7 +2,7 @@
 
 ## Objetivo
 
-Gerir SnappyMail como recurso Virtualmin: um Sub-server **web-only** `webmail.<pai>` com instalação full-copy portável, CLI administrativa e caminho para plugin GUI.
+Gerir SnappyMail como recurso Virtualmin: um Sub-server **web-only** `webmail.<pai>` com instalação full-copy portável, CLI administrativa e plugin GUI (webapp manager).
 
 ## Princípio
 
@@ -38,7 +38,7 @@ virtualmin-snappymail/
 │   ├── security.py                    # escaping, path safety
 │   └── errors.py
 ├── hooks/post-domain-change.sh        # conservador
-├── webmin/virtualmin-snappymail/      # GUI futura (Perl)
+├── webmin/virtualmin-snappymail/      # Webmin GUI + virtual_feature plugin
 ├── tests/
 ├── docs/
 ├── VERSION

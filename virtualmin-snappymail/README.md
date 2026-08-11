@@ -84,9 +84,16 @@ Manifest: `{subserver_home}/.virtualmin-snappymail.json` (no secrets).
 Optional: point Virtualmin post-domain command at `hooks/post-domain-change.sh`.
 Default behaviour is conservative (no auto-install).
 
-## Webmin UI
+## Webmin / Virtualmin GUI
 
-Skeleton module under `webmin/virtualmin-snappymail/` (Phase 7). Delegates to CLI.
+`install-to-system.sh` also installs a Webmin module and registers the Virtualmin
+plugin so SnappyMail is managed like a webapp:
+
+- Left menu → **SnappyMail** (global status, install, discover, audit)
+- Domain → **Services → Manage SnappyMail**
+- **Features and Plugins** → optional “SnappyMail webmail” checkbox
+
+See `docs/GUI.md`.
 
 ## Tests
 
@@ -96,6 +103,7 @@ python3 -m unittest discover -s tests -v
 
 ## Docs
 
+- `docs/GUI.md` — Webmin / Virtualmin GUI
 - `docs/AUDIT-PHASE1.md` — environment / API audit
 - `docs/DESIGN.md` — architecture
 - `docs/BACKUP-RESTORE.md` — backup notes

@@ -21,5 +21,8 @@ Run on a real Virtualmin host with a disposable test domain.
 | 17–18 | backup+restore | see BACKUP-RESTORE.md |
 | 19 | discover after restore | `discover` |
 | 20 | adopt non-destructive | `adopt DOM` |
+| 21 | Webmin module installed | `install-to-system.sh` → module under Webmin root |
+| 22 | GUI status page loads | Virtualmin → SnappyMail |
+| 23 | Feature plugin listed | Features and Plugins → SnappyMail webmail |
 
 Cloud agent note: items requiring live Virtualmin are validated here via fake-client tests; full checklist needs the production host.

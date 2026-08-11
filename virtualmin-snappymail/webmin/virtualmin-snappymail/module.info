@@ -1,20 +1,16 @@
 # virtualmin-snappymail
-# Webmin/Virtualmin UI module (Phase 7 skeleton)
+# Webmin / Virtualmin GUI module — manage SnappyMail as a web-only webapp.
 #
-# Install (on a Virtualmin host):
+# Installed automatically by: sudo bash bin/install-to-system.sh
+# Or manually:
 #   cp -a webmin/virtualmin-snappymail /usr/share/webmin/virtualmin-snappymail
-#   Or symlink from this repo.
-# Register under Webmin → Webmin Configuration → Webmin Modules.
-#
-# Prefer calling the CLI for all mutating operations so ACL + logic stay unified.
+#   Then enable under Virtualmin → System Settings → Features and Plugins.
 
 name=SnappyMail
 category=Virtualmin
-desc=Per-domain SnappyMail web-only webmail manager
-version=0.1.0
+desc=SnappyMail webmail manager (web-only subservers)
+version=0.2.0
 os_support=*
 depends=virtual-server
-perlmodule=
 readonly=0
-feedback=
-longdesc=Install, diagnose, upgrade and remove SnappyMail as a web-only Virtualmin sub-server (webmail.domain) bound to the parent mail domain.
+longdesc=Install, diagnose, upgrade and remove SnappyMail as a web-only Virtualmin sub-server (webmail.domain) bound to the parent mail domain. Acts as a managed webapp: full-copy install, Virtualmin backup unit, CLI-backed UI.
