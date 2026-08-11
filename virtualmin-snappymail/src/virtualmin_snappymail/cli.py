@@ -18,6 +18,7 @@ from .ops import (
     diagnose_domain,
     discover_installations,
     install_domain,
+    list_mail_parents,
     remove_domain,
     repair_domain,
     status_all,
@@ -57,6 +58,10 @@ def build_parser() -> argparse.ArgumentParser:
         sp.add_argument("domain", help="Parent virtual server domain (e.g. exemplo.com.br)")
 
     sp = sub.add_parser("audit", help="Audit local Virtualmin/mail/web environment (read-only)")
+    sp = sub.add_parser(
+        "list-parents",
+        help="List top-level Virtualmin domains with Mail enabled (install targets)",
+    )
     sp = sub.add_parser("install", help="Install SnappyMail for a mail-enabled parent domain")
     add_domain_arg(sp)
     sp.add_argument("--snappy-version", default="latest")
@@ -117,6 +122,18 @@ def main(argv: list[str] | None = None) -> int:
                     print("Notes:")
                     for n in report.notes:
                         print(f"  - {n}")
+            return 0
+
+        if args.command == "list-parents":
+            parents = list_mail_parents(client)
+            if args.json:
+                _print_json({"mail_parents": parents})
+            else:
+                if not parents:
+                    print("No top-level Virtualmin domains with Mail enabled.")
+                    return 1
+                for p in parents:
+                    print(p)
             return 0
 
         if args.command in {

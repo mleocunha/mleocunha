@@ -83,10 +83,20 @@ def audit_environment(client: VirtualminClient | None = None) -> EnvironmentRepo
     if report.virtualmin_available:
         try:
             help_out = client.help()
-            # Virtualmin often prints version via `virtualmin version` or in UI; try both.
-            ver = _version_cmd([client.binary, "version"]) or _version_cmd(
-                [client.binary, "list-domains", "--help"]
-            )
+            # Prefer Virtualmin/Webmin version files; `virtualmin version` is not universal.
+            ver = None
+            for path in (
+                Path("/usr/share/webmin/virtual-server/version"),
+                Path("/usr/libexec/webmin/virtual-server/version"),
+                Path("/etc/webmin/virtual-server/version"),
+            ):
+                if path.is_file():
+                    ver = path.read_text(encoding="utf-8", errors="replace").strip() or None
+                    if ver:
+                        break
+            if not ver:
+                # Some builds expose module info via list-features help banner only.
+                ver = "available (CLI present; version.pl not shipped)"
             report.virtualmin_version = ver
             if "create-domain" in help_out:
                 report.notes.append("Virtualmin CLI help lists create-domain")

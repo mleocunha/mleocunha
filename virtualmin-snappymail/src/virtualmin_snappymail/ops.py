@@ -63,17 +63,65 @@ class StatusRow:
         return asdict(self)
 
 
+def list_mail_parents(client: VirtualminClient) -> list[str]:
+    """Return top-level Virtualmin domains with the mail feature enabled."""
+    try:
+        proc = client.run(
+            ["list-domains", "--with-feature", "mail", "--toplevel", "--name-only"],
+            check=False,
+        )
+        if proc.returncode == 0 and (proc.stdout or "").strip():
+            return sorted(
+                {
+                    normalize_domain(line)
+                    for line in (proc.stdout or "").splitlines()
+                    if line.strip()
+                }
+            )
+    except Exception:  # noqa: BLE001
+        pass
+    out: list[str] = []
+    try:
+        for d in client.list_domains_multiline():
+            if not d.parent and d.has_feature("mail"):
+                out.append(d.name)
+    except Exception:  # noqa: BLE001
+        return []
+    return sorted(set(out))
+
+
+def _hint_mail_parents(client: VirtualminClient) -> str:
+    parents = list_mail_parents(client)
+    if not parents:
+        return (
+            "No top-level domains with Mail were found. "
+            "Create/enable Mail on a Virtual Server first, then retry."
+        )
+    preview = ", ".join(parents[:20])
+    more = "" if len(parents) <= 20 else f" (+{len(parents) - 20} more)"
+    return (
+        f"Mail-enabled top-level domains on this host: {preview}{more}. "
+        "Use one of these exact names with: virtualmin-snappymail install <domain>"
+    )
+
+
 def _require_parent_with_mail(client: VirtualminClient, parent: str) -> DomainInfo:
     parent = normalize_domain(parent)
     info = client.get_domain(parent)
     if not info:
-        raise ParentMissingError(f"Virtual server not found: {parent}")
+        raise ParentMissingError(
+            f"Virtual server not found: {parent}. {_hint_mail_parents(client)}"
+        )
     if info.parent:
-        raise ParentMissingError(f"{parent} is a sub-server; provide the top-level mail domain")
+        raise ParentMissingError(
+            f"{parent} is a sub-server; provide the top-level mail domain. "
+            f"{_hint_mail_parents(client)}"
+        )
     if not info.has_feature("mail"):
         raise ParentNoMailError(
             f"Mail for Domain is not enabled on {parent}. "
-            "Enable mail on the parent before installing SnappyMail."
+            "Enable mail on the parent before installing SnappyMail. "
+            f"{_hint_mail_parents(client)}"
         )
     return info
 
