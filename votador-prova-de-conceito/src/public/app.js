@@ -234,6 +234,12 @@ function appendLog(ev) {
   const extraBits = {};
   if (ev.build) extraBits.build = ev.build;
   if (ev.user_login) extraBits.user_login = ev.user_login;
+  if (ev.user_email) extraBits.user_email = ev.user_email;
+  if (ev.locale) extraBits.locale = ev.locale;
+  if (ev.subject) extraBits.subject = ev.subject;
+  if (ev.subjects) extraBits.subjects = ev.subjects;
+  if (ev.count != null) extraBits.count = ev.count;
+  if (ev.matched) extraBits.matched = ev.matched;
   if (ev.election_id != null) extraBits.election_id = ev.election_id;
   if (ev.round_id != null) extraBits.round_id = ev.round_id;
   if (ev.receipt_hash) extraBits.receipt_hash = ev.receipt_hash;

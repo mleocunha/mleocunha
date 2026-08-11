@@ -1,5 +1,9 @@
 import { generateSecurePassword } from './passwordGen.js';
-import { subjectForLocale } from './mailSubjects.js';
+import {
+  looksLikeResetSubject,
+  subjectForLocale,
+  subjectsToMatch,
+} from './mailSubjects.js';
 
 /** Stock default (RelataSoft lab). Prefer webmail.<domínio-do-e-mail> when different. */
 const DEFAULT_MAIL_URL = 'https://webmail.relatasoft.com.br/';
@@ -55,9 +59,11 @@ export async function resetPasswordViaSnappyMail(page, opts) {
   const resolved = resolveMailUrlForEmail(mailUrl, userEmail);
   const effectiveMailUrl = resolved.url;
   const subject = subjectForLocale(batchLocale);
+  const subjectCandidates = subjectsToMatch(batchLocale);
   logger?.info?.('Disparando e-mail de redefinição', {
     user_email: userEmail,
     subject,
+    subjects: subjectCandidates,
     locale: batchLocale,
     mail_url: effectiveMailUrl,
     mail_url_configured: mailUrl,
@@ -101,6 +107,7 @@ export async function resetPasswordViaSnappyMail(page, opts) {
       userEmail,
       currentPassword,
       subject,
+      subjectCandidates,
       timeoutMs,
       logger,
     });
@@ -125,54 +132,223 @@ async function ensureOnWelcomeWithResetForm(page) {
 }
 
 async function findResetLinkInSnappyMail(page, opts) {
-  const { mailUrl, userEmail, currentPassword, subject, timeoutMs, logger } = opts;
+  const {
+    mailUrl,
+    userEmail,
+    currentPassword,
+    subject,
+    subjectCandidates = [subject],
+    timeoutMs,
+    logger,
+  } = opts;
 
   await page.goto(mailUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
   await rejectRoundcubeSurface(page);
+  // Always re-auth so we do not read a stale / wrong mailbox view.
+  await snappyLogoutIfNeeded(page, mailUrl, logger);
   await loginToSnappyMail(page, userEmail, currentPassword, mailUrl, logger);
-  // Identity popup is scheduled ~1s after identities load — wait and save it.
   await dismissSnappyStartupPopups(page, { userEmail, logger, waitForMs: 5000 });
   await openInboxFolder(page);
 
   const deadline = Date.now() + timeoutMs;
-  let resetLink = '';
+  let lastSubjectsLog = 0;
+  let searchedOnce = false;
+  let peekedJunk = false;
 
   while (Date.now() < deadline) {
     await dismissSnappyStartupPopups(page, { userEmail, logger, quiet: true });
     await reloadMessageList(page);
 
-    // Subject match on the row text (not only .subjectParent) — SnappyMail DOM varies.
-    const row = page
-      .locator('.messageListItem, .messageList .listItem, [data-message-uid]')
-      .filter({ hasText: subject })
-      .first();
-
-    if (await row.count()) {
-      await row.click({ force: true });
-      await page.locator('.bodyText, .b-message, .messageView').first().waitFor({
-        state: 'visible',
-        timeout: 15000,
-      }).catch(() => {});
-      await page.waitForTimeout(600);
-
-      resetLink = await extractResetLink(page);
-      if (resetLink) {
-        await markCurrentMessageSeen(page);
-        logger?.info?.('E-mail de redefinição aberto na INBOX (SnappyMail)', { subject });
-        return resetLink;
-      }
+    const subjectsNow = await listVisibleSubjects(page);
+    if (Date.now() - lastSubjectsLog > 15000) {
+      lastSubjectsLog = Date.now();
+      logger?.info?.('SnappyMail INBOX (assuntos visíveis)', {
+        user_email: userEmail,
+        count: subjectsNow.length,
+        subjects: subjectsNow.slice(0, 12),
+      });
     }
 
-    // Halfway through: also peek Junk/Spam once.
-    const remaining = deadline - Date.now();
-    if (remaining < timeoutMs / 2) {
-      await openMaybeJunkFolder(page);
+    const resetLink = await tryOpenResetFromList(page, {
+      subjectCandidates,
+      logger,
+    });
+    if (resetLink) {
+      return resetLink;
+    }
+
+    // Use SnappyMail search once for the preferred subject.
+    if (!searchedOnce && Date.now() > deadline - timeoutMs + 8000) {
+      searchedOnce = true;
+      await searchMailbox(page, subject);
+      const viaSearch = await tryOpenResetFromList(page, { subjectCandidates, logger });
+      if (viaSearch) {
+        return viaSearch;
+      }
+      await openInboxFolder(page);
+    }
+
+    // Mid-wait: also open newest unread messages and scan body for rp link.
+    if (Date.now() > deadline - timeoutMs / 2) {
+      const viaScan = await scanRecentMessagesForResetLink(page, logger);
+      if (viaScan) {
+        return viaScan;
+      }
+      if (!peekedJunk) {
+        peekedJunk = true;
+        await openMaybeJunkFolder(page);
+      }
     }
 
     await page.waitForTimeout(2000);
   }
 
-  throw new Error(`E-mail "${subject}" não encontrado na INBOX em ${Math.round(timeoutMs / 1000)}s.`);
+  const finalSubjects = await listVisibleSubjects(page);
+  throw new Error(
+    `E-mail de redefinição não encontrado na INBOX em ${Math.round(timeoutMs / 1000)}s ` +
+      `(procurava "${subject}"; visíveis: ${finalSubjects.slice(0, 8).join(' | ') || 'nenhum'}).`
+  );
+}
+
+/**
+ * @param {import('playwright').Page} page
+ * @param {{ subjectCandidates: string[], logger?: object }} opts
+ */
+async function tryOpenResetFromList(page, opts) {
+  const { subjectCandidates, logger } = opts;
+  const items = page.locator('.messageListItem');
+  const n = await items.count();
+  for (let i = 0; i < n; i += 1) {
+    const item = items.nth(i);
+    const text = ((await item.innerText().catch(() => '')) || '').replace(/\s+/g, ' ').trim();
+    const subjectHit =
+      subjectCandidates.some((s) => s && text.includes(s)) || looksLikeResetSubject(text);
+    if (!subjectHit) {
+      continue;
+    }
+    await item.click({ force: true });
+    await page.locator('.bodyText, .b-message, .messageView').first().waitFor({
+      state: 'visible',
+      timeout: 15000,
+    }).catch(() => {});
+    await page.waitForTimeout(500);
+    const link = await extractResetLink(page);
+    if (link) {
+      await markCurrentMessageSeen(page);
+      logger?.info?.('E-mail de redefinição aberto na INBOX (SnappyMail)', {
+        matched: text.slice(0, 120),
+      });
+      return link;
+    }
+  }
+  return '';
+}
+
+/**
+ * Open a few recent messages and look for wp-login.php?action=rp regardless of subject.
+ * @param {import('playwright').Page} page
+ * @param {object} [logger]
+ */
+async function scanRecentMessagesForResetLink(page, logger) {
+  const items = page.locator('.messageListItem');
+  const n = Math.min(await items.count(), 8);
+  for (let i = 0; i < n; i += 1) {
+    const item = items.nth(i);
+    await item.click({ force: true });
+    await page.waitForTimeout(500);
+    const link = await extractResetLink(page);
+    if (link) {
+      await markCurrentMessageSeen(page);
+      const text = ((await item.innerText().catch(() => '')) || '').replace(/\s+/g, ' ').trim();
+      logger?.info?.('Link de reset encontrado ao varrer mensagens recentes', {
+        matched: text.slice(0, 120),
+      });
+      return link;
+    }
+  }
+  return '';
+}
+
+async function listVisibleSubjects(page) {
+  return page.evaluate(() => {
+    const nodes = Array.from(document.querySelectorAll('.messageListItem .subjectParent, .messageListItem'));
+    const out = [];
+    for (const n of nodes) {
+      const t = (n.textContent || '').replace(/\s+/g, ' ').trim();
+      if (t && !out.includes(t)) {
+        out.push(t.slice(0, 160));
+      }
+      if (out.length >= 20) {
+        break;
+      }
+    }
+    return out;
+  }).catch(() => []);
+}
+
+async function searchMailbox(page, query) {
+  const search = page.locator('input.inputSearch').first();
+  if (!(await search.count())) {
+    return;
+  }
+  await search.click({ force: true }).catch(() => {});
+  await search.fill('');
+  await search.pressSequentially(String(query || ''), { delay: 10 }).catch(async () => {
+    await search.fill(String(query || ''));
+  });
+  await search.press('Enter').catch(() => {});
+  await page.waitForTimeout(1200);
+}
+
+/**
+ * If a prior attempt left the mailbox open, log out so we re-authenticate cleanly.
+ * @param {import('playwright').Page} page
+ * @param {string} mailUrl
+ * @param {object} [logger]
+ */
+async function snappyLogoutIfNeeded(page, mailUrl, logger) {
+  const inboxReady = page.locator('.messageList, .messageListPlace, .b-folders').first();
+  const loginBtn = page.locator('button.buttonLogin').first();
+  const loggedIn =
+    (await inboxReady.isVisible().catch(() => false)) &&
+    !(await loginBtn.isVisible().catch(() => false));
+  if (!loggedIn) {
+    return;
+  }
+
+  logger?.info?.('SnappyMail: a terminar sessão anterior antes de novo login');
+  const loggedOut = await page
+    .evaluate(() => {
+      try {
+        if (typeof window.rl?.logout === 'function') {
+          window.rl.logout();
+          return true;
+        }
+      } catch {
+        /* ignore */
+      }
+      return false;
+    })
+    .catch(() => false);
+
+  if (!loggedOut) {
+    const logoutLink = page
+      .locator('a')
+      .filter({ hasText: /^(Sair|Logout|Sign out|Terminar sessão|Encerrar)$/i })
+      .first();
+    if (await logoutLink.count()) {
+      await logoutLink.click({ force: true }).catch(() => {});
+    } else {
+      const u = new URL(mailUrl);
+      u.searchParams.set('logout', '1');
+      await page.goto(u.toString(), { waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => {});
+    }
+  }
+
+  await loginBtn.waitFor({ state: 'visible', timeout: 20000 }).catch(() => {});
+  if (!(await loginBtn.isVisible().catch(() => false))) {
+    await page.goto(mailUrl, { waitUntil: 'domcontentloaded', timeout: 60000 }).catch(() => {});
+  }
 }
 
 /**
