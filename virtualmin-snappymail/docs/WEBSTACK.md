@@ -38,9 +38,9 @@ redirect** (`modify-web --no-webmail`). Otherwise Nginx/Apache already claims
 `webmail.<parent>` and create fails with “virtual host with the same name
 already exists”. See `docs/TROUBLESHOOTING.md`.
 
-## Nginx SSL create quirks
+## Nginx SSL / IP create quirks
 
-Create registers the parent IP as a Virtualmin **shared address** when needed
-(`create-shared-address`), then uses `--shared-ip` + `--skip-warnings` for
-name-based multi-domain hosts. Falls back to inherit / `--ip/--ip-already`.
-On SSL plugin failures it stages website enablement. See `docs/TROUBLESHOOTING.md`.
+On name-based hosts a public IP may still be marked **private** on one domain
+(e.g. `licenciamento.relatasoft.com.br`). Install converts that domain to
+`--default-ip`, registers `create-shared-address`, then creates the Sub-server
+(prefer inherit / `--shared-ip`). See `docs/TROUBLESHOOTING.md`.
