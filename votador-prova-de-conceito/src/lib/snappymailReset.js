@@ -30,7 +30,13 @@ export async function resetPasswordViaSnappyMail(page, opts) {
 
   await ensureOnWelcomeWithResetForm(page);
 
-  await page.locator('#rses-poc-mail-locale').fill(batchLocale || '');
+  // Hidden input — Playwright fill() requires visibility; set value via DOM.
+  const localeField = page.locator('#rses-poc-mail-locale');
+  await localeField.waitFor({ state: 'attached', timeout: 15000 });
+  await localeField.evaluate((el, value) => {
+    el.value = value;
+  }, batchLocale || '');
+
   await Promise.all([
     page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 60000 }).catch(() => {}),
     page.locator('[data-rses-password-reset-submit]').click(),
