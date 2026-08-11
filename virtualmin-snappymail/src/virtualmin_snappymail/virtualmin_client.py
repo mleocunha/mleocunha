@@ -244,7 +244,7 @@ class VirtualminClient:
         return parse_create_domain_flags(self.help("create-domain"))
 
     def list_feature_codes(self, *, parent: str | None = None) -> set[str]:
-        """Feature codes from `virtualmin list-features` (optional --parent)."""
+        """Feature codes from `virtualmin list-features --name-only`."""
         args = ["list-features", "--name-only"]
         if parent:
             args.extend(["--parent", normalize_domain(parent)])
@@ -253,6 +253,18 @@ class VirtualminClient:
             return set()
         return {line.strip() for line in (proc.stdout or "").splitlines() if line.strip()}
 
+    def list_enabled_features(self, *, parent: str | None = None) -> set[str]:
+        """Features with Enabled: Yes from `virtualmin list-features --multiline`."""
+        from .webstack import enabled_feature_codes
+
+        args = ["list-features", "--multiline"]
+        if parent:
+            args.extend(["--parent", normalize_domain(parent)])
+        proc = self.run(args, check=False)
+        if proc.returncode != 0:
+            return set()
+        return enabled_feature_codes(proc.stdout or "")
+
     def detect_web_stack_profile(
         self,
         *,
@@ -260,15 +272,14 @@ class VirtualminClient:
         extra_features: Iterable[str] = (),
     ) -> WebStackProfile:
         flags = self.available_create_domain_flags()
-        listed: set[str] = set()
-        if parent:
-            listed = self.list_feature_codes(parent=parent.name)
-        else:
-            listed = self.list_feature_codes()
+        parent_name = parent.name if parent else None
+        listed = self.list_feature_codes(parent=parent_name)
+        enabled = self.list_enabled_features(parent=parent_name)
         return detect_web_stack(
             create_flags=flags,
             parent_features=parent.features if parent else None,
             list_feature_codes=listed,
+            enabled_features=enabled,
             os_has_nginx=bool(shutil.which("nginx")),
             os_has_apache=bool(shutil.which("apache2") or shutil.which("httpd")),
             extra_features=extra_features,

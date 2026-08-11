@@ -65,6 +65,10 @@ chmod 0755 "$BIN_TARGET"
 install -d "$(dirname "$LOCAL_BIN_LINK")"
 ln -sfn "$BIN_TARGET" "$LOCAL_BIN_LINK"
 
+# Also clear any stale bytecode
+find "$LIB_TARGET" -type d -name '__pycache__' -exec rm -rf {} + 2>/dev/null || true
+find "$LIB_TARGET" -type f -name '*.pyc' -delete 2>/dev/null || true
+
 # Also ensure checkout launcher is executable for direct use.
 chmod 0755 "$ROOT/bin/virtualmin-snappymail" "$ROOT/bin/install-to-system.sh" "$ROOT/bin/run-tests.sh" 2>/dev/null || true
 

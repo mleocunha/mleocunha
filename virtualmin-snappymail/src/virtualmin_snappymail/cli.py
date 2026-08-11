@@ -118,6 +118,13 @@ def main(argv: list[str] | None = None) -> int:
                         f"{report.virtualmin_webstack.get('flavor')} "
                         f"{report.virtualmin_webstack.get('create_features')}"
                     )
+                    dbg = report.virtualmin_webstack.get("debug") or {}
+                    if dbg:
+                        print(f"  creatable_apache: {dbg.get('creatable_apache')}")
+                        print(f"  creatable_nginx: {dbg.get('creatable_nginx')}")
+                        print(f"  enabled_website_features: {dbg.get('enabled_features_website')}")
+                        print(f"  create_domain_flags: {dbg.get('create_flags')}")
+                        print(f"  sources: {report.virtualmin_webstack.get('sources')}")
                 print(f"PHP: {report.php.get('version')}")
                 print("Tools:")
                 for k, v in report.tools.items():

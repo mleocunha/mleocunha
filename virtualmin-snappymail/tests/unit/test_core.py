@@ -146,6 +146,22 @@ virtualmin create-domain --domain domain.name
                         [--virtualmin-nginx-ssl]
                         [--acme]
 """
+        features_ml = """\
+web
+    Enabled: No
+ssl
+    Enabled: No
+virtualmin-nginx
+    Enabled: Yes
+virtualmin-nginx-ssl
+    Enabled: Yes
+dir
+    Enabled: Yes
+dns
+    Enabled: Yes
+logrotate
+    Enabled: Yes
+"""
 
         def runner(cmd, **kw):
             class P:
@@ -155,8 +171,10 @@ virtualmin create-domain --domain domain.name
 
             if len(cmd) >= 2 and cmd[1] == "help":
                 P.stdout = help_text
+            elif "list-features" in cmd and "--multiline" in cmd:
+                P.stdout = features_ml
             elif "list-features" in cmd:
-                P.stdout = "dir\ndns\nmail\nlogrotate\nvirtualmin-nginx\nvirtualmin-nginx-ssl\n"
+                P.stdout = "dir\ndns\nmail\nlogrotate\nweb\nssl\nvirtualmin-nginx\nvirtualmin-nginx-ssl\n"
             return P()
 
         client = VirtualminClient(binary="/usr/sbin/virtualmin", runner=runner)
@@ -172,6 +190,18 @@ virtualmin create-domain
                         [--dir] [--dns] [--mail] [--logrotate]
                         [--web] [--ssl] [--letsencrypt]
 """
+        features_ml = """\
+web
+    Enabled: Yes
+ssl
+    Enabled: Yes
+dir
+    Enabled: Yes
+dns
+    Enabled: Yes
+logrotate
+    Enabled: Yes
+"""
 
         def runner(cmd, **kw):
             class P:
@@ -181,6 +211,8 @@ virtualmin create-domain
 
             if len(cmd) >= 2 and cmd[1] == "help":
                 P.stdout = help_text
+            elif "list-features" in cmd and "--multiline" in cmd:
+                P.stdout = features_ml
             elif "list-features" in cmd:
                 P.stdout = "dir\ndns\nmail\nlogrotate\nweb\nssl\n"
             return P()
