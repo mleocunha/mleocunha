@@ -756,13 +756,16 @@ votoeletronico.com.br
 
 
 class DomainIniTests(unittest.TestCase):
-    def test_ini_uses_parent_whitelist(self):
+    def test_ini_leaves_whitelist_empty(self):
         topo = MailTopology(
             imap=Endpoint("127.0.0.1", 993, "ssl"),
             smtp=Endpoint("127.0.0.1", 587, "starttls"),
         )
         ini = snappymail_domain_ini(parent_domain="votoeletronico.com.br", topo=topo)
-        self.assertIn('white_list = "votoeletronico.com.br"', ini)
+        # Bare "domain.tld" does not match SnappyMail ValidateWhiteList (needs
+        # "@domain.tld"); empty whitelist allows all mailboxes on the domain.
+        self.assertIn('white_list = ""', ini)
+        self.assertNotIn('white_list = "votoeletronico.com.br"', ini)
         self.assertIn("993", ini)
         self.assertIn("587", ini)
 

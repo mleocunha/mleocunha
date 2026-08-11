@@ -172,7 +172,10 @@ def snappymail_domain_ini(
     imap_secure = {"ssl": "SSL", "starttls": "STARTTLS", "none": "None"}[imap.security]
     smtp_secure = {"ssl": "SSL", "starttls": "STARTTLS", "none": "None"}[smtp.security]
 
-    # SnappyMail/RainLoop style domain.ini
+    # SnappyMail Domain::ValidateWhiteList matches full email, local-part, or
+    # "@domain" — a bare "domain.tld" matches nothing and blocks every login
+    # with "not whitelisted". Empty white_list = allow all mailboxes on this
+    # domain (safe here: only this domain's IMAP/SMTP is configured).
     return f"""\
 imap_host = "{imap.host}"
 imap_port = {imap.port}
@@ -184,5 +187,5 @@ smtp_secure = "{smtp_secure}"
 smtp_short_login = Off
 smtp_auth = On
 smtp_php_mail = Off
-white_list = "{parent_domain}"
+white_list = ""
 """

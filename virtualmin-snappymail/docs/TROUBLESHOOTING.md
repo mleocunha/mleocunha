@@ -213,3 +213,38 @@ drops the domain) is rejected. Use:
 sudo virtualmin-snappymail list-parents
 sudo virtualmin-snappymail install votoeletronico.com.br
 ```
+
+## Login: “not whitelisted” / “Esta conta não é permitida”
+
+### Where the White List is (not in the Webmin module list)
+
+Whitelist is **inside SnappyMail’s own Admin Panel**, not under Webmin → Virtualmin → SnappyMail menu items.
+
+1. Open `https://webmail.<domínio>/?Admin` (capital **A**; some installs use `/?admin`)
+2. Sign in with the SnappyMail **admin** password (set at first install; file often under `data/_data_/_default_/configs/` or the install notes)
+3. Menu **Domains** → click `relatasoft.com.br` (or your mail domain)
+4. Open the tab **White List** (icon of people / last tab in the domain popup — label may be “Lista branca”)
+5. **Clear the textarea completely** and save  
+   Empty = allow every mailbox on that domain.  
+   If you keep a list, each line must be a full address, a local part, or `@domínio` (with `@`). A bare `domínio.com` matches **nothing**.
+
+Optional: **Packages** → if plugin **Whitelist** is enabled, open its config and clear `White List` or set `*@relatasoft.com.br`.
+
+### One-shot fix on the server (SSH)
+
+Older `virtualmin-snappymail` wrote `white_list = "domínio.com"` (invalid). Clear it:
+
+```bash
+# adjust path if your HTML dir differs
+INI=$(find /home -path '*/webmail.*/public_html/data/_data_/_default_/domains/*.ini' 2>/dev/null | head -20)
+echo "$INI"
+# for relatosoft example:
+sudo sed -i 's/^white_list = .*/white_list = ""/' \
+  /home/webmail.relatasoft.com.br/public_html/data/_data_/_default_/domains/relatasoft.com.br.ini
+# or generic:
+sudo find /home -path '*/data/_data_/_default_/domains/*.ini' \
+  -exec grep -l '^white_list' {} \; \
+  -exec sed -i 's/^white_list = .*/white_list = ""/' {} \;
+```
+
+Then retry login / the Votador PoC. After upgrading the manager, `sudo virtualmin-snappymail repair relatosoft.com.br` rewrites the domain INI with an empty whitelist.
