@@ -587,15 +587,16 @@ votoeletronico.com.br
             )
             text = cfg.read_text(encoding="utf-8")
             self.assertIn("iface=eth0", text)
-            self.assertIn("localip=191.176.16.2", text)
+            self.assertIn("defip=191.176.16.2", text)
             self.assertTrue(any("iface=eth0" in a for a in actions))
+            self.assertTrue(any("defip=191.176.16.2" in a for a in actions))
             self.assertTrue((Path(str(cfg) + ".vsm-bak")).is_file())
 
     def test_ensure_default_network_ip_does_not_clobber_existing(self):
         with tempfile.TemporaryDirectory() as td:
             cfg = Path(td) / "config"
             cfg.write_text(
-                "iface=ens3\nlocalip=198.51.100.1\n",
+                "iface=ens3\ndefip=198.51.100.1\n",
                 encoding="utf-8",
             )
 
@@ -614,7 +615,119 @@ votoeletronico.com.br
             self.assertEqual(actions, [])
             text = cfg.read_text(encoding="utf-8")
             self.assertIn("iface=ens3", text)
-            self.assertIn("localip=198.51.100.1", text)
+            self.assertIn("defip=198.51.100.1", text)
+
+    def test_ensure_default_network_ip_force_defip(self):
+        with tempfile.TemporaryDirectory() as td:
+            cfg = Path(td) / "config"
+            cfg.write_text("iface=ens3\ndefip=198.51.100.1\n", encoding="utf-8")
+
+            def runner(cmd, **kw):
+                class P:
+                    returncode = 0
+                    stdout = ""
+                    stderr = ""
+
+                return P()
+
+            client = VirtualminClient(binary="/usr/sbin/virtualmin", runner=runner)
+            actions = client.ensure_default_network_ip(
+                "191.176.16.2", config_path=cfg, force_defip=True
+            )
+            text = cfg.read_text(encoding="utf-8")
+            self.assertIn("defip=191.176.16.2", text)
+            self.assertTrue(any("defip=191.176.16.2" in a for a in actions))
+
+    def test_create_does_not_speculative_shared_ip(self):
+        """When parent IP is not on extra shared list, never pass --shared-ip."""
+        create_calls: list[list[str]] = []
+
+        def runner(cmd, **kw):
+            class P:
+                returncode = 0
+                stdout = ""
+                stderr = ""
+
+            if len(cmd) >= 2 and cmd[1] == "help":
+                P.stdout = (
+                    "[--dir] [--dns] [--logrotate] [--virtualmin-nginx] "
+                    "[--virtualmin-nginx-ssl] [--shared-ip address] [--ip] "
+                    "[--ip-already] [--skip-warnings] [--generate-ssl-cert] "
+                    "[--link-ssl-cert] [--acme]\n"
+                )
+            elif "list-features" in cmd and "--multiline" in cmd:
+                P.stdout = (
+                    "virtualmin-nginx\n"
+                    "    Enabled: Yes\n"
+                    "virtualmin-nginx-ssl\n"
+                    "    Enabled: Yes\n"
+                    "web\n"
+                    "    Enabled: No\n"
+                )
+            elif "list-features" in cmd:
+                P.stdout = "dir\ndns\nlogrotate\nvirtualmin-nginx\nvirtualmin-nginx-ssl\n"
+            elif "list-shared-addresses" in cmd:
+                P.stdout = ""
+            elif "list-domains" in cmd and "--multiline" in cmd:
+                P.stdout = (
+                    "votoeletronico.com.br\n"
+                    "    Type: Top-level server\n"
+                    "    Features: unix dir dns mail virtualmin-nginx virtualmin-nginx-ssl\n"
+                    "    IP address: 191.176.16.2\n"
+                    "    Home directory: /home/voto\n"
+                    "    HTML directory: /home/voto/public_html\n"
+                )
+            elif "list-domains" in cmd and "--ip-only" in cmd:
+                P.stdout = "191.176.16.2\n"
+            elif "list-domains" in cmd and "--name-only" in cmd:
+                P.stdout = "votoeletronico.com.br\n"
+            elif cmd[1] == "create-shared-address":
+                P.returncode = 1
+                P.stderr = (
+                    "The virtual server licenciamento.relatasoft.com.br "
+                    "is already using address 191.176.16.2\n"
+                )
+            elif cmd[1] == "create-domain":
+                create_calls.append(list(cmd))
+                # Succeed on inherit (no --shared-ip / --ip)
+                if "--shared-ip" in cmd:
+                    P.returncode = 1
+                    P.stderr = "191.176.16.2 is not in the shared IP addresses list\n"
+                elif "--ip" in cmd:
+                    P.returncode = 1
+                    P.stderr = "The IP address is already used by virtual server x\n"
+                else:
+                    P.returncode = 0
+            elif cmd[1] == "modify-web":
+                P.returncode = 0
+            elif cmd[1] == "modify-domain":
+                P.returncode = 1
+                P.stderr = (
+                    "The --default-ip flag can only be used when the virtual "
+                    "server has a private address\n"
+                )
+            return P()
+
+        client = VirtualminClient(binary="/usr/sbin/virtualmin", runner=runner)
+        # Point ensure_default_network_ip at a temp config so inherit works.
+        with tempfile.TemporaryDirectory() as td:
+            cfg = Path(td) / "config"
+            cfg.write_text("home_base=/home\n", encoding="utf-8")
+            orig = client.ensure_default_network_ip
+
+            def _ensure(ip, config_path=None, force_defip=False):
+                return orig(ip, config_path=cfg, force_defip=force_defip)
+
+            client.ensure_default_network_ip = _ensure  # type: ignore[method-assign]
+            profile = client.create_web_only_subserver(
+                webmail_domain="webmail.votoeletronico.com.br",
+                parent_domain="votoeletronico.com.br",
+                with_letsencrypt=False,
+            )
+        self.assertEqual(profile.flavor, "nginx")
+        self.assertTrue(create_calls)
+        for c in create_calls:
+            self.assertNotIn("--shared-ip", c)
 
     def test_get_domain_ip_falls_back_to_ip_only(self):
         def runner(cmd, **kw):

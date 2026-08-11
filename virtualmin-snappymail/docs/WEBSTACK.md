@@ -41,7 +41,7 @@ already exists”. See `docs/TROUBLESHOOTING.md`.
 ## Nginx SSL / IP create quirks
 
 On name-based hosts Virtualmin may fail to resolve a default IP (`iface` /
-`localip` blank), while `create-shared-address` / `--default-ip` are refused
-because the public IP is already assigned (but not as a private/virt address).
-Install heals blank Network Settings, then creates the Sub-server preferring
-inherit / `--shared-ip`. See `docs/TROUBLESHOOTING.md`.
+`defip` blank). `create-shared-address` is refused when any domain already
+owns that IP, and `--shared-ip` cannot be used for the system default address.
+Install heals blank `defip`/`iface`, then creates the Sub-server by inheriting
+the parent/default IP. See `docs/TROUBLESHOOTING.md`.

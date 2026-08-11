@@ -117,10 +117,10 @@ is enabled, so omitting the SSL flag does not avoid the bug.
 `install` now:
 
 1. Resolves parent IP via multiline + `list-domains --ip-only`
-2. Heals Virtualmin Network Settings (`iface=` / `localip=`) when blank so the
+2. Heals Virtualmin Network Settings (`defip=` / `iface=`) when blank so the
    default shared IP can be resolved
-3. Tries `create-shared-address` + `--shared-ip` when possible; otherwise
-   inherits from `--parent`
+3. Tries `create-shared-address` + `--shared-ip` only for *extra* shared IPs;
+   the system default IP is inherited from `--parent` (never via `--shared-ip`)
 4. Passes `--generate-ssl-cert` / `--link-ssl-cert` / `--acme` when available
 5. On failure, creates the Sub-server **without website features**, then
    `enable-feature` for nginx/SSL after the domain already has an IP
@@ -148,14 +148,14 @@ virtual servers. It is **not** a Virtualmin private/virt IP, so:
 - `--default-ip` is refused
 - `create-shared-address --ip 191.176.16.2` is refused (“already using address”)
 - create without IP flags fails because Network Settings have no usable
-  `iface` / `localip` (Virtualmin cannot compute a default IP)
+  `iface` / `defip` (Virtualmin cannot compute a default IP)
 
 ### Automatic fix
 
-`install` fills blank `iface=` / `localip=` in
-`/etc/webmin/virtual-server/config` from the OS NIC that owns the parent IP,
-then creates `webmail.<parent>` inheriting the parent address (no `--ip` /
-`--shared-ip` required).
+`install` fills blank `defip=` / `iface=` in
+`/etc/webmin/virtual-server/config` (Virtualmin’s `get_default_ip()` reads
+`defip`, not `localip`), then creates `webmail.<parent>` inheriting that
+default address. It does **not** pass `--shared-ip` for the default IP.
 
 ### Manual fix (ns1)
 
@@ -170,13 +170,16 @@ ip -4 -o addr show | grep "$IP"
 
 # 2) set Virtualmin Network Settings (backup first)
 cp -a /etc/webmin/virtual-server/config /etc/webmin/virtual-server/config.vsm-bak
-# set iface=<nic> and localip=$IP when blank — or in Webmin:
-# System Settings → Network Settings → Network interface / Default IP
-
-grep -E '^(iface|localip)=' /etc/webmin/virtual-server/config || true
-# if missing, append (replace eth0 with the NIC from step 1):
+# Webmin UI: System Settings → Virtualmin Configuration → Network Settings
+#   → Default virtual server IPv4 address = $IP
+#   → Network interface for virtual addresses = <nic from step 1>
+#
+# Or edit config directly:
+grep -E '^(iface|defip)=' /etc/webmin/virtual-server/config || true
+# if defip is missing/blank:
+#   echo "defip=$IP" >> /etc/webmin/virtual-server/config
+# if iface is missing/blank (replace eth0):
 #   echo "iface=eth0" >> /etc/webmin/virtual-server/config
-#   echo "localip=$IP" >> /etc/webmin/virtual-server/config
 
 systemctl restart webmin || service webmin restart
 virtualmin check-config || true

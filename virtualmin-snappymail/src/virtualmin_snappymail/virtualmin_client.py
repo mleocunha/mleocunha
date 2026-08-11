@@ -478,14 +478,20 @@ class VirtualminClient:
         ip: str,
         *,
         config_path: Path | None = None,
+        force_defip: bool = False,
     ) -> list[str]:
         """Ensure Virtualmin can resolve the system default shared IP.
 
         Fixes ``New virtual server has no IP address! Perhaps Virtualmin could
-        not work out the system's default IP`` by filling blank ``iface=`` /
-        ``localip=`` in ``/etc/webmin/virtual-server/config``.
+        not work out the system's default IP`` by filling blank ``defip=`` /
+        ``iface=`` in ``/etc/webmin/virtual-server/config``.
 
-        Does **not** overwrite non-empty admin-set values.
+        Virtualmin's ``get_default_ip()`` reads ``$config{'defip'}`` first, then
+        falls back to the address on ``$config{'iface'}``. ``localip`` is not
+        used for this.
+
+        Does **not** overwrite non-empty admin-set values unless
+        ``force_defip`` is true (used after inherit still fails).
         """
         actions: list[str] = []
         ip = (ip or "").strip().split()[0]
@@ -509,9 +515,11 @@ class VirtualminClient:
         current_iface = (kv.get("iface") or "").strip()
         if iface and not current_iface:
             updates["iface"] = iface
-        current_localip = (kv.get("localip") or "").strip()
-        if not current_localip:
-            updates["localip"] = ip
+
+        # defip is the authoritative "Default virtual server IPv4 address".
+        current_defip = (kv.get("defip") or "").strip()
+        if not current_defip or (force_defip and current_defip != ip):
+            updates["defip"] = ip
 
         if not updates:
             return actions
@@ -523,8 +531,12 @@ class VirtualminClient:
             for line in new_lines:
                 if line.startswith(f"{key}="):
                     found = True
+                    old = line.split("=", 1)[1].strip() if "=" in line else ""
                     rebuilt.append(f"{key}={value}")
-                    actions.append(f"set virtual-server {key}={value} (was blank)")
+                    actions.append(
+                        f"set virtual-server {key}={value}"
+                        + (f" (was {old!r})" if old else " (was blank)")
+                    )
                 else:
                     rebuilt.append(line)
             if not found:
@@ -540,16 +552,16 @@ class VirtualminClient:
         return actions
 
     def ensure_shared_address(self, ip: str) -> bool:
-        """Register ``ip`` as a Virtualmin shared address if missing.
+        """Register ``ip`` as an *additional* Virtualmin shared address if missing.
 
-        On many hosts the public IP is already assigned to an existing server
-        (often the *default* address, not a private/virt IP), so
-        ``create-shared-address`` refuses with "already using address" and
-        ``--default-ip`` refuses with "can only be used when the virtual server
-        has a private address".
+        The system's **default** IP (``get_default_ip`` / ``defip``) is already
+        shared for name-based hosting and must **not** be passed via
+        ``--shared-ip``. ``create-shared-address`` also refuses any IP already
+        owned by a domain (``get_domain_by("ip", ...)``), which is exactly the
+        ns1 topology for ``191.176.16.2``.
 
-        In that topology we heal Virtualmin's ``iface``/``localip`` so new
-        subservers can inherit the parent IP without ``--shared-ip``.
+        Returns True only when ``list-shared-addresses`` lists ``ip`` as an
+        *extra* shared address usable with ``--shared-ip``.
         """
         ip = (ip or "").strip().split()[0]
         if not ip:
@@ -557,7 +569,7 @@ class VirtualminClient:
         if ip in self.list_shared_ips():
             return True
 
-        # Always try to heal default-IP detection first (needed for --parent creates).
+        # Heal default IP detection — primary path for name-based parents.
         self.ensure_default_network_ip(ip)
 
         proc = self.run(["create-shared-address", "--ip", ip], check=False)
@@ -565,6 +577,11 @@ class VirtualminClient:
             return True
 
         err = ((proc.stderr or "") + "\n" + (proc.stdout or "")).strip()
+        # Already the default shared address — treat as success for inherit,
+        # but False for --shared-ip (caller must inherit).
+        if re.search(r"already a shared address", err, flags=re.IGNORECASE):
+            return False
+
         holders: list[str] = []
         m = re.search(
             r"virtual server\s+(\S+)\s+is already using address",
@@ -601,9 +618,10 @@ class VirtualminClient:
     ) -> list[str]:
         """Preferred explicit IP flags after healing network/default IP.
 
-        Returns ``--shared-ip`` when the parent IP is on the shared list.
-        Otherwise returns ``[]`` so create inherits from ``--parent`` (works
-        once Virtualmin default IP / iface is configured).
+        Returns ``--shared-ip`` only when the parent IP is on the *additional*
+        shared list. Otherwise returns ``[]`` so create inherits the default
+        IP (``defip`` / iface) — required when the parent uses the system
+        default address.
         """
         _ = parent_domain, parent
         if not parent_ip:
@@ -893,9 +911,9 @@ class VirtualminClient:
             webmail_domain=webmail_domain, parent_domain=parent_domain
         )
 
-        # Attempt order after healing private→shared IP ownership:
-        # 1) inherit from --parent (correct for subservers)
-        # 2) --shared-ip when ensure_shared_address succeeded
+        # Attempt order after healing defip / shared-IP topology:
+        # 1) inherit from --parent (correct for default shared IP)
+        # 2) --shared-ip only when ensure_shared_address succeeded (extra shared)
         # 3) --ip/--ip-already last resort
         preferred = list(ip_flags)
         ip_variants: list[tuple[str, Sequence[str]]] = [
@@ -909,8 +927,9 @@ class VirtualminClient:
                 alt.append("--ip-already")
             if alt != list(preferred):
                 ip_variants.append(("ip-already", alt))
-            if preferred[:1] != ["--shared-ip"]:
-                ip_variants.append(("shared-ip", ["--shared-ip", parent_ip]))
+            # Do NOT append a speculative --shared-ip: default IPs are not on
+            # list-shared-addresses and Virtualmin rejects them with
+            # "is not in the shared IP addresses list".
 
         attempts: list[tuple[str, list[str]]] = []
         for ip_label, flags in ip_variants:
@@ -949,6 +968,8 @@ class VirtualminClient:
 
         last_error: VirtualminError | None = None
         last_mode = ""
+        attempt_errors: list[str] = []
+        forced_defip = False
         for mode, args in attempts:
             last_mode = mode
             try:
@@ -962,6 +983,7 @@ class VirtualminClient:
                 return profile
             except VirtualminError as exc:
                 last_error = exc
+                attempt_errors.append(f"{mode}: {exc.message}")
                 if self._is_vhost_name_conflict(exc.message):
                     leftover = self.find_orphan_nginx_vhost_files(webmail_domain)
                     leftover_txt = ", ".join(str(p) for p in leftover) or (
@@ -979,6 +1001,18 @@ class VirtualminClient:
                         f"Webmin → Servers → Nginx, reload nginx, and re-run install. "
                         f"Original error: {exc.message}"
                     ) from exc
+                # If inherit still cannot see a default IP, force defip=parent_ip once.
+                if (
+                    parent_ip
+                    and not forced_defip
+                    and (
+                        "no ip address" in exc.message.lower()
+                        or "could not work out" in exc.message.lower()
+                        or "default ip" in exc.message.lower()
+                    )
+                ):
+                    self.ensure_default_network_ip(parent_ip, force_defip=True)
+                    forced_defip = True
                 # Continue through IP-mode / SSL-plugin / staged fallbacks.
                 if (
                     self._is_ssl_plugin_failure(exc.message)
@@ -991,11 +1025,14 @@ class VirtualminClient:
                 raise
 
         assert last_error is not None
+        trail = " | ".join(attempt_errors[-4:])
         raise VirtualminError(
             f"Failed to create {webmail_domain} "
             f"(parent IP={parent_ip or 'unknown'}, preferred_ip_flags={list(ip_flags) or 'inherit'}, "
             f"last_mode={last_mode}). "
-            f"Last error: {last_error.message}"
+            f"Ensure Virtualmin Network Settings has defip={parent_ip or '<parent-ip>'} "
+            f"(System Settings → Virtualmin Configuration → Network Settings). "
+            f"Last error: {last_error.message}. Attempts: {trail}"
         ) from last_error
 
     def delete_domain(self, domain: str) -> None:
