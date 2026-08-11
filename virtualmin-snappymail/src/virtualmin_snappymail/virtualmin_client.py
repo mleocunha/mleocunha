@@ -68,25 +68,42 @@ class DomainInfo:
 
 
 def parse_multiline_domains(text: str) -> list[DomainInfo]:
-    """Parse `virtualmin list-domains --multiline` output."""
+    """Parse `virtualmin list-domains --multiline` output.
+
+    Virtualmin GPL prints the domain header *without* a trailing colon::
+
+        exemplo.com.br
+            Type: Top-level server
+            Features: unix dir dns mail web ssl
+
+    Some docs/examples show a trailing colon; both forms are accepted.
+    """
     domains: list[DomainInfo] = []
     current: DomainInfo | None = None
-    header_re = re.compile(r"^(\S.+):\s*$")
+    # Header: non-indented line that is either "name" or "name:"
+    header_re = re.compile(r"^(\S\S*)\s*:?\s*$")
     kv_re = re.compile(r"^\s{2,}([^:]+):\s*(.*)$")
 
     for line in text.splitlines():
         if not line.strip():
             continue
+        # Indented key/value lines belong to the current domain.
+        if line.startswith(" ") or line.startswith("\t"):
+            if current is None:
+                continue
+            km = kv_re.match(line)
+            if km:
+                current.values[km.group(1).strip()] = km.group(2).strip()
+            continue
         hm = header_re.match(line)
-        if hm and not line.startswith(" "):
-            current = DomainInfo(name=hm.group(1).strip().lower())
-            domains.append(current)
+        if not hm:
             continue
-        if current is None:
+        name = hm.group(1).strip().lower().rstrip(":")
+        # Skip obvious non-domain banners
+        if name.lower() in {"id", "file", "type", "features", "plugins"}:
             continue
-        km = kv_re.match(line)
-        if km:
-            current.values[km.group(1).strip()] = km.group(2).strip()
+        current = DomainInfo(name=name)
+        domains.append(current)
     return domains
 
 

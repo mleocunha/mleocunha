@@ -76,15 +76,17 @@ class SecurityTests(unittest.TestCase):
 
 
 class ParseMultilineTests(unittest.TestCase):
-    def test_parse(self):
+    def test_parse_virtualmin_real_format_no_colon(self):
+        # Actual Virtualmin GPL output: domain header has NO trailing colon.
         sample = """\
-example.com:
+example.com
+    ID: 123
     Type: Top-level server
     Username: example
     Home directory: /home/example
     HTML directory: /home/example/public_html
     Features: unix dir dns mail web ssl logrotate
-webmail.example.com:
+webmail.example.com
     Type: Sub-server
     Parent domain: example.com
     Username: example
@@ -95,11 +97,23 @@ webmail.example.com:
         domains = parse_multiline_domains(sample)
         self.assertEqual(len(domains), 2)
         parent = domains[0]
+        self.assertEqual(parent.name, "example.com")
         self.assertTrue(parent.has_feature("mail"))
         child = domains[1]
         self.assertEqual(child.parent, "example.com")
         self.assertTrue(child.is_web_only())
         self.assertFalse(child.has_feature("mail"))
+
+    def test_parse_colon_header_still_works(self):
+        sample = """\
+example.com:
+    Type: Top-level server
+    Features: unix dir dns mail web ssl
+"""
+        domains = parse_multiline_domains(sample)
+        self.assertEqual(len(domains), 1)
+        self.assertEqual(domains[0].name, "example.com")
+        self.assertTrue(domains[0].has_feature("mail"))
 
 
 class DomainIniTests(unittest.TestCase):
