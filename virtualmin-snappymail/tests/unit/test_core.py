@@ -343,17 +343,10 @@ logrotate
         parent_ml = """\
 votoeletronico.com.br
     Type: Top-level server
-    IP address: 203.0.113.10 (shared)
     Features: unix dir dns mail virtualmin-nginx virtualmin-nginx-ssl logrotate
 """
-        child_ml = """\
-webmail.votoeletronico.com.br
-    Type: Sub-server
-    Parent domain: votoeletronico.com.br
-    IP address: 203.0.113.10
-    Features: dir dns virtualmin-nginx logrotate
-"""
         create_calls: list[list[str]] = []
+        enable_calls: list[list[str]] = []
 
         def runner(cmd, **kw):
             class P:
@@ -370,27 +363,26 @@ webmail.votoeletronico.com.br
                 P.stdout = features_ml
             elif "list-features" in cmd:
                 P.stdout = "dir\ndns\nlogrotate\nvirtualmin-nginx\nvirtualmin-nginx-ssl\n"
+            elif "list-domains" in cmd and "--ip-only" in cmd:
+                P.stdout = "203.0.113.10\n"
             elif "list-domains" in cmd and "--multiline" in cmd and "--domain" in cmd:
                 idx = cmd.index("--domain")
                 domain = cmd[idx + 1]
                 if domain == "votoeletronico.com.br":
                     P.stdout = parent_ml
-                elif domain == "webmail.votoeletronico.com.br" and any(
-                    c[1] == "create-domain" and "--virtualmin-nginx-ssl" not in c for c in create_calls
-                ):
-                    P.stdout = child_ml
                 else:
                     P.returncode = 1
             elif "list-domains" in cmd and "--name-only" in cmd:
-                # After failed SSL create, cleanup checks existence then no-ssl create.
-                if create_calls and "--virtualmin-nginx-ssl" in create_calls[-1]:
+                if create_calls and any(
+                    x in create_calls[-1] for x in ("--virtualmin-nginx", "--virtualmin-nginx-ssl")
+                ):
                     P.returncode = 0
                     P.stdout = "webmail.votoeletronico.com.br\n"
                 else:
                     P.returncode = 1
             elif cmd[1] == "create-domain":
                 create_calls.append(list(cmd))
-                if "--virtualmin-nginx-ssl" in cmd:
+                if "--virtualmin-nginx" in cmd:
                     P.returncode = 1
                     P.stderr = (
                         "Use of uninitialized value in string eq at "
@@ -401,6 +393,7 @@ webmail.votoeletronico.com.br
             elif cmd[1] == "delete-domain":
                 P.returncode = 0
             elif cmd[1] == "enable-feature":
+                enable_calls.append(list(cmd))
                 P.returncode = 0
             elif cmd[1] == "generate-letsencrypt-cert":
                 P.returncode = 0
@@ -413,11 +406,14 @@ webmail.votoeletronico.com.br
         )
         self.assertEqual(profile.flavor, "nginx")
         self.assertGreaterEqual(len(create_calls), 2)
-        self.assertIn("--virtualmin-nginx-ssl", create_calls[0])
+        self.assertIn("--virtualmin-nginx", create_calls[0])
         self.assertIn("--shared-ip", create_calls[0])
         self.assertIn("203.0.113.10", create_calls[0])
+        # Staged fallback: no website features on create
+        self.assertNotIn("--virtualmin-nginx", create_calls[1])
         self.assertNotIn("--virtualmin-nginx-ssl", create_calls[1])
-        self.assertIn("--virtualmin-nginx", create_calls[1])
+        self.assertIn("--shared-ip", create_calls[1])
+        self.assertTrue(any("--virtualmin-nginx" in c for c in enable_calls))
 
     def test_domaininfo_parses_shared_ip(self):
         d = DomainInfo(
@@ -425,6 +421,22 @@ webmail.votoeletronico.com.br
             values={"IP address": "203.0.113.10 (shared)"},
         )
         self.assertEqual(d.ip, "203.0.113.10")
+
+    def test_get_domain_ip_falls_back_to_ip_only(self):
+        def runner(cmd, **kw):
+            class P:
+                returncode = 0
+                stdout = ""
+                stderr = ""
+
+            if "list-domains" in cmd and "--ip-only" in cmd:
+                P.stdout = "198.51.100.7\n"
+            elif "list-domains" in cmd:
+                P.returncode = 1
+            return P()
+
+        client = VirtualminClient(binary="/usr/sbin/virtualmin", runner=runner)
+        self.assertEqual(client.get_domain_ip("votoeletronico.com.br"), "198.51.100.7")
 
 
 class DomainIniTests(unittest.TestCase):

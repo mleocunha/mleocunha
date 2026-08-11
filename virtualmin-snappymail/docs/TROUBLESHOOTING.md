@@ -109,39 +109,44 @@ Use of uninitialized value in string eq at
 
 The Nginx SSL plugin compares `$d->{'ip'}` while creating the Sub-server. If the
 child has no IP yet, Perl warns once per existing domain and create exits 1.
-Missing `--generate-ssl-cert` / ACME flags make the same path fragile.
+Also, `virtualmin-nginx-ssl` is often **auto-chained** when `--virtualmin-nginx`
+is enabled, so omitting the SSL flag does not avoid the bug.
 
 ### Automatic fix
 
 `install` now:
 
-1. Passes `--shared-ip <parent-ip> --ip-already` when available
-2. Passes `--generate-ssl-cert` / `--link-ssl-cert` / `--acme` when available
-3. On SSL plugin failure, deletes any half-created domain and retries **without**
-   SSL, then enables SSL + Let's Encrypt after create
+1. Resolves parent IP via multiline + `list-domains --ip-only`
+2. Always passes `--shared-ip <parent-ip> --ip-already`
+3. Passes `--generate-ssl-cert` / `--link-ssl-cert` / `--acme` when available
+4. On failure, creates the Sub-server **without website features**, then
+   `enable-feature` for nginx/SSL after the domain already has an IP
 
 ### Manual workaround
 
 ```bash
 PARENT=votoeletronico.com.br
 WM=webmail.$PARENT
-IP=$(virtualmin list-domains --domain "$PARENT" --multiline | awk -F': ' '/IP address:/ {print $2; exit}' | awk '{print $1}')
+IP=$(virtualmin list-domains --domain "$PARENT" --ip-only | awk '{print $1; exit}')
+echo "parent IP=$IP"
 
 # clean leftovers
-virtualmin list-domains --domain "$WM" --name-only && virtualmin delete-domain --domain "$WM"
+virtualmin list-domains --domain "$WM" --name-only >/dev/null 2>&1 \
+  && virtualmin delete-domain --domain "$WM" || true
 rm -f /etc/nginx/sites-available/"$WM".conf /etc/nginx/sites-enabled/"$WM".conf
 nginx -t && systemctl reload nginx
 
-# create HTTP first, then SSL
+# staged create (no website first)
 virtualmin create-domain --domain "$WM" --parent "$PARENT" \
   --desc "SnappyMail webmail (web-only)" \
-  --dir --dns --logrotate --virtualmin-nginx \
+  --dir --dns --logrotate \
   --shared-ip "$IP" --ip-already
 
-virtualmin enable-feature --domain "$WM" --virtualmin-nginx-ssl
-virtualmin generate-letsencrypt-cert --domain "$WM"
+virtualmin enable-feature --domain "$WM" --virtualmin-nginx
+virtualmin enable-feature --domain "$WM" --virtualmin-nginx-ssl || true
+virtualmin generate-letsencrypt-cert --domain "$WM" || true
 
-# then finish with the manager (adopts existing subserver)
+# finish with the manager (uses existing subserver)
 cd /home/cunha/mleocunha-snappymail && git pull
 cd virtualmin-snappymail && sudo bash bin/install-to-system.sh
 sudo virtualmin-snappymail install "$PARENT"
