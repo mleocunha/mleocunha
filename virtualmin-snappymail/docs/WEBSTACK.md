@@ -37,3 +37,10 @@ Before `create-domain`, install clears the parent’s Virtualmin **webmail/admin
 redirect** (`modify-web --no-webmail`). Otherwise Nginx/Apache already claims
 `webmail.<parent>` and create fails with “virtual host with the same name
 already exists”. See `docs/TROUBLESHOOTING.md`.
+
+## Nginx SSL create quirks
+
+Create passes `--shared-ip` (parent IP), `--generate-ssl-cert`, and ACME when
+available. If `virtualmin-nginx-ssl` still crashes (`uninitialized value in
+string eq`), install retries without SSL and enables SSL after the Sub-server
+exists. See `docs/TROUBLESHOOTING.md`.

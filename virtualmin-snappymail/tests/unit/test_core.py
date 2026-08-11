@@ -261,6 +261,7 @@ class WebmailPrepTests(unittest.TestCase):
 virtualmin create-domain
                         [--dir] [--dns] [--logrotate]
                         [--virtualmin-nginx] [--virtualmin-nginx-ssl] [--acme]
+                        [--shared-ip] [--ip-already] [--generate-ssl-cert] [--link-ssl-cert]
 """
         features_ml = """\
 virtualmin-nginx
@@ -277,6 +278,7 @@ logrotate
         parent_ml = """\
 votoeletronico.com.br
     Type: Top-level server
+    IP address: 203.0.113.10
     Features: unix dir dns mail virtualmin-nginx virtualmin-nginx-ssl logrotate
 """
 
@@ -296,7 +298,6 @@ votoeletronico.com.br
             elif "list-features" in cmd:
                 P.stdout = "dir\ndns\nlogrotate\nvirtualmin-nginx\nvirtualmin-nginx-ssl\n"
             elif "list-domains" in cmd and "--multiline" in cmd and "--domain" in cmd:
-                # parent lookup vs missing webmail
                 idx = cmd.index("--domain")
                 domain = cmd[idx + 1]
                 if domain == "votoeletronico.com.br":
@@ -318,6 +319,112 @@ votoeletronico.com.br
             )
         self.assertIn("no-webmail", ctx.exception.message)
         self.assertIn("webmail.votoeletronico.com.br", ctx.exception.message)
+
+    def test_create_retries_without_ssl_on_nginx_ssl_bug(self):
+        help_create = """
+virtualmin create-domain
+                        [--dir] [--dns] [--logrotate]
+                        [--virtualmin-nginx] [--virtualmin-nginx-ssl] [--acme]
+                        [--shared-ip address] [--ip-already]
+                        [--generate-ssl-cert] [--link-ssl-cert]
+"""
+        features_ml = """\
+virtualmin-nginx
+    Enabled: Yes
+virtualmin-nginx-ssl
+    Enabled: Yes
+dir
+    Enabled: Yes
+dns
+    Enabled: Yes
+logrotate
+    Enabled: Yes
+"""
+        parent_ml = """\
+votoeletronico.com.br
+    Type: Top-level server
+    IP address: 203.0.113.10 (shared)
+    Features: unix dir dns mail virtualmin-nginx virtualmin-nginx-ssl logrotate
+"""
+        child_ml = """\
+webmail.votoeletronico.com.br
+    Type: Sub-server
+    Parent domain: votoeletronico.com.br
+    IP address: 203.0.113.10
+    Features: dir dns virtualmin-nginx logrotate
+"""
+        create_calls: list[list[str]] = []
+
+        def runner(cmd, **kw):
+            class P:
+                returncode = 0
+                stdout = ""
+                stderr = ""
+
+            if len(cmd) >= 2 and cmd[1] == "help":
+                if len(cmd) >= 3 and cmd[2] == "modify-web":
+                    P.stdout = "[--no-webmail]\n"
+                else:
+                    P.stdout = help_create
+            elif "list-features" in cmd and "--multiline" in cmd:
+                P.stdout = features_ml
+            elif "list-features" in cmd:
+                P.stdout = "dir\ndns\nlogrotate\nvirtualmin-nginx\nvirtualmin-nginx-ssl\n"
+            elif "list-domains" in cmd and "--multiline" in cmd and "--domain" in cmd:
+                idx = cmd.index("--domain")
+                domain = cmd[idx + 1]
+                if domain == "votoeletronico.com.br":
+                    P.stdout = parent_ml
+                elif domain == "webmail.votoeletronico.com.br" and any(
+                    c[1] == "create-domain" and "--virtualmin-nginx-ssl" not in c for c in create_calls
+                ):
+                    P.stdout = child_ml
+                else:
+                    P.returncode = 1
+            elif "list-domains" in cmd and "--name-only" in cmd:
+                # After failed SSL create, cleanup checks existence then no-ssl create.
+                if create_calls and "--virtualmin-nginx-ssl" in create_calls[-1]:
+                    P.returncode = 0
+                    P.stdout = "webmail.votoeletronico.com.br\n"
+                else:
+                    P.returncode = 1
+            elif cmd[1] == "create-domain":
+                create_calls.append(list(cmd))
+                if "--virtualmin-nginx-ssl" in cmd:
+                    P.returncode = 1
+                    P.stderr = (
+                        "Use of uninitialized value in string eq at "
+                        "/usr/share/webmin/virtualmin-nginx-ssl/virtual_feature.pl line 130.\n"
+                    )
+                else:
+                    P.returncode = 0
+            elif cmd[1] == "delete-domain":
+                P.returncode = 0
+            elif cmd[1] == "enable-feature":
+                P.returncode = 0
+            elif cmd[1] == "generate-letsencrypt-cert":
+                P.returncode = 0
+            return P()
+
+        client = VirtualminClient(binary="/usr/sbin/virtualmin", runner=runner)
+        profile = client.create_web_only_subserver(
+            webmail_domain="webmail.votoeletronico.com.br",
+            parent_domain="votoeletronico.com.br",
+        )
+        self.assertEqual(profile.flavor, "nginx")
+        self.assertGreaterEqual(len(create_calls), 2)
+        self.assertIn("--virtualmin-nginx-ssl", create_calls[0])
+        self.assertIn("--shared-ip", create_calls[0])
+        self.assertIn("203.0.113.10", create_calls[0])
+        self.assertNotIn("--virtualmin-nginx-ssl", create_calls[1])
+        self.assertIn("--virtualmin-nginx", create_calls[1])
+
+    def test_domaininfo_parses_shared_ip(self):
+        d = DomainInfo(
+            name="votoeletronico.com.br",
+            values={"IP address": "203.0.113.10 (shared)"},
+        )
+        self.assertEqual(d.ip, "203.0.113.10")
 
 
 class DomainIniTests(unittest.TestCase):

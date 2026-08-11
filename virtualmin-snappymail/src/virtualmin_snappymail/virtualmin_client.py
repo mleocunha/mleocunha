@@ -63,6 +63,21 @@ class DomainInfo:
         return Path(h) if h else None
 
     @property
+    def ip(self) -> str | None:
+        for key in (
+            "IP address",
+            "IPv4 address",
+            "IP Address",
+            "Real IP address",
+            "External IP address",
+        ):
+            val = (self.values.get(key) or "").strip()
+            if val and val.lower() not in {"", "none", "n/a"}:
+                # Virtualmin sometimes prints "1.2.3.4 (shared)"
+                return val.split()[0]
+        return None
+
+    @property
     def features(self) -> set[str]:
         raw = self.values.get("Features", "")
         plugins = self.values.get("Plugins", "")
@@ -183,8 +198,12 @@ class VirtualminClient:
 
     def supports_flag(self, command: str, flag: str) -> bool:
         text = self.help(command)
-        # Match --flag as a token in help text.
-        return re.search(rf"(?m)(?:^|\s){re.escape(flag)}(?:\s|$|,)", text) is not None
+        # Match --flag as a token in help text, including Virtualmin synopsis
+        # forms like ``[--shared-ip address]`` / ``[--acme]``.
+        return re.search(
+            rf"(?:^|[\s\[|]){re.escape(flag)}(?:\s|$|,|\]|/|=)",
+            text,
+        ) is not None
 
     def list_domains_multiline(self, domain: str | None = None) -> list[DomainInfo]:
         args = ["list-domains", "--multiline"]
@@ -418,6 +437,116 @@ class VirtualminClient:
             or "vhost with the same name already exists" in lowered
         )
 
+    @staticmethod
+    def _is_ssl_plugin_failure(err: str) -> bool:
+        lowered = (err or "").lower()
+        return any(
+            needle in lowered
+            for needle in (
+                "virtualmin-nginx-ssl",
+                "uninitialized value in string eq",
+                "nginx ssl website failed",
+                "ssl website failed",
+            )
+        )
+
+    def resolve_acme_flag(self, profile: WebStackProfile | None = None) -> str | None:
+        """Prefer profile.acme_flag; fall back to help-text token scan."""
+        if profile and profile.acme_flag:
+            return profile.acme_flag
+        if self.supports_flag("create-domain", "--acme"):
+            return "acme"
+        if self.supports_flag("create-domain", "--letsencrypt"):
+            return "letsencrypt"
+        return None
+
+    def _ssl_feature_for_profile(self, profile: WebStackProfile) -> str | None:
+        if profile.ssl_feature:
+            return profile.ssl_feature
+        if profile.flavor == "nginx":
+            return "virtualmin-nginx-ssl"
+        if profile.flavor == "apache":
+            return "ssl"
+        return None
+
+    def _create_domain_base_args(
+        self,
+        *,
+        webmail_domain: str,
+        parent_domain: str,
+        description: str,
+        features: Iterable[str],
+        parent: DomainInfo | None,
+        with_letsencrypt: bool,
+        profile: WebStackProfile,
+        include_ssl: bool,
+    ) -> list[str]:
+        feats = [f for f in features if include_ssl or f not in WEBSITE_FEATURE_CODES or f == profile.site_feature]
+        # Drop SSL companion when include_ssl is False.
+        ssl_feat = self._ssl_feature_for_profile(profile)
+        if not include_ssl and ssl_feat:
+            feats = [f for f in feats if f != ssl_feat]
+
+        args = [
+            "create-domain",
+            "--domain",
+            webmail_domain,
+            "--parent",
+            parent_domain,
+            "--desc",
+            description,
+        ]
+        for f in feats:
+            args.append(f"--{f}")
+
+        # Subservers share the parent IP. Passing it explicitly avoids
+        # virtualmin-nginx-ssl feature_warnings blowing up on undef $d->{'ip'}.
+        parent_ip = parent.ip if parent else None
+        if parent_ip and self.supports_flag("create-domain", "--shared-ip"):
+            args.extend(["--shared-ip", parent_ip])
+            if self.supports_flag("create-domain", "--ip-already"):
+                args.append("--ip-already")
+
+        if include_ssl and ssl_feat:
+            # Ensure cert paths exist before nginx-ssl wires listen:443.
+            if self.supports_flag("create-domain", "--generate-ssl-cert"):
+                args.append("--generate-ssl-cert")
+            # Temporary share of parent cert is OK; ACME replaces it for webmail FQDN.
+            if self.supports_flag("create-domain", "--link-ssl-cert"):
+                args.append("--link-ssl-cert")
+
+        acme = self.resolve_acme_flag(profile) if with_letsencrypt else None
+        if acme and include_ssl:
+            args.append(f"--{acme}")
+
+        if "--mail" in args:
+            raise VirtualminError("Internal error: refusing to create webmail host with --mail")
+        return args
+
+    def _cleanup_failed_webmail_create(self, webmail_domain: str) -> None:
+        """Remove half-created Virtualmin domain / orphan nginx conf after failed create."""
+        if self.domain_exists(webmail_domain):
+            self.run(["delete-domain", "--domain", webmail_domain], check=False)
+        self.remove_orphan_nginx_vhost_files(webmail_domain)
+
+    def _enable_ssl_after_create(
+        self,
+        *,
+        webmail_domain: str,
+        profile: WebStackProfile,
+        with_letsencrypt: bool,
+    ) -> None:
+        ssl_feat = self._ssl_feature_for_profile(profile)
+        if not ssl_feat:
+            return
+        try:
+            self.enable_feature(webmail_domain, ssl_feat)
+        except VirtualminError:
+            # Some hosts auto-chain SSL with the site feature; ignore soft failure.
+            pass
+        if with_letsencrypt:
+            self.generate_letsencrypt(webmail_domain)
+
     def create_web_only_subserver(
         self,
         *,
@@ -445,43 +574,71 @@ class VirtualminClient:
             webmail_domain=webmail_domain, parent_domain=parent_domain
         )
 
-        args = [
-            "create-domain",
-            "--domain",
-            webmail_domain,
-            "--parent",
-            parent_domain,
-            "--desc",
-            description,
-        ]
-        for f in profile.create_features:
-            args.append(f"--{f}")
+        attempts: list[tuple[str, list[str]]] = []
+        with_ssl_args = self._create_domain_base_args(
+            webmail_domain=webmail_domain,
+            parent_domain=parent_domain,
+            description=description,
+            features=profile.create_features,
+            parent=parent,
+            with_letsencrypt=with_letsencrypt,
+            profile=profile,
+            include_ssl=True,
+        )
+        attempts.append(("with-ssl", with_ssl_args))
 
-        if with_letsencrypt and profile.acme_flag:
-            args.append(f"--{profile.acme_flag}")
+        # Fallback: create HTTP site only, then enable SSL after the domain has an IP.
+        if profile.ssl_feature and profile.ssl_feature in profile.create_features:
+            no_ssl_args = self._create_domain_base_args(
+                webmail_domain=webmail_domain,
+                parent_domain=parent_domain,
+                description=description,
+                features=profile.create_features,
+                parent=parent,
+                with_letsencrypt=False,
+                profile=profile,
+                include_ssl=False,
+            )
+            attempts.append(("without-ssl-then-enable", no_ssl_args))
 
-        if "--mail" in args:
-            raise VirtualminError("Internal error: refusing to create webmail host with --mail")
-        try:
-            self.run(args)
-        except VirtualminError as exc:
-            if not self._is_vhost_name_conflict(exc.message):
+        last_error: VirtualminError | None = None
+        for mode, args in attempts:
+            try:
+                self.run(args)
+                if mode == "without-ssl-then-enable":
+                    self._enable_ssl_after_create(
+                        webmail_domain=webmail_domain,
+                        profile=profile,
+                        with_letsencrypt=with_letsencrypt,
+                    )
+                return profile
+            except VirtualminError as exc:
+                last_error = exc
+                if self._is_vhost_name_conflict(exc.message):
+                    leftover = self.find_orphan_nginx_vhost_files(webmail_domain)
+                    leftover_txt = ", ".join(str(p) for p in leftover) or (
+                        "(none found under /etc/nginx)"
+                    )
+                    prep_txt = "; ".join(prep_actions) or "(no automatic prep actions applied)"
+                    raise SubserverConflictError(
+                        f"Hostname {webmail_domain} is still claimed by an existing Nginx/Apache "
+                        f"virtual host (Virtualmin create-domain refused). "
+                        f"Prep attempted: {prep_txt}. "
+                        f"Orphan nginx confs still present: {leftover_txt}. "
+                        f"Manual fix: "
+                        f"`virtualmin modify-web --domain {parent_domain} --no-webmail` then "
+                        f"remove any leftover `/etc/nginx/sites-*/{webmail_domain}.conf` in "
+                        f"Webmin → Servers → Nginx, reload nginx, and re-run install. "
+                        f"Original error: {exc.message}"
+                    ) from exc
+                # Retry without SSL only for SSL plugin / uninitialized-IP class failures.
+                if mode == "with-ssl" and self._is_ssl_plugin_failure(exc.message):
+                    self._cleanup_failed_webmail_create(webmail_domain)
+                    continue
                 raise
-            leftover = self.find_orphan_nginx_vhost_files(webmail_domain)
-            leftover_txt = ", ".join(str(p) for p in leftover) or "(none found under /etc/nginx)"
-            prep_txt = "; ".join(prep_actions) or "(no automatic prep actions applied)"
-            raise SubserverConflictError(
-                f"Hostname {webmail_domain} is still claimed by an existing Nginx/Apache "
-                f"virtual host (Virtualmin create-domain refused). "
-                f"Prep attempted: {prep_txt}. "
-                f"Orphan nginx confs still present: {leftover_txt}. "
-                f"Manual fix: "
-                f"`virtualmin modify-web --domain {parent_domain} --no-webmail` then "
-                f"remove any leftover `/etc/nginx/sites-*/{webmail_domain}.conf` in "
-                f"Webmin → Servers → Nginx, reload nginx, and re-run install. "
-                f"Original error: {exc.message}"
-            ) from exc
-        return profile
+
+        assert last_error is not None
+        raise last_error
 
     def delete_domain(self, domain: str) -> None:
         domain = normalize_domain(domain)

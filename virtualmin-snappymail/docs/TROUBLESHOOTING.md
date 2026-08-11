@@ -96,3 +96,53 @@ cd /home/cunha/mleocunha-snappymail && git pull
 cd virtualmin-snappymail && sudo bash bin/install-to-system.sh
 sudo virtualmin-snappymail install "$PARENT"
 ```
+
+## Symptom: uninitialized value in virtualmin-nginx-ssl
+
+```text
+ERROR ... create-domain ... --virtualmin-nginx --virtualmin-nginx-ssl failed:
+Use of uninitialized value in string eq at
+/usr/share/webmin/virtualmin-nginx-ssl/virtual_feature.pl line 130.
+```
+
+### Cause
+
+The Nginx SSL plugin compares `$d->{'ip'}` while creating the Sub-server. If the
+child has no IP yet, Perl warns once per existing domain and create exits 1.
+Missing `--generate-ssl-cert` / ACME flags make the same path fragile.
+
+### Automatic fix
+
+`install` now:
+
+1. Passes `--shared-ip <parent-ip> --ip-already` when available
+2. Passes `--generate-ssl-cert` / `--link-ssl-cert` / `--acme` when available
+3. On SSL plugin failure, deletes any half-created domain and retries **without**
+   SSL, then enables SSL + Let's Encrypt after create
+
+### Manual workaround
+
+```bash
+PARENT=votoeletronico.com.br
+WM=webmail.$PARENT
+IP=$(virtualmin list-domains --domain "$PARENT" --multiline | awk -F': ' '/IP address:/ {print $2; exit}' | awk '{print $1}')
+
+# clean leftovers
+virtualmin list-domains --domain "$WM" --name-only && virtualmin delete-domain --domain "$WM"
+rm -f /etc/nginx/sites-available/"$WM".conf /etc/nginx/sites-enabled/"$WM".conf
+nginx -t && systemctl reload nginx
+
+# create HTTP first, then SSL
+virtualmin create-domain --domain "$WM" --parent "$PARENT" \
+  --desc "SnappyMail webmail (web-only)" \
+  --dir --dns --logrotate --virtualmin-nginx \
+  --shared-ip "$IP" --ip-already
+
+virtualmin enable-feature --domain "$WM" --virtualmin-nginx-ssl
+virtualmin generate-letsencrypt-cert --domain "$WM"
+
+# then finish with the manager (adopts existing subserver)
+cd /home/cunha/mleocunha-snappymail && git pull
+cd virtualmin-snappymail && sudo bash bin/install-to-system.sh
+sudo virtualmin-snappymail install "$PARENT"
+```
