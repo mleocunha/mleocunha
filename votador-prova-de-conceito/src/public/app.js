@@ -15,6 +15,9 @@ let activeRunId = null;
 /** Ignore stale SSE traffic until /api/start returns the new runId. */
 let awaitingRunId = false;
 
+/** Non-secret form fields kept across reloads (same idea as SnappyMail URL default). */
+const FORM_STORAGE_KEY = 'votador-poc-form-v1';
+
 const localTimeFmt = new Intl.DateTimeFormat(undefined, {
   hour: '2-digit',
   minute: '2-digit',
@@ -28,18 +31,89 @@ if (/Mac|iPhone|iPad/.test(navigator.platform) || navigator.userAgent.includes('
 
 loginPath.addEventListener('change', () => {
   customLoginWrap.classList.toggle('hidden', loginPath.value !== 'custom');
+  persistFormPrefs();
 });
 
 const passwordChangePoc = document.getElementById('passwordChangePoc');
 const mailUrlWrap = document.getElementById('mailUrlWrap');
 const mailUrlHint = document.getElementById('mailUrlHint');
-passwordChangePoc.addEventListener('change', () => {
+const platformUrlInput = form.elements.namedItem('platformUrl');
+const mailUrlInput = form.elements.namedItem('mailUrl');
+
+function syncMailUrlVisibility() {
   const on = passwordChangePoc.checked;
   mailUrlWrap.classList.toggle('hidden', !on);
   if (mailUrlHint) {
     mailUrlHint.hidden = !on;
   }
+}
+
+passwordChangePoc.addEventListener('change', () => {
+  syncMailUrlVisibility();
+  persistFormPrefs();
 });
+
+/**
+ * Persist platform / mail URLs (and related prefs) in localStorage so reload keeps them.
+ * Never stores admin password or CSV.
+ */
+function persistFormPrefs() {
+  try {
+    const data = {
+      platformUrl: String(platformUrlInput?.value || '').trim(),
+      mailUrl: String(mailUrlInput?.value || '').trim(),
+      loginPath: String(loginPath?.value || ''),
+      loginPathCustom: String(form.elements.namedItem('loginPathCustom')?.value || '').trim(),
+      passwordChangePoc: Boolean(passwordChangePoc?.checked),
+    };
+    localStorage.setItem(FORM_STORAGE_KEY, JSON.stringify(data));
+  } catch {
+    /* private mode / quota */
+  }
+}
+
+function restoreFormPrefs() {
+  try {
+    const raw = localStorage.getItem(FORM_STORAGE_KEY);
+    if (!raw) {
+      return;
+    }
+    const data = JSON.parse(raw);
+    if (!data || typeof data !== 'object') {
+      return;
+    }
+    if (data.platformUrl && platformUrlInput) {
+      platformUrlInput.value = data.platformUrl;
+    }
+    if (data.mailUrl && mailUrlInput) {
+      mailUrlInput.value = data.mailUrl;
+    }
+    if (data.loginPath && loginPath) {
+      loginPath.value = data.loginPath;
+      customLoginWrap.classList.toggle('hidden', loginPath.value !== 'custom');
+    }
+    const customLogin = form.elements.namedItem('loginPathCustom');
+    if (data.loginPathCustom && customLogin) {
+      customLogin.value = data.loginPathCustom;
+    }
+    if (typeof data.passwordChangePoc === 'boolean' && passwordChangePoc) {
+      passwordChangePoc.checked = data.passwordChangePoc;
+      syncMailUrlVisibility();
+    }
+  } catch {
+    /* ignore corrupt storage */
+  }
+}
+
+restoreFormPrefs();
+
+for (const el of [platformUrlInput, mailUrlInput, form.elements.namedItem('loginPathCustom')]) {
+  if (!el) {
+    continue;
+  }
+  el.addEventListener('change', persistFormPrefs);
+  el.addEventListener('blur', persistFormPrefs);
+}
 
 /**
  * Format event timestamp in the local timezone of this machine (browser = PoC host).
