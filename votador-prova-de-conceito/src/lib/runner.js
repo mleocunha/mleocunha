@@ -26,7 +26,7 @@ export const DEFAULTS = {
    */
   limiteRetentativas: 3,
   passwordChangePoc: false,
-  mailUrl: 'https://relatasoft.com.br/mail/',
+  mailUrl: 'https://webmail.relatasoft.com.br/',
 };
 
 /**

@@ -19,8 +19,8 @@ Opções:
   --insistencias     n — retentativas por falha (default ${DEFAULTS.insistencias})
   --limite           y — teto por falha; ao atingir y nessa falha, para o teste (default ${DEFAULTS.limiteRetentativas})
   --ignore-https     Ignorar erros de certificado
-  --password-change  Ativa PoC com troca de senha (Roundcube)
-  --mail-url         URL Roundcube (default ${DEFAULTS.mailUrl})
+  --password-change  Ativa PoC com troca de senha (SnappyMail)
+  --mail-url         URL SnappyMail (default ${DEFAULTS.mailUrl})
 `);
 }
 

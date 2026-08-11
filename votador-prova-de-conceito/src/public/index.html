@@ -72,13 +72,14 @@
           PoC com troca de senha
         </label>
         <p class="hint">
-          Quando marcado: cada aba completa reset (shortcode na boas-vindas → Roundcube → nova senha WP) e só então vota.
+          Quando marcado: cada aba completa reset (shortcode na boas-vindas → SnappyMail → nova senha WP) e só então vota.
           Senhas geradas ficam em <code>credentials/generated-passwords.csv</code> (reutilizadas nas próximas corridas).
           Insira <code>[enviar_redefinicao_senha]</code> na página de boas-vindas do plugin.
+          Roundcube (<code>/mail/</code>) foi abandonado — use o webmail SnappyMail.
         </p>
         <label id="mailUrlWrap" class="hidden">
-          URL do Roundcube
-          <input name="mailUrl" type="url" value="https://relatasoft.com.br/mail/" autocomplete="off" />
+          URL do SnappyMail
+          <input name="mailUrl" type="url" value="https://webmail.relatasoft.com.br/" autocomplete="off" />
         </label>
       </section>
 
