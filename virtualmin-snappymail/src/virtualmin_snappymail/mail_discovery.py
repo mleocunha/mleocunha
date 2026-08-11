@@ -8,7 +8,10 @@ import socket
 import ssl
 import subprocess
 from dataclasses import asdict, dataclass, field
+from pathlib import Path
 from typing import Any
+
+from .domain import try_normalize_domain
 
 
 @dataclass
@@ -189,3 +192,62 @@ smtp_auth = On
 smtp_php_mail = Off
 white_list = ""
 """
+
+
+def parse_white_list_value(raw: str) -> list[str]:
+    """Split a SnappyMail ``white_list`` INI value into tokens."""
+    text = (raw or "").strip()
+    if len(text) >= 2 and text[0] == text[-1] and text[0] in "\"'":
+        text = text[1:-1]
+    text = text.strip()
+    if not text:
+        return []
+    parts: list[str] = []
+    for chunk in text.replace(",", " ").replace(";", " ").replace("\n", " ").split():
+        tok = chunk.strip()
+        if tok:
+            parts.append(tok)
+    return parts
+
+
+def invalid_white_list_tokens(tokens: list[str], *, parent_domain: str | None = None) -> list[str]:
+    """Return tokens that cannot match SnappyMail ``ValidateWhiteList``.
+
+    Valid forms: full email, local-part, or ``@domain``. A bare FQDN (e.g. the
+    parent domain) matches nothing and blocks every login.
+    """
+    bad: list[str] = []
+    parent = (parent_domain or "").strip().lower().rstrip(".")
+    for tok in tokens:
+        t = tok.strip()
+        if not t:
+            continue
+        low = t.lower()
+        if parent and low == parent:
+            bad.append(tok)
+            continue
+        if t.startswith("@"):
+            continue
+        if "@" in t:
+            continue
+        # No @ — local-part is allowed, but dotted FQDN-looking values are almost
+        # always a mistaken bare domain (historical manager bug).
+        if "." in t and try_normalize_domain(t):
+            bad.append(tok)
+    return bad
+
+
+def read_domain_ini_white_list(ini_path: Path) -> str | None:
+    """Return the raw ``white_list`` value from a domain INI, or ``None`` if absent."""
+    if not ini_path.is_file():
+        return None
+    for line in ini_path.read_text(encoding="utf-8", errors="replace").splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith(";") or stripped.startswith("#"):
+            continue
+        if "=" not in stripped:
+            continue
+        key, _, val = stripped.partition("=")
+        if key.strip().lower() == "white_list":
+            return val.strip()
+    return None
