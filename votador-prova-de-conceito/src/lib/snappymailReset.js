@@ -54,13 +54,14 @@ export async function resetPasswordViaSnappyMail(page, opts) {
     batchLocale,
     timeoutMs = 120000,
     logger,
+    skipSend = false,
   } = opts;
 
   const resolved = resolveMailUrlForEmail(mailUrl, userEmail);
   const effectiveMailUrl = resolved.url;
   const subject = subjectForLocale(batchLocale);
   const subjectCandidates = subjectsToMatch(batchLocale);
-  logger?.info?.('Disparando e-mail de redefinição', {
+  logger?.info?.(skipSend ? 'A procurar e-mail de redefinição já enviado' : 'Disparando e-mail de redefinição', {
     user_email: userEmail,
     subject,
     subjects: subjectCandidates,
@@ -68,6 +69,7 @@ export async function resetPasswordViaSnappyMail(page, opts) {
     mail_url: effectiveMailUrl,
     mail_url_configured: mailUrl,
     mail_url_derived: resolved.derived,
+    skip_send: Boolean(skipSend),
   });
   if (resolved.derived) {
     logger?.info?.(
@@ -76,46 +78,65 @@ export async function resetPasswordViaSnappyMail(page, opts) {
     );
   }
 
-  await ensureOnWelcomeWithResetForm(page);
+  if (!skipSend) {
+    await ensureOnWelcomeWithResetForm(page);
 
-  // Hidden input — Playwright fill() requires visibility; set value via DOM.
-  const localeField = page.locator('#rses-poc-mail-locale');
-  await localeField.waitFor({ state: 'attached', timeout: 15000 });
-  await localeField.evaluate((el, value) => {
-    el.value = value;
-  }, batchLocale || '');
+    // Hidden input — Playwright fill() requires visibility; set value via DOM.
+    const localeField = page.locator('#rses-poc-mail-locale');
+    await localeField.waitFor({ state: 'attached', timeout: 15000 });
+    await localeField.evaluate((el, value) => {
+      el.value = value;
+    }, batchLocale || '');
 
-  await Promise.all([
-    page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 60000 }).catch(() => {}),
-    page.locator('[data-rses-password-reset-submit]').click(),
-  ]);
+    await Promise.all([
+      page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 60000 }).catch(() => {}),
+      page.locator('[data-rses-password-reset-submit]').click(),
+    ]);
 
-  const status = page.locator('[data-rses-password-reset-status="enviada"]');
-  const err = page.locator('[data-rses-password-reset-status="erro"]');
-  await Promise.race([
-    status.waitFor({ state: 'visible', timeout: 60000 }),
-    err.waitFor({ state: 'visible', timeout: 60000 }),
-  ]);
-  if (await err.count()) {
-    throw new Error('Plugin reportou erro ao enviar e-mail de redefinição.');
+    const status = page.locator('[data-rses-password-reset-status="enviada"]');
+    const err = page.locator('[data-rses-password-reset-status="erro"]');
+    await Promise.race([
+      status.waitFor({ state: 'visible', timeout: 60000 }),
+      err.waitFor({ state: 'visible', timeout: 60000 }),
+    ]);
+    if (await err.count()) {
+      throw new Error('Plugin reportou erro ao enviar e-mail de redefinição.');
+    }
   }
 
   const mailPage = await page.context().newPage();
   try {
-    const resetLink = await findResetLinkInSnappyMail(mailPage, {
+    const resetLinks = await findResetLinksInSnappyMail(mailPage, {
       mailUrl: effectiveMailUrl,
       userEmail,
       currentPassword,
       subject,
       subjectCandidates,
-      timeoutMs,
+      timeoutMs: skipSend ? Math.min(timeoutMs, 45000) : timeoutMs,
       logger,
     });
 
-    logger?.info?.('Link de redefinição encontrado; definindo nova senha…');
+    logger?.info?.('Link(s) de redefinição encontrados; definindo nova senha…', {
+      user_email: userEmail,
+      links: resetLinks.length,
+    });
     const newPassword = generateSecurePassword(8);
-    await setWordPressPassword(mailPage, resetLink, newPassword);
-    return newPassword;
+    let lastErr = null;
+    for (let i = 0; i < resetLinks.length; i += 1) {
+      try {
+        await setWordPressPassword(mailPage, resetLinks[i], newPassword, logger);
+        return newPassword;
+      } catch (err) {
+        lastErr = err;
+        logger?.warn?.('Falha ao aplicar link de redefinição; a tentar o seguinte', {
+          user_email: userEmail,
+          index: i + 1,
+          of: resetLinks.length,
+          error: String(err.message || err),
+        });
+      }
+    }
+    throw lastErr || new Error('Nenhum link de redefinição utilizável.');
   } finally {
     await mailPage.close().catch(() => {});
   }
@@ -131,7 +152,7 @@ async function ensureOnWelcomeWithResetForm(page) {
   );
 }
 
-async function findResetLinkInSnappyMail(page, opts) {
+async function findResetLinksInSnappyMail(page, opts) {
   const {
     mailUrl,
     userEmail,
@@ -169,20 +190,25 @@ async function findResetLinkInSnappyMail(page, opts) {
       });
     }
 
-    const resetLink = await tryOpenResetFromList(page, {
+    const links = await collectResetLinksFromList(page, {
       subjectCandidates,
       logger,
+      maxLinks: 5,
     });
-    if (resetLink) {
-      return resetLink;
+    if (links.length) {
+      return links;
     }
 
     // Use SnappyMail search once for the preferred subject.
     if (!searchedOnce && Date.now() > deadline - timeoutMs + 8000) {
       searchedOnce = true;
       await searchMailbox(page, subject);
-      const viaSearch = await tryOpenResetFromList(page, { subjectCandidates, logger });
-      if (viaSearch) {
+      const viaSearch = await collectResetLinksFromList(page, {
+        subjectCandidates,
+        logger,
+        maxLinks: 5,
+      });
+      if (viaSearch.length) {
         return viaSearch;
       }
       await openInboxFolder(page);
@@ -190,8 +216,13 @@ async function findResetLinkInSnappyMail(page, opts) {
 
     // Mid-wait: also open newest unread messages and scan body for rp link.
     if (Date.now() > deadline - timeoutMs / 2) {
-      const viaScan = await scanRecentMessagesForResetLink(page, logger);
-      if (viaScan) {
+      const viaScan = await collectResetLinksFromList(page, {
+        subjectCandidates: [],
+        logger,
+        maxLinks: 5,
+        anyRecent: true,
+      });
+      if (viaScan.length) {
         return viaScan;
       }
       if (!peekedJunk) {
@@ -211,62 +242,52 @@ async function findResetLinkInSnappyMail(page, opts) {
 }
 
 /**
+ * Collect reset links from newest matching messages first.
  * @param {import('playwright').Page} page
- * @param {{ subjectCandidates: string[], logger?: object }} opts
+ * @param {{ subjectCandidates: string[], logger?: object, maxLinks?: number, anyRecent?: boolean }} opts
+ * @returns {Promise<string[]>}
  */
-async function tryOpenResetFromList(page, opts) {
-  const { subjectCandidates, logger } = opts;
+async function collectResetLinksFromList(page, opts) {
+  const { subjectCandidates = [], logger, maxLinks = 5, anyRecent = false } = opts;
   const items = page.locator('.messageListItem');
   const n = await items.count();
-  for (let i = 0; i < n; i += 1) {
+  const limit = anyRecent ? Math.min(n, 8) : n;
+  /** @type {string[]} */
+  const links = [];
+  const seen = new Set();
+
+  for (let i = 0; i < limit; i += 1) {
+    if (links.length >= maxLinks) {
+      break;
+    }
     const item = items.nth(i);
     const text = ((await item.innerText().catch(() => '')) || '').replace(/\s+/g, ' ').trim();
-    const subjectHit =
-      subjectCandidates.some((s) => s && text.includes(s)) || looksLikeResetSubject(text);
-    if (!subjectHit) {
-      continue;
+    if (!anyRecent) {
+      const subjectHit =
+        subjectCandidates.some((s) => s && text.includes(s)) || looksLikeResetSubject(text);
+      if (!subjectHit) {
+        continue;
+      }
     }
     await item.click({ force: true });
     await page.locator('.bodyText, .b-message, .messageView').first().waitFor({
       state: 'visible',
       timeout: 15000,
     }).catch(() => {});
-    await page.waitForTimeout(500);
+    // Plain-text mails need a moment for bodyText to paint.
+    await page.waitForTimeout(900);
     const link = await extractResetLink(page);
-    if (link) {
+    if (link && !seen.has(link)) {
+      seen.add(link);
+      links.push(link);
       await markCurrentMessageSeen(page);
       logger?.info?.('E-mail de redefinição aberto na INBOX (SnappyMail)', {
         matched: text.slice(0, 120),
+        link_index: links.length,
       });
-      return link;
     }
   }
-  return '';
-}
-
-/**
- * Open a few recent messages and look for wp-login.php?action=rp regardless of subject.
- * @param {import('playwright').Page} page
- * @param {object} [logger]
- */
-async function scanRecentMessagesForResetLink(page, logger) {
-  const items = page.locator('.messageListItem');
-  const n = Math.min(await items.count(), 8);
-  for (let i = 0; i < n; i += 1) {
-    const item = items.nth(i);
-    await item.click({ force: true });
-    await page.waitForTimeout(500);
-    const link = await extractResetLink(page);
-    if (link) {
-      await markCurrentMessageSeen(page);
-      const text = ((await item.innerText().catch(() => '')) || '').replace(/\s+/g, ' ').trim();
-      logger?.info?.('Link de reset encontrado ao varrer mensagens recentes', {
-        matched: text.slice(0, 120),
-      });
-      return link;
-    }
-  }
-  return '';
+  return links;
 }
 
 async function listVisibleSubjects(page) {
@@ -763,25 +784,119 @@ async function markCurrentMessageSeen(page) {
   }
 }
 
-async function setWordPressPassword(page, resetLink, newPassword) {
+/**
+ * Drop WordPress auth cookies so action=rp shows the password form instead of
+ * redirecting away because the elector is still logged in on this context.
+ * @param {import('playwright').Page} page
+ */
+async function clearWordPressAuthCookies(page) {
+  const cookies = await page.context().cookies();
+  const keep = cookies.filter((c) => {
+    const n = String(c.name || '');
+    return !/^wordpress(_logged_in|_sec)?(_|$)/i.test(n) && !/^wp-settings/i.test(n);
+  });
+  await page.context().clearCookies();
+  if (keep.length) {
+    await page.context().addCookies(keep);
+  }
+}
+
+/**
+ * @param {import('playwright').Page} page
+ * @param {string} resetLink
+ * @param {string} newPassword
+ * @param {object} [logger]
+ */
+async function setWordPressPassword(page, resetLink, newPassword, logger) {
+  await clearWordPressAuthCookies(page);
+  logger?.info?.('Abrindo formulário WP de nova senha (cookies de sessão WP limpos)');
+
   await page.goto(resetLink, { waitUntil: 'domcontentloaded', timeout: 60000 });
 
+  // Modern WP may hide pass1 behind "Generate Password".
+  const genBtn = page.locator('.wp-generate-pw, button.wp-generate-pw').first();
+  if (await genBtn.isVisible().catch(() => false)) {
+    await genBtn.click({ force: true }).catch(() => {});
+    await page.waitForTimeout(300);
+  }
+
   const pass1 = page.locator('#pass1, input[name="pass1"]').first();
-  await pass1.waitFor({ state: 'visible', timeout: 30000 });
-  await pass1.fill(newPassword);
+  const appeared = await Promise.race([
+    pass1.waitFor({ state: 'attached', timeout: 20000 }).then(() => 'form'),
+    page
+      .waitForFunction(() => {
+        const err = document.querySelector('#login_error');
+        if (err && (err.textContent || '').trim()) {
+          return true;
+        }
+        const body = (document.body?.innerText || '').toLowerCase();
+        return /expired|inválid|invalid|not allowed|não é válid|já foi usada/i.test(body);
+      }, { timeout: 20000 })
+      .then(() => 'error')
+      .catch(() => null),
+  ]).catch(() => null);
 
-  const pass2 = page.locator('#pass2, input[name="pass2"]').first();
-  if (await pass2.count()) {
-    await pass2.fill(newPassword);
+  const hasPass1 = (await pass1.count()) > 0;
+  if (appeared === 'error' || !hasPass1) {
+    const detail =
+      ((await page.locator('#login_error').innerText().catch(() => '')) || '').trim() ||
+      `url=${page.url()}`;
+    throw new Error(`Link de redefinição WP inutilizável: ${detail}`);
   }
 
-  const weak = page.locator('#pw-weak');
-  if (await weak.count()) {
-    await weak.check({ force: true }).catch(() => {});
-  }
+  // Set password via DOM (pass2 is often hidden; fill() would hang).
+  await page.evaluate((pwd) => {
+    const reveal = document.querySelector('.wp-generate-pw, button.wp-generate-pw');
+    const p1 = document.querySelector('#pass1, input[name="pass1"]');
+    if (reveal && p1 && (p1.type === 'hidden' || getComputedStyle(p1).display === 'none')) {
+      reveal.click();
+    }
+    const apply = (el) => {
+      if (!el) {
+        return;
+      }
+      el.removeAttribute('readonly');
+      el.removeAttribute('disabled');
+      el.style.display = '';
+      el.style.visibility = 'visible';
+      el.value = pwd;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+    apply(document.querySelector('#pass1, input[name="pass1"]'));
+    apply(document.querySelector('#pass2, input[name="pass2"]'));
+    const weak = document.querySelector('#pw-weak');
+    if (weak) {
+      weak.checked = true;
+      weak.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+  }, newPassword);
 
+  await page.waitForTimeout(250);
+  await page.evaluate((pwd) => {
+    for (const sel of ['#pass1', 'input[name="pass1"]', '#pass2', 'input[name="pass2"]']) {
+      const el = document.querySelector(sel);
+      if (el) {
+        el.value = pwd;
+      }
+    }
+    const weak = document.querySelector('#pw-weak');
+    if (weak) {
+      weak.checked = true;
+    }
+  }, newPassword);
+
+  const beforeUrl = page.url();
   await Promise.all([
     page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 60000 }).catch(() => {}),
-    page.locator('#wp-submit, button[type="submit"]').first().click(),
+    page.locator('#wp-submit').first().click({ force: true }),
   ]);
+
+  const errText = ((await page.locator('#login_error').innerText().catch(() => '')) || '').trim();
+  const stillPassForm = await page.locator('#pass1, input[name="pass1"]').isVisible().catch(() => false);
+  if (errText || stillPassForm) {
+    throw new Error(
+      `WordPress não confirmou a nova senha (${errText || 'formulário ainda visível'}; url=${page.url()}; before=${beforeUrl}).`
+    );
+  }
 }

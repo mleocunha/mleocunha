@@ -59,6 +59,9 @@ export function createPasswordStore(filePath = DEFAULT_PATH) {
 
   load();
 
+  /** Logins for which a reset email was already requested in this process. */
+  const mailResetSent = new Set();
+
   return {
     path: storePath,
     get(userLogin) {
@@ -71,6 +74,14 @@ export function createPasswordStore(filePath = DEFAULT_PATH) {
         updated_at: new Date().toISOString(),
       });
       persist();
+    },
+    markMailResetSent(userLogin) {
+      if (userLogin) {
+        mailResetSent.add(String(userLogin));
+      }
+    },
+    wasMailResetSent(userLogin) {
+      return mailResetSent.has(String(userLogin || ''));
     },
     /** Copy current store into a run results directory. */
     exportTo(resultsDir) {
