@@ -771,7 +771,6 @@ async function setWordPressPassword(page, resetLink, newPassword) {
   await page.goto(resetLink, { waitUntil: 'domcontentloaded', timeout: 60000 });
 
   // Expired / invalid key — WP shows an error, not the password form.
-  const invalid = page.locator('#login_error, .login #login_error, .message');
   const pass1 = page.locator('#pass1, input[name="pass1"]').first();
   const appeared = await Promise.race([
     pass1.waitFor({ state: 'visible', timeout: 30000 }).then(() => 'form'),
