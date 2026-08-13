@@ -54,13 +54,14 @@ export async function resetPasswordViaSnappyMail(page, opts) {
     batchLocale,
     timeoutMs = 120000,
     logger,
+    skipSend = false,
   } = opts;
 
   const resolved = resolveMailUrlForEmail(mailUrl, userEmail);
   const effectiveMailUrl = resolved.url;
   const subject = subjectForLocale(batchLocale);
   const subjectCandidates = subjectsToMatch(batchLocale);
-  logger?.info?.('Disparando e-mail de redefinição', {
+  logger?.info?.(skipSend ? 'A procurar e-mail de redefinição já enviado' : 'Disparando e-mail de redefinição', {
     user_email: userEmail,
     subject,
     subjects: subjectCandidates,
@@ -68,6 +69,7 @@ export async function resetPasswordViaSnappyMail(page, opts) {
     mail_url: effectiveMailUrl,
     mail_url_configured: mailUrl,
     mail_url_derived: resolved.derived,
+    skip_send: Boolean(skipSend),
   });
   if (resolved.derived) {
     logger?.info?.(
@@ -76,28 +78,30 @@ export async function resetPasswordViaSnappyMail(page, opts) {
     );
   }
 
-  await ensureOnWelcomeWithResetForm(page);
+  if (!skipSend) {
+    await ensureOnWelcomeWithResetForm(page);
 
-  // Hidden input — Playwright fill() requires visibility; set value via DOM.
-  const localeField = page.locator('#rses-poc-mail-locale');
-  await localeField.waitFor({ state: 'attached', timeout: 15000 });
-  await localeField.evaluate((el, value) => {
-    el.value = value;
-  }, batchLocale || '');
+    // Hidden input — Playwright fill() requires visibility; set value via DOM.
+    const localeField = page.locator('#rses-poc-mail-locale');
+    await localeField.waitFor({ state: 'attached', timeout: 15000 });
+    await localeField.evaluate((el, value) => {
+      el.value = value;
+    }, batchLocale || '');
 
-  await Promise.all([
-    page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 60000 }).catch(() => {}),
-    page.locator('[data-rses-password-reset-submit]').click(),
-  ]);
+    await Promise.all([
+      page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 60000 }).catch(() => {}),
+      page.locator('[data-rses-password-reset-submit]').click(),
+    ]);
 
-  const status = page.locator('[data-rses-password-reset-status="enviada"]');
-  const err = page.locator('[data-rses-password-reset-status="erro"]');
-  await Promise.race([
-    status.waitFor({ state: 'visible', timeout: 60000 }),
-    err.waitFor({ state: 'visible', timeout: 60000 }),
-  ]);
-  if (await err.count()) {
-    throw new Error('Plugin reportou erro ao enviar e-mail de redefinição.');
+    const status = page.locator('[data-rses-password-reset-status="enviada"]');
+    const err = page.locator('[data-rses-password-reset-status="erro"]');
+    await Promise.race([
+      status.waitFor({ state: 'visible', timeout: 60000 }),
+      err.waitFor({ state: 'visible', timeout: 60000 }),
+    ]);
+    if (await err.count()) {
+      throw new Error('Plugin reportou erro ao enviar e-mail de redefinição.');
+    }
   }
 
   const mailPage = await page.context().newPage();
@@ -108,7 +112,7 @@ export async function resetPasswordViaSnappyMail(page, opts) {
       currentPassword,
       subject,
       subjectCandidates,
-      timeoutMs,
+      timeoutMs: skipSend ? Math.min(timeoutMs, 45000) : timeoutMs,
       logger,
     });
 
@@ -766,22 +770,86 @@ async function markCurrentMessageSeen(page) {
 async function setWordPressPassword(page, resetLink, newPassword) {
   await page.goto(resetLink, { waitUntil: 'domcontentloaded', timeout: 60000 });
 
+  // Expired / invalid key — WP shows an error, not the password form.
+  const invalid = page.locator('#login_error, .login #login_error, .message');
   const pass1 = page.locator('#pass1, input[name="pass1"]').first();
-  await pass1.waitFor({ state: 'visible', timeout: 30000 });
-  await pass1.fill(newPassword);
+  const appeared = await Promise.race([
+    pass1.waitFor({ state: 'visible', timeout: 30000 }).then(() => 'form'),
+    page
+      .waitForFunction(() => {
+        const err = document.querySelector('#login_error');
+        if (err && (err.textContent || '').trim()) {
+          return true;
+        }
+        const body = (document.body?.innerText || '').toLowerCase();
+        return /expired|inválid|invalid|not allowed|não é válid/i.test(body);
+      }, { timeout: 30000 })
+      .then(() => 'error')
+      .catch(() => null),
+  ]).catch(() => null);
 
-  const pass2 = page.locator('#pass2, input[name="pass2"]').first();
-  if (await pass2.count()) {
-    await pass2.fill(newPassword);
+  if (appeared !== 'form' || !(await pass1.isVisible().catch(() => false))) {
+    const detail =
+      ((await page.locator('#login_error').innerText().catch(() => '')) || '').trim() ||
+      'link inválido/expirado ou formulário de nova senha ausente';
+    throw new Error(`Não foi possível abrir o formulário de nova senha WP: ${detail}`);
   }
 
-  const weak = page.locator('#pw-weak');
-  if (await weak.count()) {
-    await weak.check({ force: true }).catch(() => {});
-  }
+  // WP's password-generator JS often overwrites fill() — set via evaluate and
+  // disable generation hooks when present.
+  await page.evaluate((pwd) => {
+    const p1 = document.querySelector('#pass1, input[name="pass1"]');
+    const p2 = document.querySelector('#pass2, input[name="pass2"]');
+    const gen = document.querySelector('.wp-generate-pw, button.wp-generate-pw');
+    if (gen && typeof gen.click === 'function' && p1 && p1.type === 'hidden') {
+      // Reveal password fields if WP hid them behind "Generate password".
+      gen.click();
+    }
+    const apply = (el) => {
+      if (!el) {
+        return;
+      }
+      el.removeAttribute('readonly');
+      el.value = pwd;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+    apply(document.querySelector('#pass1, input[name="pass1"]'));
+    apply(document.querySelector('#pass2, input[name="pass2"]'));
+    const weak = document.querySelector('#pw-weak');
+    if (weak && !weak.checked) {
+      weak.checked = true;
+      weak.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+  }, newPassword);
 
+  // Re-assert values (generator can race).
+  await page.waitForTimeout(200);
+  await page.evaluate((pwd) => {
+    for (const sel of ['#pass1', 'input[name="pass1"]', '#pass2', 'input[name="pass2"]']) {
+      const el = document.querySelector(sel);
+      if (el) {
+        el.value = pwd;
+      }
+    }
+    const weak = document.querySelector('#pw-weak');
+    if (weak) {
+      weak.checked = true;
+    }
+  }, newPassword);
+
+  const beforeUrl = page.url();
   await Promise.all([
     page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 60000 }).catch(() => {}),
     page.locator('#wp-submit, button[type="submit"]').first().click(),
   ]);
+
+  // Confirm we left the reset form (success → login or "password reset" message).
+  const stillForm = await page.locator('#pass1, input[name="pass1"]').isVisible().catch(() => false);
+  const errText = ((await page.locator('#login_error').innerText().catch(() => '')) || '').trim();
+  if (stillForm || errText) {
+    throw new Error(
+      `WordPress não confirmou a nova senha (${errText || 'formulário ainda visível'}; url=${page.url()}; before=${beforeUrl}).`
+    );
+  }
 }
