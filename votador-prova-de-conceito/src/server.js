@@ -115,6 +115,45 @@ app.get('/api/status', (_req, res) => {
   });
 });
 
+const RESULT_DOWNLOAD_ALLOW = new Set([
+  'falhas-reset-senha.csv',
+  'falhas-login-email.csv',
+  'falhas-login-voto.csv',
+  'falhas-repetidas.json',
+  'passwords.csv',
+  'receipts.csv',
+  'summary.json',
+  'failures.ndjson',
+  'events.ndjson',
+]);
+
+/**
+ * Download a file from the last run's resultsDir (basename whitelist only).
+ */
+app.get('/api/results/:fileName', (req, res) => {
+  const fileName = path.basename(String(req.params.fileName || ''));
+  if (!RESULT_DOWNLOAD_ALLOW.has(fileName)) {
+    res.status(400).json({ error: 'Arquivo não permitido para download.' });
+    return;
+  }
+  const resultsDir = state.summary?.resultsDir;
+  if (!resultsDir || typeof resultsDir !== 'string') {
+    res.status(404).json({ error: 'Nenhum resultado disponível ainda.' });
+    return;
+  }
+  const full = path.resolve(resultsDir, fileName);
+  const root = path.resolve(resultsDir);
+  if (!full.startsWith(root + path.sep) && full !== root) {
+    res.status(400).json({ error: 'Caminho inválido.' });
+    return;
+  }
+  if (!fs.existsSync(full)) {
+    res.status(404).json({ error: `Arquivo não encontrado: ${fileName}` });
+    return;
+  }
+  res.download(full, fileName);
+});
+
 app.post('/api/stop', (_req, res) => {
   if (state.abort) {
     state.abort.abort();

@@ -255,6 +255,9 @@ function appendLog(ev) {
   if (ev.receipt_hash) extraBits.receipt_hash = ev.receipt_hash;
   if (ev.error) extraBits.error = ev.error;
   if (ev.status) extraBits.status = ev.status;
+  if (ev.failure_kind) extraBits.failure_kind = ev.failure_kind;
+  if (ev.failure_count != null) extraBits.failure_count = ev.failure_count;
+  if (ev.exportedRows != null) extraBits.exportedRows = ev.exportedRows;
   if (ev.windows != null) extraBits.windows = ev.windows;
   if (ev.tabsPerWindow != null) extraBits.tabs = ev.tabsPerWindow;
   if (ev.workers != null) extraBits.workers = ev.workers;
@@ -310,6 +313,45 @@ es.onmessage = (msg) => {
   }
 };
 
+const failureReports = document.getElementById('failureReports');
+const failureReportLinks = document.getElementById('failureReportLinks');
+
+function clearFailureReports() {
+  if (failureReports) failureReports.hidden = true;
+  if (failureReportLinks) failureReportLinks.replaceChildren();
+}
+
+/**
+ * @param {object|null|undefined} summary
+ */
+function renderFailureReports(summary) {
+  if (!failureReports || !failureReportLinks) return;
+  const report = summary?.failureReport;
+  const files = report?.files;
+  if (!files || typeof files !== 'object') {
+    clearFailureReports();
+    return;
+  }
+  const order = ['password_reset', 'email_login', 'vote_login', 'combined'];
+  failureReportLinks.replaceChildren();
+  let any = false;
+  for (const key of order) {
+    const f = files[key];
+    if (!f?.fileName) continue;
+    any = true;
+    const li = document.createElement('li');
+    const a = document.createElement('a');
+    a.href = `/api/results/${encodeURIComponent(f.fileName)}`;
+    a.download = f.fileName;
+    a.textContent = f.label || f.fileName;
+    const meta = document.createElement('span');
+    meta.textContent = ` — ${f.count ?? 0} usuário(s) · ${f.fileName}`;
+    li.append(a, meta);
+    failureReportLinks.appendChild(li);
+  }
+  failureReports.hidden = !any;
+}
+
 async function refreshStatus() {
   const res = await fetch('/api/status');
   const data = await res.json();
@@ -323,11 +365,13 @@ async function refreshStatus() {
     runState.className = 'pill error';
     startBtn.disabled = false;
     stopBtn.disabled = true;
+    clearFailureReports();
   } else if (data.summary) {
     runState.textContent = 'concluído';
     runState.className = 'pill';
     startBtn.disabled = false;
     stopBtn.disabled = true;
+    renderFailureReports(data.summary);
   } else {
     runState.textContent = 'ocioso';
     runState.className = 'pill';
@@ -343,6 +387,7 @@ form.addEventListener('submit', async (e) => {
   e.preventDefault();
   persistFormPrefs();
   clearLog();
+  clearFailureReports();
   activeRunId = null;
   awaitingRunId = true;
   const fd = new FormData(form);

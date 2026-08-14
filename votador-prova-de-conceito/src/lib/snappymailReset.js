@@ -4,6 +4,7 @@ import {
   subjectForLocale,
   subjectsToMatch,
 } from './mailSubjects.js';
+import { FAILURE_KIND, taggedError } from './failureReport.js';
 
 /** Stock default (RelataSoft lab). Prefer webmail.<domínio-do-e-mail> when different. */
 const DEFAULT_MAIL_URL = 'https://webmail.relatasoft.com.br/';
@@ -100,7 +101,10 @@ export async function resetPasswordViaSnappyMail(page, opts) {
       err.waitFor({ state: 'visible', timeout: 60000 }),
     ]);
     if (await err.count()) {
-      throw new Error('Plugin reportou erro ao enviar e-mail de redefinição.');
+      throw taggedError(
+        FAILURE_KIND.PASSWORD_RESET,
+        'Plugin reportou erro ao enviar e-mail de redefinição.'
+      );
     }
   }
 
@@ -136,7 +140,7 @@ export async function resetPasswordViaSnappyMail(page, opts) {
         });
       }
     }
-    throw lastErr || new Error('Nenhum link de redefinição utilizável.');
+    throw lastErr || taggedError(FAILURE_KIND.PASSWORD_RESET, 'Nenhum link de redefinição utilizável.');
   } finally {
     await mailPage.close().catch(() => {});
   }
@@ -147,7 +151,8 @@ async function ensureOnWelcomeWithResetForm(page) {
   if (await form.count()) {
     return;
   }
-  throw new Error(
+  throw taggedError(
+    FAILURE_KIND.PASSWORD_RESET,
     'Shortcode [enviar_redefinicao_senha] não encontrado na página. Insira-o na página de boas-vindas.'
   );
 }
@@ -235,7 +240,8 @@ async function findResetLinksInSnappyMail(page, opts) {
   }
 
   const finalSubjects = await listVisibleSubjects(page);
-  throw new Error(
+  throw taggedError(
+    FAILURE_KIND.PASSWORD_RESET,
     `E-mail de redefinição não encontrado na INBOX em ${Math.round(timeoutMs / 1000)}s ` +
       `(procurava "${subject}"; visíveis: ${finalSubjects.slice(0, 8).join(' | ') || 'nenhum'}).`
   );
@@ -406,7 +412,8 @@ async function loginToSnappyMail(page, userEmail, currentPassword, mailUrl, logg
   }
 
   if (!loginVisible) {
-    throw new Error(
+    throw taggedError(
+      FAILURE_KIND.EMAIL_LOGIN,
       `Falha no login SnappyMail em ${mailUrl} — formulário de login e INBOX indisponíveis`
     );
   }
@@ -462,7 +469,7 @@ async function loginToSnappyMail(page, userEmail, currentPassword, mailUrl, logg
   } else {
     hints.push('Confirme e-mail/senha do CSV e a URL do SnappyMail');
   }
-  throw new Error(hints.join(' — '));
+  throw taggedError(FAILURE_KIND.EMAIL_LOGIN, hints.join(' — '));
 }
 
 /**
@@ -678,7 +685,8 @@ async function rejectRoundcubeSurface(page) {
     /roundcube/i.test(title) ||
     (await page.locator('#rcmloginuser, #login-form #rcmloginpwd, form#login-form').count()) > 0;
   if (hasRc) {
-    throw new Error(
+    throw taggedError(
+      FAILURE_KIND.EMAIL_LOGIN,
       'A URL de webmail ainda serve Roundcube. Use SnappyMail (ex.: https://webmail.<domínio>/) via --mail-url / campo URL.'
     );
   }
@@ -841,7 +849,10 @@ async function setWordPressPassword(page, resetLink, newPassword, logger) {
     const detail =
       ((await page.locator('#login_error').innerText().catch(() => '')) || '').trim() ||
       `url=${page.url()}`;
-    throw new Error(`Link de redefinição WP inutilizável: ${detail}`);
+    throw taggedError(
+      FAILURE_KIND.PASSWORD_RESET,
+      `Link de redefinição WP inutilizável: ${detail}`
+    );
   }
 
   // Set password via DOM (pass2 is often hidden; fill() would hang).
@@ -895,7 +906,8 @@ async function setWordPressPassword(page, resetLink, newPassword, logger) {
   const errText = ((await page.locator('#login_error').innerText().catch(() => '')) || '').trim();
   const stillPassForm = await page.locator('#pass1, input[name="pass1"]').isVisible().catch(() => false);
   if (errText || stillPassForm) {
-    throw new Error(
+    throw taggedError(
+      FAILURE_KIND.PASSWORD_RESET,
       `WordPress não confirmou a nova senha (${errText || 'formulário ainda visível'}; url=${page.url()}; before=${beforeUrl}).`
     );
   }

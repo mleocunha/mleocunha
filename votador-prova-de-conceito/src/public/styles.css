@@ -296,6 +296,42 @@ button.compact.is-flash {
   color: #ffe08a;
 }
 
+.failure-reports {
+  margin-top: 1rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--line);
+}
+
+.failure-reports h3 {
+  margin: 0 0 0.35rem;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.failure-report-links {
+  list-style: none;
+  margin: 0.6rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.failure-report-links a {
+  color: var(--accent-dark);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.failure-report-links a:hover {
+  text-decoration: underline;
+}
+
+.failure-report-links span {
+  color: var(--muted);
+  font-weight: 400;
+  font-size: 0.9rem;
+}
+
 @media (max-width: 720px) {
   .row,
   .row.triple {

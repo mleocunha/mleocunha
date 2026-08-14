@@ -71,7 +71,9 @@ Senha admin também pode vir de `RSES_ADMIN_PASS`.
    - `receipts.csv` — hashes
    - `events.ndjson` — progresso
    - `failures.ndjson` — falhas
-   - `summary.json` — totais
+   - `falhas-reset-senha.csv`, `falhas-login-email.csv`, `falhas-login-voto.csv` — falhas **repetidas** (≥2) por tipo, com `user_login` / `user_email`
+   - `falhas-repetidas.json` — consolidado
+   - `summary.json` — totais (+ links dos relatórios)
 
 ## PoC com troca de senha
 

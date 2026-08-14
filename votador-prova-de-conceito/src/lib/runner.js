@@ -10,9 +10,10 @@ import { createPasswordStore } from './passwordStore.js';
 import { discoverBatchLocale } from './discoverLocale.js';
 import { startDisplayCaffeinate } from './caffeinate.js';
 import { createAdaptivePool } from './adaptiveConcurrency.js';
+import { createFailureTracker, categorizeFailure } from './failureReport.js';
 
 /** Bumped when PoC runtime behaviour changes — look for this in startup logs. */
-export const VOTADOR_BUILD = 'adaptive-concurrency-1';
+export const VOTADOR_BUILD = 'failure-reports-1';
 
 export const DEFAULTS = {
   /** @deprecated use windowsInitial / windowsMax */
@@ -119,6 +120,7 @@ export async function runVotador(config, hooks = {}) {
 
   const caffeinate = startDisplayCaffeinate(logger);
   const launchOpts = buildLaunchOptions(cfg);
+  const failureTracker = createFailureTracker({ minRepeats: 2 });
 
   const pool = createAdaptivePool({
     chromium,
@@ -294,12 +296,23 @@ export async function runVotador(config, hooks = {}) {
           if (/timeout|Timeout|ETIMEDOUT|Target closed|crashed|net::ERR/i.test(msg)) {
             stalled = true;
           }
+          const failureKind = categorizeFailure(err);
+          const tracked = failureTracker.record({
+            kind: failureKind,
+            error: err,
+            user_login: elector.user_login,
+            user_email: elector.user_email,
+            attempt: failedAttempts,
+          });
           logger.warn(
             `Falha (insistência ${failedAttempts}/${cfg.insistencias}; limite y=${cfg.limiteRetentativas})`,
             {
               user_login: elector.user_login,
+              user_email: elector.user_email || undefined,
               error: msg,
               failedAttempts,
+              failure_kind: failureKind,
+              failure_count: tracked?.count,
               ...pool.snapshot(),
             }
           );
@@ -311,7 +324,9 @@ export async function runVotador(config, hooks = {}) {
               `para ${elector.user_login}`;
             logger.error(state.stopReason, {
               user_login: elector.user_login,
+              user_email: elector.user_email || undefined,
               failedAttempts,
+              failure_kind: failureKind,
             });
             return { ok: false, stalled: true, error: lastError };
           }
@@ -322,7 +337,9 @@ export async function runVotador(config, hooks = {}) {
       state.failedElectors += 1;
       logger.error('Eleitor pulado após insistências (registrado)', {
         user_login: elector.user_login,
+        user_email: elector.user_email || undefined,
         error: String(lastError?.message || lastError || 'erro desconhecido'),
+        failure_kind: categorizeFailure(lastError),
         failureEvents: state.failureEvents,
         tentativas: cfg.tentativas,
       });
@@ -379,6 +396,20 @@ export async function runVotador(config, hooks = {}) {
       });
     }
 
+    const failureReport = failureTracker.exportTo(resultsDir);
+    logger.info('Relatórios de falhas repetidas exportados', {
+      exportedRows: failureReport.exportedRows,
+      minRepeats: failureReport.minRepeats,
+      byKind: {
+        password_reset: failureReport.files.password_reset?.count,
+        email_login: failureReport.files.email_login?.count,
+        vote_login: failureReport.files.vote_login?.count,
+      },
+      files: Object.fromEntries(
+        Object.entries(failureReport.files).map(([k, v]) => [k, v.fileName])
+      ),
+    });
+
     const summary = {
       resultsDir,
       electorsTotal: electors.length,
@@ -392,6 +423,17 @@ export async function runVotador(config, hooks = {}) {
       passwordChangePoc,
       batchLocale: passwordChangePoc ? batchLocale : null,
       passwordsExport,
+      failureReport: {
+        minRepeats: failureReport.minRepeats,
+        exportedRows: failureReport.exportedRows,
+        files: Object.fromEntries(
+          Object.entries(failureReport.files).map(([k, v]) => [
+            k,
+            { fileName: v.fileName, label: v.label, count: v.count },
+          ])
+        ),
+        rows: failureReport.rows,
+      },
       concurrency: pool.snapshot(),
       stopReason: state.stopReason || null,
       finishedAt: new Date().toISOString(),

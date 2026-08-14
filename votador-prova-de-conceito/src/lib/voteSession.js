@@ -1,6 +1,7 @@
 import { boothUrlFor } from './urls.js';
 import { resetPasswordViaSnappyMail } from './snappymailReset.js';
 import { readLoginError, tryWpLogin } from './wpLogin.js';
+import { FAILURE_KIND, taggedError } from './failureReport.js';
 
 /**
  * Run one elector through all open rounds.
@@ -188,7 +189,8 @@ async function authenticateElector(page, opts) {
 
   if (!newPassword) {
     if (!csvOk) {
-      throw new Error(
+      throw taggedError(
+        FAILURE_KIND.VOTE_LOGIN,
         `Login falhou para ${elector.user_login}: nem a senha gerada local nem a do CSV funcionaram.`
       );
     }
@@ -226,7 +228,8 @@ async function loginWithPassword(page, loginUrl, userLogin, password) {
   if (!ok) {
     const err = await readLoginError(page);
     const detail = err || 'credenciais inválidas (ainda na página de login)';
-    throw new Error(
+    throw taggedError(
+      FAILURE_KIND.VOTE_LOGIN,
       `Login falhou para ${userLogin}: ${detail} [senha_len=${String(password || '').length}]`
     );
   }

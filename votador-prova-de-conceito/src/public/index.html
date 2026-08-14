@@ -165,6 +165,14 @@
       </div>
       <p class="hint log-hint">Horários no fuso desta máquina. Use Copiar ou Gravar para enviar o log.</p>
       <pre id="log" class="log" aria-live="polite"></pre>
+      <div id="failureReports" class="failure-reports" hidden>
+        <h3>Relatórios de falhas repetidas</h3>
+        <p class="hint">
+          Só entram usuários cuja falha do mesmo tipo ocorreu pelo menos duas vezes
+          (repetiu pelo menos uma vez). Baixe o CSV/JSON ao terminar a execução.
+        </p>
+        <ul id="failureReportLinks" class="failure-report-links"></ul>
+      </div>
     </section>
   </div>
   <script src="/app.js" type="module"></script>
