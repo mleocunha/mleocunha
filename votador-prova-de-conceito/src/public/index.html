@@ -90,21 +90,36 @@
 
       <section class="block">
         <h2>Paralelismo e resiliência</h2>
+        <div class="row">
+          <label>
+            Janelas Chrome (inicial)
+            <input name="windowsInitial" type="number" min="1" max="20" value="1" />
+          </label>
+          <label>
+            Janelas Chrome (máximo)
+            <input name="windowsMax" type="number" min="1" max="20" value="5" />
+          </label>
+        </div>
+        <div class="row">
+          <label>
+            Contextos / janela (inicial)
+            <input name="tabsInitial" type="number" min="1" max="20" value="1" />
+          </label>
+          <label>
+            Contextos / janela (máximo)
+            <input name="tabsMax" type="number" min="1" max="20" value="5" />
+          </label>
+        </div>
+        <p class="hint">
+          A concorrência começa no inicial e sobe aos poucos enquanto tudo responde bem;
+          se houver timeout, travamento ou lentidão, desce aos poucos até achar um ritmo estável
+          (nunca acima do máximo).
+        </p>
         <div class="row triple">
-          <label>
-            Janelas Chrome
-            <input name="windows" type="number" min="1" max="10" value="5" />
-          </label>
-          <label>
-            Contextos / janela
-            <input name="tabsPerWindow" type="number" min="1" max="10" value="5" />
-          </label>
           <label class="check">
             <input name="ignoreHTTPSErrors" type="checkbox" value="1" />
             Ignorar erro de certificado HTTPS
           </label>
-        </div>
-        <div class="row triple">
           <label>
             Tentativas
             <input name="tentativas" type="number" min="1" value="50" title="Máximo de eleitores pulados/registrados no teste inteiro (x)" />
@@ -113,6 +128,8 @@
             Insistências
             <input name="insistencias" type="number" min="1" value="3" title="Retentativas por cada falha de eleitor (n)" />
           </label>
+        </div>
+        <div class="row">
           <label>
             Limite máximo de retentativas
             <input name="limiteRetentativas" type="number" min="1" value="3" title="Teto por falha (y): se as insistências daquela falha chegarem a y, o teste para" />

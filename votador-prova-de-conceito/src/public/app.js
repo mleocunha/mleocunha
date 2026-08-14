@@ -65,6 +65,10 @@ function persistFormPrefs() {
       loginPath: String(loginPath?.value || ''),
       loginPathCustom: String(form.elements.namedItem('loginPathCustom')?.value || '').trim(),
       passwordChangePoc: Boolean(passwordChangePoc?.checked),
+      windowsInitial: String(form.elements.namedItem('windowsInitial')?.value || ''),
+      windowsMax: String(form.elements.namedItem('windowsMax')?.value || ''),
+      tabsInitial: String(form.elements.namedItem('tabsInitial')?.value || ''),
+      tabsMax: String(form.elements.namedItem('tabsMax')?.value || ''),
     };
     localStorage.setItem(FORM_STORAGE_KEY, JSON.stringify(data));
   } catch {
@@ -99,6 +103,12 @@ function restoreFormPrefs() {
     if (typeof data.passwordChangePoc === 'boolean' && passwordChangePoc) {
       passwordChangePoc.checked = data.passwordChangePoc;
       syncMailUrlVisibility();
+    }
+    for (const key of ['windowsInitial', 'windowsMax', 'tabsInitial', 'tabsMax']) {
+      const el = form.elements.namedItem(key);
+      if (data[key] && el) {
+        el.value = data[key];
+      }
     }
   } catch {
     /* ignore corrupt storage */
@@ -245,6 +255,13 @@ function appendLog(ev) {
   if (ev.receipt_hash) extraBits.receipt_hash = ev.receipt_hash;
   if (ev.error) extraBits.error = ev.error;
   if (ev.status) extraBits.status = ev.status;
+  if (ev.windows != null) extraBits.windows = ev.windows;
+  if (ev.tabsPerWindow != null) extraBits.tabs = ev.tabsPerWindow;
+  if (ev.workers != null) extraBits.workers = ev.workers;
+  if (ev.windows_initial != null) extraBits.w0 = ev.windows_initial;
+  if (ev.windows_max != null) extraBits.wMax = ev.windows_max;
+  if (ev.tabs_initial != null) extraBits.t0 = ev.tabs_initial;
+  if (ev.tabs_max != null) extraBits.tMax = ev.tabs_max;
   const extra = Object.keys(extraBits).length ? ` ${JSON.stringify(extraBits)}` : '';
   line.textContent = `${ts} [${level}] ${ev.message || ''}${extra}`;
   logEl.appendChild(line);

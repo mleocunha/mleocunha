@@ -144,8 +144,14 @@ app.post('/api/start', upload.single('csv'), async (req, res) => {
     csvPath,
     chromePath: String(body.chromePath || '').trim() || undefined,
     ignoreHTTPSErrors: body.ignoreHTTPSErrors === '1' || body.ignoreHTTPSErrors === 'true',
-    windows: Number(body.windows || DEFAULTS.windows),
-    tabsPerWindow: Number(body.tabsPerWindow || DEFAULTS.tabsPerWindow),
+    windowsInitial: Number(
+      body.windowsInitial ?? body.windows ?? DEFAULTS.windowsInitial
+    ),
+    windowsMax: Number(body.windowsMax ?? body.windows ?? DEFAULTS.windowsMax),
+    tabsInitial: Number(
+      body.tabsInitial ?? body.tabsPerWindow ?? DEFAULTS.tabsInitial
+    ),
+    tabsMax: Number(body.tabsMax ?? body.tabsPerWindow ?? DEFAULTS.tabsMax),
     tentativas: Number(body.tentativas || DEFAULTS.tentativas),
     insistencias: Number(body.insistencias || DEFAULTS.insistencias),
     limiteRetentativas: Number(body.limiteRetentativas || DEFAULTS.limiteRetentativas),
