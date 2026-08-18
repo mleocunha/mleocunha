@@ -13,7 +13,7 @@ import { createAdaptivePool } from './adaptiveConcurrency.js';
 import { createFailureTracker, categorizeFailure } from './failureReport.js';
 
 /** Bumped when PoC runtime behaviour changes — look for this in startup logs. */
-export const VOTADOR_BUILD = 'locale-fallback-1';
+export const VOTADOR_BUILD = 'reset-without-login-1';
 
 export const DEFAULTS = {
   /** @deprecated use windowsInitial / windowsMax */

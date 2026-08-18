@@ -107,6 +107,10 @@ export async function voteElector(context, opts) {
 
 /**
  * Login; optionally reset via SnappyMail when PoC password-change is enabled.
+ *
+ * With password-change PoC: a failed WP login must NOT stop the elector.
+ * Request reset (welcome shortcode if logged in, else WP lostpassword), read
+ * SnappyMail with the CSV/mailbox password, set a new WP password, then vote.
  */
 async function authenticateElector(page, opts) {
   const {
@@ -125,6 +129,13 @@ async function authenticateElector(page, opts) {
     return { password: elector.password, didReset: false };
   }
 
+  if (!elector.user_email) {
+    throw taggedError(
+      FAILURE_KIND.PASSWORD_RESET,
+      `PoC com troca de senha exige user_email para ${elector.user_login}.`
+    );
+  }
+
   const stored = passwordStore?.get(elector.user_login);
   if (stored?.password) {
     const ok = await tryLogin(page, loginUrl, elector.user_login, stored.password);
@@ -134,7 +145,7 @@ async function authenticateElector(page, opts) {
       });
       return { password: stored.password, didReset: false };
     }
-    logger.warn('Senha local gravada não autenticou; tentarei a INBOX antes de novo e-mail', {
+    logger.warn('Senha local gravada não autenticou; seguirei com reset/INBOX', {
       user_login: elector.user_login,
     });
   }
@@ -155,19 +166,32 @@ async function authenticateElector(page, opts) {
     } else {
       await page.goto(welcome, { waitUntil: 'domcontentloaded', timeout: 60000 });
     }
+  } else {
+    logger.warn(
+      'Login CSV/WP falhou; pedirei reset sem sessão (lostpassword) e usarei SnappyMail',
+      {
+        user_login: elector.user_login,
+        user_email: elector.user_email,
+      }
+    );
   }
 
+  // Mailbox password stays the CSV value (IMAP ≠ WP after prior resets).
   const mailOpts = {
     mailUrl,
     userEmail: elector.user_email,
+    userLogin: elector.user_login,
     currentPassword: elector.password,
     batchLocale,
+    loginUrl,
     logger,
   };
 
   let newPassword = null;
   const preferExistingMail =
-    Boolean(stored?.password) || Boolean(passwordStore?.wasMailResetSent?.(elector.user_login));
+    Boolean(stored?.password) ||
+    Boolean(passwordStore?.wasMailResetSent?.(elector.user_login)) ||
+    !csvOk;
 
   if (preferExistingMail) {
     try {
@@ -180,7 +204,7 @@ async function authenticateElector(page, opts) {
         user_login: elector.user_login,
       });
     } catch (inboxErr) {
-      logger.info('INBOX sem link utilizável após reset anterior', {
+      logger.info('INBOX sem link utilizável; vou disparar novo e-mail de redefinição', {
         user_login: elector.user_login,
         inbox_error: String(inboxErr.message || inboxErr),
       });
@@ -188,18 +212,13 @@ async function authenticateElector(page, opts) {
   }
 
   if (!newPassword) {
-    if (!csvOk) {
-      throw taggedError(
-        FAILURE_KIND.VOTE_LOGIN,
-        `Login falhou para ${elector.user_login}: nem a senha gerada local nem a do CSV funcionaram.`
-      );
-    }
-    if (welcome) {
+    if (csvOk && welcome) {
       await page.goto(welcome, { waitUntil: 'domcontentloaded', timeout: 60000 });
     }
     passwordStore?.markMailResetSent?.(elector.user_login);
     newPassword = await resetPasswordViaSnappyMail(page, {
       ...mailOpts,
+      sendVia: csvOk ? 'shortcode' : 'lostpassword',
       timeoutMs: 120000,
     });
   }
@@ -212,8 +231,17 @@ async function authenticateElector(page, opts) {
     user_login: elector.user_login,
   });
 
+  welcome = welcome || journeyCache.current.welcome;
   if (welcome) {
     await page.goto(welcome, { waitUntil: 'domcontentloaded', timeout: 60000 });
+  } else {
+    const discovered = await discoverJourneyFromWelcome(page, {}, logger);
+    welcome = discovered.welcome || stripQuery(page.url());
+    fillJourneyIfEmpty(journeyCache, {
+      welcome,
+      booth: discovered.booth || '',
+      thank_you: discovered.thank_you || '',
+    });
   }
 
   return { password: newPassword, didReset: true, welcomeHint: welcome };
