@@ -13,7 +13,7 @@ import { createAdaptivePool } from './adaptiveConcurrency.js';
 import { createFailureTracker, categorizeFailure } from './failureReport.js';
 
 /** Bumped when PoC runtime behaviour changes — look for this in startup logs. */
-export const VOTADOR_BUILD = 'failure-reports-1';
+export const VOTADOR_BUILD = 'locale-fallback-1';
 
 export const DEFAULTS = {
   /** @deprecated use windowsInitial / windowsMax */
@@ -112,7 +112,7 @@ export async function runVotador(config, hooks = {}) {
     logger.on(hooks.onEvent);
   }
 
-  const { electors } = loadElectorsFromCsv(cfg.csvPath);
+  const { electors, headers, source } = loadElectorsFromCsv(cfg.csvPath);
   const loginUrl = resolveLoginUrl(cfg);
   const passwordChangePoc = Boolean(cfg.passwordChangePoc);
   const mailUrl = String(cfg.mailUrl || DEFAULTS.mailUrl).trim() || DEFAULTS.mailUrl;
@@ -138,6 +138,11 @@ export async function runVotador(config, hooks = {}) {
     build: VOTADOR_BUILD,
     caffeinate: caffeinate.active,
     electors: electors.length,
+    csv: source,
+    csv_headers: headers,
+    first_login: electors[0]?.user_login,
+    first_email: electors[0]?.user_email || null,
+    first_password_len: electors[0]?.password_len,
     adaptive: !cfg.fixed,
     windows_initial: cfg.windowsInitial,
     windows_max: cfg.windowsMax,
@@ -208,16 +213,14 @@ export async function runVotador(config, hooks = {}) {
         ignoreHTTPSErrors: Boolean(cfg.ignoreHTTPSErrors),
       });
       try {
-        const first = { ...electors[0] };
-        const stored = passwordStore.get(first.user_login);
-        if (stored?.password) {
-          first.password = stored.password;
-        }
         batchLocale = await discoverBatchLocale(localeContext, {
           loginUrl,
-          elector: first,
+          electors,
+          passwordStore,
           platformUrl: cfg.platformUrl.replace(/\/+$/, ''),
           logger,
+          fallbackLocale: 'pt_BR',
+          maxCandidates: 5,
         });
       } finally {
         await localeContext.close().catch(() => {});

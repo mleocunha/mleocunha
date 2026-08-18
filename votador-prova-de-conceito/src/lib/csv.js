@@ -13,6 +13,7 @@ export function parseCsvText(text) {
   let i = 0;
   let inQuotes = false;
   const src = text.replace(/^\uFEFF/, '');
+  const delimiter = detectDelimiter(src);
 
   while (i < src.length) {
     const ch = src[i];
@@ -36,7 +37,7 @@ export function parseCsvText(text) {
       i += 1;
       continue;
     }
-    if (ch === ',') {
+    if (ch === delimiter) {
       row.push(cell);
       cell = '';
       i += 1;
@@ -62,6 +63,33 @@ export function parseCsvText(text) {
     rows.push(row);
   }
   return rows.filter((r) => r.some((c) => String(c).trim() !== ''));
+}
+
+/**
+ * Excel BR often exports with `;`. Prefer `;` when the header line has more
+ * semicolons than commas outside quotes.
+ * @param {string} src
+ */
+function detectDelimiter(src) {
+  const firstLine = String(src || '').split(/\r?\n/, 1)[0] || '';
+  let commas = 0;
+  let semis = 0;
+  let inQuotes = false;
+  for (let i = 0; i < firstLine.length; i += 1) {
+    const ch = firstLine[i];
+    if (ch === '"') {
+      if (inQuotes && firstLine[i + 1] === '"') {
+        i += 1;
+        continue;
+      }
+      inQuotes = !inQuotes;
+      continue;
+    }
+    if (inQuotes) continue;
+    if (ch === ',') commas += 1;
+    if (ch === ';') semis += 1;
+  }
+  return semis > commas ? ';' : ',';
 }
 
 /**
