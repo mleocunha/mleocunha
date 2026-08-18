@@ -42,10 +42,10 @@ export function resolveMailUrlForEmail(configured, userEmail) {
 }
 
 /**
- * Trigger WP shortcode reset, read SnappyMail INBOX, set new WP password.
+ * Trigger WP lostpassword reset, read SnappyMail INBOX for a *fresh* mail,
+ * set new WP password. Password-change PoC always sends a new request.
  *
- * @param {import('playwright').Page} page Already logged into WordPress as the elector
- *   when sendVia is "shortcode"; any page is fine for "lostpassword" / skipSend.
+ * @param {import('playwright').Page} page Any page in the elector context.
  * @param {object} opts
  */
 export async function resetPasswordViaSnappyMail(page, opts) {
@@ -59,8 +59,9 @@ export async function resetPasswordViaSnappyMail(page, opts) {
     logger,
     skipSend = false,
     /** @type {'shortcode'|'lostpassword'} */
-    sendVia = 'shortcode',
+    sendVia = 'lostpassword',
     loginUrl,
+    requireFreshMail = true,
   } = opts;
 
   const resolved = resolveMailUrlForEmail(mailUrl, userEmail);
@@ -78,6 +79,7 @@ export async function resetPasswordViaSnappyMail(page, opts) {
     mail_url_derived: resolved.derived,
     skip_send: Boolean(skipSend),
     send_via: skipSend ? 'skip' : sendVia,
+    require_fresh: Boolean(requireFreshMail && !skipSend),
   });
   if (resolved.derived) {
     logger?.info?.(
@@ -86,46 +88,58 @@ export async function resetPasswordViaSnappyMail(page, opts) {
     );
   }
 
-  if (!skipSend) {
-    if (sendVia === 'lostpassword') {
-      await requestWpLostPassword(page, {
-        loginUrl,
-        userLogin,
-        userEmail,
-        logger,
-      });
-    } else {
-      await ensureOnWelcomeWithResetForm(page);
-
-      // Hidden input — Playwright fill() requires visibility; set value via DOM.
-      const localeField = page.locator('#rses-poc-mail-locale');
-      await localeField.waitFor({ state: 'attached', timeout: 15000 });
-      await localeField.evaluate((el, value) => {
-        el.value = value;
-      }, batchLocale || '');
-
-      await Promise.all([
-        page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 60000 }).catch(() => {}),
-        page.locator('[data-rses-password-reset-submit]').click(),
-      ]);
-
-      const status = page.locator('[data-rses-password-reset-status="enviada"]');
-      const err = page.locator('[data-rses-password-reset-status="erro"]');
-      await Promise.race([
-        status.waitFor({ state: 'visible', timeout: 60000 }),
-        err.waitFor({ state: 'visible', timeout: 60000 }),
-      ]);
-      if (await err.count()) {
-        throw taggedError(
-          FAILURE_KIND.PASSWORD_RESET,
-          'Plugin reportou erro ao enviar e-mail de redefinição.'
-        );
-      }
-    }
-  }
-
+  /** @type {string[]} */
+  let baselineSubjects = [];
   const mailPage = await page.context().newPage();
   try {
+    // Login to mailbox first so we can snapshot INBOX before requesting reset.
+    await mailPage.goto(effectiveMailUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
+    await rejectRoundcubeSurface(mailPage);
+    await snappyLogoutIfNeeded(mailPage, effectiveMailUrl, logger);
+    await loginToSnappyMail(mailPage, userEmail, currentPassword, effectiveMailUrl, logger);
+    await dismissSnappyStartupPopups(mailPage, { userEmail, logger, waitForMs: 5000 });
+    await openInboxFolder(mailPage);
+    baselineSubjects = await listVisibleSubjects(mailPage);
+    logger?.info?.('INBOX baseline antes do pedido de reset', {
+      user_email: userEmail,
+      count: baselineSubjects.length,
+      top: baselineSubjects.slice(0, 3),
+    });
+
+    if (!skipSend) {
+      if (sendVia === 'shortcode') {
+        await ensureOnWelcomeWithResetForm(page);
+        const localeField = page.locator('#rses-poc-mail-locale');
+        await localeField.waitFor({ state: 'attached', timeout: 15000 });
+        await localeField.evaluate((el, value) => {
+          el.value = value;
+        }, batchLocale || '');
+        await Promise.all([
+          page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 60000 }).catch(() => {}),
+          page.locator('[data-rses-password-reset-submit]').click(),
+        ]);
+        const status = page.locator('[data-rses-password-reset-status="enviada"]');
+        const err = page.locator('[data-rses-password-reset-status="erro"]');
+        await Promise.race([
+          status.waitFor({ state: 'visible', timeout: 60000 }),
+          err.waitFor({ state: 'visible', timeout: 60000 }),
+        ]);
+        if (await err.count()) {
+          throw taggedError(
+            FAILURE_KIND.PASSWORD_RESET,
+            'Plugin reportou erro ao enviar e-mail de redefinição.'
+          );
+        }
+      } else {
+        await requestWpLostPassword(page, {
+          loginUrl,
+          userLogin,
+          userEmail,
+          logger,
+        });
+      }
+    }
+
     const resetLinks = await findResetLinksInSnappyMail(mailPage, {
       mailUrl: effectiveMailUrl,
       userEmail,
@@ -134,6 +148,9 @@ export async function resetPasswordViaSnappyMail(page, opts) {
       subjectCandidates,
       timeoutMs: skipSend ? Math.min(timeoutMs, 45000) : timeoutMs,
       logger,
+      alreadyLoggedIn: true,
+      baselineSubjects: requireFreshMail && !skipSend ? baselineSubjects : null,
+      maxLinks: 1,
     });
 
     logger?.info?.('Link(s) de redefinição encontrados; definindo nova senha…', {
@@ -195,10 +212,14 @@ export async function requestWpLostPassword(page, opts = {}) {
   await userField.fill(identity);
 
   const submit = page.locator('#wp-submit, input[type="submit"], button[type="submit"]').first();
-  await Promise.all([
-    page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 60000 }).catch(() => {}),
-    submit.click(),
-  ]);
+  // WP often stays on the same document or soft-navigates — do not hang on navigation.
+  await submit.click();
+  await page.waitForTimeout(1200);
+  try {
+    await page.waitForLoadState('domcontentloaded', { timeout: 15000 });
+  } catch {
+    // ignore
+  }
 
   const err = ((await page.locator('#login_error').innerText().catch(() => '')) || '').trim();
   if (err) {
@@ -208,16 +229,17 @@ export async function requestWpLostPassword(page, opts = {}) {
     );
   }
 
-  // WP shows confirmation on checkemail=confirm or a message on the same form.
   const body = ((await page.locator('body').innerText().catch(() => '')) || '').toLowerCase();
   const url = page.url();
   const looksSent =
     /checkemail=confirm/i.test(url) ||
-    /password reset|redefini|enviad|sent|e-mail|email/i.test(body);
+    /password reset|redefini|enviad|sent|e-mail|email|verifique|check your/i.test(body);
   if (!looksSent) {
     opts.logger?.warn?.('lostpassword sem confirmação explícita; seguirei para o SnappyMail', {
       url,
     });
+  } else {
+    opts.logger?.info?.('Pedido lostpassword aceito pelo WordPress', { url });
   }
 }
 
@@ -256,52 +278,79 @@ async function findResetLinksInSnappyMail(page, opts) {
     subjectCandidates = [subject],
     timeoutMs,
     logger,
+    alreadyLoggedIn = false,
+    baselineSubjects = null,
+    maxLinks = 1,
   } = opts;
 
-  await page.goto(mailUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
-  await rejectRoundcubeSurface(page);
-  // Always re-auth so we do not read a stale / wrong mailbox view.
-  await snappyLogoutIfNeeded(page, mailUrl, logger);
-  await loginToSnappyMail(page, userEmail, currentPassword, mailUrl, logger);
-  await dismissSnappyStartupPopups(page, { userEmail, logger, waitForMs: 5000 });
-  await openInboxFolder(page);
+  if (!alreadyLoggedIn) {
+    await page.goto(mailUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
+    await rejectRoundcubeSurface(page);
+    await snappyLogoutIfNeeded(page, mailUrl, logger);
+    await loginToSnappyMail(page, userEmail, currentPassword, mailUrl, logger);
+    await dismissSnappyStartupPopups(page, { userEmail, logger, waitForMs: 5000 });
+    await openInboxFolder(page);
+  }
 
+  const baseline = Array.isArray(baselineSubjects) ? baselineSubjects : null;
+  const baselineSet = new Set(baseline || []);
+  const requireFresh = Boolean(baseline);
   const deadline = Date.now() + timeoutMs;
   let lastSubjectsLog = 0;
   let searchedOnce = false;
   let peekedJunk = false;
+  let waitedPastBaseline = false;
 
   while (Date.now() < deadline) {
     await dismissSnappyStartupPopups(page, { userEmail, logger, quiet: true });
     await reloadMessageList(page);
 
     const subjectsNow = await listVisibleSubjects(page);
-    if (Date.now() - lastSubjectsLog > 15000) {
+    if (Date.now() - lastSubjectsLog > 10000) {
       lastSubjectsLog = Date.now();
       logger?.info?.('SnappyMail INBOX (assuntos visíveis)', {
         user_email: userEmail,
         count: subjectsNow.length,
         subjects: subjectsNow.slice(0, 12),
+        waiting_fresh: requireFresh && !waitedPastBaseline,
       });
+    }
+
+    if (requireFresh) {
+      const freshTop = subjectsNow.find(
+        (s) => s && !baselineSet.has(s) && looksLikeResetSubject(s)
+      );
+      if (!freshTop) {
+        await page.waitForTimeout(2000);
+        continue;
+      }
+      if (!waitedPastBaseline) {
+        waitedPastBaseline = true;
+        logger?.info?.('Novo e-mail detectado após o pedido de reset', {
+          user_email: userEmail,
+          top: freshTop.slice(0, 120),
+        });
+      }
     }
 
     const links = await collectResetLinksFromList(page, {
       subjectCandidates,
       logger,
-      maxLinks: 5,
+      maxLinks,
+      preferUnseenFirst: requireFresh,
     });
     if (links.length) {
       return links;
     }
 
-    // Use SnappyMail search once for the preferred subject.
-    if (!searchedOnce && Date.now() > deadline - timeoutMs + 8000) {
+    if (!searchedOnce && Date.now() > deadline - timeoutMs + 10000) {
       searchedOnce = true;
       await searchMailbox(page, subject);
       const viaSearch = await collectResetLinksFromList(page, {
         subjectCandidates,
         logger,
-        maxLinks: 5,
+        maxLinks,
+        preferUnseenFirst: requireFresh,
       });
       if (viaSearch.length) {
         return viaSearch;
@@ -309,13 +358,13 @@ async function findResetLinksInSnappyMail(page, opts) {
       await openInboxFolder(page);
     }
 
-    // Mid-wait: also open newest unread messages and scan body for rp link.
     if (Date.now() > deadline - timeoutMs / 2) {
       const viaScan = await collectResetLinksFromList(page, {
         subjectCandidates: [],
         logger,
-        maxLinks: 5,
+        maxLinks,
         anyRecent: true,
+        preferUnseenFirst: true,
       });
       if (viaScan.length) {
         return viaScan;
@@ -344,15 +393,38 @@ async function findResetLinksInSnappyMail(page, opts) {
  * @returns {Promise<string[]>}
  */
 async function collectResetLinksFromList(page, opts) {
-  const { subjectCandidates = [], logger, maxLinks = 5, anyRecent = false } = opts;
+  const {
+    subjectCandidates = [],
+    logger,
+    maxLinks = 1,
+    anyRecent = false,
+    preferUnseenFirst = false,
+  } = opts;
   const items = page.locator('.messageListItem');
   const n = await items.count();
-  const limit = anyRecent ? Math.min(n, 8) : n;
+  const limit = anyRecent ? Math.min(n, 8) : Math.min(n, preferUnseenFirst ? 6 : n);
   /** @type {string[]} */
   const links = [];
   const seen = new Set();
 
-  for (let i = 0; i < limit; i += 1) {
+  /** @type {number[]} */
+  const order = [];
+  for (let i = 0; i < limit; i += 1) order.push(i);
+  if (preferUnseenFirst) {
+    const ranked = [];
+    for (const i of order) {
+      const item = items.nth(i);
+      const cls = (await item.getAttribute('class').catch(() => '')) || '';
+      const text = ((await item.innerText().catch(() => '')) || '').replace(/\s+/g, ' ').trim();
+      const unseen = /unseen|isNew|newMessage|flag-unseen/i.test(cls) || /☐|unread/i.test(text);
+      ranked.push({ i, unseen });
+    }
+    ranked.sort((a, b) => Number(b.unseen) - Number(a.unseen) || a.i - b.i);
+    order.length = 0;
+    for (const r of ranked) order.push(r.i);
+  }
+
+  for (const i of order) {
     if (links.length >= maxLinks) {
       break;
     }
@@ -370,7 +442,6 @@ async function collectResetLinksFromList(page, opts) {
       state: 'visible',
       timeout: 15000,
     }).catch(() => {});
-    // Plain-text mails need a moment for bodyText to paint.
     await page.waitForTimeout(900);
     const link = await extractResetLink(page);
     if (link && !seen.has(link)) {

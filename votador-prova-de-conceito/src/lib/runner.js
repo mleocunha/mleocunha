@@ -7,13 +7,12 @@ import { scrapeOpenElections } from './scrapeAdmin.js';
 import { resolveLoginUrl } from './urls.js';
 import { voteElector } from './voteSession.js';
 import { createPasswordStore } from './passwordStore.js';
-import { discoverBatchLocale } from './discoverLocale.js';
 import { startDisplayCaffeinate } from './caffeinate.js';
 import { createAdaptivePool } from './adaptiveConcurrency.js';
 import { createFailureTracker, categorizeFailure } from './failureReport.js';
 
 /** Bumped when PoC runtime behaviour changes — look for this in startup logs. */
-export const VOTADOR_BUILD = 'reset-without-login-1';
+export const VOTADOR_BUILD = 'always-reset-1';
 
 export const DEFAULTS = {
   /** @deprecated use windowsInitial / windowsMax */
@@ -204,28 +203,18 @@ export async function runVotador(config, hooks = {}) {
       },
     };
 
-    let batchLocale = 'en_US';
+    let batchLocale = 'pt_BR';
     if (passwordChangePoc) {
       if (!electors[0]?.user_email) {
         throw new Error('PoC com troca de senha exige user_email no CSV de cada eleitor.');
       }
-      const localeContext = await primaryBrowser.newContext({
-        ignoreHTTPSErrors: Boolean(cfg.ignoreHTTPSErrors),
+      // Reset is mandatory for every elector — do not burn time trying WP logins
+      // just to discover locale. Mail matching already tries several subjects.
+      batchLocale = String(cfg.batchLocale || 'pt_BR').replace('-', '_');
+      logger.info('PoC com troca de senha ativo (reset obrigatório por eleitor)', {
+        batchLocale,
+        mailUrl,
       });
-      try {
-        batchLocale = await discoverBatchLocale(localeContext, {
-          loginUrl,
-          electors,
-          passwordStore,
-          platformUrl: cfg.platformUrl.replace(/\/+$/, ''),
-          logger,
-          fallbackLocale: 'pt_BR',
-          maxCandidates: 5,
-        });
-      } finally {
-        await localeContext.close().catch(() => {});
-      }
-      logger.info('PoC com troca de senha ativo', { batchLocale, mailUrl });
     }
 
     const state = {

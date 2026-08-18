@@ -108,9 +108,10 @@ export async function voteElector(context, opts) {
 /**
  * Login; optionally reset via SnappyMail when PoC password-change is enabled.
  *
- * With password-change PoC: a failed WP login must NOT stop the elector.
- * Request reset (welcome shortcode if logged in, else WP lostpassword), read
- * SnappyMail with the CSV/mailbox password, set a new WP password, then vote.
+ * Legal/test requirement for password-change PoC: ALWAYS request a fresh WP
+ * password reset (lostpassword), read the newest mail in SnappyMail with the
+ * CSV mailbox password, set a new WP password, then vote. Never skip reset by
+ * reusing a stored or CSV WordPress password.
  */
 async function authenticateElector(page, opts) {
   const {
@@ -136,94 +137,28 @@ async function authenticateElector(page, opts) {
     );
   }
 
-  const stored = passwordStore?.get(elector.user_login);
-  if (stored?.password) {
-    const ok = await tryLogin(page, loginUrl, elector.user_login, stored.password);
-    if (ok) {
-      logger.info('Usando senha gerada anteriormente (sem novo reset)', {
-        user_login: elector.user_login,
-      });
-      return { password: stored.password, didReset: false };
-    }
-    logger.warn('Senha local gravada não autenticou; seguirei com reset/INBOX', {
-      user_login: elector.user_login,
-    });
-  }
+  logger.info('PoC jurídico: reset de senha obrigatório (sempre)', {
+    user_login: elector.user_login,
+    user_email: elector.user_email,
+  });
 
-  const csvOk = await tryLogin(page, loginUrl, elector.user_login, elector.password);
+  // Clear any leftover WP session before lostpassword / reset form.
+  await page.context().clearCookies();
 
-  // Ensure welcome (shortcode lives there) when we still have a CSV session.
-  let welcome = journeyCache.current.welcome;
-  if (csvOk) {
-    if (!welcome) {
-      const discovered = await discoverJourneyFromWelcome(page, {}, logger);
-      welcome = discovered.welcome || stripQuery(page.url());
-      fillJourneyIfEmpty(journeyCache, {
-        welcome,
-        booth: discovered.booth || '',
-        thank_you: discovered.thank_you || '',
-      });
-    } else {
-      await page.goto(welcome, { waitUntil: 'domcontentloaded', timeout: 60000 });
-    }
-  } else {
-    logger.warn(
-      'Login CSV/WP falhou; pedirei reset sem sessão (lostpassword) e usarei SnappyMail',
-      {
-        user_login: elector.user_login,
-        user_email: elector.user_email,
-      }
-    );
-  }
-
-  // Mailbox password stays the CSV value (IMAP ≠ WP after prior resets).
-  const mailOpts = {
+  const newPassword = await resetPasswordViaSnappyMail(page, {
     mailUrl,
     userEmail: elector.user_email,
     userLogin: elector.user_login,
-    currentPassword: elector.password,
+    currentPassword: elector.password, // mailbox/IMAP password from CSV
     batchLocale,
     loginUrl,
     logger,
-  };
+    sendVia: 'lostpassword',
+    requireFreshMail: true,
+    timeoutMs: 120000,
+  });
+  passwordStore?.markMailResetSent?.(elector.user_login);
 
-  let newPassword = null;
-  const preferExistingMail =
-    Boolean(stored?.password) ||
-    Boolean(passwordStore?.wasMailResetSent?.(elector.user_login)) ||
-    !csvOk;
-
-  if (preferExistingMail) {
-    try {
-      newPassword = await resetPasswordViaSnappyMail(page, {
-        ...mailOpts,
-        skipSend: true,
-        timeoutMs: 60000,
-      });
-      logger.info('Nova senha definida a partir de e-mail já presente na INBOX', {
-        user_login: elector.user_login,
-      });
-    } catch (inboxErr) {
-      logger.info('INBOX sem link utilizável; vou disparar novo e-mail de redefinição', {
-        user_login: elector.user_login,
-        inbox_error: String(inboxErr.message || inboxErr),
-      });
-    }
-  }
-
-  if (!newPassword) {
-    if (csvOk && welcome) {
-      await page.goto(welcome, { waitUntil: 'domcontentloaded', timeout: 60000 });
-    }
-    passwordStore?.markMailResetSent?.(elector.user_login);
-    newPassword = await resetPasswordViaSnappyMail(page, {
-      ...mailOpts,
-      sendVia: csvOk ? 'shortcode' : 'lostpassword',
-      timeoutMs: 120000,
-    });
-  }
-
-  // Re-login with the new password and only then persist (avoid storing a password WP rejected).
   await page.context().clearCookies();
   await loginWithPassword(page, loginUrl, elector.user_login, newPassword);
   passwordStore?.set(elector.user_login, newPassword, elector.user_email || '');
@@ -231,7 +166,7 @@ async function authenticateElector(page, opts) {
     user_login: elector.user_login,
   });
 
-  welcome = welcome || journeyCache.current.welcome;
+  let welcome = journeyCache.current.welcome;
   if (welcome) {
     await page.goto(welcome, { waitUntil: 'domcontentloaded', timeout: 60000 });
   } else {
