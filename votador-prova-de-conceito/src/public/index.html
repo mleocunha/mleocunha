@@ -110,10 +110,22 @@
             <input name="tabsMax" type="number" min="1" max="20" value="5" />
           </label>
         </div>
+        <div class="row">
+          <label>
+            Velocidade do ramp-up
+            <select name="rampUpSpeed">
+              <option value="slow">Lenta (~15s)</option>
+              <option value="normal" selected>Normal (~8s)</option>
+              <option value="fast">Rápida (~3s)</option>
+              <option value="aggressive">Agressiva (~1s)</option>
+            </select>
+          </label>
+        </div>
         <p class="hint">
           A concorrência começa no inicial e sobe aos poucos enquanto tudo responde bem;
           se houver timeout, travamento ou lentidão, desce aos poucos até achar um ritmo estável
-          (nunca acima do máximo).
+          (nunca acima do máximo). A <strong>velocidade do ramp-up</strong> controla o intervalo
+          mínimo entre cada aceleração e quantos sucessos saudáveis são exigidos.
         </p>
         <div class="row triple">
           <label class="check">

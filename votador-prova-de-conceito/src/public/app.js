@@ -54,6 +54,7 @@ passwordChangePoc.addEventListener('change', () => {
   persistFormPrefs();
 });
 visualHighlight?.addEventListener('change', persistFormPrefs);
+form.elements.namedItem('rampUpSpeed')?.addEventListener('change', persistFormPrefs);
 
 /**
  * Persist platform / mail URLs (and related prefs) in localStorage so reload keeps them.
@@ -72,6 +73,7 @@ function persistFormPrefs() {
       windowsMax: String(form.elements.namedItem('windowsMax')?.value || ''),
       tabsInitial: String(form.elements.namedItem('tabsInitial')?.value || ''),
       tabsMax: String(form.elements.namedItem('tabsMax')?.value || ''),
+      rampUpSpeed: String(form.elements.namedItem('rampUpSpeed')?.value || 'normal'),
     };
     localStorage.setItem(FORM_STORAGE_KEY, JSON.stringify(data));
   } catch {
@@ -110,7 +112,7 @@ function restoreFormPrefs() {
     if (typeof data.visualHighlight === 'boolean' && visualHighlight) {
       visualHighlight.checked = data.visualHighlight;
     }
-    for (const key of ['windowsInitial', 'windowsMax', 'tabsInitial', 'tabsMax']) {
+    for (const key of ['windowsInitial', 'windowsMax', 'tabsInitial', 'tabsMax', 'rampUpSpeed']) {
       const el = form.elements.namedItem(key);
       if (data[key] && el) {
         el.value = data[key];

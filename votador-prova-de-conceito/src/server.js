@@ -191,6 +191,7 @@ app.post('/api/start', upload.single('csv'), async (req, res) => {
       body.tabsInitial ?? body.tabsPerWindow ?? DEFAULTS.tabsInitial
     ),
     tabsMax: Number(body.tabsMax ?? body.tabsPerWindow ?? DEFAULTS.tabsMax),
+    rampUpSpeed: String(body.rampUpSpeed || DEFAULTS.rampUpSpeed || 'normal'),
     tentativas: Number(body.tentativas || DEFAULTS.tentativas),
     insistencias: Number(body.insistencias || DEFAULTS.insistencias),
     limiteRetentativas: Number(body.limiteRetentativas || DEFAULTS.limiteRetentativas),

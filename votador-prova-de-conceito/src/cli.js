@@ -17,6 +17,7 @@ Opções:
   --windows-max      Janelas Chrome máximas (default ${DEFAULTS.windowsMax})
   --tabs-initial     Contextos/janela iniciais (default ${DEFAULTS.tabsInitial})
   --tabs-max         Contextos/janela máximos (default ${DEFAULTS.tabsMax})
+  --ramp-up          Velocidade do ramp-up: slow|normal|fast|aggressive (default ${DEFAULTS.rampUpSpeed})
   --windows          (legado) fixa janelas inicial=máximo
   --tabs             (legado) fixa contextos inicial=máximo
   --tentativas       x — eleitores pulados/registrados no teste (default ${DEFAULTS.tentativas})
@@ -70,6 +71,7 @@ const summary = await runVotador({
   windowsMax: arg('windows-max') != null ? Number(arg('windows-max')) : undefined,
   tabsInitial: arg('tabs-initial') != null ? Number(arg('tabs-initial')) : undefined,
   tabsMax: arg('tabs-max') != null ? Number(arg('tabs-max')) : undefined,
+  rampUpSpeed: arg('ramp-up', DEFAULTS.rampUpSpeed),
   // Legacy fixed concurrency when only --windows / --tabs are passed.
   windows: arg('windows') != null ? Number(arg('windows')) : undefined,
   tabsPerWindow: arg('tabs') != null ? Number(arg('tabs')) : undefined,

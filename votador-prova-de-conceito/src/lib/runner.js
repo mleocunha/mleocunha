@@ -11,9 +11,10 @@ import { startDisplayCaffeinate } from './caffeinate.js';
 import { createAdaptivePool } from './adaptiveConcurrency.js';
 import { createFailureTracker, categorizeFailure } from './failureReport.js';
 import { createVisualDirector } from './visualHighlight.js';
+import { resolveRampUpConfig, RAMP_UP_PRESETS } from './rampUp.js';
 
 /** Bumped when PoC runtime behaviour changes — look for this in startup logs. */
-export const VOTADOR_BUILD = 'visual-highlight-1';
+export const VOTADOR_BUILD = 'ramp-up-speed-1';
 
 export const DEFAULTS = {
   /** @deprecated use windowsInitial / windowsMax */
@@ -24,6 +25,8 @@ export const DEFAULTS = {
   windowsMax: 5,
   tabsInitial: 1,
   tabsMax: 5,
+  /** Adaptive ramp-up speed: slow | normal | fast | aggressive */
+  rampUpSpeed: 'normal',
   /** Max electors skipped/logged after their insistências cycle (x). */
   tentativas: 50,
   /** Retry attempts per failed elector (n). */
@@ -37,6 +40,8 @@ export const DEFAULTS = {
   visualHighlight: false,
   mailUrl: 'https://webmail.relatasoft.com.br/',
 };
+
+export { RAMP_UP_PRESETS, resolveRampUpConfig };
 
 /**
  * Resolve adaptive bounds. Legacy `windows` / `tabsPerWindow` alone → fixed
@@ -119,6 +124,11 @@ export async function runVotador(config, hooks = {}) {
   const visualHighlight = Boolean(cfg.visualHighlight);
   const mailUrl = String(cfg.mailUrl || DEFAULTS.mailUrl).trim() || DEFAULTS.mailUrl;
   const passwordStore = createPasswordStore();
+  const ramp = resolveRampUpConfig(cfg.rampUpSpeed, {
+    scaleUpEveryMs: cfg.scaleUpEveryMs,
+    scaleDownEveryMs: cfg.scaleDownEveryMs,
+    healthySuccessesNeeded: cfg.healthySuccessesNeeded,
+  });
   const visual = createVisualDirector({
     enabled: visualHighlight,
     focusEveryMs: 1500,
@@ -137,6 +147,9 @@ export async function runVotador(config, hooks = {}) {
     tabsInitial: cfg.tabsInitial,
     tabsMax: cfg.tabsMax,
     adaptive: !cfg.fixed,
+    scaleUpEveryMs: ramp.scaleUpEveryMs,
+    scaleDownEveryMs: ramp.scaleDownEveryMs,
+    healthySuccessesNeeded: ramp.healthySuccessesNeeded,
     logger,
   });
 
@@ -156,6 +169,10 @@ export async function runVotador(config, hooks = {}) {
     tabs_max: cfg.tabsMax,
     concurrency_initial: cfg.windowsInitial * cfg.tabsInitial,
     concurrency_max: cfg.windowsMax * cfg.tabsMax,
+    ramp_up_speed: ramp.rampUpSpeed,
+    scale_up_every_ms: ramp.scaleUpEveryMs,
+    scale_down_every_ms: ramp.scaleDownEveryMs,
+    healthy_successes_needed: ramp.healthySuccessesNeeded,
     tentativas: cfg.tentativas,
     insistencias: cfg.insistencias,
     limiteRetentativas: cfg.limiteRetentativas,
