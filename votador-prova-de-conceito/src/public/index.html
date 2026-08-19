@@ -120,16 +120,20 @@
             <input name="ignoreHTTPSErrors" type="checkbox" value="1" />
             Ignorar erro de certificado HTTPS
           </label>
+          <label class="check">
+            <input name="visualHighlight" id="visualHighlight" type="checkbox" value="1" />
+            Destaque visual (worker principal)
+          </label>
           <label>
             Tentativas
             <input name="tentativas" type="number" min="1" value="50" title="Máximo de eleitores pulados/registrados no teste inteiro (x)" />
           </label>
+        </div>
+        <div class="row">
           <label>
             Insistências
             <input name="insistencias" type="number" min="1" value="3" title="Retentativas por cada falha de eleitor (n)" />
           </label>
-        </div>
-        <div class="row">
           <label>
             Limite máximo de retentativas
             <input name="limiteRetentativas" type="number" min="1" value="3" title="Teto por falha (y): se as insistências daquela falha chegarem a y, o teste para" />
@@ -138,6 +142,8 @@
         <p class="hint">
           Pula e registra até <strong>Tentativas</strong> falhas; retenta até <strong>Insistências</strong> por falha;
           se as insistências de uma falha atingirem o <strong>Limite máximo de retentativas</strong>, o teste inteiro para.
+          Com <strong>Destaque visual</strong>, todas as abas ganham um indicador; só o worker principal
+          (menor id activo) usa <code>bringToFront</code> — sem activar a janela no macOS.
         </p>
         <label>
           Caminho do Google Chrome (opcional)

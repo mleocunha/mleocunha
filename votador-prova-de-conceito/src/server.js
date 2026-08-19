@@ -198,6 +198,10 @@ app.post('/api/start', upload.single('csv'), async (req, res) => {
       body.passwordChangePoc === '1' ||
       body.passwordChangePoc === 'true' ||
       body.passwordChangePoc === 'on',
+    visualHighlight:
+      body.visualHighlight === '1' ||
+      body.visualHighlight === 'true' ||
+      body.visualHighlight === 'on',
     mailUrl: String(body.mailUrl || DEFAULTS.mailUrl).trim() || DEFAULTS.mailUrl,
   };
 

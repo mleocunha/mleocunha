@@ -19,10 +19,28 @@ export async function voteElector(context, opts) {
     mailUrl,
     batchLocale,
     passwordStore,
+    visual = null,
+    workerId = 1,
+    isPrincipal = false,
   } = opts;
 
   const page = await context.newPage();
   page.setDefaultTimeout(45000);
+
+  const unbindVisual = visual?.enabled
+    ? visual.bindContext(context, {
+        workerId,
+        label: `Worker ${workerId}`,
+        userLogin: elector.user_login,
+      })
+    : () => {};
+
+  if (visual?.enabled && isPrincipal) {
+    visual.setPrincipal(workerId);
+  }
+  if (visual?.enabled) {
+    await visual.mark(page, { step: 'início', userLogin: elector.user_login });
+  }
 
   // Accept native confirm() on ballot submit without artificial delay.
   page.on('dialog', async (dialog) => {
@@ -36,6 +54,7 @@ export async function voteElector(context, opts) {
   const votes = [];
 
   try {
+    await visual?.mark?.(page, { step: 'autenticação' });
     const auth = await authenticateElector(page, {
       loginUrl,
       elector,
@@ -45,6 +64,7 @@ export async function voteElector(context, opts) {
       passwordStore,
       journeyCache,
       logger,
+      visual,
     });
 
     let journey = { ...journeyCache.current };
@@ -74,6 +94,9 @@ export async function voteElector(context, opts) {
     }
 
     for (const round of rounds) {
+      await visual?.mark?.(page, {
+        step: `voto e${round.election_id}/r${round.round_id}`,
+      });
       const result = await castOneBallot(page, {
         elector,
         round,
@@ -82,6 +105,7 @@ export async function voteElector(context, opts) {
         logger,
       });
       votes.push(result);
+      await visual?.mark?.(page, { step: 'recibo' });
 
       if (result.thank_you_url) {
         fillJourneyIfEmpty(journeyCache, {
@@ -101,6 +125,11 @@ export async function voteElector(context, opts) {
 
     return { votes, journey: journeyCache.current };
   } finally {
+    try {
+      unbindVisual?.();
+    } catch {
+      // ignore
+    }
     await page.close().catch(() => {});
   }
 }
@@ -123,9 +152,11 @@ async function authenticateElector(page, opts) {
     passwordStore,
     journeyCache,
     logger,
+    visual = null,
   } = opts;
 
   if (!passwordChangePoc) {
+    await visual?.mark?.(page, { step: 'login WP' });
     await loginWithPassword(page, loginUrl, elector.user_login, elector.password);
     return { password: elector.password, didReset: false };
   }
@@ -145,6 +176,7 @@ async function authenticateElector(page, opts) {
   // Clear any leftover WP session before lostpassword / reset form.
   await page.context().clearCookies();
 
+  await visual?.mark?.(page, { step: 'reset lostpassword + SnappyMail' });
   const newPassword = await resetPasswordViaSnappyMail(page, {
     mailUrl,
     userEmail: elector.user_email,
@@ -160,6 +192,7 @@ async function authenticateElector(page, opts) {
   passwordStore?.markMailResetSent?.(elector.user_login);
 
   await page.context().clearCookies();
+  await visual?.mark?.(page, { step: 'login senha nova' });
   await loginWithPassword(page, loginUrl, elector.user_login, newPassword);
   passwordStore?.set(elector.user_login, newPassword, elector.user_email || '');
   logger.info('Nova senha gerada, autenticada e gravada localmente', {

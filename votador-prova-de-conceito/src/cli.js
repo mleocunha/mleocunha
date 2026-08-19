@@ -24,6 +24,7 @@ Opções:
   --limite           y — teto por falha; ao atingir y nessa falha, para o teste (default ${DEFAULTS.limiteRetentativas})
   --ignore-https     Ignorar erros de certificado
   --password-change  Ativa PoC com troca de senha (SnappyMail)
+  --visual-highlight Destaque visual: banner em todas as abas; bringToFront só no worker principal
   --mail-url         URL SnappyMail (default ${DEFAULTS.mailUrl})
 `);
 }
@@ -77,6 +78,7 @@ const summary = await runVotador({
   limiteRetentativas: Number(arg('limite', DEFAULTS.limiteRetentativas)),
   ignoreHTTPSErrors: hasFlag('ignore-https'),
   passwordChangePoc: hasFlag('password-change'),
+  visualHighlight: hasFlag('visual-highlight'),
   mailUrl: arg('mail-url', DEFAULTS.mailUrl),
 }, {
   onEvent: (ev) => {

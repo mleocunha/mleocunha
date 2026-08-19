@@ -423,5 +423,11 @@ export function createAdaptivePool({
     reportFailure,
     snapshot,
     close,
+    /** Lowest living slot id — stable "principal" worker for visual focus. */
+    getPrincipalId() {
+      const living = livingSlots();
+      if (!living.length) return null;
+      return Math.min(...living.map((s) => s.id));
+    },
   };
 }

@@ -10,9 +10,10 @@ import { createPasswordStore } from './passwordStore.js';
 import { startDisplayCaffeinate } from './caffeinate.js';
 import { createAdaptivePool } from './adaptiveConcurrency.js';
 import { createFailureTracker, categorizeFailure } from './failureReport.js';
+import { createVisualDirector } from './visualHighlight.js';
 
 /** Bumped when PoC runtime behaviour changes — look for this in startup logs. */
-export const VOTADOR_BUILD = 'always-reset-1';
+export const VOTADOR_BUILD = 'visual-highlight-1';
 
 export const DEFAULTS = {
   /** @deprecated use windowsInitial / windowsMax */
@@ -33,6 +34,7 @@ export const DEFAULTS = {
    */
   limiteRetentativas: 3,
   passwordChangePoc: false,
+  visualHighlight: false,
   mailUrl: 'https://webmail.relatasoft.com.br/',
 };
 
@@ -114,8 +116,13 @@ export async function runVotador(config, hooks = {}) {
   const { electors, headers, source } = loadElectorsFromCsv(cfg.csvPath);
   const loginUrl = resolveLoginUrl(cfg);
   const passwordChangePoc = Boolean(cfg.passwordChangePoc);
+  const visualHighlight = Boolean(cfg.visualHighlight);
   const mailUrl = String(cfg.mailUrl || DEFAULTS.mailUrl).trim() || DEFAULTS.mailUrl;
   const passwordStore = createPasswordStore();
+  const visual = createVisualDirector({
+    enabled: visualHighlight,
+    focusEveryMs: 1500,
+  });
 
   const caffeinate = startDisplayCaffeinate(logger);
   const launchOpts = buildLaunchOptions(cfg);
@@ -153,6 +160,7 @@ export async function runVotador(config, hooks = {}) {
     insistencias: cfg.insistencias,
     limiteRetentativas: cfg.limiteRetentativas,
     passwordChangePoc,
+    visualHighlight,
     mailUrl: passwordChangePoc ? mailUrl : null,
     storedPasswords: passwordStore.size(),
     loginUrl,
@@ -250,12 +258,17 @@ export async function runVotador(config, hooks = {}) {
     /**
      * @returns {Promise<{ ok: boolean, stalled: boolean, error?: Error }>}
      */
-    async function processWithRetries(context, job) {
+    async function processWithRetries(context, job, slot) {
       const { elector } = job;
       let lastError = null;
       let failedAttempts = 0;
       const maxAttempts = Math.max(1, cfg.insistencias);
       let stalled = false;
+      const principalId = pool.getPrincipalId?.() ?? slot.id;
+      if (visual.enabled) {
+        visual.setPrincipal(principalId);
+      }
+      const isPrincipal = slot.id === principalId;
 
       for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
         if (state.stopped) {
@@ -272,6 +285,9 @@ export async function runVotador(config, hooks = {}) {
             mailUrl,
             batchLocale,
             passwordStore,
+            visual,
+            workerId: slot.id,
+            isPrincipal,
           });
           state.successElectors += 1;
           logger.info('Eleitor concluído', {
@@ -360,7 +376,7 @@ export async function runVotador(config, hooks = {}) {
         ...pool.snapshot(),
       });
       const t0 = Date.now();
-      const outcome = await processWithRetries(slot.context, job);
+      const outcome = await processWithRetries(slot.context, job, slot);
       const elapsed = Date.now() - t0;
       if (outcome.ok) {
         await pool.reportSuccess(elapsed);

@@ -35,6 +35,7 @@ loginPath.addEventListener('change', () => {
 });
 
 const passwordChangePoc = document.getElementById('passwordChangePoc');
+const visualHighlight = document.getElementById('visualHighlight');
 const mailUrlWrap = document.getElementById('mailUrlWrap');
 const mailUrlHint = document.getElementById('mailUrlHint');
 const platformUrlInput = form.elements.namedItem('platformUrl');
@@ -52,6 +53,7 @@ passwordChangePoc.addEventListener('change', () => {
   syncMailUrlVisibility();
   persistFormPrefs();
 });
+visualHighlight?.addEventListener('change', persistFormPrefs);
 
 /**
  * Persist platform / mail URLs (and related prefs) in localStorage so reload keeps them.
@@ -65,6 +67,7 @@ function persistFormPrefs() {
       loginPath: String(loginPath?.value || ''),
       loginPathCustom: String(form.elements.namedItem('loginPathCustom')?.value || '').trim(),
       passwordChangePoc: Boolean(passwordChangePoc?.checked),
+      visualHighlight: Boolean(visualHighlight?.checked),
       windowsInitial: String(form.elements.namedItem('windowsInitial')?.value || ''),
       windowsMax: String(form.elements.namedItem('windowsMax')?.value || ''),
       tabsInitial: String(form.elements.namedItem('tabsInitial')?.value || ''),
@@ -103,6 +106,9 @@ function restoreFormPrefs() {
     if (typeof data.passwordChangePoc === 'boolean' && passwordChangePoc) {
       passwordChangePoc.checked = data.passwordChangePoc;
       syncMailUrlVisibility();
+    }
+    if (typeof data.visualHighlight === 'boolean' && visualHighlight) {
+      visualHighlight.checked = data.visualHighlight;
     }
     for (const key of ['windowsInitial', 'windowsMax', 'tabsInitial', 'tabsMax']) {
       const el = form.elements.namedItem(key);
