@@ -22,6 +22,7 @@ export async function voteElector(context, opts) {
     visual = null,
     workerId = 1,
     isPrincipal = false,
+    onElectorAuthenticated = null,
   } = opts;
 
   const page = await context.newPage();
@@ -65,6 +66,7 @@ export async function voteElector(context, opts) {
       journeyCache,
       logger,
       visual,
+      onElectorAuthenticated,
     });
 
     let journey = { ...journeyCache.current };
@@ -153,11 +155,13 @@ async function authenticateElector(page, opts) {
     journeyCache,
     logger,
     visual = null,
+    onElectorAuthenticated = null,
   } = opts;
 
   if (!passwordChangePoc) {
     await visual?.mark?.(page, { step: 'login WP' });
     await loginWithPassword(page, loginUrl, elector.user_login, elector.password);
+    onElectorAuthenticated?.(elector.user_login);
     return { password: elector.password, didReset: false };
   }
 
@@ -194,6 +198,7 @@ async function authenticateElector(page, opts) {
   await page.context().clearCookies();
   await visual?.mark?.(page, { step: 'login senha nova' });
   await loginWithPassword(page, loginUrl, elector.user_login, newPassword);
+  onElectorAuthenticated?.(elector.user_login);
   passwordStore?.set(elector.user_login, newPassword, elector.user_email || '');
   logger.info('Nova senha gerada, autenticada e gravada localmente', {
     user_login: elector.user_login,

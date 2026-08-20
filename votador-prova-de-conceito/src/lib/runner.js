@@ -14,7 +14,7 @@ import { createVisualDirector } from './visualHighlight.js';
 import { resolveRampUpConfig, RAMP_UP_PRESETS } from './rampUp.js';
 
 /** Bumped when PoC runtime behaviour changes — look for this in startup logs. */
-export const VOTADOR_BUILD = 'ramp-up-fix-1';
+export const VOTADOR_BUILD = 'ramp-up-after-elector-1';
 
 export const DEFAULTS = {
   /** @deprecated use windowsInitial / windowsMax */
@@ -308,6 +308,9 @@ export async function runVotador(config, hooks = {}) {
             visual,
             workerId: slot.id,
             isPrincipal,
+            onElectorAuthenticated: (userLogin) => {
+              pool.armRampUp?.(`login eleitor ${userLogin || elector.user_login}`);
+            },
           });
           state.successElectors += 1;
           logger.info('Eleitor concluído', {

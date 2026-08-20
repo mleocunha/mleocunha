@@ -67,6 +67,8 @@ export function createAdaptivePool({
   let lastScaleDownAt = 0;
   let lastProgressAt = nowMs();
   let scaleChain = Promise.resolve();
+  /** Ramp-up stays disarmed until the first elector WP login (never admin). */
+  let rampUpArmed = false;
 
   function logInfo(message, extra = {}) {
     logger?.info?.(message, { ...snapshot(), ...extra });
@@ -107,6 +109,7 @@ export function createAdaptivePool({
       tabsMax: tabMax,
       consecutiveHealthy,
       consecutiveFailures,
+      rampUpArmed,
     };
   }
 
@@ -176,7 +179,7 @@ export function createAdaptivePool({
   }
 
   async function scaleUp(reason) {
-    if (!adaptive || closed) return false;
+    if (!adaptive || closed || !rampUpArmed) return false;
     if (nowMs() - lastScaleUpAt < scaleUpEveryMs) return false;
 
     const open = openWindows();
@@ -220,7 +223,7 @@ export function createAdaptivePool({
   }
 
   async function scaleDown(reason) {
-    if (!adaptive || closed) return false;
+    if (!adaptive || closed || !rampUpArmed) return false;
     if (nowMs() - lastScaleDownAt < scaleDownEveryMs) return false;
 
     const living = livingSlots();
@@ -284,10 +287,35 @@ export function createAdaptivePool({
     }
   }
 
+  /**
+   * Arm ramp-up after the first successful elector WordPress login.
+   * Admin discovery must never arm this.
+   * @param {string} [reason]
+   */
+  function armRampUp(reason = 'login eleitor') {
+    if (rampUpArmed) return false;
+    rampUpArmed = true;
+    consecutiveHealthy = 0;
+    consecutiveFailures = 0;
+    lastProgressAt = nowMs();
+    // Allow an immediate scale-up after the first counted success (cooldown starts now).
+    lastScaleUpAt = 0;
+    lastScaleDownAt = 0;
+    logInfo(`Ramp-up armado — a partir de agora contam sucessos de eleitores (${reason})`);
+    return true;
+  }
+
   async function reportSuccess(elapsedMs = 0) {
     lastProgressAt = nowMs();
     consecutiveFailures = 0;
     const elapsed = Math.max(0, Number(elapsedMs) || 0);
+
+    if (!rampUpArmed) {
+      logInfo('Sucesso ignorado para ramp-up (ainda sem login de eleitor)', {
+        elapsed_ms: elapsed,
+      });
+      return;
+    }
 
     // Extreme duration only — normal SnappyMail reset + vote often exceeds 1–3 minutes.
     if (elapsed >= slowCapMs) {
@@ -400,7 +428,12 @@ export function createAdaptivePool({
         if (running.size === 0) break;
       }
 
-      if (adaptive && nowMs() - lastProgressAt > slowCapMs && livingSlots().length > 1) {
+      if (
+        adaptive &&
+        rampUpArmed &&
+        nowMs() - lastProgressAt > slowCapMs &&
+        livingSlots().length > 1
+      ) {
         await queueScale(() => scaleDown('watchdog sem progresso'));
         lastProgressAt = nowMs();
       }
@@ -452,6 +485,8 @@ export function createAdaptivePool({
     run,
     reportSuccess,
     reportFailure,
+    armRampUp,
+    isRampUpArmed: () => rampUpArmed,
     snapshot,
     close,
     /** Lowest living slot id — stable "principal" worker for visual focus. */
