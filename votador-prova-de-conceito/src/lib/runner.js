@@ -14,7 +14,7 @@ import { createVisualDirector } from './visualHighlight.js';
 import { resolveRampUpConfig, RAMP_UP_PRESETS } from './rampUp.js';
 
 /** Bumped when PoC runtime behaviour changes — look for this in startup logs. */
-export const VOTADOR_BUILD = 'ramp-up-speed-1';
+export const VOTADOR_BUILD = 'ramp-up-fix-1';
 
 export const DEFAULTS = {
   /** @deprecated use windowsInitial / windowsMax */
@@ -150,6 +150,9 @@ export async function runVotador(config, hooks = {}) {
     scaleUpEveryMs: ramp.scaleUpEveryMs,
     scaleDownEveryMs: ramp.scaleDownEveryMs,
     healthySuccessesNeeded: ramp.healthySuccessesNeeded,
+    // Any successful elector counts toward ramp-up (reset+vote routinely > 45s).
+    healthyDurationMs: 0,
+    slowDurationMs: ramp.slowDurationMs || 360000,
     logger,
   });
 

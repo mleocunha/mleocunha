@@ -39,8 +39,8 @@ export function createAdaptivePool({
   tabsMax,
   adaptive = true,
   logger,
-  healthyDurationMs = 45000,
-  slowDurationMs = 90000,
+  healthyDurationMs = 0,
+  slowDurationMs = 360000,
   scaleUpEveryMs = 10000,
   scaleDownEveryMs = 6000,
   healthySuccessesNeeded = 2,
@@ -49,6 +49,10 @@ export function createAdaptivePool({
   const winMax = clamp(Number(windowsMax) || winInit, winInit, 20);
   const tabInit = clamp(Number(tabsInitial) || 1, 1, 20);
   const tabMax = clamp(Number(tabsMax) || tabInit, tabInit, 20);
+  // 0 / unset => any successful job counts as healthy (PoC resets routinely take minutes).
+  const healthyCapMs =
+    Number(healthyDurationMs) > 0 ? Number(healthyDurationMs) : Number.POSITIVE_INFINITY;
+  const slowCapMs = Math.max(60000, Number(slowDurationMs) || 360000);
 
   /** @type {{ browser: any, closing: boolean }[]} */
   const windows = [];
@@ -283,16 +287,43 @@ export function createAdaptivePool({
   async function reportSuccess(elapsedMs = 0) {
     lastProgressAt = nowMs();
     consecutiveFailures = 0;
-    if (elapsedMs > 0 && elapsedMs <= healthyDurationMs) {
-      consecutiveHealthy += 1;
-    } else if (elapsedMs >= slowDurationMs) {
+    const elapsed = Math.max(0, Number(elapsedMs) || 0);
+
+    // Extreme duration only — normal SnappyMail reset + vote often exceeds 1–3 minutes.
+    if (elapsed >= slowCapMs) {
       consecutiveHealthy = 0;
       consecutiveFailures += 1;
+      logWarn(
+        `Job muito lento (${Math.round(elapsed / 1000)}s ≥ ${Math.round(slowCapMs / 1000)}s); a desacelerar`,
+        { elapsed_ms: elapsed }
+      );
       await queueScale(() => scaleDown('job lento'));
       return;
-    } else {
-      consecutiveHealthy = Math.max(0, consecutiveHealthy - 1);
     }
+
+    if (elapsed > 0 && elapsed <= healthyCapMs) {
+      consecutiveHealthy += 1;
+    } else if (Number.isFinite(healthyCapMs)) {
+      // Optional strict mode: success took longer than healthyCap but under slowCap.
+      consecutiveHealthy = Math.max(0, consecutiveHealthy - 1);
+      logInfo(
+        `Sucesso lento para acelerar (${Math.round(elapsed / 1000)}s); contagem ${consecutiveHealthy}/${healthySuccessesNeeded}`,
+        { elapsed_ms: elapsed }
+      );
+      return;
+    } else {
+      consecutiveHealthy += 1;
+    }
+
+    logInfo(
+      `Sucesso para ramp-up ${consecutiveHealthy}/${healthySuccessesNeeded}` +
+        (consecutiveHealthy >= healthySuccessesNeeded ? ' → acelerar' : ''),
+      {
+        elapsed_ms: elapsed,
+        scale_up_every_ms: scaleUpEveryMs,
+        workers: livingSlots().length,
+      }
+    );
 
     if (consecutiveHealthy >= healthySuccessesNeeded) {
       await queueScale(() => scaleUp('sucessos saudáveis'));
@@ -309,7 +340,7 @@ export function createAdaptivePool({
 
     const reason = stalled
       ? 'timeout/travamento'
-      : elapsedMs >= slowDurationMs
+      : elapsedMs >= slowCapMs
         ? 'falha lenta'
         : 'falha';
     await queueScale(() => scaleDown(reason));
@@ -369,7 +400,7 @@ export function createAdaptivePool({
         if (running.size === 0) break;
       }
 
-      if (adaptive && nowMs() - lastProgressAt > slowDurationMs && livingSlots().length > 1) {
+      if (adaptive && nowMs() - lastProgressAt > slowCapMs && livingSlots().length > 1) {
         await queueScale(() => scaleDown('watchdog sem progresso'));
         lastProgressAt = nowMs();
       }

@@ -10,7 +10,8 @@ export const RAMP_UP_PRESETS = {
     scaleUpEveryMs: 15000,
     scaleDownEveryMs: 8000,
     healthySuccessesNeeded: 3,
-    hint: '~15s entre aceleração; 3 sucessos saudáveis',
+    slowDurationMs: 480000,
+    hint: '~15s entre aceleração; 3 sucessos',
   },
   normal: {
     id: 'normal',
@@ -18,7 +19,8 @@ export const RAMP_UP_PRESETS = {
     scaleUpEveryMs: 8000,
     scaleDownEveryMs: 5000,
     healthySuccessesNeeded: 2,
-    hint: '~8s entre aceleração; 2 sucessos saudáveis',
+    slowDurationMs: 360000,
+    hint: '~8s entre aceleração; 2 sucessos',
   },
   fast: {
     id: 'fast',
@@ -26,7 +28,8 @@ export const RAMP_UP_PRESETS = {
     scaleUpEveryMs: 3000,
     scaleDownEveryMs: 4000,
     healthySuccessesNeeded: 1,
-    hint: '~3s entre aceleração; 1 sucesso saudável',
+    slowDurationMs: 360000,
+    hint: '~3s entre aceleração; 1 sucesso',
   },
   aggressive: {
     id: 'aggressive',
@@ -34,13 +37,14 @@ export const RAMP_UP_PRESETS = {
     scaleUpEveryMs: 1000,
     scaleDownEveryMs: 3000,
     healthySuccessesNeeded: 1,
-    hint: '~1s entre aceleração; 1 sucesso saudável',
+    slowDurationMs: 300000,
+    hint: '~1s entre aceleração; 1 sucesso',
   },
 };
 
 /**
  * @param {string|undefined|null} speed
- * @param {{ scaleUpEveryMs?: number, scaleDownEveryMs?: number, healthySuccessesNeeded?: number }} [overrides]
+ * @param {{ scaleUpEveryMs?: number, scaleDownEveryMs?: number, healthySuccessesNeeded?: number, slowDurationMs?: number }} [overrides]
  */
 export function resolveRampUpConfig(speed, overrides = {}) {
   const key = String(speed || 'normal').toLowerCase();
@@ -64,6 +68,12 @@ export function resolveRampUpConfig(speed, overrides = {}) {
   }
   healthySuccessesNeeded = Math.max(1, Math.min(10, Math.round(healthySuccessesNeeded)));
 
+  let slowDurationMs = Number(overrides.slowDurationMs);
+  if (!Number.isFinite(slowDurationMs) || slowDurationMs <= 0) {
+    slowDurationMs = preset.slowDurationMs || 360000;
+  }
+  slowDurationMs = Math.max(60000, Math.min(1800000, slowDurationMs));
+
   return {
     rampUpSpeed: preset.id,
     label: preset.label,
@@ -71,5 +81,6 @@ export function resolveRampUpConfig(speed, overrides = {}) {
     scaleUpEveryMs,
     scaleDownEveryMs,
     healthySuccessesNeeded,
+    slowDurationMs,
   };
 }
