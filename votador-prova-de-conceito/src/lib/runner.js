@@ -14,7 +14,7 @@ import { createVisualDirector } from './visualHighlight.js';
 import { resolveRampUpConfig, RAMP_UP_PRESETS } from './rampUp.js';
 
 /** Bumped when PoC runtime behaviour changes — look for this in startup logs. */
-export const VOTADOR_BUILD = 'ramp-up-after-elector-1';
+export const VOTADOR_BUILD = 'shed-on-insistencia-1';
 
 export const DEFAULTS = {
   /** @deprecated use windowsInitial / windowsMax */
@@ -335,6 +335,11 @@ export async function runVotador(config, hooks = {}) {
             user_email: elector.user_email,
             attempt: failedAttempts,
           });
+
+          // Shed load on every insistência — do not wait until y=3 stops the run.
+          const pressure = await pool.reportAttemptFailure?.(err, {
+            attempt: failedAttempts,
+          });
           logger.warn(
             `Falha (insistência ${failedAttempts}/${cfg.insistencias}; limite y=${cfg.limiteRetentativas})`,
             {
@@ -344,6 +349,9 @@ export async function runVotador(config, hooks = {}) {
               failedAttempts,
               failure_kind: failureKind,
               failure_count: tracked?.count,
+              shed_dropped: pressure?.dropped,
+              shed_remaining: pressure?.remaining,
+              backoff_ms: pressure?.backoffMs,
               ...pool.snapshot(),
             }
           );
@@ -360,6 +368,19 @@ export async function runVotador(config, hooks = {}) {
               failure_kind: failureKind,
             });
             return { ok: false, stalled: true, error: lastError };
+          }
+
+          const backoffMs = Math.max(0, Number(pressure?.backoffMs) || 0);
+          if (backoffMs > 0 && !state.stopped) {
+            logger.warn(
+              `Backoff ${Math.round(backoffMs / 1000)}s antes da insistência ${failedAttempts + 1} (alívio de carga)`,
+              {
+                user_login: elector.user_login,
+                backoff_ms: backoffMs,
+                ...pool.snapshot(),
+              }
+            );
+            await new Promise((r) => setTimeout(r, backoffMs));
           }
         }
       }
@@ -401,12 +422,15 @@ export async function runVotador(config, hooks = {}) {
       const t0 = Date.now();
       const outcome = await processWithRetries(slot.context, job, slot);
       const elapsed = Date.now() - t0;
+      // Attempt-level shedding already ran; only nudge if still heavy after skip.
       if (outcome.ok) {
         await pool.reportSuccess(elapsed);
-      } else if (outcome.error) {
-        await pool.reportFailure(outcome.error, elapsed);
-      } else if (outcome.stalled) {
-        await pool.reportFailure(new Error('stall'), elapsed);
+      } else if ((outcome.error || outcome.stalled) && (pool.snapshot()?.workers || 0) > 2) {
+        await pool.shedLoad?.('eleitor falhou após insistências', {
+          drops: 1,
+          freezeMs: 60000,
+          pressureMs: 12000,
+        });
       }
       return state.stopped ? 'abort' : 'ok';
     });

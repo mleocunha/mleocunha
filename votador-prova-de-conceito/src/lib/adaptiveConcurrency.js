@@ -69,6 +69,10 @@ export function createAdaptivePool({
   let scaleChain = Promise.resolve();
   /** Ramp-up stays disarmed until the first elector WP login (never admin). */
   let rampUpArmed = false;
+  /** Block scale-up until this timestamp after load shedding. */
+  let rampUpFrozenUntil = 0;
+  /** Global pause so surviving workers ease pressure on the server. */
+  let pressureUntil = 0;
 
   function logInfo(message, extra = {}) {
     logger?.info?.(message, { ...snapshot(), ...extra });
@@ -110,6 +114,8 @@ export function createAdaptivePool({
       consecutiveHealthy,
       consecutiveFailures,
       rampUpArmed,
+      pressure_wait_ms: Math.max(0, pressureUntil - nowMs()),
+      ramp_up_frozen_ms: Math.max(0, rampUpFrozenUntil - nowMs()),
     };
   }
 
@@ -180,6 +186,7 @@ export function createAdaptivePool({
 
   async function scaleUp(reason) {
     if (!adaptive || closed || !rampUpArmed) return false;
+    if (nowMs() < rampUpFrozenUntil) return false;
     if (nowMs() - lastScaleUpAt < scaleUpEveryMs) return false;
 
     const open = openWindows();
@@ -222,9 +229,15 @@ export function createAdaptivePool({
     return false;
   }
 
-  async function scaleDown(reason) {
+  /**
+   * Mark one surplus worker to stop after its current job.
+   * @param {string} reason
+   * @param {{ force?: boolean }} [opts]
+   */
+  async function scaleDown(reason, opts = {}) {
     if (!adaptive || closed || !rampUpArmed) return false;
-    if (nowMs() - lastScaleDownAt < scaleDownEveryMs) return false;
+    const force = Boolean(opts.force);
+    if (!force && nowMs() - lastScaleDownAt < scaleDownEveryMs) return false;
 
     const living = livingSlots();
     if (living.length <= 1) return false;
@@ -250,7 +263,6 @@ export function createAdaptivePool({
 
     victim.stop = true;
     lastScaleDownAt = nowMs();
-    consecutiveFailures = 0;
 
     if (richest <= 1 && byWindow.size > 1) {
       logWarn(`Desacelerando: removendo janela ${richestWin + 1} após job atual — ${reason}`);
@@ -258,6 +270,95 @@ export function createAdaptivePool({
       logWarn(`Desacelerando: -1 contexto (janela ${richestWin + 1}) após job atual — ${reason}`);
     }
     return true;
+  }
+
+  /**
+   * Shed several workers at once and freeze ramp-up so the server can recover
+   * before we hit limiteRetentativas (y).
+   * @param {string} reason
+   * @param {{ drops?: number, freezeMs?: number, pressureMs?: number }} [opts]
+   */
+  async function shedLoad(reason, opts = {}) {
+    if (!adaptive || closed || !rampUpArmed) {
+      return { dropped: 0, remaining: livingSlots().length };
+    }
+    const livingBefore = livingSlots().length;
+    const drops = Math.max(1, Number(opts.drops) || 1);
+    const freezeMs = Math.max(0, Number(opts.freezeMs) || 30000);
+    const pressureMs = Math.max(0, Number(opts.pressureMs) || 8000);
+    let dropped = 0;
+
+    await queueScale(async () => {
+      for (let i = 0; i < drops; i += 1) {
+        if (livingSlots().length <= 1) break;
+        const ok = await scaleDown(reason, { force: true });
+        if (!ok) break;
+        dropped += 1;
+      }
+      rampUpFrozenUntil = Math.max(rampUpFrozenUntil, nowMs() + freezeMs);
+      pressureUntil = Math.max(pressureUntil, nowMs() + pressureMs);
+      consecutiveHealthy = 0;
+      logWarn(
+        `Alívio de carga: −${dropped} worker(s) (${livingBefore}→${livingSlots().length}); ` +
+          `ramp-up congelado ${Math.round(freezeMs / 1000)}s; pressão ${Math.round(pressureMs / 1000)}s — ${reason}`,
+        { dropped, freeze_ms: freezeMs, pressure_ms: pressureMs }
+      );
+    });
+    await scaleChain;
+    return { dropped, remaining: livingSlots().length };
+  }
+
+  /**
+   * Called on each failed insistência (not only when the elector is exhausted).
+   * Goal: never reach y=3 by cutting load on attempt 1 / 2.
+   * @param {unknown} error
+   * @param {{ attempt?: number }} [opts]
+   */
+  async function reportAttemptFailure(error, opts = {}) {
+    const attempt = Math.max(1, Number(opts.attempt) || 1);
+    consecutiveHealthy = 0;
+    consecutiveFailures += 1;
+    lastProgressAt = nowMs();
+
+    const msg = String(
+      (error && typeof error === 'object' && 'message' in error && error.message) || error || ''
+    );
+    const stalled = /timeout|Timeout|ETIMEDOUT|Target closed|crashed|net::ERR|stall/i.test(msg);
+    if (stalled) consecutiveFailures += 1;
+
+    if (!rampUpArmed) {
+      return { dropped: 0, backoffMs: attempt === 1 ? 3000 : 8000, remaining: livingSlots().length };
+    }
+
+    const living = livingSlots().length;
+    // Goal: recover before y=3. Attempt 1 cuts ~2/3 surplus; attempt 2+ leaves 1 worker.
+    let drops;
+    let freezeMs;
+    let pressureMs;
+    let backoffMs;
+    if (attempt <= 1) {
+      drops = Math.max(1, Math.ceil(((living - 1) * 2) / 3));
+      freezeMs = 60000;
+      pressureMs = 15000;
+      backoffMs = stalled ? 18000 : 12000;
+    } else {
+      drops = Math.max(1, living - 1);
+      freezeMs = 120000;
+      pressureMs = 30000;
+      backoffMs = stalled ? 35000 : 25000;
+    }
+
+    const shed = await shedLoad(`insistência ${attempt}${stalled ? '/stall' : ''}`, {
+      drops,
+      freezeMs,
+      pressureMs,
+    });
+    return {
+      dropped: shed.dropped,
+      remaining: shed.remaining,
+      backoffMs,
+      stalled,
+    };
   }
 
   async function retireSlot(slot) {
@@ -359,19 +460,12 @@ export function createAdaptivePool({
   }
 
   async function reportFailure(error, elapsedMs = 0) {
-    consecutiveHealthy = 0;
-    consecutiveFailures += 1;
-    const msg = String(error?.message || error || '');
-    const stalled = /timeout|Timeout|ETIMEDOUT|Target closed|crashed|net::ERR|stall/i.test(msg);
-    if (stalled) consecutiveFailures += 1;
-    lastProgressAt = nowMs();
-
-    const reason = stalled
-      ? 'timeout/travamento'
-      : elapsedMs >= slowCapMs
-        ? 'falha lenta'
-        : 'falha';
-    await queueScale(() => scaleDown(reason));
+    // Final elector failure — shed at least one worker if still heavy.
+    const result = await reportAttemptFailure(error, { attempt: 2 });
+    if (elapsedMs >= slowCapMs && result.dropped === 0) {
+      await shedLoad('falha final lenta', { drops: 1, freezeMs: 60000, pressureMs: 15000 });
+    }
+    return result;
   }
 
   /**
@@ -387,6 +481,11 @@ export function createAdaptivePool({
     async function runSlot(slot) {
       try {
         while (!closed && !abortAll && !slot.stop && slot.context) {
+          const waitPressure = Math.max(0, pressureUntil - nowMs());
+          if (waitPressure > 0) {
+            await new Promise((r) => setTimeout(r, Math.min(waitPressure, 5000)));
+            if (closed || abortAll || slot.stop) break;
+          }
           let result = 'idle';
           try {
             result = await workOnce(slot);
@@ -485,6 +584,8 @@ export function createAdaptivePool({
     run,
     reportSuccess,
     reportFailure,
+    reportAttemptFailure,
+    shedLoad,
     armRampUp,
     isRampUpArmed: () => rampUpArmed,
     snapshot,
