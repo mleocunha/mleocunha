@@ -1,6 +1,7 @@
 import { boothUrlFor } from './urls.js';
 import { resetPasswordViaSnappyMail } from './snappymailReset.js';
 import { readLoginError, tryWpLogin } from './wpLogin.js';
+import { FAILURE_KIND, taggedError } from './failureReport.js';
 
 /**
  * Run one elector through all open rounds.
@@ -18,10 +19,29 @@ export async function voteElector(context, opts) {
     mailUrl,
     batchLocale,
     passwordStore,
+    visual = null,
+    workerId = 1,
+    isPrincipal = false,
+    onElectorAuthenticated = null,
   } = opts;
 
   const page = await context.newPage();
   page.setDefaultTimeout(45000);
+
+  const unbindVisual = visual?.enabled
+    ? visual.bindContext(context, {
+        workerId,
+        label: `Worker ${workerId}`,
+        userLogin: elector.user_login,
+      })
+    : () => {};
+
+  if (visual?.enabled && isPrincipal) {
+    visual.setPrincipal(workerId);
+  }
+  if (visual?.enabled) {
+    await visual.mark(page, { step: 'início', userLogin: elector.user_login });
+  }
 
   // Accept native confirm() on ballot submit without artificial delay.
   page.on('dialog', async (dialog) => {
@@ -35,6 +55,7 @@ export async function voteElector(context, opts) {
   const votes = [];
 
   try {
+    await visual?.mark?.(page, { step: 'autenticação' });
     const auth = await authenticateElector(page, {
       loginUrl,
       elector,
@@ -44,6 +65,8 @@ export async function voteElector(context, opts) {
       passwordStore,
       journeyCache,
       logger,
+      visual,
+      onElectorAuthenticated,
     });
 
     let journey = { ...journeyCache.current };
@@ -73,6 +96,9 @@ export async function voteElector(context, opts) {
     }
 
     for (const round of rounds) {
+      await visual?.mark?.(page, {
+        step: `voto e${round.election_id}/r${round.round_id}`,
+      });
       const result = await castOneBallot(page, {
         elector,
         round,
@@ -81,6 +107,7 @@ export async function voteElector(context, opts) {
         logger,
       });
       votes.push(result);
+      await visual?.mark?.(page, { step: 'recibo' });
 
       if (result.thank_you_url) {
         fillJourneyIfEmpty(journeyCache, {
@@ -100,12 +127,22 @@ export async function voteElector(context, opts) {
 
     return { votes, journey: journeyCache.current };
   } finally {
+    try {
+      unbindVisual?.();
+    } catch {
+      // ignore
+    }
     await page.close().catch(() => {});
   }
 }
 
 /**
  * Login; optionally reset via SnappyMail when PoC password-change is enabled.
+ *
+ * Legal/test requirement for password-change PoC: ALWAYS request a fresh WP
+ * password reset (lostpassword), read the newest mail in SnappyMail with the
+ * CSV mailbox password, set a new WP password, then vote. Never skip reset by
+ * reusing a stored or CSV WordPress password.
  */
 async function authenticateElector(page, opts) {
   const {
@@ -117,101 +154,69 @@ async function authenticateElector(page, opts) {
     passwordStore,
     journeyCache,
     logger,
+    visual = null,
+    onElectorAuthenticated = null,
   } = opts;
 
   if (!passwordChangePoc) {
+    await visual?.mark?.(page, { step: 'login WP' });
     await loginWithPassword(page, loginUrl, elector.user_login, elector.password);
+    onElectorAuthenticated?.(elector.user_login);
     return { password: elector.password, didReset: false };
   }
 
-  const stored = passwordStore?.get(elector.user_login);
-  if (stored?.password) {
-    const ok = await tryLogin(page, loginUrl, elector.user_login, stored.password);
-    if (ok) {
-      logger.info('Usando senha gerada anteriormente (sem novo reset)', {
-        user_login: elector.user_login,
-      });
-      return { password: stored.password, didReset: false };
-    }
-    logger.warn('Senha local gravada não autenticou; tentarei a INBOX antes de novo e-mail', {
-      user_login: elector.user_login,
-    });
+  if (!elector.user_email) {
+    throw taggedError(
+      FAILURE_KIND.PASSWORD_RESET,
+      `PoC com troca de senha exige user_email para ${elector.user_login}.`
+    );
   }
 
-  const csvOk = await tryLogin(page, loginUrl, elector.user_login, elector.password);
+  logger.info('PoC jurídico: reset de senha obrigatório (sempre)', {
+    user_login: elector.user_login,
+    user_email: elector.user_email,
+  });
 
-  // Ensure welcome (shortcode lives there) when we still have a CSV session.
-  let welcome = journeyCache.current.welcome;
-  if (csvOk) {
-    if (!welcome) {
-      const discovered = await discoverJourneyFromWelcome(page, {}, logger);
-      welcome = discovered.welcome || stripQuery(page.url());
-      fillJourneyIfEmpty(journeyCache, {
-        welcome,
-        booth: discovered.booth || '',
-        thank_you: discovered.thank_you || '',
-      });
-    } else {
-      await page.goto(welcome, { waitUntil: 'domcontentloaded', timeout: 60000 });
-    }
-  }
+  // Clear any leftover WP session before lostpassword / reset form.
+  await page.context().clearCookies();
 
-  const mailOpts = {
+  await visual?.mark?.(page, { step: 'reset lostpassword (site → SnappyMail)' });
+  const newPassword = await resetPasswordViaSnappyMail(page, {
     mailUrl,
     userEmail: elector.user_email,
-    currentPassword: elector.password,
+    userLogin: elector.user_login,
+    currentPassword: elector.password, // mailbox/IMAP password from CSV
     batchLocale,
+    loginUrl,
     logger,
-  };
+    visual,
+    sendVia: 'lostpassword',
+    requireFreshMail: true,
+    timeoutMs: 120000,
+    resetConfirmDwellMs: 2000,
+  });
+  passwordStore?.markMailResetSent?.(elector.user_login);
 
-  let newPassword = null;
-  const preferExistingMail =
-    Boolean(stored?.password) || Boolean(passwordStore?.wasMailResetSent?.(elector.user_login));
-
-  if (preferExistingMail) {
-    try {
-      newPassword = await resetPasswordViaSnappyMail(page, {
-        ...mailOpts,
-        skipSend: true,
-        timeoutMs: 60000,
-      });
-      logger.info('Nova senha definida a partir de e-mail já presente na INBOX', {
-        user_login: elector.user_login,
-      });
-    } catch (inboxErr) {
-      logger.info('INBOX sem link utilizável após reset anterior', {
-        user_login: elector.user_login,
-        inbox_error: String(inboxErr.message || inboxErr),
-      });
-    }
-  }
-
-  if (!newPassword) {
-    if (!csvOk) {
-      throw new Error(
-        `Login falhou para ${elector.user_login}: nem a senha gerada local nem a do CSV funcionaram.`
-      );
-    }
-    if (welcome) {
-      await page.goto(welcome, { waitUntil: 'domcontentloaded', timeout: 60000 });
-    }
-    passwordStore?.markMailResetSent?.(elector.user_login);
-    newPassword = await resetPasswordViaSnappyMail(page, {
-      ...mailOpts,
-      timeoutMs: 120000,
-    });
-  }
-
-  // Re-login with the new password and only then persist (avoid storing a password WP rejected).
   await page.context().clearCookies();
+  await visual?.mark?.(page, { step: 'login senha nova' });
   await loginWithPassword(page, loginUrl, elector.user_login, newPassword);
+  onElectorAuthenticated?.(elector.user_login);
   passwordStore?.set(elector.user_login, newPassword, elector.user_email || '');
   logger.info('Nova senha gerada, autenticada e gravada localmente', {
     user_login: elector.user_login,
   });
 
+  let welcome = journeyCache.current.welcome;
   if (welcome) {
     await page.goto(welcome, { waitUntil: 'domcontentloaded', timeout: 60000 });
+  } else {
+    const discovered = await discoverJourneyFromWelcome(page, {}, logger);
+    welcome = discovered.welcome || stripQuery(page.url());
+    fillJourneyIfEmpty(journeyCache, {
+      welcome,
+      booth: discovered.booth || '',
+      thank_you: discovered.thank_you || '',
+    });
   }
 
   return { password: newPassword, didReset: true, welcomeHint: welcome };
@@ -226,7 +231,8 @@ async function loginWithPassword(page, loginUrl, userLogin, password) {
   if (!ok) {
     const err = await readLoginError(page);
     const detail = err || 'credenciais inválidas (ainda na página de login)';
-    throw new Error(
+    throw taggedError(
+      FAILURE_KIND.VOTE_LOGIN,
       `Login falhou para ${userLogin}: ${detail} [senha_len=${String(password || '').length}]`
     );
   }

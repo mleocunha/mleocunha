@@ -13,13 +13,19 @@ Opções:
   --admin-pass       Senha admin (obrigatório; ou env RSES_ADMIN_PASS)
   --login            /id.php | /wp-login.php | caminho custom (default /wp-login.php)
   --chrome           Caminho do Google Chrome (opcional)
-  --windows          Janelas Chrome (default ${DEFAULTS.windows})
-  --tabs             Contextos por janela (default ${DEFAULTS.tabsPerWindow})
+  --windows-initial  Janelas Chrome iniciais (default ${DEFAULTS.windowsInitial})
+  --windows-max      Janelas Chrome máximas (default ${DEFAULTS.windowsMax})
+  --tabs-initial     Contextos/janela iniciais (default ${DEFAULTS.tabsInitial})
+  --tabs-max         Contextos/janela máximos (default ${DEFAULTS.tabsMax})
+  --ramp-up          Velocidade do ramp-up: slow|normal|fast|aggressive (default ${DEFAULTS.rampUpSpeed})
+  --windows          (legado) fixa janelas inicial=máximo
+  --tabs             (legado) fixa contextos inicial=máximo
   --tentativas       x — eleitores pulados/registrados no teste (default ${DEFAULTS.tentativas})
   --insistencias     n — retentativas por falha (default ${DEFAULTS.insistencias})
   --limite           y — teto por falha; ao atingir y nessa falha, para o teste (default ${DEFAULTS.limiteRetentativas})
   --ignore-https     Ignorar erros de certificado
   --password-change  Ativa PoC com troca de senha (SnappyMail)
+  --visual-highlight Destaque visual: banner em todas as abas; bringToFront só no worker principal
   --mail-url         URL SnappyMail (default ${DEFAULTS.mailUrl})
 `);
 }
@@ -59,13 +65,22 @@ const summary = await runVotador({
   adminPassword,
   loginPath,
   chromePath: arg('chrome') || undefined,
-  windows: Number(arg('windows', DEFAULTS.windows)),
-  tabsPerWindow: Number(arg('tabs', DEFAULTS.tabsPerWindow)),
+  windowsInitial: arg('windows-initial') != null
+    ? Number(arg('windows-initial'))
+    : undefined,
+  windowsMax: arg('windows-max') != null ? Number(arg('windows-max')) : undefined,
+  tabsInitial: arg('tabs-initial') != null ? Number(arg('tabs-initial')) : undefined,
+  tabsMax: arg('tabs-max') != null ? Number(arg('tabs-max')) : undefined,
+  rampUpSpeed: arg('ramp-up', DEFAULTS.rampUpSpeed),
+  // Legacy fixed concurrency when only --windows / --tabs are passed.
+  windows: arg('windows') != null ? Number(arg('windows')) : undefined,
+  tabsPerWindow: arg('tabs') != null ? Number(arg('tabs')) : undefined,
   tentativas: Number(arg('tentativas', DEFAULTS.tentativas)),
   insistencias: Number(arg('insistencias', DEFAULTS.insistencias)),
   limiteRetentativas: Number(arg('limite', DEFAULTS.limiteRetentativas)),
   ignoreHTTPSErrors: hasFlag('ignore-https'),
   passwordChangePoc: hasFlag('password-change'),
+  visualHighlight: hasFlag('visual-highlight'),
   mailUrl: arg('mail-url', DEFAULTS.mailUrl),
 }, {
   onEvent: (ev) => {

@@ -4,7 +4,9 @@
 export const ELECTOR_PASSWORD_RESET_SUBJECTS = {
   en_US: 'Elector Password Reset',
   en: 'Elector Password Reset',
-  pt_BR: 'Redefinição de Senha Eleitora',
+  pt_BR: 'Redefinição de Senha Eleitoral',
+  /** Legacy subject still present in older mailboxes / plugin installs. */
+  pt_BR_legacy: 'Redefinição de Senha Eleitora',
   pt_PT: 'Redefinição de Palavra-passe de Eleitor',
   fr_FR: 'Réinitialisation du mot de passe électeur',
   es_ES: 'Restablecimiento de contraseña de elector',
@@ -32,6 +34,7 @@ export function subjectsToMatch(locale) {
   const extras = [
     ELECTOR_PASSWORD_RESET_SUBJECTS.en_US,
     ELECTOR_PASSWORD_RESET_SUBJECTS.pt_BR,
+    ELECTOR_PASSWORD_RESET_SUBJECTS.pt_BR_legacy,
     ELECTOR_PASSWORD_RESET_SUBJECTS.pt_PT,
     'Password Reset',
     'Redefinição de senha',
@@ -59,7 +62,7 @@ export function looksLikeResetSubject(text) {
   if (/elector password reset/i.test(t)) {
     return true;
   }
-  if (/redefini[cç][aã]o.*(senha|palavra[- ]passe).*eleitor/i.test(t)) {
+  if (/redefini[cç][aã]o.*(senha|palavra[- ]passe).*(eleitoral|eleitora|eleitor)/i.test(t)) {
     return true;
   }
   if (/password\s*reset/i.test(t) || /redefini[cç][aã]o de senha/i.test(t)) {

@@ -1,0 +1,600 @@
+/**
+ * Adaptive Chrome concurrency pool.
+ *
+ * Starts at windowsInitial × tabsInitial, ramps toward windowsMax × tabsMax
+ * while work is healthy, and eases back when stalls/timeouts appear.
+ */
+
+function clamp(n, min, max) {
+  return Math.max(min, Math.min(max, n));
+}
+
+function nowMs() {
+  return Date.now();
+}
+
+/**
+ * @param {object} opts
+ * @param {import('playwright').Chromium} opts.chromium
+ * @param {object} opts.launchOpts
+ * @param {boolean} [opts.ignoreHTTPSErrors]
+ * @param {number} opts.windowsInitial
+ * @param {number} opts.windowsMax
+ * @param {number} opts.tabsInitial
+ * @param {number} opts.tabsMax
+ * @param {{ info?: Function, warn?: Function }} [opts.logger]
+ * @param {number} [opts.healthyDurationMs]
+ * @param {number} [opts.slowDurationMs]
+ * @param {number} [opts.scaleUpEveryMs]
+ * @param {number} [opts.scaleDownEveryMs]
+ * @param {number} [opts.healthySuccessesNeeded]
+ */
+export function createAdaptivePool({
+  chromium,
+  launchOpts,
+  ignoreHTTPSErrors = false,
+  windowsInitial,
+  windowsMax,
+  tabsInitial,
+  tabsMax,
+  adaptive = true,
+  logger,
+  healthyDurationMs = 0,
+  slowDurationMs = 360000,
+  scaleUpEveryMs = 10000,
+  scaleDownEveryMs = 6000,
+  healthySuccessesNeeded = 2,
+}) {
+  const winInit = clamp(Number(windowsInitial) || 1, 1, 20);
+  const winMax = clamp(Number(windowsMax) || winInit, winInit, 20);
+  const tabInit = clamp(Number(tabsInitial) || 1, 1, 20);
+  const tabMax = clamp(Number(tabsMax) || tabInit, tabInit, 20);
+  // 0 / unset => any successful job counts as healthy (PoC resets routinely take minutes).
+  const healthyCapMs =
+    Number(healthyDurationMs) > 0 ? Number(healthyDurationMs) : Number.POSITIVE_INFINITY;
+  const slowCapMs = Math.max(60000, Number(slowDurationMs) || 360000);
+
+  /** @type {{ browser: any, closing: boolean }[]} */
+  const windows = [];
+  /** @type {{ id: number, windowIndex: number, context: any, stop: boolean, closed: boolean }[]} */
+  const slots = [];
+  let nextSlotId = 1;
+  let started = false;
+  let closed = false;
+  let consecutiveHealthy = 0;
+  let consecutiveFailures = 0;
+  let lastScaleUpAt = 0;
+  let lastScaleDownAt = 0;
+  let lastProgressAt = nowMs();
+  let scaleChain = Promise.resolve();
+  /** Ramp-up stays disarmed until the first elector WP login (never admin). */
+  let rampUpArmed = false;
+  /** Block scale-up until this timestamp after load shedding. */
+  let rampUpFrozenUntil = 0;
+  /** Global pause so surviving workers ease pressure on the server. */
+  let pressureUntil = 0;
+
+  function logInfo(message, extra = {}) {
+    logger?.info?.(message, { ...snapshot(), ...extra });
+  }
+
+  function logWarn(message, extra = {}) {
+    logger?.warn?.(message, { ...snapshot(), ...extra });
+  }
+
+  function livingSlots() {
+    return slots.filter((s) => !s.stop && !s.closed && s.context);
+  }
+
+  function openWindows() {
+    return windows.filter((w) => !w.closing && w.browser);
+  }
+
+  function tabsPerOpenWindow() {
+    const open = openWindows();
+    if (!open.length) return tabInit;
+    const counts = open.map((w) => {
+      const wi = windows.indexOf(w);
+      return slots.filter((s) => s.windowIndex === wi && !s.closed && s.context).length;
+    });
+    return Math.max(1, ...counts);
+  }
+
+  function snapshot() {
+    const open = openWindows();
+    const living = livingSlots();
+    return {
+      windows: open.length,
+      tabsPerWindow: tabsPerOpenWindow(),
+      workers: living.length,
+      windowsInitial: winInit,
+      windowsMax: winMax,
+      tabsInitial: tabInit,
+      tabsMax: tabMax,
+      consecutiveHealthy,
+      consecutiveFailures,
+      rampUpArmed,
+      pressure_wait_ms: Math.max(0, pressureUntil - nowMs()),
+      ramp_up_frozen_ms: Math.max(0, rampUpFrozenUntil - nowMs()),
+    };
+  }
+
+  async function launchBrowser() {
+    return chromium.launch({ ...launchOpts });
+  }
+
+  async function createContext(browser) {
+    return browser.newContext({
+      ignoreHTTPSErrors: Boolean(ignoreHTTPSErrors),
+      viewport: { width: 1180, height: 820 },
+    });
+  }
+
+  async function addWindow() {
+    const browser = await launchBrowser();
+    const entry = { browser, closing: false };
+    windows.push(entry);
+    return windows.length - 1;
+  }
+
+  async function addSlot(windowIndex) {
+    const win = windows[windowIndex];
+    if (!win || win.closing || !win.browser) return null;
+    const context = await createContext(win.browser);
+    const slot = {
+      id: nextSlotId++,
+      windowIndex,
+      context,
+      stop: false,
+      closed: false,
+    };
+    slots.push(slot);
+    return slot;
+  }
+
+  async function start() {
+    if (started) return;
+    started = true;
+    const first = await addWindow();
+    const tabs = Math.min(tabInit, tabMax);
+    for (let t = 0; t < tabs; t += 1) {
+      await addSlot(first);
+    }
+    for (let w = 1; w < winInit; w += 1) {
+      const wi = await addWindow();
+      for (let t = 0; t < tabs; t += 1) {
+        await addSlot(wi);
+      }
+    }
+    lastProgressAt = nowMs();
+    logInfo(
+      `Início adaptativo: ${openWindows().length} janela(s), ${livingSlots().length} contexto(s)` +
+        ` (máx ${winMax}×${tabMax})`
+    );
+  }
+
+  function getPrimaryBrowser() {
+    return openWindows()[0]?.browser || null;
+  }
+
+  function queueScale(fn) {
+    scaleChain = scaleChain.then(fn).catch((err) => {
+      logWarn('Ajuste de concorrência falhou', { error: String(err?.message || err) });
+    });
+    return scaleChain;
+  }
+
+  async function scaleUp(reason) {
+    if (!adaptive || closed || !rampUpArmed) return false;
+    if (nowMs() < rampUpFrozenUntil) return false;
+    if (nowMs() - lastScaleUpAt < scaleUpEveryMs) return false;
+
+    const open = openWindows();
+    if (!open.length) return false;
+
+    const counts = open.map((w, i) => {
+      const realIndex = windows.indexOf(w);
+      return {
+        windowIndex: realIndex,
+        count: slots.filter((s) => s.windowIndex === realIndex && !s.closed && s.context).length,
+      };
+    });
+    const minTabs = Math.min(...counts.map((c) => c.count));
+    const maxTabs = Math.max(...counts.map((c) => c.count));
+
+    if (minTabs < tabMax) {
+      const target = counts.find((c) => c.count === minTabs);
+      const slot = await addSlot(target.windowIndex);
+      if (slot) {
+        lastScaleUpAt = nowMs();
+        consecutiveHealthy = 0;
+        logInfo(`Acelerando: +1 contexto (janela ${target.windowIndex + 1}) — ${reason}`);
+        return slot;
+      }
+    }
+
+    if (open.length < winMax) {
+      const wi = await addWindow();
+      const tabsForNew = clamp(maxTabs || tabInit, 1, tabMax);
+      let last = null;
+      for (let t = 0; t < tabsForNew; t += 1) {
+        last = await addSlot(wi);
+      }
+      lastScaleUpAt = nowMs();
+      consecutiveHealthy = 0;
+      logInfo(`Acelerando: +1 janela Chrome (${tabsForNew} contexto(s)) — ${reason}`);
+      return last;
+    }
+
+    return false;
+  }
+
+  /**
+   * Mark one surplus worker to stop after its current job.
+   * @param {string} reason
+   * @param {{ force?: boolean }} [opts]
+   */
+  async function scaleDown(reason, opts = {}) {
+    if (!adaptive || closed || !rampUpArmed) return false;
+    const force = Boolean(opts.force);
+    if (!force && nowMs() - lastScaleDownAt < scaleDownEveryMs) return false;
+
+    const living = livingSlots();
+    if (living.length <= 1) return false;
+
+    const byWindow = new Map();
+    for (const s of living) {
+      const list = byWindow.get(s.windowIndex) || [];
+      list.push(s);
+      byWindow.set(s.windowIndex, list);
+    }
+
+    let victim = null;
+    let richest = -1;
+    let richestWin = -1;
+    for (const [wi, list] of byWindow.entries()) {
+      if (list.length > richest) {
+        richest = list.length;
+        richestWin = wi;
+        victim = list[list.length - 1];
+      }
+    }
+    if (!victim) return false;
+
+    victim.stop = true;
+    lastScaleDownAt = nowMs();
+
+    if (richest <= 1 && byWindow.size > 1) {
+      logWarn(`Desacelerando: removendo janela ${richestWin + 1} após job atual — ${reason}`);
+    } else {
+      logWarn(`Desacelerando: -1 contexto (janela ${richestWin + 1}) após job atual — ${reason}`);
+    }
+    return true;
+  }
+
+  /**
+   * Shed several workers at once and freeze ramp-up so the server can recover
+   * before we hit limiteRetentativas (y).
+   * @param {string} reason
+   * @param {{ drops?: number, freezeMs?: number, pressureMs?: number }} [opts]
+   */
+  async function shedLoad(reason, opts = {}) {
+    if (!adaptive || closed || !rampUpArmed) {
+      return { dropped: 0, remaining: livingSlots().length };
+    }
+    const livingBefore = livingSlots().length;
+    const drops = Math.max(1, Number(opts.drops) || 1);
+    const freezeMs = Math.max(0, Number(opts.freezeMs) || 30000);
+    const pressureMs = Math.max(0, Number(opts.pressureMs) || 8000);
+    let dropped = 0;
+
+    await queueScale(async () => {
+      for (let i = 0; i < drops; i += 1) {
+        if (livingSlots().length <= 1) break;
+        const ok = await scaleDown(reason, { force: true });
+        if (!ok) break;
+        dropped += 1;
+      }
+      rampUpFrozenUntil = Math.max(rampUpFrozenUntil, nowMs() + freezeMs);
+      pressureUntil = Math.max(pressureUntil, nowMs() + pressureMs);
+      consecutiveHealthy = 0;
+      logWarn(
+        `Alívio de carga: −${dropped} worker(s) (${livingBefore}→${livingSlots().length}); ` +
+          `ramp-up congelado ${Math.round(freezeMs / 1000)}s; pressão ${Math.round(pressureMs / 1000)}s — ${reason}`,
+        { dropped, freeze_ms: freezeMs, pressure_ms: pressureMs }
+      );
+    });
+    await scaleChain;
+    return { dropped, remaining: livingSlots().length };
+  }
+
+  /**
+   * Called on each failed insistência (not only when the elector is exhausted).
+   * Goal: never reach y=3 by cutting load on attempt 1 / 2.
+   * @param {unknown} error
+   * @param {{ attempt?: number }} [opts]
+   */
+  async function reportAttemptFailure(error, opts = {}) {
+    const attempt = Math.max(1, Number(opts.attempt) || 1);
+    consecutiveHealthy = 0;
+    consecutiveFailures += 1;
+    lastProgressAt = nowMs();
+
+    const msg = String(
+      (error && typeof error === 'object' && 'message' in error && error.message) || error || ''
+    );
+    const stalled = /timeout|Timeout|ETIMEDOUT|Target closed|crashed|net::ERR|stall/i.test(msg);
+    if (stalled) consecutiveFailures += 1;
+
+    if (!rampUpArmed) {
+      return { dropped: 0, backoffMs: attempt === 1 ? 3000 : 8000, remaining: livingSlots().length };
+    }
+
+    const living = livingSlots().length;
+    // Goal: recover before y=3. Attempt 1 cuts ~2/3 surplus; attempt 2+ leaves 1 worker.
+    let drops;
+    let freezeMs;
+    let pressureMs;
+    let backoffMs;
+    if (attempt <= 1) {
+      drops = Math.max(1, Math.ceil(((living - 1) * 2) / 3));
+      freezeMs = 60000;
+      pressureMs = 15000;
+      backoffMs = stalled ? 18000 : 12000;
+    } else {
+      drops = Math.max(1, living - 1);
+      freezeMs = 120000;
+      pressureMs = 30000;
+      backoffMs = stalled ? 35000 : 25000;
+    }
+
+    const shed = await shedLoad(`insistência ${attempt}${stalled ? '/stall' : ''}`, {
+      drops,
+      freezeMs,
+      pressureMs,
+    });
+    return {
+      dropped: shed.dropped,
+      remaining: shed.remaining,
+      backoffMs,
+      stalled,
+    };
+  }
+
+  async function retireSlot(slot) {
+    if (slot.closed) return;
+    slot.closed = true;
+    slot.stop = true;
+    try {
+      await slot.context?.close?.();
+    } catch {
+      // ignore
+    }
+    slot.context = null;
+
+    const win = windows[slot.windowIndex];
+    if (!win || win.closing) return;
+    const still = slots.some(
+      (s) => s.windowIndex === slot.windowIndex && !s.closed && s.context
+    );
+    if (!still) {
+      win.closing = true;
+      try {
+        await win.browser?.close?.();
+      } catch {
+        // ignore
+      }
+      win.browser = null;
+    }
+  }
+
+  /**
+   * Arm ramp-up after the first successful elector WordPress login.
+   * Admin discovery must never arm this.
+   * @param {string} [reason]
+   */
+  function armRampUp(reason = 'login eleitor') {
+    if (rampUpArmed) return false;
+    rampUpArmed = true;
+    consecutiveHealthy = 0;
+    consecutiveFailures = 0;
+    lastProgressAt = nowMs();
+    // Allow an immediate scale-up after the first counted success (cooldown starts now).
+    lastScaleUpAt = 0;
+    lastScaleDownAt = 0;
+    logInfo(`Ramp-up armado — a partir de agora contam sucessos de eleitores (${reason})`);
+    return true;
+  }
+
+  async function reportSuccess(elapsedMs = 0) {
+    lastProgressAt = nowMs();
+    consecutiveFailures = 0;
+    const elapsed = Math.max(0, Number(elapsedMs) || 0);
+
+    if (!rampUpArmed) {
+      logInfo('Sucesso ignorado para ramp-up (ainda sem login de eleitor)', {
+        elapsed_ms: elapsed,
+      });
+      return;
+    }
+
+    // Extreme duration only — normal SnappyMail reset + vote often exceeds 1–3 minutes.
+    if (elapsed >= slowCapMs) {
+      consecutiveHealthy = 0;
+      consecutiveFailures += 1;
+      logWarn(
+        `Job muito lento (${Math.round(elapsed / 1000)}s ≥ ${Math.round(slowCapMs / 1000)}s); a desacelerar`,
+        { elapsed_ms: elapsed }
+      );
+      await queueScale(() => scaleDown('job lento'));
+      return;
+    }
+
+    if (elapsed > 0 && elapsed <= healthyCapMs) {
+      consecutiveHealthy += 1;
+    } else if (Number.isFinite(healthyCapMs)) {
+      // Optional strict mode: success took longer than healthyCap but under slowCap.
+      consecutiveHealthy = Math.max(0, consecutiveHealthy - 1);
+      logInfo(
+        `Sucesso lento para acelerar (${Math.round(elapsed / 1000)}s); contagem ${consecutiveHealthy}/${healthySuccessesNeeded}`,
+        { elapsed_ms: elapsed }
+      );
+      return;
+    } else {
+      consecutiveHealthy += 1;
+    }
+
+    logInfo(
+      `Sucesso para ramp-up ${consecutiveHealthy}/${healthySuccessesNeeded}` +
+        (consecutiveHealthy >= healthySuccessesNeeded ? ' → acelerar' : ''),
+      {
+        elapsed_ms: elapsed,
+        scale_up_every_ms: scaleUpEveryMs,
+        workers: livingSlots().length,
+      }
+    );
+
+    if (consecutiveHealthy >= healthySuccessesNeeded) {
+      await queueScale(() => scaleUp('sucessos saudáveis'));
+    }
+  }
+
+  async function reportFailure(error, elapsedMs = 0) {
+    // Final elector failure — shed at least one worker if still heavy.
+    const result = await reportAttemptFailure(error, { attempt: 2 });
+    if (elapsedMs >= slowCapMs && result.dropped === 0) {
+      await shedLoad('falha final lenta', { drops: 1, freezeMs: 60000, pressureMs: 15000 });
+    }
+    return result;
+  }
+
+  /**
+   * @param {(slot: { id: number, context: any, stop: boolean, windowIndex: number }) => Promise<'ok'|'idle'|'abort'>} workOnce
+   */
+  async function run(workOnce) {
+    if (!started) await start();
+
+    /** @type {Map<number, Promise<void>>} */
+    const running = new Map();
+    let abortAll = false;
+
+    async function runSlot(slot) {
+      try {
+        while (!closed && !abortAll && !slot.stop && slot.context) {
+          const waitPressure = Math.max(0, pressureUntil - nowMs());
+          if (waitPressure > 0) {
+            await new Promise((r) => setTimeout(r, Math.min(waitPressure, 5000)));
+            if (closed || abortAll || slot.stop) break;
+          }
+          let result = 'idle';
+          try {
+            result = await workOnce(slot);
+          } catch (error) {
+            await reportFailure(error);
+            result = 'ok';
+          }
+          if (result === 'abort') {
+            abortAll = true;
+            break;
+          }
+          if (result === 'idle' || slot.stop) {
+            break;
+          }
+        }
+      } finally {
+        await retireSlot(slot);
+        running.delete(slot.id);
+      }
+    }
+
+    function ensureWorkers() {
+      for (const slot of livingSlots()) {
+        if (!running.has(slot.id) && !abortAll && !closed) {
+          running.set(slot.id, runSlot(slot));
+        }
+      }
+    }
+
+    ensureWorkers();
+
+    while (!closed && !abortAll) {
+      ensureWorkers();
+
+      if (running.size === 0) {
+        // Scale-up may have added slots; otherwise we're done.
+        if (livingSlots().length === 0) break;
+        ensureWorkers();
+        if (running.size === 0) break;
+      }
+
+      if (
+        adaptive &&
+        rampUpArmed &&
+        nowMs() - lastProgressAt > slowCapMs &&
+        livingSlots().length > 1
+      ) {
+        await queueScale(() => scaleDown('watchdog sem progresso'));
+        lastProgressAt = nowMs();
+      }
+
+      await Promise.race([
+        ...running.values(),
+        new Promise((r) => setTimeout(r, 500)),
+      ]);
+    }
+
+    // Mark remaining slots to stop and wait
+    for (const slot of livingSlots()) {
+      slot.stop = true;
+    }
+    await Promise.allSettled([...running.values()]);
+    await scaleChain;
+  }
+
+  async function close() {
+    closed = true;
+    for (const slot of slots) {
+      slot.stop = true;
+      if (!slot.closed) {
+        try {
+          await slot.context?.close?.();
+        } catch {
+          // ignore
+        }
+        slot.context = null;
+        slot.closed = true;
+      }
+    }
+    for (const win of windows) {
+      if (!win.closing) {
+        win.closing = true;
+        try {
+          await win.browser?.close?.();
+        } catch {
+          // ignore
+        }
+        win.browser = null;
+      }
+    }
+  }
+
+  return {
+    start,
+    getPrimaryBrowser,
+    run,
+    reportSuccess,
+    reportFailure,
+    reportAttemptFailure,
+    shedLoad,
+    armRampUp,
+    isRampUpArmed: () => rampUpArmed,
+    snapshot,
+    close,
+    /** Lowest living slot id — stable "principal" worker for visual focus. */
+    getPrincipalId() {
+      const living = livingSlots();
+      if (!living.length) return null;
+      return Math.min(...living.map((s) => s.id));
+    },
+  };
+}

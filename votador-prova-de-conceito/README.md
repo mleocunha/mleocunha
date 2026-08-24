@@ -71,7 +71,9 @@ Senha admin também pode vir de `RSES_ADMIN_PASS`.
    - `receipts.csv` — hashes
    - `events.ndjson` — progresso
    - `failures.ndjson` — falhas
-   - `summary.json` — totais
+   - `falhas-reset-senha.csv`, `falhas-login-email.csv`, `falhas-login-voto.csv` — falhas **repetidas** (≥2) por tipo, com `user_login` / `user_email`
+   - `falhas-repetidas.json` — consolidado
+   - `summary.json` — totais (+ links dos relatórios)
 
 ## PoC com troca de senha
 
@@ -79,7 +81,7 @@ Opção desmarcada por padrão. Quando marcada:
 
 1. Exige `[enviar_redefinicao_senha]` na página de boas-vindas (plugin RSES ≥ 1.0.20).
 2. Descobre o **locale do primeiro eleitor** e usa esse assunto de e-mail para todo o lote.
-3. Por eleitor (ainda em paralelo entre contextos): login → disparar shortcode → **SnappyMail** com `user_email` + senha do CSV → ler INBOX (assunto traduzido, ex. pt_BR *Redefinição de Senha Eleitora*) → redefinir senha (8 chars, sem caracteres ambíguos) → marcar e-mail como lido → login com senha nova → votar.
+3. Por eleitor: **sempre** pede reset via `wp-login.php?action=lostpassword` (exigência do teste; não tenta reutilizar senha CSV/local), abre o **SnappyMail** com a senha do CSV (mailbox), espera o e-mail **novo**, define senha WP nova, faz login e vota.
 4. Senhas geradas em `credentials/generated-passwords.csv` (reutilizadas automaticamente; cópia também em `results/<timestamp>/passwords.csv`).
 
 URL do webmail: use `https://webmail.<domínio-do-e-mail>/` (mesmo domínio dos mailboxes do CSV). Se o campo ficar no padrão RelataSoft e o e-mail for de outro domínio, o PoC deriva `https://webmail.<domínio>/` automaticamente. Roundcube (`/mail/`) é rejeitado.

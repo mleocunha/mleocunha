@@ -35,6 +35,7 @@ loginPath.addEventListener('change', () => {
 });
 
 const passwordChangePoc = document.getElementById('passwordChangePoc');
+const visualHighlight = document.getElementById('visualHighlight');
 const mailUrlWrap = document.getElementById('mailUrlWrap');
 const mailUrlHint = document.getElementById('mailUrlHint');
 const platformUrlInput = form.elements.namedItem('platformUrl');
@@ -52,6 +53,8 @@ passwordChangePoc.addEventListener('change', () => {
   syncMailUrlVisibility();
   persistFormPrefs();
 });
+visualHighlight?.addEventListener('change', persistFormPrefs);
+form.elements.namedItem('rampUpSpeed')?.addEventListener('change', persistFormPrefs);
 
 /**
  * Persist platform / mail URLs (and related prefs) in localStorage so reload keeps them.
@@ -65,6 +68,12 @@ function persistFormPrefs() {
       loginPath: String(loginPath?.value || ''),
       loginPathCustom: String(form.elements.namedItem('loginPathCustom')?.value || '').trim(),
       passwordChangePoc: Boolean(passwordChangePoc?.checked),
+      visualHighlight: Boolean(visualHighlight?.checked),
+      windowsInitial: String(form.elements.namedItem('windowsInitial')?.value || ''),
+      windowsMax: String(form.elements.namedItem('windowsMax')?.value || ''),
+      tabsInitial: String(form.elements.namedItem('tabsInitial')?.value || ''),
+      tabsMax: String(form.elements.namedItem('tabsMax')?.value || ''),
+      rampUpSpeed: String(form.elements.namedItem('rampUpSpeed')?.value || 'normal'),
     };
     localStorage.setItem(FORM_STORAGE_KEY, JSON.stringify(data));
   } catch {
@@ -99,6 +108,15 @@ function restoreFormPrefs() {
     if (typeof data.passwordChangePoc === 'boolean' && passwordChangePoc) {
       passwordChangePoc.checked = data.passwordChangePoc;
       syncMailUrlVisibility();
+    }
+    if (typeof data.visualHighlight === 'boolean' && visualHighlight) {
+      visualHighlight.checked = data.visualHighlight;
+    }
+    for (const key of ['windowsInitial', 'windowsMax', 'tabsInitial', 'tabsMax', 'rampUpSpeed']) {
+      const el = form.elements.namedItem(key);
+      if (data[key] && el) {
+        el.value = data[key];
+      }
     }
   } catch {
     /* ignore corrupt storage */
@@ -245,6 +263,16 @@ function appendLog(ev) {
   if (ev.receipt_hash) extraBits.receipt_hash = ev.receipt_hash;
   if (ev.error) extraBits.error = ev.error;
   if (ev.status) extraBits.status = ev.status;
+  if (ev.failure_kind) extraBits.failure_kind = ev.failure_kind;
+  if (ev.failure_count != null) extraBits.failure_count = ev.failure_count;
+  if (ev.exportedRows != null) extraBits.exportedRows = ev.exportedRows;
+  if (ev.windows != null) extraBits.windows = ev.windows;
+  if (ev.tabsPerWindow != null) extraBits.tabs = ev.tabsPerWindow;
+  if (ev.workers != null) extraBits.workers = ev.workers;
+  if (ev.windows_initial != null) extraBits.w0 = ev.windows_initial;
+  if (ev.windows_max != null) extraBits.wMax = ev.windows_max;
+  if (ev.tabs_initial != null) extraBits.t0 = ev.tabs_initial;
+  if (ev.tabs_max != null) extraBits.tMax = ev.tabs_max;
   const extra = Object.keys(extraBits).length ? ` ${JSON.stringify(extraBits)}` : '';
   line.textContent = `${ts} [${level}] ${ev.message || ''}${extra}`;
   logEl.appendChild(line);
@@ -293,6 +321,45 @@ es.onmessage = (msg) => {
   }
 };
 
+const failureReports = document.getElementById('failureReports');
+const failureReportLinks = document.getElementById('failureReportLinks');
+
+function clearFailureReports() {
+  if (failureReports) failureReports.hidden = true;
+  if (failureReportLinks) failureReportLinks.replaceChildren();
+}
+
+/**
+ * @param {object|null|undefined} summary
+ */
+function renderFailureReports(summary) {
+  if (!failureReports || !failureReportLinks) return;
+  const report = summary?.failureReport;
+  const files = report?.files;
+  if (!files || typeof files !== 'object') {
+    clearFailureReports();
+    return;
+  }
+  const order = ['password_reset', 'email_login', 'vote_login', 'combined'];
+  failureReportLinks.replaceChildren();
+  let any = false;
+  for (const key of order) {
+    const f = files[key];
+    if (!f?.fileName) continue;
+    any = true;
+    const li = document.createElement('li');
+    const a = document.createElement('a');
+    a.href = `/api/results/${encodeURIComponent(f.fileName)}`;
+    a.download = f.fileName;
+    a.textContent = f.label || f.fileName;
+    const meta = document.createElement('span');
+    meta.textContent = ` — ${f.count ?? 0} usuário(s) · ${f.fileName}`;
+    li.append(a, meta);
+    failureReportLinks.appendChild(li);
+  }
+  failureReports.hidden = !any;
+}
+
 async function refreshStatus() {
   const res = await fetch('/api/status');
   const data = await res.json();
@@ -306,11 +373,13 @@ async function refreshStatus() {
     runState.className = 'pill error';
     startBtn.disabled = false;
     stopBtn.disabled = true;
+    clearFailureReports();
   } else if (data.summary) {
     runState.textContent = 'concluído';
     runState.className = 'pill';
     startBtn.disabled = false;
     stopBtn.disabled = true;
+    renderFailureReports(data.summary);
   } else {
     runState.textContent = 'ocioso';
     runState.className = 'pill';
@@ -326,6 +395,7 @@ form.addEventListener('submit', async (e) => {
   e.preventDefault();
   persistFormPrefs();
   clearLog();
+  clearFailureReports();
   activeRunId = null;
   awaitingRunId = true;
   const fd = new FormData(form);
