@@ -45,9 +45,26 @@ export function resolveMailUrlForEmail(configured, userEmail) {
  * Trigger WP lostpassword reset, read SnappyMail INBOX for a *fresh* mail,
  * set new WP password. Password-change PoC always sends a new request.
  *
+ * Focus order for the examiner: voting site while requesting reset → brief
+ * dwell on confirmation → SnappyMail INBOX for the fresh mail.
+ *
  * @param {import('playwright').Page} page Any page in the elector context.
  * @param {object} opts
  */
+async function showTabForExaminer(target, visual, step) {
+  if (!target || target.isClosed?.()) return;
+  if (visual?.enabled) {
+    await visual.mark?.(target, step != null ? { step } : {});
+    await visual.focus?.(target, { force: true });
+    return;
+  }
+  try {
+    await target.bringToFront();
+  } catch {
+    // ignore
+  }
+}
+
 export async function resetPasswordViaSnappyMail(page, opts) {
   const {
     mailUrl = DEFAULT_MAIL_URL,
@@ -62,6 +79,9 @@ export async function resetPasswordViaSnappyMail(page, opts) {
     sendVia = 'lostpassword',
     loginUrl,
     requireFreshMail = true,
+    visual = null,
+    /** Dwell so the examiner can see the WP reset confirmation before SnappyMail. */
+    resetConfirmDwellMs = 2000,
   } = opts;
 
   const resolved = resolveMailUrlForEmail(mailUrl, userEmail);
@@ -92,7 +112,8 @@ export async function resetPasswordViaSnappyMail(page, opts) {
   let baselineSubjects = [];
   const mailPage = await page.context().newPage();
   try {
-    // Login to mailbox first so we can snapshot INBOX before requesting reset.
+    // Keep the voting site in front while SnappyMail logs in / baselines INBOX.
+    await showTabForExaminer(page, visual, 'a preparar mailbox (site visível)');
     await mailPage.goto(effectiveMailUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
     await rejectRoundcubeSurface(mailPage);
     await snappyLogoutIfNeeded(mailPage, effectiveMailUrl, logger);
@@ -105,8 +126,11 @@ export async function resetPasswordViaSnappyMail(page, opts) {
       count: baselineSubjects.length,
       top: baselineSubjects.slice(0, 3),
     });
+    // Re-assert site focus — Chromium may have activated the mail tab during login.
+    await showTabForExaminer(page, visual, 'pedido de reset (site)');
 
     if (!skipSend) {
+      // Site first: examiner must see the reset command before SnappyMail takes focus.
       if (sendVia === 'shortcode') {
         await ensureOnWelcomeWithResetForm(page);
         const localeField = page.locator('#rses-poc-mail-locale');
@@ -138,7 +162,18 @@ export async function resetPasswordViaSnappyMail(page, opts) {
           logger,
         });
       }
+      await showTabForExaminer(page, visual, 'reset enviado — conferir site');
+      const dwell = Math.max(0, Number(resetConfirmDwellMs) || 0);
+      if (dwell > 0) {
+        logger?.info?.('A mostrar confirmação de reset no site antes do SnappyMail', {
+          dwell_ms: dwell,
+          user_login: userLogin || undefined,
+        });
+        await page.waitForTimeout(dwell);
+      }
     }
+
+    await showTabForExaminer(mailPage, visual, 'SnappyMail INBOX');
 
     const resetLinks = await findResetLinksInSnappyMail(mailPage, {
       mailUrl: effectiveMailUrl,

@@ -180,7 +180,7 @@ async function authenticateElector(page, opts) {
   // Clear any leftover WP session before lostpassword / reset form.
   await page.context().clearCookies();
 
-  await visual?.mark?.(page, { step: 'reset lostpassword + SnappyMail' });
+  await visual?.mark?.(page, { step: 'reset lostpassword (site → SnappyMail)' });
   const newPassword = await resetPasswordViaSnappyMail(page, {
     mailUrl,
     userEmail: elector.user_email,
@@ -189,9 +189,11 @@ async function authenticateElector(page, opts) {
     batchLocale,
     loginUrl,
     logger,
+    visual,
     sendVia: 'lostpassword',
     requireFreshMail: true,
     timeoutMs: 120000,
+    resetConfirmDwellMs: 2000,
   });
   passwordStore?.markMailResetSent?.(elector.user_login);
 

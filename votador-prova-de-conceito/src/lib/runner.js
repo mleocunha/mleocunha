@@ -14,7 +14,7 @@ import { createVisualDirector } from './visualHighlight.js';
 import { resolveRampUpConfig, RAMP_UP_PRESETS } from './rampUp.js';
 
 /** Bumped when PoC runtime behaviour changes — look for this in startup logs. */
-export const VOTADOR_BUILD = 'shed-on-insistencia-1';
+export const VOTADOR_BUILD = 'reset-show-site-1';
 
 export const DEFAULTS = {
   /** @deprecated use windowsInitial / windowsMax */

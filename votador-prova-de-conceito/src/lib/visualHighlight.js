@@ -112,10 +112,9 @@ export function createVisualDirector(opts = {}) {
       };
       page.on('framenavigated', refresh);
       page.on('load', refresh);
+      // Paint only — do not auto bringToFront. SnappyMail tabs must not cover
+      // the voting site while lostpassword is being shown to the examiner.
       refresh();
-      if (base.workerId === principalId) {
-        focus(page);
-      }
     };
 
     context.on('page', onPage);
@@ -153,15 +152,17 @@ export function createVisualDirector(opts = {}) {
   }
 
   /**
-   * bringToFront for principal only, throttled.
+   * bringToFront for principal only, throttled (unless force).
    * @param {import('playwright').Page|null|undefined} page
+   * @param {{ force?: boolean }} [opts]
    */
-  async function focus(page) {
+  async function focus(page, opts = {}) {
     if (!page || page.isClosed?.()) return;
     const meta = pageMeta.get(page);
     if (meta && meta.workerId !== principalId) return;
+    const force = Boolean(opts.force);
     const now = Date.now();
-    if (now - lastFocusAt < focusEveryMs) return;
+    if (!force && now - lastFocusAt < focusEveryMs) return;
     lastFocusAt = now;
     try {
       await page.bringToFront();
