@@ -24,15 +24,3 @@ VotoEletronicoTemaBase\Branding::init();
 VotoEletronicoTemaBase\Journey::init();
 VotoEletronicoTemaBase\Chrome::init();
 VotoEletronicoTemaBase\Customizer::init();
-
-// Ignora erros de SSL em requisições HTTP internas/loopback do WordPress
-add_filter( 'https_local_ssl_verify_cb', '__return_false' );
-
-// Força o cURL a confiar no loopback local sem timeout estrito
-add_filter( 'http_request_args', function( $r, $url ) {
-    if ( strpos( $url, 'votar.votoeletronico.com.br' ) !== false ) {
-        $r['reject_unsafe_urls'] = true;
-        $r['sslverify'] = false;
-    }
-    return $r;
-}, 10, 2 );
