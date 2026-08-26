@@ -23,9 +23,9 @@ use RelataSoft\SecureElectionSuite\Tallying\OfficialShareSubmissionController;
 use RelataSoft\SecureElectionSuite\Tallying\TallyImportController;
 use RelataSoft\SecureElectionSuite\Admin\RedirectionsPage;
 use RelataSoft\SecureElectionSuite\Admin\ElectoralRollImportPage;
-use RelataSoft\SecureElectionSuite\Frontend\LoginCustomizer;
 use RelataSoft\SecureElectionSuite\Frontend\PasswordResetShortcode;
 use RelataSoft\SecureElectionSuite\Frontend\VoterJourney;
+use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\Bootstrap as PainelBootstrap;
 use RelataSoft\SecureElectionSuite\Voting\BallotController;
 use RelataSoft\SecureElectionSuite\Voting\ElectionController;
 
@@ -77,9 +77,10 @@ class Plugin {
 		OfficialShareSubmissionController::register();
 		RedirectionsPage::register();
 		ElectoralRollImportPage::register();
-		LoginCustomizer::register();
+		// Login branding moved to Painel (WordPressLoginBranding) — LoginCustomizer retired.
 		VoterJourney::register();
 		PasswordResetShortcode::register();
+		PainelBootstrap::register();
 
 		if ( is_admin() ) {
 			Notices::register();

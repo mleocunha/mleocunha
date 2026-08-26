@@ -1,0 +1,38 @@
+@import url("https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700&family=Source+Sans+3:wght@400;600;700&display=swap");
+
+:root,
+.ve-painel-shell,
+body.ve-painel-login {
+  --ve-color-primary: #0c7c9c;
+  --ve-color-primary-dark: #095e77;
+  --ve-color-ink: #1c2a32;
+  --ve-color-muted: #5a6b75;
+  --ve-color-line: #c9d6dc;
+  --ve-color-soft: #eef5f8;
+  --ve-color-surface: #ffffff;
+  --ve-color-danger: #b42318;
+  --ve-color-success: #0b6e4f;
+  --ve-font-sans: "Open Sans", "Source Sans 3", "Segoe UI", sans-serif;
+  --ve-space-1: 0.25rem;
+  --ve-space-2: 0.5rem;
+  --ve-space-3: 0.75rem;
+  --ve-space-4: 1rem;
+  --ve-space-5: 1.5rem;
+  --ve-space-6: 2rem;
+  --ve-radius-sm: 6px;
+  --ve-radius-md: 10px;
+  --ve-radius-lg: 14px;
+  --ve-shadow-sm: 0 1px 2px rgba(28, 42, 50, 0.06);
+  --ve-shadow-md: 0 8px 24px rgba(28, 42, 50, 0.08);
+  --ve-motion-fast: 120ms ease;
+  --ve-sidebar-width: 17.5rem;
+  --ve-topbar-height: 3.5rem;
+}
+
+body.ve-painel-dark {
+  --ve-color-ink: #e8eef2;
+  --ve-color-muted: #9db0bb;
+  --ve-color-line: #2c3d47;
+  --ve-color-soft: #152229;
+  --ve-color-surface: #101820;
+}

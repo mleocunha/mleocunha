@@ -9,6 +9,7 @@ namespace RelataSoft\SecureElectionSuite\Bootstrap;
 
 use RelataSoft\SecureElectionSuite\Frontend\JourneySettings;
 use RelataSoft\SecureElectionSuite\Frontend\VoterJourney;
+use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\User\GestorRoleRegistrar;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -46,6 +47,8 @@ class Activator {
 			VoterJourney::rses_provision_pages();
 		}
 
+		GestorRoleRegistrar::ensureRole();
+
 		flush_rewrite_rules();
 	}
 
@@ -57,8 +60,8 @@ class Activator {
 	private static function rses_validate_dependencies(): void {
 		$rses_errors = array();
 
-		if ( version_compare( PHP_VERSION, '8.1', '<' ) ) {
-			$rses_errors[] = __( 'PHP 8.1 or higher is required.', 'relatasoft-secure-election-suite' );
+		if ( version_compare( PHP_VERSION, '8.2', '<' ) ) {
+			$rses_errors[] = __( 'PHP 8.2 or higher is required.', 'relatasoft-secure-election-suite' );
 		}
 
 		if ( ! extension_loaded( 'gmp' ) ) {

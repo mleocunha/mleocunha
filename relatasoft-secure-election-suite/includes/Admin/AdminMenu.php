@@ -19,6 +19,7 @@ use RelataSoft\SecureElectionSuite\I18n\Translator;
 use RelataSoft\SecureElectionSuite\Admin\Brand;
 use RelataSoft\SecureElectionSuite\Admin\ElectoralRollImportPage;
 use RelataSoft\SecureElectionSuite\Admin\RedirectionsPage;
+use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\Bootstrap as PainelBootstrap;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -48,8 +49,8 @@ class AdminMenu {
 		$rses_admin_cap    = 'manage_options';
 
 		add_menu_page(
-			__( 'Secure Election Suite', 'relatasoft-secure-election-suite' ),
-			__( 'Election Suite', 'relatasoft-secure-election-suite' ),
+			__( 'Painel de Controle Eleitoral', 'relatasoft-secure-election-suite' ),
+			__( 'Painel Eleitoral', 'relatasoft-secure-election-suite' ),
 			$rses_official_cap,
 			'rses-dashboard',
 			array( self::class, 'rses_render_dashboard' ),
@@ -210,197 +211,7 @@ class AdminMenu {
 	 * Render main dashboard with mode-specific actions.
 	 */
 	public static function rses_render_dashboard(): void {
-		if ( ! ModeLock::rses_has_mode() ) {
-			ModeSetupPage::rses_render();
-			return;
-		}
-
-		$rses_mode = ModeLock::rses_get_mode();
-		?>
-		<div class="wrap rses-wrap rses-screen" <?php echo Translator::rses_html_attrs(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
-			<header class="rses-hero rses-hero--brand">
-				<?php Brand::rses_render_hero_brand(); ?>
-				<p class="rses-hero-kicker"><?php esc_html_e( 'Secure Election Suite', 'relatasoft-secure-election-suite' ); ?></p>
-				<h1 class="rses-hero-title"><?php esc_html_e( 'Dashboard', 'relatasoft-secure-election-suite' ); ?></h1>
-				<p class="rses-hero-lead"><?php esc_html_e( 'Continue your locked-mode workflow with the actions below.', 'relatasoft-secure-election-suite' ); ?></p>
-			</header>
-
-			<?php if ( ! empty( $_GET['rses_mode_set'] ) ) : // phpcs:ignore WordPress.Security.NonceVerification.Recommended ?>
-				<div class="rses-panel rses-panel-success">
-					<p><?php esc_html_e( 'Mode locked successfully. Use the actions below to continue.', 'relatasoft-secure-election-suite' ); ?></p>
-				</div>
-			<?php endif; ?>
-
-			<div class="rses-panel rses-panel-info">
-				<p>
-					<strong><?php esc_html_e( 'Active Mode:', 'relatasoft-secure-election-suite' ); ?></strong>
-					<?php echo esc_html( ModeLock::rses_get_mode_label( $rses_mode ) ); ?>
-					— <?php esc_html_e( 'Locked', 'relatasoft-secure-election-suite' ); ?>
-				</p>
-			</div>
-
-			<div class="rses-dashboard-grid">
-				<?php if ( ModeLock::rses_is_mode( ModeLock::RSES_MODE_KEY_AUTHORITY ) ) : ?>
-					<div class="rses-dashboard-card">
-						<?php if ( Capability::rses_can_manage_election() ) : ?>
-							<h2><?php esc_html_e( 'Key Authority', 'relatasoft-secure-election-suite' ); ?></h2>
-							<p><?php esc_html_e( 'Generate ElGamal keys, split private exponents with Shamir Secret Sharing, and export public keys / shares.', 'relatasoft-secure-election-suite' ); ?></p>
-							<p>
-								<a class="button button-primary" href="<?php echo esc_url( admin_url( 'admin.php?page=rses-key-authority' ) ); ?>">
-									<?php esc_html_e( 'Open Key Authority', 'relatasoft-secure-election-suite' ); ?>
-								</a>
-							</p>
-						<?php else : ?>
-							<h2><?php esc_html_e( 'My Shamir Shares', 'relatasoft-secure-election-suite' ); ?></h2>
-							<p><?php
-								echo esc_html(
-									sprintf(
-										/* translators: %s: electoral authority role label (singular) */
-										__( 'View, copy, and download the Shamir share assigned to your %s account. Keep it offline and confidential.', 'relatasoft-secure-election-suite' ),
-										RoleLabels::rses_editor_singular()
-									)
-								);
-							?></p>
-							<p>
-								<a class="button button-primary" href="<?php echo esc_url( admin_url( 'admin.php?page=rses-key-authority' ) ); ?>">
-									<?php esc_html_e( 'Open My Shares', 'relatasoft-secure-election-suite' ); ?>
-								</a>
-							</p>
-						<?php endif; ?>
-					</div>
-				<?php elseif ( ModeLock::rses_is_mode( ModeLock::RSES_MODE_VOTING ) ) : ?>
-					<div class="rses-dashboard-card">
-						<h2><?php esc_html_e( '1. Import Public Key', 'relatasoft-secure-election-suite' ); ?></h2>
-						<p><?php esc_html_e( 'Import the public key package exported from the Key Authority site.', 'relatasoft-secure-election-suite' ); ?></p>
-						<p>
-							<a class="button button-primary" href="<?php echo esc_url( admin_url( 'admin.php?page=rses-public-keys' ) ); ?>">
-								<?php esc_html_e( 'Manage Public Keys', 'relatasoft-secure-election-suite' ); ?>
-							</a>
-						</p>
-					</div>
-					<div class="rses-dashboard-card">
-						<h2><?php esc_html_e( '2. Create Election & Ballot', 'relatasoft-secure-election-suite' ); ?></h2>
-						<p><?php esc_html_e( 'Create elections, attach a public key, build ballot questions, then open voting.', 'relatasoft-secure-election-suite' ); ?></p>
-						<p>
-							<a class="button button-primary" href="<?php echo esc_url( admin_url( 'admin.php?page=rses-elections' ) ); ?>">
-								<?php esc_html_e( 'Manage Elections', 'relatasoft-secure-election-suite' ); ?>
-							</a>
-						</p>
-					</div>
-					<div class="rses-dashboard-card">
-						<h2><?php esc_html_e( '3. Publish Voting Shortcodes', 'relatasoft-secure-election-suite' ); ?></h2>
-						<p><?php
-							echo esc_html(
-								sprintf(
-									/* translators: %s: elector role label (plural) */
-									__( 'Copy shortcodes into any WordPress page or post so %s can cast encrypted ballots.', 'relatasoft-secure-election-suite' ),
-									RoleLabels::rses_elector_plural()
-								)
-							);
-						?></p>
-						<p>
-							<a class="button button-primary" href="<?php echo esc_url( admin_url( 'admin.php?page=rses-shortcodes' ) ); ?>">
-								<?php esc_html_e( 'Shortcode Generator', 'relatasoft-secure-election-suite' ); ?>
-							</a>
-						</p>
-					</div>
-					<div class="rses-dashboard-card">
-						<h2><?php esc_html_e( '4. Elector journey & login', 'relatasoft-secure-election-suite' ); ?></h2>
-						<p><?php esc_html_e( 'Brand wp-login.php, configure welcome and thank-you pages, and plan post-login redirects for electors.', 'relatasoft-secure-election-suite' ); ?></p>
-						<p>
-							<a class="button button-primary" href="<?php echo esc_url( admin_url( 'admin.php?page=rses-redirections' ) ); ?>">
-								<?php esc_html_e( 'Redirections', 'relatasoft-secure-election-suite' ); ?>
-							</a>
-						</p>
-					</div>
-					<div class="rses-dashboard-card">
-						<h2><?php esc_html_e( '5. Electoral roll import', 'relatasoft-secure-election-suite' ); ?></h2>
-						<p><?php esc_html_e( 'Import the electoral registration CSV (spreadsheet columns + password on the right).', 'relatasoft-secure-election-suite' ); ?></p>
-						<p>
-							<a class="button button-primary" href="<?php echo esc_url( admin_url( 'admin.php?page=rses-electoral-roll' ) ); ?>">
-								<?php esc_html_e( 'Import electoral roll', 'relatasoft-secure-election-suite' ); ?>
-							</a>
-						</p>
-					</div>
-					<div class="rses-dashboard-card">
-						<h2><?php esc_html_e( '6. Export Encrypted Tallies', 'relatasoft-secure-election-suite' ); ?></h2>
-						<p><?php esc_html_e( 'After closing an election, export ZIP/JSON packages for the Tallying platform.', 'relatasoft-secure-election-suite' ); ?></p>
-						<p>
-							<a class="button button-primary" href="<?php echo esc_url( admin_url( 'admin.php?page=rses-voting-export' ) ); ?>">
-								<?php esc_html_e( 'Voting Export', 'relatasoft-secure-election-suite' ); ?>
-							</a>
-						</p>
-					</div>
-				<?php elseif ( ModeLock::rses_is_mode( ModeLock::RSES_MODE_TALLYING ) ) : ?>
-					<?php if ( Capability::rses_can_manage_election() ) : ?>
-						<div class="rses-dashboard-card">
-							<h2><?php esc_html_e( '1. Import Voting Package', 'relatasoft-secure-election-suite' ); ?></h2>
-							<p><?php esc_html_e( 'Upload ZIP or JSON exports from voting servers and validate checksums.', 'relatasoft-secure-election-suite' ); ?></p>
-							<p>
-								<a class="button button-primary" href="<?php echo esc_url( admin_url( 'admin.php?page=rses-tally-import' ) ); ?>">
-									<?php esc_html_e( 'Tally Import', 'relatasoft-secure-election-suite' ); ?>
-								</a>
-							</p>
-						</div>
-					<?php endif; ?>
-					<div class="rses-dashboard-card">
-						<h2><?php echo Capability::rses_can_manage_election() ? esc_html__( '2. Collect Official Shares', 'relatasoft-secure-election-suite' ) : esc_html__( 'Submit Your Shamir Share', 'relatasoft-secure-election-suite' ); ?></h2>
-						<p><?php
-							echo esc_html(
-								sprintf(
-									/* translators: %s: electoral authority role label (singular) */
-									__( 'Each %s pastes their offline Shamir share JSON here until the threshold is met.', 'relatasoft-secure-election-suite' ),
-									RoleLabels::rses_editor_singular()
-								)
-							);
-						?></p>
-						<p>
-							<a class="button button-primary" href="<?php echo esc_url( admin_url( 'admin.php?page=rses-share-submission' ) ); ?>">
-								<?php esc_html_e( 'Share Submission', 'relatasoft-secure-election-suite' ); ?>
-							</a>
-						</p>
-					</div>
-					<?php if ( Capability::rses_can_manage_election() ) : ?>
-						<div class="rses-dashboard-card">
-							<h2><?php esc_html_e( '3. Decrypt & Certify', 'relatasoft-secure-election-suite' ); ?></h2>
-							<p><?php esc_html_e( 'Reconstruct the private exponent in memory, decrypt tallies, and export certification reports.', 'relatasoft-secure-election-suite' ); ?></p>
-							<p>
-								<a class="button button-primary" href="<?php echo esc_url( admin_url( 'admin.php?page=rses-certification' ) ); ?>">
-									<?php esc_html_e( 'Certification', 'relatasoft-secure-election-suite' ); ?>
-								</a>
-							</p>
-						</div>
-					<?php endif; ?>
-				<?php endif; ?>
-
-				<?php if ( Capability::rses_can_manage_election() ) : ?>
-					<?php
-					$rses_crypto_title = __( 'Crypto Self Test', 'relatasoft-secure-election-suite' );
-					if ( ModeLock::rses_is_mode( ModeLock::RSES_MODE_VOTING ) ) {
-						$rses_crypto_title = __( '7. Crypto Self Test', 'relatasoft-secure-election-suite' );
-					} elseif ( ModeLock::rses_is_mode( ModeLock::RSES_MODE_TALLYING ) ) {
-						$rses_crypto_title = __( '4. Crypto Self Test', 'relatasoft-secure-election-suite' );
-					} elseif ( ModeLock::rses_is_mode( ModeLock::RSES_MODE_KEY_AUTHORITY ) ) {
-						$rses_crypto_title = __( '2. Crypto Self Test', 'relatasoft-secure-election-suite' );
-					}
-					?>
-					<div class="rses-dashboard-card">
-						<h2><?php echo esc_html( $rses_crypto_title ); ?></h2>
-						<p><?php esc_html_e( 'Verify ElGamal, homomorphic aggregation, and Shamir Secret Sharing on this server.', 'relatasoft-secure-election-suite' ); ?></p>
-						<p>
-							<a class="button button-primary" href="<?php echo esc_url( admin_url( 'admin.php?page=rses-crypto-self-test' ) ); ?>">
-								<?php esc_html_e( 'Run Self Tests', 'relatasoft-secure-election-suite' ); ?>
-							</a>
-						</p>
-					</div>
-				<?php endif; ?>
-			</div>
-
-			<p class="rses-production-warning">
-				<?php esc_html_e( 'This plugin is engineered toward production-grade use, but cryptography has not been independently reviewed for binding public elections.', 'relatasoft-secure-election-suite' ); ?>
-			</p>
-		</div>
-		<?php
+		PainelBootstrap::renderHome();
 	}
 
 	/**

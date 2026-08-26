@@ -57,7 +57,8 @@ class Capability {
 		}
 
 		$roles = array_map( 'strval', (array) $user->roles );
-		return in_array( self::RSES_ADMIN_ROLE, $roles, true );
+		return in_array( self::RSES_ADMIN_ROLE, $roles, true )
+			|| in_array( 've_gestor', $roles, true );
 	}
 
 	/**

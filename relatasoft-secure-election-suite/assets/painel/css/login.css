@@ -1,0 +1,47 @@
+body.login.ve-painel-login {
+  background:
+    radial-gradient(120% 80% at 0% 0%, rgba(12, 124, 156, 0.12), transparent 55%),
+    radial-gradient(90% 70% at 100% 0%, rgba(9, 94, 119, 0.08), transparent 50%),
+    linear-gradient(180deg, #f7fbfc, #ffffff 45%);
+  color: var(--ve-color-ink);
+  font-family: var(--ve-font-sans);
+}
+
+body.login.ve-painel-login #login {
+  width: min(24rem, 92vw);
+  padding: 2rem 0 1.5rem;
+}
+
+body.login.ve-painel-login #login h1 a {
+  border-radius: calc(var(--ve-radius-md) + 4px);
+  box-shadow: var(--ve-shadow-md);
+  background-color: #fff;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+body.login.ve-painel-login #loginform,
+body.login.ve-painel-login #lostpasswordform {
+  margin-top: 0;
+  padding: 1.5rem 1.35rem 1.25rem;
+  border: 1px solid var(--ve-color-line);
+  border-radius: var(--ve-radius-lg);
+  box-shadow: var(--ve-shadow-md);
+  background: #fff;
+}
+
+body.login.ve-painel-login .wp-core-ui .button-primary {
+  background: linear-gradient(180deg, var(--ve-color-primary), var(--ve-color-primary-dark));
+  border: none;
+  border-radius: var(--ve-radius-md);
+  box-shadow: 0 4px 14px rgba(12, 124, 156, 0.28);
+  text-shadow: none;
+  font-weight: 700;
+}
+
+body.login.ve-painel-login .ve-painel-login-footnote {
+  text-align: center;
+  color: var(--ve-color-muted);
+  font-size: 0.85rem;
+  margin-top: 1rem;
+}
