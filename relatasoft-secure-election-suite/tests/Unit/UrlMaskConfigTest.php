@@ -37,11 +37,16 @@ final class UrlMaskConfigTest extends TestCase {
 		$this->assertFalse( UrlMaskConfig::isWpLoginPath( '/id.php' ) );
 	}
 
-	public function test_wp_admin_exemptions_for_assets_and_async(): void {
-		$this->assertTrue( UrlMaskConfig::isExemptWpAdminEndpoint( '/wp-admin/admin-ajax.php' ) );
-		$this->assertTrue( UrlMaskConfig::isStaticAdminAssetPath( '/wp-admin/css/dashicons.css' ) );
+	public function test_wp_admin_exemptions_for_assets_only(): void {
+		// Ajax/post must 404 under /wp-admin once /painel is ready (use /painel stubs).
+		$this->assertFalse( UrlMaskConfig::isExemptWpAdminEndpoint( '/wp-admin/admin-ajax.php' ) );
+		$this->assertFalse( UrlMaskConfig::isExemptWpAdminEndpoint( '/wp-admin/admin-post.php' ) );
+		$this->assertFalse( UrlMaskConfig::isExemptWpAdminEndpoint( '/wp-admin/async-upload.php' ) );
 		$this->assertFalse( UrlMaskConfig::isExemptWpAdminEndpoint( '/wp-admin/admin.php' ) );
 		$this->assertFalse( UrlMaskConfig::isExemptWpAdminEndpoint( '/wp-admin/' ) );
+		$this->assertTrue( UrlMaskConfig::isWpAdminAssetLoader( '/wp-admin/load-styles.php' ) );
+		$this->assertTrue( UrlMaskConfig::isExemptWpAdminEndpoint( '/wp-admin/load-scripts.php' ) );
+		$this->assertTrue( UrlMaskConfig::isStaticAdminAssetPath( '/wp-admin/css/dashicons.css' ) );
 		$this->assertFalse( UrlMaskConfig::isStaticAdminAssetPath( '/wp-admin/plugins.php' ) );
 	}
 

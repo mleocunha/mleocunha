@@ -312,10 +312,23 @@ final class PlatformUrlMask {
 		}
 		$slug = self::adminPath();
 		$body = "# Voto Eletrônico — include no bloco server{} do Nginx (recomendado)\n"
-			. "# Faz /painel/* chegar ao WordPress mesmo sem ficheiros .php físicos.\n"
+			. "# 1) /painel → front-controller WordPress\n"
+			. "# 2) /wp-admin e /wp-login.php → 404 (como URL inexistente)\n"
+			. "#    Estáticos do chrome (css/js/images) continuam servidos.\n"
+			. "#    load-styles/scripts e ajax passam por /painel/*.php (stubs).\n"
 			. "location ^~ /{$slug} {\n"
 			. "    rewrite ^/{$slug}/?\$ /index.php?" . self::QUERY_VAR . "=index.php last;\n"
 			. "    rewrite ^/{$slug}/(.+)\$ /index.php?" . self::QUERY_VAR . "=\$1 last;\n"
+			. "}\n"
+			. "location ^~ /wp-admin/css/ { }\n"
+			. "location ^~ /wp-admin/js/ { }\n"
+			. "location ^~ /wp-admin/images/ { }\n"
+			. "location ^~ /wp-admin/img/ { }\n"
+			. "location ^~ /wp-admin {\n"
+			. "    return 404;\n"
+			. "}\n"
+			. "location = /wp-login.php {\n"
+			. "    return 404;\n"
 			. "}\n";
 		$path = trailingslashit( (string) $upload['basedir'] ) . 've-painel-nginx.conf';
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
@@ -413,12 +426,13 @@ final class PlatformUrlMask {
 			self::denyAsNotFound();
 		}
 
-		// Public /wp-admin must go dark once /painel is ready.
+		// Public /wp-admin → 404 once /painel exists (same as a missing URL).
+		// Only leave aggregated style/script loaders + static files (Painel chrome).
 		if ( UrlMaskConfig::isWpAdminPath( $path )
-			&& self::adminUrlMaskReady()
+			&& self::adminGatewayExists()
 			&& ! ( defined( 'VE_ADMIN_ENTRY' ) && VE_ADMIN_ENTRY )
-			&& ! UrlMaskConfig::isExemptWpAdminEndpoint( $path )
 			&& ! UrlMaskConfig::isStaticAdminAssetPath( $path )
+			&& ! UrlMaskConfig::isWpAdminAssetLoader( $path )
 		) {
 			self::denyAsNotFound();
 		}

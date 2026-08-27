@@ -168,7 +168,7 @@ ve_painel_mu_ensure_gateway();
 
 /**
  * When disguise stubs exist, classic /wp-admin and /wp-login.php must 404
- * (no redirect that maps them to /painel or /id.php).
+ * like any missing URL (no redirect that maps the disguise).
  */
 function ve_painel_mu_block_classic_surfaces(): void {
 	if ( defined( 'WP_CLI' ) && WP_CLI ) {
@@ -197,18 +197,12 @@ function ve_painel_mu_block_classic_surfaces(): void {
 	if ( ! $admin_ready || ! preg_match( '#(^|/)wp-admin(/|$)#', $path ) ) {
 		return;
 	}
+	// Static theme of the admin chrome (css/js/images) + load-*.php aggregators only.
 	if ( preg_match( '/\.(css|js|map|png|jpe?g|gif|svg|webp|woff2?|ttf|eot|ico)(\?|$)/i', $path ) ) {
 		return;
 	}
-	$base  = strtolower( basename( $path ) );
-	$allow = array(
-		'admin-ajax.php',
-		'admin-post.php',
-		'async-upload.php',
-		'load-scripts.php',
-		'load-styles.php',
-	);
-	if ( in_array( $base, $allow, true ) ) {
+	$base = strtolower( basename( $path ) );
+	if ( in_array( $base, array( 'load-scripts.php', 'load-styles.php' ), true ) ) {
 		return;
 	}
 	ve_painel_mu_send_404();

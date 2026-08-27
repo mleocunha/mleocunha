@@ -70,21 +70,26 @@ final class UrlMaskConfig {
 	}
 
 	/**
-	 * Endpoints that must remain reachable under /wp-admin (assets + async handlers).
+	 * Endpoints that must remain reachable under /wp-admin (asset loaders only).
+	 * admin-ajax / admin-post go through /painel once the gateway exists.
 	 */
 	public static function isExemptWpAdminEndpoint( string $path ): bool {
+		return self::isWpAdminAssetLoader( $path );
+	}
+
+	/**
+	 * Core script/style aggregators still referenced as /wp-admin/load-*.php.
+	 */
+	public static function isWpAdminAssetLoader( string $path ): bool {
 		$base = strtolower( basename( $path ) );
-		if ( '' === $base || 'wp-admin' === $base ) {
-			return false;
-		}
-		$allow = array(
-			'admin-ajax.php',
-			'admin-post.php',
-			'async-upload.php',
-			'load-scripts.php',
-			'load-styles.php',
+		return in_array(
+			$base,
+			array(
+				'load-scripts.php',
+				'load-styles.php',
+			),
+			true
 		);
-		return in_array( $base, $allow, true );
 	}
 
 	public static function isStaticAdminAssetPath( string $path ): bool {
