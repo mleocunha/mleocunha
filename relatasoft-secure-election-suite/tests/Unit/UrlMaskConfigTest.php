@@ -10,11 +10,11 @@ final class UrlMaskConfigTest extends TestCase {
 
 	public function test_masks_admin_and_login_urls(): void {
 		$this->assertSame(
-			'https://exemplo.test/painel/admin?page=x',
+			'https://exemplo.test/painel/admin.php?page=x',
 			UrlMaskConfig::maskAdminUrl( 'https://exemplo.test/wp-admin/admin.php?page=x', 'painel' )
 		);
 		$this->assertSame(
-			'https://exemplo.test/painel/plugins',
+			'https://exemplo.test/painel/plugins.php',
 			UrlMaskConfig::maskAdminUrl( 'https://exemplo.test/wp-admin/plugins.php', 'painel' )
 		);
 		$this->assertSame(

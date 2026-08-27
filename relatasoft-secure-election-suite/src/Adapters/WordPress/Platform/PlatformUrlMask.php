@@ -180,15 +180,25 @@ final class PlatformUrlMask {
 		if ( ! self::enabled() || ! function_exists( 'current_user_can' ) || ! current_user_can( 'manage_options' ) ) {
 			return;
 		}
-		if ( self::adminGatewayExists() ) {
+		if ( self::adminUrlMaskReady() ) {
 			return;
 		}
-		echo '<div class="notice notice-error"><p>';
+		echo '<div class="notice notice-warning"><p>';
 		echo esc_html__(
-			'Não foi possível criar o gateway /painel/ na raiz da instalação (permissões). O Painel tentará servir via rewrites; se /painel/ falhar, torne a raiz gravável ou inclua o snippet Nginx gerado em wp-content/uploads/ve-painel-nginx.conf.',
+			'O gateway /painel/ ainda não está pronto. Use /wp-admin/ para activar e gerir plugins. Após a activação, recarregue o sítio para gerar o gateway automaticamente (sem links simbólicos).',
 			'relatasoft-secure-election-suite'
 		);
 		echo '</p></div>';
+	}
+
+	/**
+	 * Whether outbound admin links may use /painel (stubs must exist for nginx *.php).
+	 */
+	public static function adminUrlMaskReady(): bool {
+		if ( ! self::enabled() ) {
+			return false;
+		}
+		return self::adminGatewayExists();
 	}
 
 	public static function adminGatewayExists(): bool {
@@ -199,7 +209,9 @@ final class PlatformUrlMask {
 		return is_dir( $dir )
 			&& ! is_link( $dir )
 			&& is_readable( $dir . '/' . self::ADMIN_ALIAS_MARKER )
-			&& is_readable( $dir . '/admin.php' );
+			&& is_readable( $dir . '/admin.php' )
+			&& is_readable( $dir . '/plugins.php' )
+			&& is_readable( $dir . '/index.php' );
 	}
 
 	/**
@@ -364,21 +376,18 @@ final class PlatformUrlMask {
 	}
 
 	/**
-	 * Block classic WP entry URLs; allow masked login stub.
-	 *
-	 * Important: never 404 POST to wp-login.php — the login form (or an old
-	 * bookmark) may still post there; denying it makes valid credentials fail.
+	 * Soft-handle classic URLs. Never lock the operator out of /wp-admin
+	 * (activation/update must always work on nginx).
 	 */
 	public static function bootstrapRequest(): void {
 		if ( ! self::enabled() || ( defined( 'WP_CLI' ) && WP_CLI ) ) {
 			return;
 		}
 
-		$uri  = isset( $_SERVER['REQUEST_URI'] ) ? (string) $_SERVER['REQUEST_URI'] : '';
-		$path = UrlMaskConfig::requestPath( $uri );
+		$uri    = isset( $_SERVER['REQUEST_URI'] ) ? (string) $_SERVER['REQUEST_URI'] : '';
+		$path   = UrlMaskConfig::requestPath( $uri );
 		$method = strtoupper( (string) ( $_SERVER['REQUEST_METHOD'] ?? 'GET' ) );
 
-		// Login via stub id.php — branding treats it as login screen.
 		if ( defined( UrlMaskConfig::LOGIN_ENTRY_CONSTANT ) && constant( UrlMaskConfig::LOGIN_ENTRY_CONSTANT ) ) {
 			global $pagenow;
 			$pagenow = 'wp-login.php';
@@ -386,11 +395,9 @@ final class PlatformUrlMask {
 		}
 
 		if ( UrlMaskConfig::isWpLoginPath( $path ) ) {
-			// Allow authentication POST (and other login actions) to complete.
 			if ( 'POST' === $method ) {
 				return;
 			}
-			// GET/HEAD: send humans to the public identification URL.
 			if ( function_exists( 'wp_safe_redirect' ) && function_exists( 'home_url' ) ) {
 				$target = home_url( '/' . ltrim( self::loginPath(), '/' ) );
 				$query  = parse_url( $uri, PHP_URL_QUERY );
@@ -400,31 +407,26 @@ final class PlatformUrlMask {
 				wp_safe_redirect( $target, 302 );
 				exit;
 			}
-			self::denyAsNotFound();
+			return;
 		}
 
-		// Direct /wp-admin while the public path is /painel.
-		// Until the gateway is ready, keep classic /wp-admin reachable (activate/update).
-		if ( UrlMaskConfig::isWpAdminPath( $path ) && ! self::isExemptWpAdminRequest( $path ) ) {
-			if ( ! self::adminGatewayExists() ) {
-				return;
+		// Never 404 /wp-admin — that trapped plugin activation on nginx.
+		// Optionally nudge logged-in users to /painel when the gateway is ready.
+		if ( UrlMaskConfig::isWpAdminPath( $path ) && self::adminUrlMaskReady()
+			&& function_exists( 'is_user_logged_in' ) && is_user_logged_in()
+			&& ! self::isExemptWpAdminRequest( $path )
+		) {
+			$admin       = self::adminPath();
+			$masked_path = (string) preg_replace( '#(/)wp-admin(/|$)#', '$1' . $admin . '$2', $path, 1 );
+			$target      = home_url( $masked_path );
+			$query       = parse_url( $uri, PHP_URL_QUERY );
+			if ( is_string( $query ) && $query !== '' ) {
+				$target .= ( str_contains( $target, '?' ) ? '&' : '?' ) . $query;
 			}
-			if ( function_exists( 'is_user_logged_in' ) && is_user_logged_in() ) {
-				$admin = self::adminPath();
-				$masked_path = (string) preg_replace( '#(/)wp-admin(/|$)#', '$1' . $admin . '$2', $path, 1 );
-				// Prefer extensionless public path.
-				$masked_path = (string) preg_replace( '#\.php$#', '', $masked_path );
-				$target      = home_url( $masked_path );
-				$query       = parse_url( $uri, PHP_URL_QUERY );
-				if ( is_string( $query ) && $query !== '' ) {
-					$target .= ( str_contains( $target, '?' ) ? '&' : '?' ) . $query;
-				}
-				if ( function_exists( 'wp_safe_redirect' ) ) {
-					wp_safe_redirect( $target, 302 );
-					exit;
-				}
+			if ( function_exists( 'wp_safe_redirect' ) ) {
+				wp_safe_redirect( $target, 302 );
+				exit;
 			}
-			self::denyAsNotFound();
 		}
 	}
 
@@ -437,17 +439,21 @@ final class PlatformUrlMask {
 	 */
 	public static function filterLoginRedirect( string $redirect_to, string $requested_redirect_to, $user ): string {
 		unset( $requested_redirect_to );
-		if ( ! self::enabled() ) {
+		if ( ! self::enabled() || is_wp_error( $user ) ) {
 			return $redirect_to;
 		}
-		if ( is_wp_error( $user ) ) {
-			return $redirect_to;
+		// Prefer Painel home when gateway is ready; otherwise classic admin is fine.
+		if ( self::adminUrlMaskReady() ) {
+			$fallback = admin_url( 'admin.php?page=rses-dashboard' );
+			if ( '' === $redirect_to || str_contains( $redirect_to, 'wp-admin' ) || str_contains( $redirect_to, 'wp-login.php' ) ) {
+				return $fallback;
+			}
+			return UrlMaskConfig::maskAdminUrl( $redirect_to, self::adminPath() );
 		}
-		$fallback = admin_url( 'admin.php?page=rses-dashboard' );
-		if ( '' === $redirect_to || str_contains( $redirect_to, 'wp-admin' ) || str_contains( $redirect_to, 'wp-login.php' ) ) {
-			return $fallback;
+		if ( '' === $redirect_to || str_contains( $redirect_to, 'wp-login.php' ) ) {
+			return admin_url( 'admin.php?page=rses-dashboard' );
 		}
-		return UrlMaskConfig::maskAdminUrl( $redirect_to, self::adminPath() );
+		return $redirect_to;
 	}
 
 	/**
@@ -463,7 +469,7 @@ final class PlatformUrlMask {
 
 	public static function filterAdminUrl( string $url, string $path = '', ?int $blog_id = null ): string {
 		unset( $blog_id );
-		if ( ! self::enabled() ) {
+		if ( ! self::adminUrlMaskReady() ) {
 			return $url;
 		}
 		if ( self::isStaticAdminAsset( $path, $url ) ) {
@@ -473,7 +479,7 @@ final class PlatformUrlMask {
 	}
 
 	public static function filterNetworkAdminUrl( string $url, string $path = '' ): string {
-		if ( ! self::enabled() ) {
+		if ( ! self::adminUrlMaskReady() ) {
 			return $url;
 		}
 		if ( self::isStaticAdminAsset( $path, $url ) ) {
@@ -490,7 +496,9 @@ final class PlatformUrlMask {
 		if ( ( is_string( $path ) && str_contains( $path, 'wp-login.php' ) ) || str_contains( $url, 'wp-login.php' ) ) {
 			return UrlMaskConfig::maskLoginUrl( $url, self::loginPath() );
 		}
-		if ( ( is_string( $path ) && str_contains( $path, 'wp-admin' ) ) || str_contains( $url, '/wp-admin' ) ) {
+		if ( self::adminUrlMaskReady()
+			&& ( ( is_string( $path ) && str_contains( $path, 'wp-admin' ) ) || str_contains( $url, '/wp-admin' ) )
+		) {
 			return UrlMaskConfig::maskAdminUrl( $url, self::adminPath() );
 		}
 		return $url;
