@@ -54,6 +54,7 @@ class Activator {
 		PlatformUrlMask::writeAdminGateway();
 		PlatformUrlMask::writeHtaccessRules();
 		PlatformUrlMask::writeNginxSnippet();
+		PlatformUrlMask::installMuPlugin();
 		PlatformUrlMask::registerRewrites();
 
 		flush_rewrite_rules();

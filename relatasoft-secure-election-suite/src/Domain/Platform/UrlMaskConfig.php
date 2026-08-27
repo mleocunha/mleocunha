@@ -32,11 +32,20 @@ final class UrlMaskConfig {
 	}
 
 	/**
-	 * Replace /wp-admin/ segment in a URL with the masked admin path.
+	 * Replace /wp-admin/… with /painel/… and drop .php for nginx-safe public URLs.
+	 *
+	 * Example: /wp-admin/plugins.php?x=1 → /painel/plugins?x=1
+	 * (Routed by WP rewrites / front-controller; optional stub files keep legacy .php working.)
 	 */
 	public static function maskAdminUrl(string $url, string $admin_path): string {
 		$admin_path = self::normalizeAdminPath( $admin_path );
-		return (string) preg_replace( '#(/)wp-admin(/|$)#', '$1' . $admin_path . '$2', $url, 1 );
+		$url        = (string) preg_replace( '#(/)wp-admin(/|$)#', '$1' . $admin_path . '$2', $url, 1 );
+		$url        = (string) preg_replace(
+			'#(/' . preg_quote( $admin_path, '#' ) . '/[A-Za-z0-9_-]+)\.php(?=[\?#]|$)#',
+			'$1',
+			$url
+		);
+		return $url;
 	}
 
 	/**

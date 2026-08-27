@@ -82,6 +82,7 @@ final class PlatformUrlMask {
 		self::writeAdminGateway();
 		self::writeHtaccessRules();
 		self::writeNginxSnippet();
+		self::installMuPlugin();
 	}
 
 	/** @param list<string> $vars */
@@ -281,20 +282,38 @@ final class PlatformUrlMask {
 		}
 		$slug = self::adminPath();
 		$login = self::loginPath();
-		$body = "# Voto Eletrônico — incluir no server{} Nginx (opcional se o gateway /{$slug}/ já existir)\n"
-			. "# include {$upload['basedir']}/ve-painel-nginx.conf;\n"
-			. "location /{$slug}/ {\n"
-			. "    try_files \$uri \$uri/ /index.php?\$args;\n"
-			. "}\n"
-			. "location = /{$slug} {\n"
-			. "    return 301 /{$slug}/;\n"
-			. "}\n"
-			. "location = /{$login} {\n"
-			. "    try_files \$uri /{$login};\n"
+		$body = "# Voto Eletrônico — include no bloco server{} do Nginx (recomendado)\n"
+			. "# Faz /painel/* chegar ao WordPress mesmo sem ficheiros .php físicos.\n"
+			. "location ^~ /{$slug} {\n"
+			. "    rewrite ^/{$slug}/?\$ /index.php?" . self::QUERY_VAR . "=index.php last;\n"
+			. "    rewrite ^/{$slug}/(.+)\$ /index.php?" . self::QUERY_VAR . "=\$1 last;\n"
 			. "}\n";
 		$path = trailingslashit( (string) $upload['basedir'] ) . 've-painel-nginx.conf';
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
 		@file_put_contents( $path, $body );
+	}
+
+	/**
+	 * Install must-use helper so gateway exists even during plugin activate/update.
+	 */
+	public static function installMuPlugin(): bool {
+		if ( ! defined( 'WP_CONTENT_DIR' ) || ! defined( 'RSES_PLUGIN_DIR' ) ) {
+			return false;
+		}
+		$src = trailingslashit( RSES_PLUGIN_DIR ) . 'mu-plugins/ve-painel-gateway.php';
+		if ( ! is_readable( $src ) ) {
+			return false;
+		}
+		$dir = trailingslashit( WP_CONTENT_DIR ) . 'mu-plugins';
+		if ( ! is_dir( $dir ) && function_exists( 'wp_mkdir_p' ) ) {
+			wp_mkdir_p( $dir );
+		}
+		if ( ! is_dir( $dir ) ) {
+			return false;
+		}
+		$dest = $dir . '/ve-painel-gateway.php';
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_copy
+		return (bool) @copy( $src, $dest );
 	}
 
 	public static function removeAdminAlias(): void {
@@ -380,10 +399,16 @@ final class PlatformUrlMask {
 		}
 
 		// Direct /wp-admin while the public path is /painel.
+		// Until the gateway is ready, keep classic /wp-admin reachable (activate/update).
 		if ( UrlMaskConfig::isWpAdminPath( $path ) && ! self::isExemptWpAdminRequest( $path ) ) {
+			if ( ! self::adminGatewayExists() ) {
+				return;
+			}
 			if ( function_exists( 'is_user_logged_in' ) && is_user_logged_in() ) {
 				$admin = self::adminPath();
 				$masked_path = (string) preg_replace( '#(/)wp-admin(/|$)#', '$1' . $admin . '$2', $path, 1 );
+				// Prefer extensionless public path.
+				$masked_path = (string) preg_replace( '#\.php$#', '', $masked_path );
 				$target      = home_url( $masked_path );
 				$query       = parse_url( $uri, PHP_URL_QUERY );
 				if ( is_string( $query ) && $query !== '' ) {

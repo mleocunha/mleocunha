@@ -3,7 +3,7 @@
  * Plugin Name:       Voto Eletrônico by RelataSoft
  * Plugin URI:        https://relatasoft.com/secure-election-suite
  * Description:       Painel de Controle Eleitoral — gestão democrática, auditável e criptograficamente garantida (RSES international codebase).
- * Version:           1.0.34
+ * Version:           1.0.35
  * Requires at least: 6.0
  * Requires PHP:      8.2
  * Author:            RelataSoft
@@ -18,7 +18,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'RSES_VERSION', '1.0.34' );
+define( 'RSES_VERSION', '1.0.35' );
 define( 'RSES_PLUGIN_FILE', __FILE__ );
 define( 'RSES_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'RSES_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
@@ -59,5 +59,18 @@ spl_autoload_register( 'rses_autoload' );
 
 register_activation_hook( __FILE__, array( 'RelataSoft\\SecureElectionSuite\\Bootstrap\\Activator', 'activate' ) );
 register_deactivation_hook( __FILE__, array( 'RelataSoft\\SecureElectionSuite\\Bootstrap\\Deactivator', 'deactivate' ) );
+
+// Materialize /painel gateway as early as this plugin loads (no symlinks).
+if ( class_exists( 'RelataSoft\\SecureElectionSuite\\Painel\\Adapters\\WordPress\\Platform\\PlatformUrlMask', false )
+	|| true
+) {
+	// Autoload the class, then ensure gateway + mu-plugin copy.
+	$rses_mask = 'RelataSoft\\SecureElectionSuite\\Painel\\Adapters\\WordPress\\Platform\\PlatformUrlMask';
+	if ( class_exists( $rses_mask ) ) {
+		$rses_mask::writeAdminGateway();
+		$rses_mask::writeLoginStub();
+		$rses_mask::installMuPlugin();
+	}
+}
 
 RelataSoft\SecureElectionSuite\Bootstrap\Plugin::instance()->run();
