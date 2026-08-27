@@ -36,4 +36,10 @@ final class UrlMaskConfigTest extends TestCase {
 		$this->assertFalse( UrlMaskConfig::isWpAdminPath( '/painel/admin.php' ) );
 		$this->assertFalse( UrlMaskConfig::isWpLoginPath( '/id.php' ) );
 	}
+
+	public function test_admin_cookie_path_mirrors_wp_admin_shape(): void {
+		$this->assertSame( '/painel', UrlMaskConfig::adminCookiePath( 'painel', '/' ) );
+		$this->assertSame( '/blog/painel', UrlMaskConfig::adminCookiePath( 'painel', '/blog/' ) );
+		$this->assertSame( '/painel', UrlMaskConfig::adminCookiePath( 'wp-admin', '' ) );
+	}
 }

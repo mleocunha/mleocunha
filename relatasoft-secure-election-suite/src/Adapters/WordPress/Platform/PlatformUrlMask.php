@@ -46,7 +46,12 @@ final class PlatformUrlMask {
 		add_filter( 'user_request_action_email_content', array( self::class, 'filterEmailContent' ), 100 );
 		add_filter( 'retrieve_password_message', array( self::class, 'filterEmailContent' ), 100 );
 		add_filter( 'login_redirect', array( self::class, 'filterLoginRedirect' ), 100, 3 );
+		add_action( 'login_header', array( self::class, 'forceLoginFormAction' ), 1 );
 		add_action( 'login_footer', array( self::class, 'forceLoginFormAction' ), 1 );
+
+		// Auth cookies are scoped to /wp-admin by default — also scope to /painel.
+		add_action( 'set_auth_cookie', array( self::class, 'mirrorAuthCookieForPainel' ), 10, 6 );
+		add_action( 'clear_auth_cookie', array( self::class, 'clearMirroredAuthCookie' ), 10 );
 
 		// Front-controller early: /painel/* may arrive via index.php (nginx try_files).
 		self::maybeFrontController();
@@ -376,8 +381,12 @@ final class PlatformUrlMask {
 	}
 
 	/**
-	 * Soft-handle classic URLs. Never lock the operator out of /wp-admin
+	 * Soft-handle classic login URL. Never lock the operator out of /wp-admin
 	 * (activation/update must always work on nginx).
+	 *
+	 * Do NOT auto-redirect /wp-admin → /painel for "logged in" users: the auth
+	 * cookie is path-scoped to /wp-admin unless mirrored (see mirrorAuthCookieForPainel).
+	 * Redirecting with only the logged_in cookie causes a false login loop.
 	 */
 	public static function bootstrapRequest(): void {
 		if ( ! self::enabled() || ( defined( 'WP_CLI' ) && WP_CLI ) ) {
@@ -395,6 +404,7 @@ final class PlatformUrlMask {
 		}
 
 		if ( UrlMaskConfig::isWpLoginPath( $path ) ) {
+			// Allow credential POST on classic path (plugins / recovery); rewrite GETs to /id.php.
 			if ( 'POST' === $method ) {
 				return;
 			}
@@ -407,27 +417,52 @@ final class PlatformUrlMask {
 				wp_safe_redirect( $target, 302 );
 				exit;
 			}
+		}
+	}
+
+	/**
+	 * Duplicate AUTH/SECURE_AUTH cookies onto /painel so admin sessions work there.
+	 *
+	 * @param string $auth_cookie Authentication cookie value.
+	 * @param int    $expire      Expiry timestamp (0 = session).
+	 * @param int    $expiration  Duration used by WP.
+	 * @param int    $user_id     User ID.
+	 * @param string $scheme      'auth' or 'secure_auth'.
+	 * @param string $token       Session token.
+	 */
+	public static function mirrorAuthCookieForPainel( $auth_cookie, $expire, $expiration, $user_id, $scheme, $token = '' ): void {
+		unset( $expiration, $user_id, $token );
+		if ( ! self::enabled() || ! is_string( $auth_cookie ) || '' === $auth_cookie ) {
 			return;
 		}
-
-		// Never 404 /wp-admin — that trapped plugin activation on nginx.
-		// Optionally nudge logged-in users to /painel when the gateway is ready.
-		if ( UrlMaskConfig::isWpAdminPath( $path ) && self::adminUrlMaskReady()
-			&& function_exists( 'is_user_logged_in' ) && is_user_logged_in()
-			&& ! self::isExemptWpAdminRequest( $path )
-		) {
-			$admin       = self::adminPath();
-			$masked_path = (string) preg_replace( '#(/)wp-admin(/|$)#', '$1' . $admin . '$2', $path, 1 );
-			$target      = home_url( $masked_path );
-			$query       = parse_url( $uri, PHP_URL_QUERY );
-			if ( is_string( $query ) && $query !== '' ) {
-				$target .= ( str_contains( $target, '?' ) ? '&' : '?' ) . $query;
-			}
-			if ( function_exists( 'wp_safe_redirect' ) ) {
-				wp_safe_redirect( $target, 302 );
-				exit;
-			}
+		if ( ! defined( 'AUTH_COOKIE' ) || ! defined( 'SECURE_AUTH_COOKIE' ) || ! defined( 'COOKIE_DOMAIN' ) ) {
+			return;
 		}
+		$secure = ( 'secure_auth' === $scheme );
+		$name   = $secure ? SECURE_AUTH_COOKIE : AUTH_COOKIE;
+		$path   = self::painelAuthCookiePath();
+		// phpcs:ignore WordPressVIPMinimum.Functions.RestrictedFunctions.cookies_setcookie
+		setcookie( $name, $auth_cookie, (int) $expire, $path, COOKIE_DOMAIN, $secure, true );
+	}
+
+	/**
+	 * Clear the mirrored /painel auth cookies on logout.
+	 */
+	public static function clearMirroredAuthCookie(): void {
+		if ( ! defined( 'AUTH_COOKIE' ) || ! defined( 'SECURE_AUTH_COOKIE' ) || ! defined( 'COOKIE_DOMAIN' ) ) {
+			return;
+		}
+		$path    = self::painelAuthCookiePath();
+		$expired = time() - ( defined( 'YEAR_IN_SECONDS' ) ? YEAR_IN_SECONDS : 31536000 );
+		// phpcs:ignore WordPressVIPMinimum.Functions.RestrictedFunctions.cookies_setcookie
+		setcookie( AUTH_COOKIE, ' ', $expired, $path, COOKIE_DOMAIN );
+		// phpcs:ignore WordPressVIPMinimum.Functions.RestrictedFunctions.cookies_setcookie
+		setcookie( SECURE_AUTH_COOKIE, ' ', $expired, $path, COOKIE_DOMAIN );
+	}
+
+	private static function painelAuthCookiePath(): string {
+		$site = defined( 'SITECOOKIEPATH' ) ? (string) SITECOOKIEPATH : '/';
+		return UrlMaskConfig::adminCookiePath( self::adminPath(), $site );
 	}
 
 	/**
@@ -457,12 +492,17 @@ final class PlatformUrlMask {
 	}
 
 	/**
-	 * Ensure the login <form action> points at /id.php.
+	 * Ensure the login <form action> points at /id.php (server-rendered action can lag filters).
 	 */
 	public static function forceLoginFormAction(): void {
 		if ( ! self::enabled() ) {
 			return;
 		}
+		static $printed = false;
+		if ( $printed ) {
+			return;
+		}
+		$printed = true;
 		$action = esc_url( home_url( '/' . ltrim( self::loginPath(), '/' ) ) );
 		echo '<script>(function(){document.addEventListener("DOMContentLoaded",function(){var f=document.getElementById("loginform")||document.getElementById("lostpasswordform")||document.getElementById("resetpassform");if(f){f.action=' . wp_json_encode( $action ) . ';}});})();</script>' . "\n";
 	}

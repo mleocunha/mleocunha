@@ -4,16 +4,21 @@
 
 | Peça | Comportamento |
 |------|----------------|
-| `/id.php` | Stub real de login (sempre) |
-| `/painel/*.php` | Gateway de stubs reais; só então os links `admin_url` passam a `/painel/…` |
+| `/id.php` | Stub real de login (sempre); use este URL — não `wp-login.php` |
+| `/painel/*.php` | Gateway de stubs reais; cookies de auth também em `/painel` |
 | `/wp-admin` | **Sempre acessível** para activar/actualizar (nunca 404) |
 | Nginx | Snippet opcional em `uploads/ve-painel-nginx.conf` |
 
-Regra de ouro: **não mascarar links para `/painel` enquanto o gateway (incl. `plugins.php`) não existir em disco**. Caso contrário a activação no nginx falha com 404.
+### Sessão no `/painel` (importante)
 
-Fluxo de activação quando `/painel/…` está partido:
+O WordPress grava o cookie de autenticação só em `/wp-admin` por omissão. Sem espelhar o cookie para `/painel`, o Painel redirecciona para o login mesmo com sessão válida em `/wp-admin`.
 
-1. Abrir `https://votoeletronico.com.br/wp-admin/plugins.php`
-2. Activar o plugin
-3. Recarregar o sítio (gera gateway + mu-plugin)
-4. Passar a usar `/painel/` quando o aviso desaparecer
+O mu-plugin e o `PlatformUrlMask` espelham `AUTH`/`SECURE_AUTH` em `/painel` no `set_auth_cookie`. **Após actualizar para ≥1.0.37, termine a sessão e entre de novo por `/id.php`** para emitir o cookie novo.
+
+Regra de ouro: **não mascarar links para `/painel` enquanto o gateway (incl. `plugins.php`) não existir em disco**.
+
+Fluxo de recuperação:
+
+1. Abrir `https://votoeletronico.com.br/id.php` e autenticar
+2. Usar `/wp-admin/` se `/painel/` ainda falhar (sessão antiga)
+3. Terminar sessão → entrar outra vez → `/painel/` deve manter a sessão

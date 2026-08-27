@@ -68,4 +68,21 @@ final class UrlMaskConfig {
 	public static function isWpLoginPath(string $path): bool {
 		return (bool) preg_match( '#(^|/)wp-login\.php$#', $path );
 	}
+
+	/**
+	 * Auth cookie path for the masked admin slug (mirrors ADMIN_COOKIE_PATH = SITECOOKIEPATH . 'wp-admin').
+	 *
+	 * Without this, browsers never send wordpress_* auth cookies on /painel/*,
+	 * so auth_redirect() sends operators back to login even after a valid session.
+	 */
+	public static function adminCookiePath( string $admin_path, string $site_cookie_path = '/' ): string {
+		$admin_path = self::normalizeAdminPath( $admin_path );
+		if ( '' === $site_cookie_path ) {
+			$site_cookie_path = '/';
+		}
+		if ( ! str_ends_with( $site_cookie_path, '/' ) ) {
+			$site_cookie_path .= '/';
+		}
+		return $site_cookie_path . $admin_path;
+	}
 }
