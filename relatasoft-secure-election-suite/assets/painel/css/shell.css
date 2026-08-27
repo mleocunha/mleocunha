@@ -166,7 +166,7 @@ img.ve-painel-brand-mark {
 
 .ve-painel-nav a {
   display: block;
-  padding: 0.65rem 0.75rem;
+  padding: 0.7rem 0.95rem 0.7rem 1.05rem;
   border-radius: var(--ve-radius-sm);
   color: var(--ve-color-ink);
   text-decoration: none;

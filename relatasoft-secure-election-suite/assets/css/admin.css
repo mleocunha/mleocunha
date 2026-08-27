@@ -354,6 +354,11 @@
 .rses-ka .rses-panel-card > p ,
 .rses-screen .rses-panel-card > p,
 .rses-screen .rses-panel-card > ul,
+.rses-screen .rses-panel-card > ol,
+.rses-screen .rses-panel-card > h1,
+.rses-screen .rses-panel-card > h2,
+.rses-screen .rses-panel-card > h3,
+.rses-screen .rses-panel-card > h4,
 .rses-screen .rses-panel-card > .rses-plain-list,
 .rses-screen .rses-panel-card > .rses-table-wrap,
 .rses-screen .rses-panel-card > form {
@@ -2161,3 +2166,87 @@ body.rses-rtl .rses-screen,
 .rses-electoral-roll .rses-electoral-errors-live[hidden] {
 	display: none !important;
 }
+
+/* Conhecimento — markdown body needs real card padding (h1/h2/ol are not in the generic >p/>ul inset list). */
+.rses-screen .rses-knowledge-nav {
+	margin: 0 0 1.15rem;
+}
+
+.rses-screen .rses-knowledge-nav ul {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.55rem 1rem;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.rses-screen .rses-knowledge-nav a {
+	display: inline-block;
+	padding: 0.2rem 0.1rem;
+	text-decoration: underline;
+	text-underline-offset: 0.18em;
+}
+
+.rses-screen .rses-knowledge-nav a.is-active {
+	font-weight: 700;
+	color: var(--rses-primary);
+	text-decoration-thickness: 2px;
+}
+
+.rses-screen .rses-knowledge-body.rses-panel-card {
+	padding: 1.4rem 1.55rem 1.55rem;
+}
+
+.rses-screen .rses-knowledge-body > :first-child {
+	margin-top: 0;
+}
+
+.rses-screen .rses-knowledge-body > :last-child {
+	margin-bottom: 0;
+}
+
+.rses-screen .rses-knowledge-body h1,
+.rses-screen .rses-knowledge-body h2,
+.rses-screen .rses-knowledge-body h3 {
+	margin: 1.1rem 0 0.55rem;
+	padding: 0;
+	line-height: 1.3;
+	color: var(--rses-ink);
+	border: 0;
+}
+
+.rses-screen .rses-knowledge-body h1 {
+	font-size: 1.55rem;
+}
+
+.rses-screen .rses-knowledge-body h2 {
+	font-size: 1.2rem;
+}
+
+.rses-screen .rses-knowledge-body p,
+.rses-screen .rses-knowledge-body li {
+	line-height: 1.55;
+	overflow-wrap: anywhere;
+}
+
+.rses-screen .rses-knowledge-body ul,
+.rses-screen .rses-knowledge-body ol {
+	margin: 0.55rem 0 1rem;
+	padding-left: 1.4rem;
+}
+
+.rses-screen .rses-knowledge-body li + li {
+	margin-top: 0.35rem;
+}
+
+.rses-screen .rses-knowledge-body pre.mermaid,
+.rses-screen .rses-knowledge-body pre {
+	margin: 1rem 0;
+	padding: 0.9rem 1rem;
+	overflow-x: auto;
+	border-radius: 8px;
+	background: var(--rses-soft-2, #eef5f8);
+	border: 1px solid var(--rses-line);
+}
+
