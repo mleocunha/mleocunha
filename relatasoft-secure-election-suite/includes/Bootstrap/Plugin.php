@@ -9,6 +9,7 @@ namespace RelataSoft\SecureElectionSuite\Bootstrap;
 
 use RelataSoft\SecureElectionSuite\Admin\AdminMenu;
 use RelataSoft\SecureElectionSuite\Admin\AuditLogPage;
+use RelataSoft\SecureElectionSuite\Admin\ElectoralAuthoritiesPage;
 use RelataSoft\SecureElectionSuite\Admin\ModeSetupPage;
 use RelataSoft\SecureElectionSuite\Admin\Notices;
 use RelataSoft\SecureElectionSuite\Admin\SettingsPage;
@@ -76,6 +77,7 @@ class Plugin {
 		SystemAppearancePage::register();
 		SystemModulesPage::register();
 		SystemBecapePage::register();
+		ElectoralAuthoritiesPage::register();
 		CertificationService::register();
 		AjaxRouter::register();
 		KeyAuthorityController::register();

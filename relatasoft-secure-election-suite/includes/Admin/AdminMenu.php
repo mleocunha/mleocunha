@@ -17,6 +17,7 @@ use RelataSoft\SecureElectionSuite\Voting\VotingViews;
 use RelataSoft\SecureElectionSuite\I18n\RoleLabels;
 use RelataSoft\SecureElectionSuite\I18n\Translator;
 use RelataSoft\SecureElectionSuite\Admin\Brand;
+use RelataSoft\SecureElectionSuite\Admin\ElectoralAuthoritiesPage;
 use RelataSoft\SecureElectionSuite\Admin\ElectoralRollImportPage;
 use RelataSoft\SecureElectionSuite\Admin\RedirectionsPage;
 use RelataSoft\SecureElectionSuite\Admin\SystemAppearancePage;
@@ -123,6 +124,17 @@ class AdminMenu {
 				'rses-key-authority',
 				array( KeyAuthorityViews::class, 'rses_render_dashboard' )
 			);
+
+			if ( Capability::rses_can_manage_election() ) {
+				add_submenu_page(
+					'rses-dashboard',
+					__( 'Export Electoral Authorities', 'relatasoft-secure-election-suite' ),
+					__( 'Export Electoral Authorities', 'relatasoft-secure-election-suite' ),
+					$rses_admin_cap,
+					ElectoralAuthoritiesPage::SLUG,
+					array( ElectoralAuthoritiesPage::class, 'render' )
+				);
+			}
 		}
 
 		if ( ModeLock::rses_is_mode( ModeLock::RSES_MODE_VOTING ) ) {
@@ -173,6 +185,15 @@ class AdminMenu {
 
 			add_submenu_page(
 				'rses-dashboard',
+				__( 'Import Electoral Authorities', 'relatasoft-secure-election-suite' ),
+				__( 'Import Electoral Authorities', 'relatasoft-secure-election-suite' ),
+				$rses_admin_cap,
+				ElectoralAuthoritiesPage::SLUG,
+				array( ElectoralAuthoritiesPage::class, 'render' )
+			);
+
+			add_submenu_page(
+				'rses-dashboard',
 				__( 'Voting Export', 'relatasoft-secure-election-suite' ),
 				__( 'Voting Export', 'relatasoft-secure-election-suite' ),
 				$rses_admin_cap,
@@ -190,6 +211,15 @@ class AdminMenu {
 					$rses_admin_cap,
 					'rses-tally-import',
 					array( TallyingViews::class, 'rses_render_import_page' )
+				);
+
+				add_submenu_page(
+					'rses-dashboard',
+					__( 'Import Electoral Authorities', 'relatasoft-secure-election-suite' ),
+					__( 'Import Electoral Authorities', 'relatasoft-secure-election-suite' ),
+					$rses_admin_cap,
+					ElectoralAuthoritiesPage::SLUG,
+					array( ElectoralAuthoritiesPage::class, 'render' )
 				);
 			}
 

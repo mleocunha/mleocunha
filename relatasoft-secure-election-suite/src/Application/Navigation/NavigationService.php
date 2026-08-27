@@ -53,6 +53,17 @@ final class NavigationService {
 					mode: 'key_authority',
 				)
 			);
+			$this->registry->register(
+				new MenuItem(
+					id: 'export-authorities',
+					title: 'Exportar Autoridades Eleitorais',
+					slug: 'rses-electoral-authorities',
+					parentId: 'home',
+					priority: 15,
+					visibleForPermissions: array( AccessPolicy::PERM_KEYS_MANAGE ),
+					mode: 'key_authority',
+				)
+			);
 		}
 
 		if ( 'voting' === $mode ) {
@@ -63,6 +74,7 @@ final class NavigationService {
 					array( 'shortcodes', 'Shortcodes', 'rses-shortcodes', 30, AccessPolicy::PERM_ELECTIONS_MANAGE ),
 					array( 'redirections', 'Redirecionamentos', 'rses-redirections', 40, AccessPolicy::PERM_ELECTIONS_MANAGE ),
 					array( 'electoral-roll', 'Cadastro Eleitoral', 'rses-electoral-roll', 50, AccessPolicy::PERM_ELECTIONS_MANAGE ),
+					array( 'import-authorities', 'Importar Autoridades Eleitorais', 'rses-electoral-authorities', 55, AccessPolicy::PERM_ELECTIONS_MANAGE ),
 					array( 'voting-export', 'Exportação', 'rses-voting-export', 60, AccessPolicy::PERM_ELECTIONS_MANAGE ),
 				) as $row
 			) {
@@ -84,6 +96,7 @@ final class NavigationService {
 			foreach (
 				array(
 					array( 'tally-import', 'Importação / Apuração', 'rses-tally-import', 10, AccessPolicy::PERM_TALLY_MANAGE ),
+					array( 'import-authorities', 'Importar Autoridades Eleitorais', 'rses-electoral-authorities', 15, AccessPolicy::PERM_TALLY_MANAGE ),
 					array( 'share-submission', 'Submissão de Parcelas', 'rses-share-submission', 20, AccessPolicy::PERM_PARCELAS_OWN ),
 					array( 'certification', 'Certificação', 'rses-certification', 30, AccessPolicy::PERM_TALLY_MANAGE ),
 				) as $row
