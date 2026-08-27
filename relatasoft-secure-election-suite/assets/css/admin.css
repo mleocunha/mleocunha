@@ -352,9 +352,33 @@
 .rses-ka .rses-panel-card > .rses-code-area,
 .rses-ka .rses-panel-card > .rses-share-actions,
 .rses-ka .rses-panel-card > p ,
-.rses-screen .rses-panel-card > p {
+.rses-screen .rses-panel-card > p,
+.rses-screen .rses-panel-card > ul,
+.rses-screen .rses-panel-card > .rses-plain-list,
+.rses-screen .rses-panel-card > .rses-table-wrap,
+.rses-screen .rses-panel-card > form {
 	margin-left: 1.35rem;
 	margin-right: 1.35rem;
+}
+
+.rses-screen .rses-plain-list {
+	margin-top: 0;
+	margin-bottom: 1.15rem;
+	padding-left: 1.25rem;
+	list-style: disc;
+	color: var(--rses-ink);
+}
+
+.rses-screen .rses-plain-list li {
+	margin: 0.45rem 0;
+	line-height: 1.45;
+	overflow-wrap: anywhere;
+}
+
+.rses-screen .rses-panel-card > form .rses-form-actions,
+.rses-screen .rses-panel-card > .rses-form-actions {
+	margin: 0 0 1.35rem;
+	padding: 0;
 }
 
 .rses-ka .rses-panel-card > .rses-form,

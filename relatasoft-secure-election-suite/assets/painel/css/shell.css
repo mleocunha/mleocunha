@@ -40,17 +40,23 @@ body.ve-painel-active.auto-fold #wpcontent,
 body.ve-painel-active.auto-fold #wpfooter,
 body.ve-painel-active.auto-fold .wp-responsive-open #wpcontent {
   margin-left: var(--ve-sidebar-width) !important;
-  padding-left: 20px !important;
+  padding-left: 1.25rem !important;
 }
 
+body.ve-painel-active #wpbody,
 body.ve-painel-active #wpbody-content {
   padding-left: 0;
   float: none;
   overflow: visible;
+  box-sizing: border-box;
 }
 
-body.ve-painel-active .wrap {
-  margin-right: 20px;
+body.ve-painel-active .wrap,
+body.ve-painel-active .rses-wrap,
+body.ve-painel-active .rses-screen {
+  margin-left: 0 !important;
+  margin-right: 1.25rem;
+  padding-left: 0.25rem;
   max-width: 100%;
   box-sizing: border-box;
 }
@@ -167,6 +173,8 @@ img.ve-painel-brand-mark {
   font-weight: 600;
   font-size: 0.92rem;
   transition: background var(--ve-motion-fast), color var(--ve-motion-fast);
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .ve-painel-nav a:hover,

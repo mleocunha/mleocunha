@@ -18,6 +18,7 @@ use RelataSoft\SecureElectionSuite\I18n\RoleLabels;
 use RelataSoft\SecureElectionSuite\I18n\Translator;
 use RelataSoft\SecureElectionSuite\Admin\Brand;
 use RelataSoft\SecureElectionSuite\Admin\ElectoralAuthoritiesPage;
+use RelataSoft\SecureElectionSuite\Admin\UsersRegistryPage;
 use RelataSoft\SecureElectionSuite\Admin\ElectoralRollImportPage;
 use RelataSoft\SecureElectionSuite\Admin\RedirectionsPage;
 use RelataSoft\SecureElectionSuite\Admin\SystemAppearancePage;
@@ -144,6 +145,15 @@ class AdminMenu {
 
 			add_submenu_page(
 				'rses-dashboard',
+				__( 'Cadastro de Usuários', 'relatasoft-secure-election-suite' ),
+				__( 'Cadastro de Usuários', 'relatasoft-secure-election-suite' ),
+				$rses_admin_cap,
+				UsersRegistryPage::SLUG,
+				array( UsersRegistryPage::class, 'render' )
+			);
+
+			add_submenu_page(
+				'rses-dashboard',
 				__( 'Exportar Autoridades Eleitorais', 'relatasoft-secure-election-suite' ),
 				__( 'Exportar Autoridades Eleitorais', 'relatasoft-secure-election-suite' ),
 				$rses_admin_cap,
@@ -200,6 +210,15 @@ class AdminMenu {
 
 			add_submenu_page(
 				'rses-dashboard',
+				__( 'Cadastro de Usuários', 'relatasoft-secure-election-suite' ),
+				__( 'Cadastro de Usuários', 'relatasoft-secure-election-suite' ),
+				$rses_admin_cap,
+				UsersRegistryPage::SLUG,
+				array( UsersRegistryPage::class, 'render' )
+			);
+
+			add_submenu_page(
+				'rses-dashboard',
 				__( 'Importar Autoridades Eleitorais', 'relatasoft-secure-election-suite' ),
 				__( 'Importar Autoridades Eleitorais', 'relatasoft-secure-election-suite' ),
 				$rses_admin_cap,
@@ -225,6 +244,15 @@ class AdminMenu {
 				$rses_admin_cap,
 				'rses-tally-import',
 				array( TallyingViews::class, 'rses_render_import_page' )
+			);
+
+			add_submenu_page(
+				'rses-dashboard',
+				__( 'Cadastro de Usuários', 'relatasoft-secure-election-suite' ),
+				__( 'Cadastro de Usuários', 'relatasoft-secure-election-suite' ),
+				$rses_admin_cap,
+				UsersRegistryPage::SLUG,
+				array( UsersRegistryPage::class, 'render' )
 			);
 
 			add_submenu_page(
