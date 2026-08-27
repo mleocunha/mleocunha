@@ -38,7 +38,7 @@ class UsersRegistryPage {
 	 */
 	public static function rses_render_sections(): void {
 		if ( ! ModeLock::rses_has_mode() ) {
-			echo '<div class="rses-panel rses-panel-info"><p>' . esc_html__( 'Defina o modo de operação antes de gerir o cadastro eleitoral.', 'relatasoft-secure-election-suite' ) . '</p></div>';
+			echo '<div class="rses-panel rses-panel-info"><p>' . esc_html__( 'Definir o modo de operação antes de gerenciar o cadastro eleitoral.', 'relatasoft-secure-election-suite' ) . '</p></div>';
 			return;
 		}
 

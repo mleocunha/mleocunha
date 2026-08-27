@@ -38,7 +38,7 @@ class SystemBecapePage {
 				<p class="ve-system-kicker"><?php esc_html_e( 'Gestão da plataforma', 'relatasoft-secure-election-suite' ); ?></p>
 				<h1><?php esc_html_e( 'Becape e Restauração', 'relatasoft-secure-election-suite' ); ?></h1>
 				<p class="ve-system-lead">
-					<?php esc_html_e( 'Gere um pacote ZIP com a totalidade do diretório da instalação e um dump da base de dados. Restaure exatamente a partir desse modelo.', 'relatasoft-secure-election-suite' ); ?>
+					<?php esc_html_e( 'Gerar um pacote ZIP com a totalidade do diretório da instalação e um dump da base de dados. Restaure exatamente a partir desse modelo.', 'relatasoft-secure-election-suite' ); ?>
 				</p>
 			</header>
 

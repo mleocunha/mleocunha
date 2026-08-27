@@ -58,7 +58,7 @@ class KnowledgePage {
 
 		if ( ! $policy->can( $persona, AccessPolicy::PERM_KNOWLEDGE_VIEW ) && ! Capability::rses_can_manage_election() ) {
 			wp_die(
-				esc_html__( 'Sem permissão para aceder ao Conhecimento.', 'relatasoft-secure-election-suite' ),
+				esc_html__( 'Sem permissão para acessar ao Conhecimento.', 'relatasoft-secure-election-suite' ),
 				esc_html__( 'Sem permissão', 'relatasoft-secure-election-suite' ),
 				array( 'response' => 403 )
 			);
@@ -89,7 +89,7 @@ class KnowledgePage {
 				<?php Brand::rses_render_hero_brand(); ?>
 				<p class="rses-hero-kicker"><?php esc_html_e( 'Documentação', 'relatasoft-secure-election-suite' ); ?></p>
 				<h1 class="rses-hero-title"><?php esc_html_e( 'Conhecimento', 'relatasoft-secure-election-suite' ); ?></h1>
-				<p class="rses-hero-lead"><?php esc_html_e( 'Guias por perfil de utilização do Painel de Controle Eleitoral.', 'relatasoft-secure-election-suite' ); ?></p>
+				<p class="rses-hero-lead"><?php esc_html_e( 'Guias por perfil de uso do Painel de Controle Eleitoral.', 'relatasoft-secure-election-suite' ); ?></p>
 			</header>
 
 			<nav class="rses-knowledge-nav" aria-label="<?php esc_attr_e( 'Documentos', 'relatasoft-secure-election-suite' ); ?>">

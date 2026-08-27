@@ -63,7 +63,7 @@ class ElectoralAuthoritiesPage {
 					?>
 				</h1>
 				<p class="rses-hero-lead">
-					<?php esc_html_e( 'Gere um pacote JSON para provisionar as mesmas autoridades na Plataforma de votação e na Plataforma de apuração e certificação. O formato de exportação é exatamente o de importação.', 'relatasoft-secure-election-suite' ); ?>
+					<?php esc_html_e( 'Gerar um pacote JSON para provisionar as mesmas autoridades na Plataforma de votação e na Plataforma de apuração e certificação. O formato de exportação é exatamente o de importação.', 'relatasoft-secure-election-suite' ); ?>
 				</p>
 			</header>
 
@@ -74,7 +74,7 @@ class ElectoralAuthoritiesPage {
 			<section class="rses-panel rses-panel-card">
 				<header class="rses-panel-header">
 					<p class="rses-panel-kicker"><?php esc_html_e( 'Pacote', 'relatasoft-secure-election-suite' ); ?></p>
-					<h2 class="rses-panel-title"><?php esc_html_e( 'Autoridades neste sítio', 'relatasoft-secure-election-suite' ); ?></h2>
+					<h2 class="rses-panel-title"><?php esc_html_e( 'Autoridades neste site', 'relatasoft-secure-election-suite' ); ?></h2>
 					<p class="rses-panel-desc">
 						<?php
 						echo esc_html(
@@ -94,7 +94,7 @@ class ElectoralAuthoritiesPage {
 						echo esc_html(
 							sprintf(
 								/* translators: %s: singular role */
-								__( 'Nenhuma conta %s encontrada. Crie usuários com esse papel antes de exportar.', 'relatasoft-secure-election-suite' ),
+								__( 'Nenhuma conta %s encontrada. Criar usuários com esse papel antes de exportar.', 'relatasoft-secure-election-suite' ),
 								RoleLabels::rses_editor_singular()
 							)
 						);

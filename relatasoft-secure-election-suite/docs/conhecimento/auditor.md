@@ -10,5 +10,5 @@ O Auditor acompanha a integridade do processo sem alterar configurações sensí
 
 ## Limitações
 
-- Não gere chaves, não importa RSV, não altera modos nem definições de sistema
+- Não gerar chaves, não importar RSV, não alterar modos nem configurações de sistema
 - A reparação da cadeia de auditoria permanece reservada ao administrador

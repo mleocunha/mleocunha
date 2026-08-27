@@ -2,16 +2,16 @@
 
 Modelo essencial RelataSoft: **1 cliente = 3 instalações WordPress**, preferencialmente em **nuvens distintas**.
 
-## Sítios
+## Sites
 
 1. **Autoridade de chaves** — gera ElGamal + parcelas Shamir
-2. **Plataforma de votação** — urnas encriptadas e cadastro
+2. **Plataforma de votação** — urnas criptografadas e cadastro
 3. **Apuração / certificação** — importa material, reconstrói segredo, certifica
 
 ## Isolamento
 
-- **Sem sincronização automática** de utilizadores, opções ou media entre sítios
-- Contas de **Gestor pelo Cliente** podem partilhar o mesmo login/senha *inicial* por conveniência operacional, mas são identidades **isoladas** em cada base de dados
+- **Sem sincronização automática** de usuários, opções ou mídia entre sites
+- Contas de **Gestor pelo Cliente** podem compartilhar o mesmo login/senha *inicial* por conveniência operacional, mas são identidades **isoladas** em cada base de dados
 - Transporte de material (chaves públicas, exportações de votos, parcelas) é **manual e auditável**
 
 ```mermaid
@@ -26,8 +26,8 @@ flowchart TB
     TL[WP Apuração]
   end
   KA -->|pacote chave pública| VT
-  VT -->|exportação encriptada| TL
+  VT -->|exportação criptografada| TL
   KA -->|parcelas offline| TL
 ```
 
-Nunca partilhe a chave privada completa entre sítios de votação.
+Nunca compartilhar a chave privada completa entre sites de votação.

@@ -1,11 +1,11 @@
 # Administrador Eleitoral
 
-O Administrador Eleitoral gere o sítio WordPress no modo bloqueado (chaves, votação ou apuração).
+O Administrador Eleitoral gerencia o site WordPress no modo bloqueado (chaves, votação ou apuração).
 
 ## Responsabilidades
 
-- Bloquear o **modo de operação** do sítio
-- Gerir o **Cadastro Eleitoral** (contas e, em votação, import/export `.rsv`)
+- Bloquear o **modo de operação** do site
+- Gerenciar o **Cadastro Eleitoral** (contas e, em votação, import/export `.rsv`)
 - Configurar eleições, shortcodes e exportações
 - Consultar o **Registro de Auditoria** e a documentação em **Conhecimento**
 
@@ -19,4 +19,4 @@ flowchart LR
   D --> E[Exportar material]
 ```
 
-Mantenha credenciais fortes e contas de Gestor pelo Cliente isoladas por sítio.
+Manter credenciais fortes e contas de Gestor pelo Cliente isoladas por site.

@@ -23,14 +23,14 @@ final class DashboardHomeService {
 			'key_authority' => array(
 				new ModeHomeCard(
 					'Autoridade de Chaves',
-					'Gere chaves ElGamal, divida o segredo em parcelas e exporte o material público com segurança.',
+					'Gerar chaves ElGamal, dividir o segredo em parcelas e exportar o material público com segurança.',
 					'Abrir Autoridade de Chaves',
 					'rses-key-authority',
 					AccessPolicy::PERM_KEYS_MANAGE,
 				),
 				new ModeHomeCard(
 					'Minhas Parcelas',
-					'Consulte, copie e guarde offline a parcela que lhe foi atribuída. Nunca a compartilhe por canais inseguros.',
+					'Consultar, copiar e guardar offline a parcela que lhe foi atribuída. Nunca a compartilhar por canais inseguros.',
 					'Abrir Minhas Parcelas',
 					'rses-key-authority',
 					AccessPolicy::PERM_PARCELAS_OWN,
@@ -39,21 +39,21 @@ final class DashboardHomeService {
 			'voting' => array(
 				new ModeHomeCard(
 					'1. Importar chave pública',
-					'Importe o pacote de chave pública exportado do site de geração de chaves.',
-					'Gerir chaves públicas',
+					'Importar o pacote de chave pública exportado do site de geração de chaves.',
+					'Gerenciar chaves públicas',
 					'rses-public-keys',
 					AccessPolicy::PERM_ELECTIONS_MANAGE,
 				),
 				new ModeHomeCard(
 					'2. Configurar eleição e boletim',
-					'Crie eleições, associe a chave pública, defina perguntas e abra o escrutínio.',
-					'Gerir eleições',
+					'Criar eleições, associar a chave pública, definir perguntas e abrir o escrutínio.',
+					'Gerenciar eleições',
 					'rses-elections',
 					AccessPolicy::PERM_ELECTIONS_MANAGE,
 				),
 				new ModeHomeCard(
 					'3. Cadastro eleitoral',
-					'Importe o cadastro de eleitores e prepare o acesso à plataforma de votação.',
+					'Importar o cadastro de eleitores e preparar o acesso à plataforma de votação.',
 					'Abrir cadastro',
 					'rses-electoral-roll',
 					AccessPolicy::PERM_ELECTIONS_MANAGE,
@@ -62,7 +62,7 @@ final class DashboardHomeService {
 			'tallying' => array(
 				new ModeHomeCard(
 					'Importar e apurar',
-					'Importe o material de votação e prepare a totalização com verificação criptográfica.',
+					'Importar o material de votação e preparar a totalização com verificação criptográfica.',
 					'Abrir apuração',
 					'rses-tally-import',
 					AccessPolicy::PERM_TALLY_MANAGE,
@@ -84,8 +84,8 @@ final class DashboardHomeService {
 			),
 			default => array(
 				new ModeHomeCard(
-					'Configurar modo do sítio',
-					'Escolha e bloqueie o modo deste sítio: geração de chaves, votação ou totalização.',
+					'Configurar modo do site',
+					'Escolher e bloquear o modo deste site: geração de chaves, votação ou totalização.',
 					'Abrir configuração de modo',
 					'rses-mode-setup',
 					AccessPolicy::PERM_MODE_MANAGE,

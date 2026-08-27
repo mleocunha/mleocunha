@@ -35,7 +35,7 @@ final class RsvFormat {
 	);
 
 	/**
-	 * Papéis canónicos PT-BR (ficheiro modelo por língua traduz os metadados).
+	 * Papéis canónicos PT-BR (arquivo modelo por língua traduz os metadados).
 	 *
 	 * @var array<string,string> papel_rsv => slug WP interno
 	 */

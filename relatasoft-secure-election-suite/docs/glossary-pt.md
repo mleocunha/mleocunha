@@ -12,7 +12,7 @@ Linguagem **formal jurídico-institucional**, simples e sem jargão desnecessár
 | Certificação | Ato de assinar e publicar o resultado (JSON + PDF) |
 | Parcela | Parte do segredo (share) sob custódia de autoridade |
 | Autoridade Eleitoral | Detentor(a) de parcela / official |
-| Administrador Eleitoral | Opera o sítio pela comissão/mesa |
+| Administrador Eleitoral | Opera o site pela comissão/mesa |
 | Gestor Voto Eletrônico | Operação RelataSoft / P&D |
 | Eleitor | Quem vota — apenas no front |
 

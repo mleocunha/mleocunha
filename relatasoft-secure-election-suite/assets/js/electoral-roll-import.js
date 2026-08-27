@@ -506,7 +506,7 @@
 			.fail(function (err) {
 				// Fall back to chunked upload when a single POST is rejected by PHP limits.
 				var msg = rsesErrorMessage(err);
-				if (/post_max_size|upload limit|partially received|No CSV file|Nenhum ficheiro RSV/i.test(msg)) {
+				if (/post_max_size|upload limit|partially received|No CSV file|Nenhum arquivo RSV/i.test(msg)) {
 					rsesStartChunkedUpload(file, updateExisting);
 					return;
 				}
