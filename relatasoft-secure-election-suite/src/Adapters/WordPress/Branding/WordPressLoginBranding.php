@@ -75,7 +75,9 @@ final class WordPressLoginBranding {
 			return $translation;
 		}
 		global $pagenow;
-		if ( 'wp-login.php' !== $pagenow ) {
+		$is_login = ( isset( $pagenow ) && 'wp-login.php' === $pagenow )
+			|| ( defined( 'VE_LOGIN_ENTRY' ) && VE_LOGIN_ENTRY );
+		if ( ! $is_login ) {
 			return $translation;
 		}
 		if ( 'Username' === $text || 'Username or Email Address' === $text ) {

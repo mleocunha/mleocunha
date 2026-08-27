@@ -44,13 +44,22 @@ final class SettingsService {
 	 */
 	private function sanitize(array $patch): array {
 		$out = array();
-		$bools = array( 'shell_enabled', 'hide_wp_menus', 'hide_wp_admin_bar', 'redirect_dashboard', 'login_branding', 'dark_mode' );
+		$bools = array(
+			'shell_enabled',
+			'hide_wp_menus',
+			'hide_wp_admin_bar',
+			'redirect_dashboard',
+			'login_branding',
+			'dark_mode',
+			'mask_platform_urls',
+			'hide_platform_fingerprint',
+		);
 		foreach ( $bools as $key ) {
 			if ( array_key_exists( $key, $patch ) ) {
 				$out[ $key ] = (bool) $patch[ $key ];
 			}
 		}
-		foreach ( array( 'product_name', 'panel_name', 'primary_color', 'ink_color', 'font_family' ) as $key ) {
+		foreach ( array( 'product_name', 'panel_name', 'primary_color', 'ink_color', 'font_family', 'admin_path', 'login_path' ) as $key ) {
 			if ( isset( $patch[ $key ] ) && is_string( $patch[ $key ] ) ) {
 				$out[ $key ] = trim( $patch[ $key ] );
 			}

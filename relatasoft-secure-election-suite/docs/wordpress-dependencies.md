@@ -12,6 +12,23 @@
 | `login_enqueue_scripts`, `login_headerurl`, `login_headertext`, `login_body_class`, `login_footer`, `gettext` | WordPressLoginBranding | Login branding |
 | `in_admin_header` / `in_admin_footer` / `admin_body_class` | ShellView | Chrome do Painel |
 | `admin_url`, `home_url`, `esc_*` | Presentation / branding | URLs e escape |
+| `admin_url` / `login_url` / `site_url` / `wp_redirect` + `.htaccess` markers + stub `id.php` | PlatformUrlMask | `/wp-admin` → `/painel`, `/wp-login.php` → `/id.php` |
+| `wp_head` / `robots_txt` / REST / xmlrpc / script `ver=` | FingerprintHardening | Reduzir fingerprint WordPress para bots/crawlers |
 | `ModeLock` (RSES) | Bootstrap / HomeView | Modo do sítio |
 
-Nenhuma edição a `wp-admin` / `wp-includes` / plugins de terceiros.
+Nenhuma edição a `wp-admin` / `wp-includes` / plugins de terceiros (exceto stub `id.php` na raiz e marcadores no `.htaccess`).
+
+### Nginx (manual)
+
+Se o servidor não usa Apache/`.htaccess`, acrescentar:
+
+```nginx
+location /painel/ {
+    rewrite ^/painel/(.*)$ /wp-admin/$1 last;
+}
+location = /painel {
+    rewrite ^ /wp-admin/ last;
+}
+```
+
+O ficheiro `id.php` na raiz (gerado na ativação) cobre a entrada de identificação.

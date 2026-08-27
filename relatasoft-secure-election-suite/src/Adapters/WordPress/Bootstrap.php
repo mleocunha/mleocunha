@@ -11,6 +11,8 @@ use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\Assets\WordPressAss
 use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\Branding\WordPressLoginBranding;
 use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\Logging\WordPressLogger;
 use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\Navigation\WordPressMenuChrome;
+use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\Platform\FingerprintHardening;
+use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\Platform\PlatformUrlMask;
 use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\Settings\WordPressSettingsRepository;
 use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\User\GestorRoleRegistrar;
 use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\User\WordPressCapabilityResolver;
@@ -81,6 +83,8 @@ final class Bootstrap {
 		add_filter( 'admin_body_class', array( ShellView::class, 'bodyClass' ) );
 
 		WordPressLoginBranding::register( $loginBrand, $assets );
+		PlatformUrlMask::register();
+		FingerprintHardening::register();
 
 		$logger->info(
 			'painel.booted',
