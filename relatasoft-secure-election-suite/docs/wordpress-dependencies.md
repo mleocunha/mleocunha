@@ -12,15 +12,13 @@
 | `login_enqueue_scripts`, `login_headerurl`, `login_headertext`, `login_body_class`, `login_footer`, `gettext` | WordPressLoginBranding | Login branding |
 | `in_admin_header` / `in_admin_footer` / `admin_body_class` | ShellView | Chrome do Painel |
 | `admin_url`, `home_url`, `esc_*` | Presentation / branding | URLs e escape |
-| `admin_url` / `login_url` / `site_url` / `wp_redirect` + `.htaccess` markers + stub `id.php` | PlatformUrlMask | `/wp-admin` → `/painel`, `/wp-login.php` → `/id.php` |
+| `admin_url` / `login_url` / `site_url` / `wp_redirect` + `.htaccess` + stub `id.php` + alias `painel`→`wp-admin` | PlatformUrlMask | `/wp-admin` → `/painel`, `/wp-login.php` → `/id.php` (Apache e nginx) |
 | `wp_head` / `robots_txt` / REST / xmlrpc / script `ver=` | FingerprintHardening | Reduzir fingerprint WordPress para bots/crawlers |
 | `ModeLock` (RSES) | Bootstrap / HomeView | Modo do sítio |
 
-Nenhuma edição a `wp-admin` / `wp-includes` / plugins de terceiros (exceto stub `id.php` na raiz e marcadores no `.htaccess`).
+Artefactos na raiz da instalação: `id.php` (login) e `painel` (symlink ou árvore-stub para `wp-admin`). Em nginx o `.htaccess` é ignorado — o alias em disco é o que torna `/painel/` funcional.
 
-### Nginx (manual)
-
-Se o servidor não usa Apache/`.htaccess`, acrescentar:
+### Nginx (opcional, se o alias em disco falhar)
 
 ```nginx
 location /painel/ {
@@ -31,4 +29,4 @@ location = /painel {
 }
 ```
 
-O ficheiro `id.php` na raiz (gerado na ativação) cobre a entrada de identificação.
+Ou, na raiz do WordPress: `ln -sfn wp-admin painel`

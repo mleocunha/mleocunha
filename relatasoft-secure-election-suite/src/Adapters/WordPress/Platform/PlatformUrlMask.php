@@ -9,12 +9,15 @@ use RelataSoft\SecureElectionSuite\Painel\Domain\Platform\UrlMaskConfig;
 /**
  * Public URL mask: /wp-admin → /painel, /wp-login.php → /id.php.
  *
- * Uses admin_url / login URL filters plus Apache rewrite markers and an ABSPATH
- * login stub so links and direct navigation stay consistent.
+ * Apache: .htaccess rewrite markers.
+ * Nginx (and hosts that ignore .htaccess): filesystem alias
+ *   ABSPATH/painel → wp-admin (symlink preferred; stub directory fallback).
+ * Login: ABSPATH/id.php stub.
  */
 final class PlatformUrlMask {
 
 	private static bool $registered = false;
+	public const ADMIN_ALIAS_MARKER = '.ve-admin-alias';
 
 	public static function register(): void {
 		if ( self::$registered ) {
@@ -25,6 +28,7 @@ final class PlatformUrlMask {
 		add_action( 'init', array( self::class, 'ensureArtifacts' ), 0 );
 		add_action( 'init', array( self::class, 'bootstrapRequest' ), 0 );
 		add_action( 'login_init', array( self::class, 'bootstrapRequest' ), 0 );
+		add_action( 'admin_notices', array( self::class, 'maybeAliasNotice' ) );
 
 		add_filter( 'admin_url', array( self::class, 'filterAdminUrl' ), 100, 3 );
 		add_filter( 'network_admin_url', array( self::class, 'filterNetworkAdminUrl' ), 100, 2 );
@@ -68,7 +72,156 @@ final class PlatformUrlMask {
 			return;
 		}
 		self::writeLoginStub();
+		self::writeAdminAlias();
 		self::writeHtaccessRules();
+	}
+
+	/**
+	 * Warn admins when /painel is not reachable on disk (typical nginx without alias).
+	 */
+	public static function maybeAliasNotice(): void {
+		if ( ! self::enabled() || ! function_exists( 'current_user_can' ) || ! current_user_can( 'manage_options' ) ) {
+			return;
+		}
+		if ( self::adminAliasExists() ) {
+			return;
+		}
+		$cmd = 'ln -sfn wp-admin ' . self::adminPath();
+		echo '<div class="notice notice-error"><p>';
+		echo esc_html__(
+			'A URL pública /painel/ ainda não está disponível neste servidor (comum em nginx). Na raiz da instalação execute:',
+			'relatasoft-secure-election-suite'
+		);
+		echo ' <code>' . esc_html( $cmd ) . '</code>';
+		echo '</p></div>';
+	}
+
+	public static function adminAliasExists(): bool {
+		if ( ! defined( 'ABSPATH' ) ) {
+			return false;
+		}
+		$link = trailingslashit( ABSPATH ) . self::adminPath();
+		if ( is_link( $link ) ) {
+			return true;
+		}
+		return is_dir( $link ) && is_readable( $link . '/' . self::ADMIN_ALIAS_MARKER );
+	}
+
+	/**
+	 * Nginx-friendly alias: symlink (or stub tree) so /painel/* maps to wp-admin/*.
+	 */
+	public static function writeAdminAlias(): bool {
+		if ( ! defined( 'ABSPATH' ) ) {
+			return false;
+		}
+		$admin_slug = self::adminPath();
+		if ( '' === $admin_slug || false !== strpos( $admin_slug, '/' ) || false !== strpos( $admin_slug, '..' ) ) {
+			return false;
+		}
+		$link   = trailingslashit( ABSPATH ) . $admin_slug;
+		$target = trailingslashit( ABSPATH ) . 'wp-admin';
+
+		if ( ! is_dir( $target ) ) {
+			return false;
+		}
+
+		if ( is_link( $link ) ) {
+			$current = readlink( $link );
+			if ( 'wp-admin' === $current || $target === $current || realpath( $link ) === realpath( $target ) ) {
+				return true;
+			}
+			return false;
+		}
+
+		if ( file_exists( $link ) ) {
+			// Already a real dir we created?
+			return is_dir( $link ) && is_readable( $link . '/' . self::ADMIN_ALIAS_MARKER );
+		}
+
+		// Prefer relative symlink (portable when docroot moves).
+		// phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+		if ( @symlink( 'wp-admin', $link ) ) {
+			return true;
+		}
+		// phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+		if ( @symlink( $target, $link ) ) {
+			return true;
+		}
+
+		return self::writeAdminStubDirectory( $link, $target );
+	}
+
+	/**
+	 * Fallback when symlink() is disabled: stub PHP entries + symlink asset dirs.
+	 */
+	private static function writeAdminStubDirectory( string $link, string $wp_admin ): bool {
+		if ( ! wp_mkdir_p( $link ) ) {
+			return false;
+		}
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
+		file_put_contents(
+			$link . '/' . self::ADMIN_ALIAS_MARKER,
+			"Voto Eletrônico admin alias — do not delete\n"
+		);
+
+		$files = glob( trailingslashit( $wp_admin ) . '*.php' ) ?: array();
+		foreach ( $files as $file ) {
+			$base = basename( $file );
+			$stub = "<?php\n/** Voto Eletrônico — alias de gestão (não editar). */\n"
+				. "require dirname( __DIR__ ) . '/wp-admin/' . " . var_export( $base, true ) . ";\n";
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
+			file_put_contents( $link . '/' . $base, $stub );
+		}
+
+		foreach ( array( 'css', 'js', 'images', 'maint', 'network', 'user' ) as $subdir ) {
+			$from = trailingslashit( $wp_admin ) . $subdir;
+			$to   = $link . '/' . $subdir;
+			if ( ! is_dir( $from ) || file_exists( $to ) ) {
+				continue;
+			}
+			// phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+			if ( ! @symlink( '../wp-admin/' . $subdir, $to ) ) {
+				// phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+				@symlink( $from, $to );
+			}
+		}
+
+		return is_readable( $link . '/index.php' ) || is_readable( $link . '/admin.php' );
+	}
+
+	public static function removeAdminAlias(): void {
+		if ( ! defined( 'ABSPATH' ) ) {
+			return;
+		}
+		$link = trailingslashit( ABSPATH ) . self::adminPath();
+		if ( is_link( $link ) ) {
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink
+			@unlink( $link );
+			return;
+		}
+		if ( is_dir( $link ) && is_readable( $link . '/' . self::ADMIN_ALIAS_MARKER ) ) {
+			self::rrmdir( $link );
+		}
+	}
+
+	private static function rrmdir( string $dir ): void {
+		$it = new \RecursiveIteratorIterator(
+			new \RecursiveDirectoryIterator( $dir, \FilesystemIterator::SKIP_DOTS ),
+			\RecursiveIteratorIterator::CHILD_FIRST
+		);
+		foreach ( $it as $file ) {
+			/** @var \SplFileInfo $file */
+			$path = $file->getPathname();
+			if ( $file->isLink() || $file->isFile() ) {
+				// phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink
+				@unlink( $path );
+			} elseif ( $file->isDir() ) {
+				// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_rmdir
+				@rmdir( $path );
+			}
+		}
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_rmdir
+		@rmdir( $dir );
 	}
 
 	/**

@@ -21,6 +21,7 @@ class Deactivator {
 	 */
 	public static function deactivate(): void {
 		PlatformUrlMask::removeLoginStub();
+		PlatformUrlMask::removeAdminAlias();
 		PlatformUrlMask::clearHtaccessRules();
 		flush_rewrite_rules();
 	}
