@@ -70,6 +70,28 @@ final class UrlMaskConfig {
 	}
 
 	/**
+	 * Endpoints that must remain reachable under /wp-admin (assets + async handlers).
+	 */
+	public static function isExemptWpAdminEndpoint( string $path ): bool {
+		$base = strtolower( basename( $path ) );
+		if ( '' === $base || 'wp-admin' === $base ) {
+			return false;
+		}
+		$allow = array(
+			'admin-ajax.php',
+			'admin-post.php',
+			'async-upload.php',
+			'load-scripts.php',
+			'load-styles.php',
+		);
+		return in_array( $base, $allow, true );
+	}
+
+	public static function isStaticAdminAssetPath( string $path ): bool {
+		return (bool) preg_match( '/\.(css|js|map|png|jpe?g|gif|svg|webp|woff2?|ttf|eot|ico)(\?|$)/i', $path );
+	}
+
+	/**
 	 * Auth cookie path for the masked admin slug (mirrors ADMIN_COOKIE_PATH = SITECOOKIEPATH . 'wp-admin').
 	 *
 	 * Without this, browsers never send wordpress_* auth cookies on /painel/*,

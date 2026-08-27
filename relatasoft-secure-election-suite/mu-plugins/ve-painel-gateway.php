@@ -166,6 +166,56 @@ function ve_painel_mu_filter_redirect( $location ) {
 
 ve_painel_mu_ensure_gateway();
 
+/**
+ * When /painel is ready, classic /wp-admin must not answer (404) — except assets/async.
+ */
+function ve_painel_mu_block_classic_admin(): void {
+	if ( defined( 'WP_CLI' ) && WP_CLI ) {
+		return;
+	}
+	if ( defined( 'VE_ADMIN_ENTRY' ) && VE_ADMIN_ENTRY ) {
+		return;
+	}
+	$uri  = isset( $_SERVER['REQUEST_URI'] ) ? (string) $_SERVER['REQUEST_URI'] : '';
+	$path = parse_url( $uri, PHP_URL_PATH );
+	$path = is_string( $path ) ? rawurldecode( $path ) : '';
+	if ( ! preg_match( '#(^|/)wp-admin(/|$)#', $path ) ) {
+		return;
+	}
+	if ( ! defined( 'ABSPATH' ) || ! is_readable( trailingslashit( ABSPATH ) . 'painel/admin.php' ) ) {
+		return;
+	}
+	if ( preg_match( '/\.(css|js|map|png|jpe?g|gif|svg|webp|woff2?|ttf|eot|ico)(\?|$)/i', $path ) ) {
+		return;
+	}
+	$base = strtolower( basename( $path ) );
+	$allow = array(
+		'admin-ajax.php',
+		'admin-post.php',
+		'async-upload.php',
+		'load-scripts.php',
+		'load-styles.php',
+	);
+	if ( in_array( $base, $allow, true ) ) {
+		return;
+	}
+	if ( function_exists( 'status_header' ) ) {
+		status_header( 404 );
+	} else {
+		http_response_code( 404 );
+	}
+	if ( function_exists( 'nocache_headers' ) ) {
+		nocache_headers();
+	}
+	if ( ! headers_sent() ) {
+		header( 'X-Robots-Tag: noindex, nofollow', true );
+	}
+	exit;
+}
+
+add_action( 'muplugins_loaded', 've_painel_mu_block_classic_admin', 0 );
+add_action( 'plugins_loaded', 've_painel_mu_block_classic_admin', 0 );
+
 add_action( 'set_auth_cookie', 've_painel_mu_mirror_auth_cookie', 10, 6 );
 add_action( 'clear_auth_cookie', 've_painel_mu_clear_auth_cookie', 10 );
 add_filter( 'login_url', 've_painel_mu_filter_login_url', 5 );

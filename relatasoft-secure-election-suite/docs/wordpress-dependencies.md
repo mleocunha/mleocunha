@@ -6,23 +6,22 @@
 |------|----------------|
 | `/id.php` | Stub real de login (sempre); use este URL — não `wp-login.php` |
 | `/painel/*.php` | Gateway de stubs reais; cookies de auth também em `/painel` |
-| `/wp-admin` | **Sempre acessível** para ativar/atualizar (nunca 404) |
+| `/wp-admin` | **404** quando o gateway `/painel` está pronto (assets/async liberados) |
 | Nginx | Snippet opcional em `uploads/ve-painel-nginx.conf` |
+
+### `/wp-admin` fechado (1.0.43)
+
+Com o gateway pronto, digitar `/wp-admin` devolve **404** (sem redirecionar para `/painel`, para não mapear o disfarce). Continuam acessíveis só:
+
+- estáticos (`.css`, `.js`, fontes, imagens)
+- `admin-ajax.php`, `admin-post.php`, `async-upload.php`, `load-scripts.php`, `load-styles.php`
+
+Enquanto o gateway não existir, `/wp-admin` ainda serve de recuperação.
 
 ### Stub `/painel` e `$pagenow` (1.0.41)
 
-O WordPress lê `PHP_SELF` com a regex `#/wp-admin/#`. Em `/painel/admin.php` isso **não casa**, e `$pagenow` vira `index.php`. Resultado: `user_can_access_admin_page()` nega todas as telas do plugin («Sem permissão para acessar esta página.»).
-
-Os stubs v2 forçam `PHP_SELF`/`SCRIPT_NAME` para `/wp-admin/{arquivo}` antes do `require`. Depois de atualizar, recarregue o site (ou apague a pasta `painel/` na raiz) para regenerar os stubs.
+Os stubs v2 forçam `PHP_SELF`/`SCRIPT_NAME` para `/wp-admin/{arquivo}` antes do `require`.
 
 ### Sessão no `/painel`
 
-O WordPress grava o cookie de autenticação só em `/wp-admin` por omissão. O mu-plugin e o `PlatformUrlMask` espelham `AUTH`/`SECURE_AUTH` em `/painel`. **Depois de atualizar, encerre a sessão e entre de novo por `/id.php`.**
-
-Regra de ouro: **não mascarar links para `/painel` enquanto o gateway (incl. `plugins.php`) não existir em disco**.
-
-Fluxo de recuperação:
-
-1. Abra `https://votoeletronico.com.br/id.php` e autentique
-2. Use `/wp-admin/` se `/painel/` ainda falhar (sessão ou stub antigo)
-3. Encerre a sessão → entre outra vez → confira `/painel/admin.php?page=rses-mode-setup`
+Espelho de cookies `AUTH`/`SECURE_AUTH` em `/painel`. Depois de atualizar, encerre a sessão e entre de novo por `/id.php`.

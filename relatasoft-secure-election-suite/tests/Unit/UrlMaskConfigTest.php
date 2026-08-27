@@ -37,6 +37,14 @@ final class UrlMaskConfigTest extends TestCase {
 		$this->assertFalse( UrlMaskConfig::isWpLoginPath( '/id.php' ) );
 	}
 
+	public function test_wp_admin_exemptions_for_assets_and_async(): void {
+		$this->assertTrue( UrlMaskConfig::isExemptWpAdminEndpoint( '/wp-admin/admin-ajax.php' ) );
+		$this->assertTrue( UrlMaskConfig::isStaticAdminAssetPath( '/wp-admin/css/dashicons.css' ) );
+		$this->assertFalse( UrlMaskConfig::isExemptWpAdminEndpoint( '/wp-admin/admin.php' ) );
+		$this->assertFalse( UrlMaskConfig::isExemptWpAdminEndpoint( '/wp-admin/' ) );
+		$this->assertFalse( UrlMaskConfig::isStaticAdminAssetPath( '/wp-admin/plugins.php' ) );
+	}
+
 	public function test_admin_cookie_path_mirrors_wp_admin_shape(): void {
 		$this->assertSame( '/painel', UrlMaskConfig::adminCookiePath( 'painel', '/' ) );
 		$this->assertSame( '/blog/painel', UrlMaskConfig::adminCookiePath( 'painel', '/blog/' ) );

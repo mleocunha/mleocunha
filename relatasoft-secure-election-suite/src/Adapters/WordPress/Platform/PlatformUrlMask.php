@@ -190,7 +190,7 @@ final class PlatformUrlMask {
 		}
 		echo '<div class="notice notice-warning"><p>';
 		echo esc_html__(
-			'O gateway /painel/ ainda não está pronto. Use /wp-admin/ para ativar e gerir plugins. Depois da ativação, recarregue o site para gerar o gateway (sem links simbólicos).',
+			'O gateway /painel/ ainda não está pronto. Enquanto isso, /wp-admin/ permanece só para recuperação. Depois que o gateway existir, /wp-admin/ responde 404.',
 			'relatasoft-secure-election-suite'
 		);
 		echo '</p></div>';
@@ -384,16 +384,16 @@ final class PlatformUrlMask {
 	 * Keep CSS/JS/fonts on /wp-admin (public page URLs use /painel).
 	 */
 	private static function isStaticAdminAsset( string $path, string $url ): bool {
-		return (bool) preg_match( '/\.(css|js|map|png|jpe?g|gif|svg|webp|woff2?|ttf|eot|ico)(\?|$)/i', $path . ' ' . $url );
+		return UrlMaskConfig::isStaticAdminAssetPath( $path )
+			|| UrlMaskConfig::isStaticAdminAssetPath( $url );
 	}
 
 	/**
-	 * Soft-handle classic login URL. Never lock the operator out of /wp-admin
-	 * (activation/update must always work on nginx).
+	 * Soft-handle classic URLs once the /painel gateway is ready.
 	 *
-	 * Do NOT auto-redirect /wp-admin → /painel for "logged in" users: the auth
-	 * cookie is path-scoped to /wp-admin unless mirrored (see mirrorAuthCookieForPainel).
-	 * Redirecting with only the logged_in cookie causes a false login loop.
+	 * Typing /wp-admin must stop working (404) — except static assets and a few
+	 * async endpoints still referenced by core. Recovery while the gateway is
+	 * incomplete still allows classic /wp-admin.
 	 */
 	public static function bootstrapRequest(): void {
 		if ( ! self::enabled() || ( defined( 'WP_CLI' ) && WP_CLI ) ) {
@@ -424,7 +424,33 @@ final class PlatformUrlMask {
 				wp_safe_redirect( $target, 302 );
 				exit;
 			}
+			return;
 		}
+
+		// Public /wp-admin must go dark once /painel is ready (no redirect that maps the disguise).
+		if ( UrlMaskConfig::isWpAdminPath( $path )
+			&& self::adminUrlMaskReady()
+			&& ! ( defined( 'VE_ADMIN_ENTRY' ) && VE_ADMIN_ENTRY )
+			&& ! UrlMaskConfig::isExemptWpAdminEndpoint( $path )
+			&& ! UrlMaskConfig::isStaticAdminAssetPath( $path )
+		) {
+			self::denyAsNotFound();
+		}
+	}
+
+	private static function denyAsNotFound(): void {
+		if ( function_exists( 'status_header' ) ) {
+			status_header( 404 );
+		} else {
+			http_response_code( 404 );
+		}
+		if ( function_exists( 'nocache_headers' ) ) {
+			nocache_headers();
+		}
+		if ( ! headers_sent() ) {
+			header( 'X-Robots-Tag: noindex, nofollow', true );
+		}
+		exit;
 	}
 
 	/**
