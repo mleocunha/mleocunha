@@ -316,7 +316,7 @@ class ElectoralRollImportPage {
 	}
 
 	/**
-	 * AJAX: start export job (one WP role + max data lines).
+	 * AJAX: start export job (one role + max data lines).
 	 */
 	public static function rses_ajax_export_init(): void {
 		self::rses_ajax_guard();
@@ -679,7 +679,7 @@ class ElectoralRollImportPage {
 						<p class="rses-panel-kicker"><?php esc_html_e( 'Exportar', 'relatasoft-secure-election-suite' ); ?></p>
 						<h2 class="rses-panel-title"><?php esc_html_e( 'Exportar .rsv', 'relatasoft-secure-election-suite' ); ?></h2>
 						<p class="rses-panel-desc">
-							<?php esc_html_e( 'Exportar um papel WP de cada vez. O campo senha sai vazio (hashes não são recuperáveis).', 'relatasoft-secure-election-suite' ); ?>
+							<?php esc_html_e( 'Exportar um papel de cada vez. O campo senha sai vazio (hashes não são recuperáveis).', 'relatasoft-secure-election-suite' ); ?>
 						</p>
 					</header>
 

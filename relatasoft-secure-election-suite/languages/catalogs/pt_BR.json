@@ -506,7 +506,6 @@
   "Use default pinwheel": "Usar Roda de Fogo padrão",
   "Usar Roda de Fogo padrão": "Usar Roda de Fogo padrão",
   "Instalar ou atualizar módulo (ZIP)": "Instalar ou atualizar módulo (ZIP)",
-  "Envie um ZIP para instalar um módulo novo ou substituir um já instalado (inclusive esta suíte), sem usar a interface clássica do WordPress.": "Enviar um ZIP para instalar um módulo novo ou substituir um já instalado (inclusive esta suíte), sem usar a interface clássica do WordPress.",
   "Instalar / atualizar": "Instalar / atualizar",
   "Elector journey": "Jornada do eleitor",
   "After sign-in, electors land on the welcome page. One click opens the voting booth. After casting a vote they are sent to the thank-you page.": "Após o login, os eleitores vão à página de boas-vindas. Um clique abre a cabina. Após votar, são enviados à página de agradecimento.",
@@ -523,7 +522,7 @@
   "Create welcome, booth & thank-you pages": "Criar páginas de boas-vindas, cabina e agradecimento",
   "— Select —": "— Selecionar —",
   "Elector journey & login": "Jornada do eleitor e login",
-  "Brand the sign-in screen, configure welcome and thank-you pages, and plan post-login redirects for electors.": "Personalize wp-login.php, configure boas-vindas e agradecimento e planeje redirecionamentos pós-login.",
+  "Brand the sign-in screen, configure welcome and thank-you pages, and plan post-login redirects for electors.": "Personalizar a tela de acesso, configurar boas-vindas e agradecimento e planejar redirecionamentos pós-login.",
   "Choose login logo": "Escolher logo do login",
   "Use this logo": "Usar este logo",
   "Electoral Authorities": "Autoridades Eleitorais",
@@ -716,5 +715,6 @@
   "IDs %1$s / %2$s": "IDs %1$s / %2$s",
   "Each row is one closed election/round package. Verified packages appear on Share Submission for officials.": "Cada linha é um pacote de eleição/rodada fechada. Pacotes verificados aparecem em Envio de shares para as autoridades.",
   "Round": "Rodada",
-  "Ballots": "Cédulas"
+  "Ballots": "Cédulas",
+  "Enviar um ZIP para instalar um módulo novo ou substituir um já instalado (inclusive esta suíte), sem usar a interface clássica do sítio hospedeiro.": "Enviar um ZIP para instalar um módulo novo ou substituir um já instalado (inclusive esta suíte), sem usar a interface clássica do sítio hospedeiro."
 }

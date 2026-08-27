@@ -1,14 +1,14 @@
-# Dependências WordPress (adapters do Painel)
+# Dependências do sítio (adapters do Painel)
 
 ## URLs públicas (sem symlinks)
 
 | Peça | Comportamento |
 |------|----------------|
-| `/id.php` | Stub real de login (sempre); use este URL — não `wp-login.php` |
+| `/id.php` | Stub real de login (sempre); usar este URL — não o caminho clássico de login do adapter |
 | `/painel/*.php` | Gateway de stubs reais; cookies de auth também em `/painel` |
 | `/wp-admin` | **404** quando o gateway `/painel` está pronto (só css/js/images + load-styles/scripts) |
 | `/wp-login.php` | **404** quando `/id.php` existe (sem redirecionar) |
-| `/painel/plugins.php` (e telas clássicas WP) | **404** — use Módulos do Sistema / Identidade Visual |
+| `/painel/plugins.php` (e telas clássicas do adapter) | **404** — usar Módulos do Sistema / Identidade Visual |
 | Nginx | Snippet opcional em `uploads/ve-painel-nginx.conf` (`return 404` em `/wp-admin` e `/wp-login.php`) |
 | Atualizar a suíte | **Módulos do Sistema → Instalar / atualizar (ZIP)** com `overwrite_package` (não precisa apagar via CLI) |
 
@@ -24,4 +24,4 @@ Os stubs v2 forçam `PHP_SELF`/`SCRIPT_NAME` para `/wp-admin/{arquivo}` antes do
 
 ### Sessão no `/painel`
 
-Espelho de cookies `AUTH`/`SECURE_AUTH` em `/painel`. Depois de atualizar, encerre a sessão e entre de novo por `/id.php`.
+Espelho de cookies `AUTH`/`SECURE_AUTH` em `/painel`. Depois de atualizar, encerrar a sessão e entrar de novo por `/id.php`.

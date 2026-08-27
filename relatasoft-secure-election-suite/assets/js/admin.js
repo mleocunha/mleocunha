@@ -96,7 +96,7 @@
 
 	function rsesOpenOptionMediaFrame($row) {
 		if (typeof wp === 'undefined' || !wp.media) {
-			window.alert('WordPress media library is unavailable on this screen.');
+			window.alert('Biblioteca de mídia indisponível nesta tela.');
 			return;
 		}
 

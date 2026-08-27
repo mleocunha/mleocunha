@@ -32,7 +32,7 @@ class KnowledgePage {
 			'eleitor'         => __( 'Eleitor', 'relatasoft-secure-election-suite' ),
 			'auditor'         => __( 'Auditor', 'relatasoft-secure-election-suite' ),
 			'gestor'          => __( 'Gestor pelo Cliente', 'relatasoft-secure-election-suite' ),
-			'implantacao-3wp' => __( 'Implantação E3 (3 WordPress)', 'relatasoft-secure-election-suite' ),
+			'implantacao-3wp' => __( 'Implantação E3 (3 sítios)', 'relatasoft-secure-election-suite' ),
 		);
 	}
 

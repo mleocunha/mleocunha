@@ -54,7 +54,7 @@ class SystemModulesPage {
 			<section class="ve-system-card">
 				<h2><?php esc_html_e( 'Instalar ou atualizar módulo (ZIP)', 'relatasoft-secure-election-suite' ); ?></h2>
 				<p class="description">
-					<?php esc_html_e( 'Envie um ZIP para instalar um módulo novo ou substituir um já instalado (inclusive esta suíte), sem usar a interface clássica do WordPress.', 'relatasoft-secure-election-suite' ); ?>
+					<?php esc_html_e( 'Enviar um ZIP para instalar um módulo novo ou substituir um já instalado (inclusive esta suíte), sem usar a interface clássica do sítio hospedeiro.', 'relatasoft-secure-election-suite' ); ?>
 				</p>
 				<form method="post" enctype="multipart/form-data" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
 					<input type="hidden" name="action" value="ve_module_upload" />
@@ -195,7 +195,7 @@ class SystemModulesPage {
 		if ( is_array( $file ) && ! empty( $file['tmp_name'] ) && is_uploaded_file( (string) $file['tmp_name'] ) ) {
 			$skin     = new \Automatic_Upgrader_Skin();
 			$upgrader = new \Plugin_Upgrader( $skin );
-			// overwrite_package (WP 5.5+): atualiza no lugar se a pasta já existir
+			// overwrite_package (adapter 5.5+): atualiza no lugar se a pasta já existir
 			// (sem apagar via CLI nem abrir plugins.php clássico).
 			$result = $upgrader->install(
 				(string) $file['tmp_name'],

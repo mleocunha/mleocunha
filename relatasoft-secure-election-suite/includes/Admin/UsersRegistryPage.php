@@ -65,7 +65,7 @@ class UsersRegistryPage {
 			<header class="rses-panel-header">
 				<p class="rses-panel-kicker"><?php esc_html_e( 'Novo acesso', 'relatasoft-secure-election-suite' ); ?></p>
 				<h2 class="rses-panel-title"><?php esc_html_e( 'Cadastrar usuário', 'relatasoft-secure-election-suite' ); ?></h2>
-				<p class="rses-panel-desc"><?php esc_html_e( 'Cria uma conta WordPress com o papel adequado a este modo.', 'relatasoft-secure-election-suite' ); ?></p>
+				<p class="rses-panel-desc"><?php esc_html_e( 'Criar uma conta do sítio com o papel adequado a este modo.', 'relatasoft-secure-election-suite' ); ?></p>
 			</header>
 			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="rses-form">
 				<input type="hidden" name="action" value="rses_create_registry_user" />
