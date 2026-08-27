@@ -6,21 +6,23 @@
 |------|----------------|
 | `/id.php` | Stub real de login (sempre); use este URL — não `wp-login.php` |
 | `/painel/*.php` | Gateway de stubs reais; cookies de auth também em `/painel` |
-| `/wp-admin` | **Sempre acessível** para activar/actualizar (nunca 404) |
+| `/wp-admin` | **Sempre acessível** para ativar/atualizar (nunca 404) |
 | Nginx | Snippet opcional em `uploads/ve-painel-nginx.conf` |
 
-### Sessão no `/painel` (importante)
+### Stub `/painel` e `$pagenow` (1.0.41)
 
-O WordPress grava o cookie de autenticação só em `/wp-admin` por omissão. Sem espelhar o cookie para `/painel`, o Painel redirecciona para o login mesmo com sessão válida em `/wp-admin`.
+O WordPress lê `PHP_SELF` com a regex `#/wp-admin/#`. Em `/painel/admin.php` isso **não casa**, e `$pagenow` vira `index.php`. Resultado: `user_can_access_admin_page()` nega todas as telas do plugin («Sem permissão para acessar esta página.»).
 
-O mu-plugin e o `PlatformUrlMask` espelham `AUTH`/`SECURE_AUTH` em `/painel` no `set_auth_cookie`. **Após actualizar para ≥1.0.37, termine a sessão e entre de novo por `/id.php`** para emitir o cookie novo.
+Os stubs v2 forçam `PHP_SELF`/`SCRIPT_NAME` para `/wp-admin/{arquivo}` antes do `require`. Depois de atualizar, recarregue o site (ou apague a pasta `painel/` na raiz) para regenerar os stubs.
+
+### Sessão no `/painel`
+
+O WordPress grava o cookie de autenticação só em `/wp-admin` por omissão. O mu-plugin e o `PlatformUrlMask` espelham `AUTH`/`SECURE_AUTH` em `/painel`. **Depois de atualizar, encerre a sessão e entre de novo por `/id.php`.**
 
 Regra de ouro: **não mascarar links para `/painel` enquanto o gateway (incl. `plugins.php`) não existir em disco**.
 
-Os filtros WordPress (`site_url`, `login_url`, `wp_redirect`, …) devem aceitar argumentos `null` do core — type hints estritos causam `TypeError` fatal na activação (corrigido em 1.0.38).
-
 Fluxo de recuperação:
 
-1. Abrir `https://votoeletronico.com.br/id.php` e autenticar
-2. Usar `/wp-admin/` se `/painel/` ainda falhar (sessão antiga)
-3. Terminar sessão → entrar outra vez → `/painel/` deve manter a sessão
+1. Abra `https://votoeletronico.com.br/id.php` e autentique
+2. Use `/wp-admin/` se `/painel/` ainda falhar (sessão ou stub antigo)
+3. Encerre a sessão → entre outra vez → confira `/painel/admin.php?page=rses-mode-setup`

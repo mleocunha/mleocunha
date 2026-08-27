@@ -3,7 +3,7 @@
  * Plugin Name:       Voto Eletrônico by RelataSoft
  * Plugin URI:        https://relatasoft.com/secure-election-suite
  * Description:       Painel de Controle Eleitoral — gestão democrática, auditável e criptograficamente garantida (RSES international codebase).
- * Version:           1.0.40
+ * Version:           1.0.41
  * Requires at least: 6.0
  * Requires PHP:      8.2
  * Author:            RelataSoft
@@ -18,7 +18,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'RSES_VERSION', '1.0.40' );
+define( 'RSES_VERSION', '1.0.41' );
 define( 'RSES_PLUGIN_FILE', __FILE__ );
 define( 'RSES_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'RSES_PLUGIN_URL', plugin_dir_url( __FILE__ ) );

@@ -10,7 +10,23 @@
 defined( 'ABSPATH' ) || exit;
 
 /**
- * Create ABSPATH/painel/*.php stubs and id.php as early as possible.
+ * Build a /painel/*.php stub that keeps WordPress $pagenow correct.
+ *
+ * @param string $base Basename under wp-admin (e.g. admin.php).
+ */
+function ve_painel_mu_stub_php( string $base ): string {
+	return "<?php\n"
+		. "/**\n * Voto Eletrônico — gateway do Painel de Controle Eleitoral.\n"
+		. " * Arquivo gerado automaticamente. Não editar.\n"
+		. " * Stub-Version: 2\n */\n"
+		. "define( 'VE_ADMIN_ENTRY', true );\n"
+		. "\$_SERVER['PHP_SELF']   = '/wp-admin/{$base}';\n"
+		. "\$_SERVER['SCRIPT_NAME'] = '/wp-admin/{$base}';\n"
+		. "require dirname( __DIR__ ) . '/wp-admin/{$base}';\n";
+}
+
+/**
+ * Create/refresh ABSPATH/painel/*.php stubs and id.php as early as possible.
  */
 function ve_painel_mu_ensure_gateway(): void {
 	if ( ! defined( 'ABSPATH' ) ) {
@@ -57,11 +73,13 @@ function ve_painel_mu_ensure_gateway(): void {
 		if ( ! preg_match( '/^[a-z0-9_-]+\.php$/i', $base ) ) {
 			continue;
 		}
-		$target = $admin_dir . '/' . $base;
-		if ( is_readable( $target ) ) {
+		$target  = $admin_dir . '/' . $base;
+		$php     = ve_painel_mu_stub_php( $base );
+		$current = is_readable( $target ) ? (string) file_get_contents( $target ) : '';
+		// Refresh v1 stubs that omitted PHP_SELF normalization.
+		if ( $current === $php || ( is_readable( $target ) && str_contains( $current, 'Stub-Version: 2' ) ) ) {
 			continue;
 		}
-		$php = "<?php\ndefine( 'VE_ADMIN_ENTRY', true );\nrequire dirname( __DIR__ ) . '/wp-admin/{$base}';\n";
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
 		@file_put_contents( $target, $php );
 	}
@@ -86,12 +104,12 @@ function ve_painel_mu_auth_cookie_path(): string {
 /**
  * Mirror AUTH/SECURE_AUTH cookies onto /painel so sessions work outside /wp-admin.
  *
- * @param mixed  $auth_cookie Cookie value.
- * @param mixed  $expire      Expiry.
- * @param mixed  $expiration  Duration.
- * @param mixed  $user_id     User ID.
- * @param mixed  $scheme      auth|secure_auth.
- * @param mixed  $token       Session token.
+ * @param mixed $auth_cookie Cookie value.
+ * @param mixed $expire      Expiry.
+ * @param mixed $expiration  Duration.
+ * @param mixed $user_id     User ID.
+ * @param mixed $scheme      auth|secure_auth.
+ * @param mixed $token       Session token.
  */
 function ve_painel_mu_mirror_auth_cookie( $auth_cookie, $expire = 0, $expiration = 0, $user_id = 0, $scheme = '', $token = '' ): void {
 	unset( $expiration, $user_id, $token );

@@ -264,7 +264,7 @@ final class PlatformUrlMask {
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
 		file_put_contents(
 			$dir . '/' . self::ADMIN_ALIAS_MARKER,
-			"Voto Eletrônico — gateway do Painel (ficheiros stub; não é symlink).\n"
+			"Voto Eletrônico — gateway do Painel (arquivos stub; não é symlink).\n"
 		);
 
 		// Deny directory listing.
@@ -285,10 +285,17 @@ final class PlatformUrlMask {
 	}
 
 	private static function stubPhp( string $base ): string {
+		// WordPress (wp-includes/vars.php) derives $pagenow from PHP_SELF with
+		// the regex #/wp-admin/#. Requests to /painel/admin.php do not match, so
+		// $pagenow becomes index.php and user_can_access_admin_page() denies every
+		// plugin screen ("Sem permissão para acessar esta página.").
 		return "<?php\n"
 			. "/**\n * Voto Eletrônico — gateway do Painel de Controle Eleitoral.\n"
-			. " * Ficheiro gerado automaticamente (não é link simbólico). Não editar.\n */\n"
+			. " * Arquivo gerado automaticamente (não é link simbólico). Não editar.\n"
+			. " * Stub-Version: 2\n */\n"
 			. "define( 'VE_ADMIN_ENTRY', true );\n"
+			. "\$_SERVER['PHP_SELF']   = '/wp-admin/{$base}';\n"
+			. "\$_SERVER['SCRIPT_NAME'] = '/wp-admin/{$base}';\n"
 			. "require dirname( __DIR__ ) . '/wp-admin/{$base}';\n";
 	}
 
