@@ -75,7 +75,9 @@ function ve_painel_mu_auth_cookie_path(): string {
 	if ( '' === $site ) {
 		$site = '/';
 	}
-	if ( ! str_ends_with( $site, '/' ) ) {
+	if ( function_exists( 'str_ends_with' ) && ! str_ends_with( $site, '/' ) ) {
+		$site .= '/';
+	} elseif ( substr( $site, -1 ) !== '/' ) {
 		$site .= '/';
 	}
 	return $site . 'painel';
@@ -84,14 +86,14 @@ function ve_painel_mu_auth_cookie_path(): string {
 /**
  * Mirror AUTH/SECURE_AUTH cookies onto /painel so sessions work outside /wp-admin.
  *
- * @param string $auth_cookie Cookie value.
- * @param int    $expire      Expiry.
- * @param int    $expiration  Duration.
- * @param int    $user_id     User ID.
- * @param string $scheme      auth|secure_auth.
- * @param string $token       Session token.
+ * @param mixed  $auth_cookie Cookie value.
+ * @param mixed  $expire      Expiry.
+ * @param mixed  $expiration  Duration.
+ * @param mixed  $user_id     User ID.
+ * @param mixed  $scheme      auth|secure_auth.
+ * @param mixed  $token       Session token.
  */
-function ve_painel_mu_mirror_auth_cookie( $auth_cookie, $expire, $expiration, $user_id, $scheme, $token = '' ): void {
+function ve_painel_mu_mirror_auth_cookie( $auth_cookie, $expire = 0, $expiration = 0, $user_id = 0, $scheme = '', $token = '' ): void {
 	unset( $expiration, $user_id, $token );
 	if ( ! is_string( $auth_cookie ) || '' === $auth_cookie ) {
 		return;
@@ -123,16 +125,24 @@ function ve_painel_mu_clear_auth_cookie(): void {
 /**
  * Keep public login links on /id.php even while the main plugin is mid-activate.
  *
- * @param string $login_url Login URL.
+ * @param mixed $login_url Login URL.
+ * @return mixed
  */
-function ve_painel_mu_filter_login_url( string $login_url ): string {
+function ve_painel_mu_filter_login_url( $login_url ) {
+	if ( ! is_string( $login_url ) ) {
+		return $login_url;
+	}
 	return str_replace( 'wp-login.php', 'id.php', $login_url );
 }
 
 /**
- * @param string $location Redirect target.
+ * @param mixed $location Redirect target.
+ * @return mixed
  */
-function ve_painel_mu_filter_redirect( string $location ): string {
+function ve_painel_mu_filter_redirect( $location ) {
+	if ( ! is_string( $location ) ) {
+		return $location;
+	}
 	return str_replace( 'wp-login.php', 'id.php', $location );
 }
 

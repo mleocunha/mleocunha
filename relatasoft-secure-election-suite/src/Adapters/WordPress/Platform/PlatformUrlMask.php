@@ -468,12 +468,16 @@ final class PlatformUrlMask {
 	/**
 	 * Ensure post-login landing uses /painel, not /wp-admin.
 	 *
-	 * @param string             $redirect_to           Target.
-	 * @param string             $requested_redirect_to Requested target.
+	 * @param mixed              $redirect_to           Target.
+	 * @param mixed              $requested_redirect_to Requested target.
 	 * @param \WP_User|\WP_Error $user                  User or error.
+	 * @return mixed
 	 */
-	public static function filterLoginRedirect( string $redirect_to, string $requested_redirect_to, $user ): string {
+	public static function filterLoginRedirect( $redirect_to, $requested_redirect_to, $user ) {
 		unset( $requested_redirect_to );
+		if ( ! is_string( $redirect_to ) ) {
+			return $redirect_to;
+		}
 		if ( ! self::enabled() || is_wp_error( $user ) ) {
 			return $redirect_to;
 		}
@@ -507,80 +511,131 @@ final class PlatformUrlMask {
 		echo '<script>(function(){document.addEventListener("DOMContentLoaded",function(){var f=document.getElementById("loginform")||document.getElementById("lostpasswordform")||document.getElementById("resetpassform");if(f){f.action=' . wp_json_encode( $action ) . ';}});})();</script>' . "\n";
 	}
 
-	public static function filterAdminUrl( string $url, string $path = '', ?int $blog_id = null ): string {
+	/**
+	 * @param mixed $url     Admin URL.
+	 * @param mixed $path    Path fragment.
+	 * @param mixed $blog_id Blog id.
+	 * @return mixed
+	 */
+	public static function filterAdminUrl( $url, $path = '', $blog_id = null ) {
 		unset( $blog_id );
-		if ( ! self::adminUrlMaskReady() ) {
+		if ( ! is_string( $url ) || ! self::adminUrlMaskReady() ) {
 			return $url;
 		}
-		if ( self::isStaticAdminAsset( $path, $url ) ) {
-			return $url;
-		}
-		return UrlMaskConfig::maskAdminUrl( $url, self::adminPath() );
-	}
-
-	public static function filterNetworkAdminUrl( string $url, string $path = '' ): string {
-		if ( ! self::adminUrlMaskReady() ) {
-			return $url;
-		}
-		if ( self::isStaticAdminAsset( $path, $url ) ) {
+		$path_str = is_string( $path ) ? $path : '';
+		if ( self::isStaticAdminAsset( $path_str, $url ) ) {
 			return $url;
 		}
 		return UrlMaskConfig::maskAdminUrl( $url, self::adminPath() );
 	}
 
-	public static function filterSiteUrl( string $url, string $path, ?string $scheme, ?int $blog_id ): string {
+	/**
+	 * @param mixed $url  URL.
+	 * @param mixed $path Path.
+	 * @return mixed
+	 */
+	public static function filterNetworkAdminUrl( $url, $path = '' ) {
+		if ( ! is_string( $url ) || ! self::adminUrlMaskReady() ) {
+			return $url;
+		}
+		$path_str = is_string( $path ) ? $path : '';
+		if ( self::isStaticAdminAsset( $path_str, $url ) ) {
+			return $url;
+		}
+		return UrlMaskConfig::maskAdminUrl( $url, self::adminPath() );
+	}
+
+	/**
+	 * @param mixed $url     URL.
+	 * @param mixed $path    Path.
+	 * @param mixed $scheme  Scheme.
+	 * @param mixed $blog_id Blog id.
+	 * @return mixed
+	 */
+	public static function filterSiteUrl( $url, $path = '', $scheme = null, $blog_id = null ) {
 		unset( $scheme, $blog_id );
-		if ( ! self::enabled() ) {
+		if ( ! is_string( $url ) || ! self::enabled() ) {
 			return $url;
 		}
-		if ( ( is_string( $path ) && str_contains( $path, 'wp-login.php' ) ) || str_contains( $url, 'wp-login.php' ) ) {
+		$path_str = is_string( $path ) ? $path : '';
+		if ( str_contains( $path_str, 'wp-login.php' ) || str_contains( $url, 'wp-login.php' ) ) {
 			return UrlMaskConfig::maskLoginUrl( $url, self::loginPath() );
 		}
 		if ( self::adminUrlMaskReady()
-			&& ( ( is_string( $path ) && str_contains( $path, 'wp-admin' ) ) || str_contains( $url, '/wp-admin' ) )
+			&& ( str_contains( $path_str, 'wp-admin' ) || str_contains( $url, '/wp-admin' ) )
 		) {
 			return UrlMaskConfig::maskAdminUrl( $url, self::adminPath() );
 		}
 		return $url;
 	}
 
-	public static function filterNetworkSiteUrl( string $url, string $path, ?string $scheme ): string {
+	/**
+	 * @param mixed $url    URL.
+	 * @param mixed $path   Path.
+	 * @param mixed $scheme Scheme.
+	 * @return mixed
+	 */
+	public static function filterNetworkSiteUrl( $url, $path = '', $scheme = null ) {
 		return self::filterSiteUrl( $url, $path, $scheme, null );
 	}
 
-	public static function filterLoginUrl( string $login_url, string $redirect = '', bool $force_reauth = false ): string {
+	/**
+	 * @param mixed $login_url    Login URL.
+	 * @param mixed $redirect     Redirect target.
+	 * @param mixed $force_reauth Force reauth flag.
+	 * @return mixed
+	 */
+	public static function filterLoginUrl( $login_url, $redirect = '', $force_reauth = false ) {
 		unset( $redirect, $force_reauth );
-		if ( ! self::enabled() ) {
+		if ( ! is_string( $login_url ) || ! self::enabled() ) {
 			return $login_url;
 		}
 		return UrlMaskConfig::maskLoginUrl( $login_url, self::loginPath() );
 	}
 
-	public static function filterLogoutUrl( string $logout_url, string $redirect = '' ): string {
+	/**
+	 * @param mixed $logout_url Logout URL.
+	 * @param mixed $redirect   Redirect.
+	 * @return mixed
+	 */
+	public static function filterLogoutUrl( $logout_url, $redirect = '' ) {
 		unset( $redirect );
-		if ( ! self::enabled() ) {
+		if ( ! is_string( $logout_url ) || ! self::enabled() ) {
 			return $logout_url;
 		}
 		return UrlMaskConfig::maskLoginUrl( $logout_url, self::loginPath() );
 	}
 
-	public static function filterLostpasswordUrl( string $url, string $redirect = '' ): string {
+	/**
+	 * @param mixed $url      URL.
+	 * @param mixed $redirect Redirect.
+	 * @return mixed
+	 */
+	public static function filterLostpasswordUrl( $url, $redirect = '' ) {
 		unset( $redirect );
-		if ( ! self::enabled() ) {
+		if ( ! is_string( $url ) || ! self::enabled() ) {
 			return $url;
 		}
 		return UrlMaskConfig::maskLoginUrl( $url, self::loginPath() );
 	}
 
-	public static function filterRegisterUrl( string $url ): string {
-		if ( ! self::enabled() ) {
+	/**
+	 * @param mixed $url Register URL.
+	 * @return mixed
+	 */
+	public static function filterRegisterUrl( $url ) {
+		if ( ! is_string( $url ) || ! self::enabled() ) {
 			return $url;
 		}
 		return UrlMaskConfig::maskLoginUrl( $url, self::loginPath() );
 	}
 
-	public static function filterRedirect( string $location ): string {
-		if ( ! self::enabled() ) {
+	/**
+	 * @param mixed $location Redirect location.
+	 * @return mixed
+	 */
+	public static function filterRedirect( $location ) {
+		if ( ! is_string( $location ) || ! self::enabled() ) {
 			return $location;
 		}
 		$location = UrlMaskConfig::maskLoginUrl( $location, self::loginPath() );
@@ -590,8 +645,12 @@ final class PlatformUrlMask {
 		return $location;
 	}
 
-	public static function filterEmailContent( string $content ): string {
-		if ( ! self::enabled() ) {
+	/**
+	 * @param mixed $content Email body.
+	 * @return mixed
+	 */
+	public static function filterEmailContent( $content ) {
+		if ( ! is_string( $content ) || ! self::enabled() ) {
 			return $content;
 		}
 		$content = UrlMaskConfig::maskLoginUrl( $content, self::loginPath() );

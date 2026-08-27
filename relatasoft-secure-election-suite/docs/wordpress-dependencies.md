@@ -17,6 +17,8 @@ O mu-plugin e o `PlatformUrlMask` espelham `AUTH`/`SECURE_AUTH` em `/painel` no 
 
 Regra de ouro: **não mascarar links para `/painel` enquanto o gateway (incl. `plugins.php`) não existir em disco**.
 
+Os filtros WordPress (`site_url`, `login_url`, `wp_redirect`, …) devem aceitar argumentos `null` do core — type hints estritos causam `TypeError` fatal na activação (corrigido em 1.0.38).
+
 Fluxo de recuperação:
 
 1. Abrir `https://votoeletronico.com.br/id.php` e autenticar

@@ -50,12 +50,20 @@ class Activator {
 
 		GestorRoleRegistrar::ensureRole();
 
-		PlatformUrlMask::writeLoginStub();
-		PlatformUrlMask::writeAdminGateway();
-		PlatformUrlMask::writeHtaccessRules();
-		PlatformUrlMask::writeNginxSnippet();
-		PlatformUrlMask::installMuPlugin();
-		PlatformUrlMask::registerRewrites();
+		try {
+			PlatformUrlMask::writeLoginStub();
+			PlatformUrlMask::writeAdminGateway();
+			PlatformUrlMask::writeHtaccessRules();
+			PlatformUrlMask::writeNginxSnippet();
+			PlatformUrlMask::installMuPlugin();
+			PlatformUrlMask::registerRewrites();
+		} catch ( \Throwable $e ) {
+			// Gateway is best-effort; never fail activation because of URL mask FS writes.
+			if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+				// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+				error_log( 'RSES activation URL mask: ' . $e->getMessage() );
+			}
+		}
 
 		flush_rewrite_rules();
 	}

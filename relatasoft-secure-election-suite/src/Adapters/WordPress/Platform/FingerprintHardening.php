@@ -76,7 +76,7 @@ final class FingerprintHardening {
 		return $headers;
 	}
 
-	public static function disableXmlrpc( bool $enabled ): bool {
+	public static function disableXmlrpc( $enabled ) {
 		if ( self::enabled() ) {
 			return false;
 		}
@@ -104,8 +104,8 @@ final class FingerprintHardening {
 		);
 	}
 
-	public static function stripVersionQuery( string $src ): string {
-		if ( ! self::enabled() || $src === '' ) {
+	public static function stripVersionQuery( $src ) {
+		if ( ! is_string( $src ) || ! self::enabled() || $src === '' ) {
 			return $src;
 		}
 		if ( str_contains( $src, 'ver=' ) ) {
@@ -114,9 +114,14 @@ final class FingerprintHardening {
 		return $src;
 	}
 
-	public static function robotsTxt( string $output, bool $public ): string {
+	/**
+	 * @param mixed $output Robots.txt body.
+	 * @param mixed $public Blog public flag.
+	 * @return mixed
+	 */
+	public static function robotsTxt( $output, $public = true ) {
 		unset( $public );
-		if ( ! self::enabled() ) {
+		if ( ! is_string( $output ) || ! self::enabled() ) {
 			return $output;
 		}
 		$admin = UrlMaskConfig::normalizeAdminPath(
