@@ -313,8 +313,8 @@ class AdminMenu {
 
 			add_submenu_page(
 				'rses-dashboard',
-				__( 'Auditar Certificação', 'relatasoft-secure-election-suite' ),
-				__( 'Auditar Certificação', 'relatasoft-secure-election-suite' ),
+				__( 'Audit Certification', 'relatasoft-secure-election-suite' ),
+				__( 'Audit Certification', 'relatasoft-secure-election-suite' ),
 				$rses_official_cap,
 				CertificationAuditPage::SLUG,
 				array( CertificationAuditPage::class, 'rses_render' )
