@@ -40,14 +40,14 @@ final class DashboardHomeService {
 				new ModeHomeCard(
 					'1. Importar chave pública',
 					'Importe o pacote de chave pública exportado do site de geração de chaves.',
-					'Gerenciar chaves públicas',
+					'Gerir chaves públicas',
 					'rses-public-keys',
 					AccessPolicy::PERM_ELECTIONS_MANAGE,
 				),
 				new ModeHomeCard(
 					'2. Configurar eleição e boletim',
 					'Crie eleições, associe a chave pública, defina perguntas e abra o escrutínio.',
-					'Gerenciar eleições',
+					'Gerir eleições',
 					'rses-elections',
 					AccessPolicy::PERM_ELECTIONS_MANAGE,
 				),
