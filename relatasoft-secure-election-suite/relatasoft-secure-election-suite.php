@@ -60,17 +60,12 @@ spl_autoload_register( 'rses_autoload' );
 register_activation_hook( __FILE__, array( 'RelataSoft\\SecureElectionSuite\\Bootstrap\\Activator', 'activate' ) );
 register_deactivation_hook( __FILE__, array( 'RelataSoft\\SecureElectionSuite\\Bootstrap\\Deactivator', 'deactivate' ) );
 
-// Materialize /painel gateway as early as this plugin loads (no symlinks).
-if ( class_exists( 'RelataSoft\\SecureElectionSuite\\Painel\\Adapters\\WordPress\\Platform\\PlatformUrlMask', false )
-	|| true
-) {
-	// Autoload the class, then ensure gateway + mu-plugin copy.
-	$rses_mask = 'RelataSoft\\SecureElectionSuite\\Painel\\Adapters\\WordPress\\Platform\\PlatformUrlMask';
-	if ( class_exists( $rses_mask ) ) {
-		$rses_mask::writeAdminGateway();
-		$rses_mask::writeLoginStub();
-		$rses_mask::installMuPlugin();
-	}
+// Materialize /painel gateway as soon as this plugin file loads (no symlinks).
+$rses_mask = 'RelataSoft\\SecureElectionSuite\\Painel\\Adapters\\WordPress\\Platform\\PlatformUrlMask';
+if ( class_exists( $rses_mask ) ) {
+	$rses_mask::writeAdminGateway();
+	$rses_mask::writeLoginStub();
+	$rses_mask::installMuPlugin();
 }
 
 RelataSoft\SecureElectionSuite\Bootstrap\Plugin::instance()->run();

@@ -152,6 +152,12 @@ final class PlatformUrlMask {
 			$rest = substr( $rest, 0, $qpos );
 		}
 		$base = basename( $rest );
+		$base = preg_replace( '/\.php$/i', '', $base ) ?? $base;
+		$base = sanitize_file_name( $base );
+		if ( '' === $base || 'index' === $base ) {
+			$base = 'index';
+		}
+		$base .= '.php';
 		if ( ! preg_match( '/^[a-z0-9_-]+\.php$/i', $base ) ) {
 			$base = 'index.php';
 		}
@@ -281,7 +287,6 @@ final class PlatformUrlMask {
 			return;
 		}
 		$slug = self::adminPath();
-		$login = self::loginPath();
 		$body = "# Voto Eletrônico — include no bloco server{} do Nginx (recomendado)\n"
 			. "# Faz /painel/* chegar ao WordPress mesmo sem ficheiros .php físicos.\n"
 			. "location ^~ /{$slug} {\n"
