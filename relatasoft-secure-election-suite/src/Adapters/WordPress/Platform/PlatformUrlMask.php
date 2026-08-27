@@ -426,6 +426,13 @@ final class PlatformUrlMask {
 			self::denyAsNotFound();
 		}
 
+		// Retired classic WP screens (plugins.php, themes.php, …) → 404 even via /painel stubs.
+		if ( self::adminGatewayExists()
+			&& UrlMaskConfig::isRetiredClassicAdminScreen( $path )
+		) {
+			self::denyAsNotFound();
+		}
+
 		// Public /wp-admin → 404 once /painel exists (same as a missing URL).
 		// Only leave aggregated style/script loaders + static files (Painel chrome).
 		if ( UrlMaskConfig::isWpAdminPath( $path )
@@ -455,18 +462,7 @@ final class PlatformUrlMask {
 	}
 
 	private static function denyAsNotFound(): void {
-		if ( function_exists( 'status_header' ) ) {
-			status_header( 404 );
-		} else {
-			http_response_code( 404 );
-		}
-		if ( function_exists( 'nocache_headers' ) ) {
-			nocache_headers();
-		}
-		if ( ! headers_sent() ) {
-			header( 'X-Robots-Tag: noindex, nofollow', true );
-		}
-		exit;
+		NotFoundPage::renderAndExit();
 	}
 
 	/**

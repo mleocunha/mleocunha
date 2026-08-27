@@ -637,9 +637,6 @@ class VotingViews {
 												<a class="button rses-btn-secondary" href="<?php echo esc_url( admin_url( 'admin.php?page=rses-elections&rses_edit=' . $rses_eid . '&round=' . $rses_rid ) ); ?>">
 													<?php esc_html_e( 'Edit election', 'relatasoft-secure-election-suite' ); ?>
 												</a>
-												<a class="button rses-btn-secondary" href="<?php echo esc_url( admin_url( 'post-new.php?post_type=page' ) ); ?>" target="_blank" rel="noopener noreferrer">
-													<?php esc_html_e( 'Create new page', 'relatasoft-secure-election-suite' ); ?>
-												</a>
 											</p>
 										</div>
 									<?php endforeach; ?>

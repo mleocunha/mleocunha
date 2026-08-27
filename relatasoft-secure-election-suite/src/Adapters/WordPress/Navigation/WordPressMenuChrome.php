@@ -48,5 +48,19 @@ final class WordPressMenuChrome implements NavigationRegistrar {
 		foreach ( $remove as $slug ) {
 			remove_menu_page( $slug );
 		}
+
+		// Drop leftover classic submenu deep-links (Appearance → Editor, etc.).
+		$submenu_kill = array(
+			'themes.php'           => array( 'theme-editor.php', 'site-editor.php', 'customize.php', 'widgets.php', 'nav-menus.php' ),
+			'plugins.php'          => array( 'plugin-install.php', 'plugin-editor.php' ),
+			'users.php'            => array( 'user-new.php', 'profile.php' ),
+			'tools.php'            => array( 'import.php', 'export.php', 'site-health.php', 'export-personal-data.php', 'erase-personal-data.php' ),
+			'options-general.php'  => array( 'options-writing.php', 'options-reading.php', 'options-discussion.php', 'options-media.php', 'options-permalink.php', 'options-privacy.php', 'privacy.php' ),
+		);
+		foreach ( $submenu_kill as $parent => $children ) {
+			foreach ( $children as $child ) {
+				remove_submenu_page( $parent, $child );
+			}
+		}
 	}
 }

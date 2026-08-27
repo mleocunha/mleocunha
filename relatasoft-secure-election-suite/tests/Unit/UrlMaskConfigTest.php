@@ -50,6 +50,17 @@ final class UrlMaskConfigTest extends TestCase {
 		$this->assertFalse( UrlMaskConfig::isStaticAdminAssetPath( '/wp-admin/plugins.php' ) );
 	}
 
+	public function test_retired_classic_admin_screens(): void {
+		$this->assertTrue( UrlMaskConfig::isRetiredClassicAdminScreen( '/painel/plugins.php' ) );
+		$this->assertTrue( UrlMaskConfig::isRetiredClassicAdminScreen( 'themes.php' ) );
+		$this->assertTrue( UrlMaskConfig::isRetiredClassicAdminScreen( '/wp-admin/users.php' ) );
+		$this->assertTrue( UrlMaskConfig::isRetiredClassicAdminScreen( 'post-new.php' ) );
+		$this->assertFalse( UrlMaskConfig::isRetiredClassicAdminScreen( '/painel/admin.php' ) );
+		$this->assertFalse( UrlMaskConfig::isRetiredClassicAdminScreen( 'admin-ajax.php' ) );
+		$this->assertFalse( UrlMaskConfig::isRetiredClassicAdminScreen( 'admin-post.php' ) );
+		$this->assertTrue( UrlMaskConfig::isAllowedPainelAdminScreen( 'admin.php' ) );
+	}
+
 	public function test_admin_cookie_path_mirrors_wp_admin_shape(): void {
 		$this->assertSame( '/painel', UrlMaskConfig::adminCookiePath( 'painel', '/' ) );
 		$this->assertSame( '/blog/painel', UrlMaskConfig::adminCookiePath( 'painel', '/blog/' ) );

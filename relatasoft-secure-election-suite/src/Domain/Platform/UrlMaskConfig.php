@@ -97,6 +97,88 @@ final class UrlMaskConfig {
 	}
 
 	/**
+	 * Classic WordPress admin screens retired from the public Painel surface.
+	 * Access via /painel/plugins.php (etc.) must 404 like a missing URL.
+	 */
+	public static function isRetiredClassicAdminScreen( string $path_or_basename ): bool {
+		$base = strtolower( basename( $path_or_basename ) );
+		if ( '' === $base || ! str_ends_with( $base, '.php' ) ) {
+			return false;
+		}
+		$retired = array(
+			'plugins.php',
+			'plugin-install.php',
+			'plugin-editor.php',
+			'themes.php',
+			'theme-install.php',
+			'theme-editor.php',
+			'site-editor.php',
+			'customize.php',
+			'widgets.php',
+			'nav-menus.php',
+			'users.php',
+			'user-new.php',
+			'edit.php',
+			'edit-comments.php',
+			'edit-tags.php',
+			'post-new.php',
+			'upload.php',
+			'media-new.php',
+			'tools.php',
+			'import.php',
+			'export.php',
+			'export-personal-data.php',
+			'erase-personal-data.php',
+			'site-health.php',
+			'options-general.php',
+			'options-writing.php',
+			'options-reading.php',
+			'options-discussion.php',
+			'options-media.php',
+			'options-permalink.php',
+			'options-privacy.php',
+			'privacy.php',
+			'privacy-policy-guide.php',
+			'update-core.php',
+			'about.php',
+			'credits.php',
+			'freedoms.php',
+			'contribute.php',
+			'press-this.php',
+		);
+		return in_array( $base, $retired, true );
+	}
+
+	/**
+	 * Essential Painel entry points that must remain reachable under /painel.
+	 */
+	public static function isAllowedPainelAdminScreen( string $path_or_basename ): bool {
+		$base = strtolower( basename( $path_or_basename ) );
+		$allow = array(
+			'admin.php',
+			'admin-ajax.php',
+			'admin-post.php',
+			'async-upload.php',
+			'media-upload.php',
+			'load-styles.php',
+			'load-scripts.php',
+			'index.php',
+			'profile.php',
+			'user-edit.php',
+			'update.php',
+			'upgrade.php',
+			'options.php',
+			'post.php',
+			'term.php',
+			'comment.php',
+			'edit-form-advanced.php',
+			'edit-tag-form.php',
+			'js.php', // rare
+		);
+		return in_array( $base, $allow, true );
+	}
+
+	/**
 	 * Auth cookie path for the masked admin slug (mirrors ADMIN_COOKIE_PATH = SITECOOKIEPATH . 'wp-admin').
 	 *
 	 * Without this, browsers never send wordpress_* auth cookies on /painel/*,

@@ -9,11 +9,19 @@
 
     const brand = document.createElement('div');
     brand.className = 've-painel-brand';
+    const markUrl = cfg.markUrl || '';
     brand.innerHTML =
-      '<div class="ve-painel-brand-mark" aria-hidden="true"></div>' +
+      (markUrl
+        ? '<img class="ve-painel-brand-mark" src="" alt="" width="44" height="44" decoding="async"/>'
+        : '<div class="ve-painel-brand-mark" aria-hidden="true"></div>') +
       '<div class="ve-painel-brand-text">' +
       '<div class="ve-painel-brand-product"></div>' +
       '</div>';
+    if (markUrl) {
+      const img = brand.querySelector('img.ve-painel-brand-mark');
+      img.src = markUrl;
+      img.alt = 'RelataSoft';
+    }
     brand.querySelector('.ve-painel-brand-product').textContent =
       cfg.productName || 'Voto Eletrônico by RelataSoft';
     aside.appendChild(brand);

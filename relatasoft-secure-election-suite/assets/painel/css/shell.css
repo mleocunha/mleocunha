@@ -113,12 +113,19 @@ body.ve-painel-active #wpfooter a {
 .ve-painel-brand-mark {
   width: 2.75rem;
   height: 2.75rem;
-  border-radius: 12px;
-  background: linear-gradient(145deg, var(--ve-color-primary), var(--ve-color-primary-dark));
-  box-shadow: var(--ve-shadow-sm);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
   grid-column: 1;
   grid-row: 1;
   flex-shrink: 0;
+  object-fit: contain;
+  display: block;
+}
+
+img.ve-painel-brand-mark {
+  width: 2.75rem;
+  height: 2.75rem;
 }
 
 .ve-painel-brand-text {

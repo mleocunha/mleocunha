@@ -167,16 +167,64 @@ function ve_painel_mu_filter_redirect( $location ) {
 ve_painel_mu_ensure_gateway();
 
 /**
+ * Classic WP screens retired from the Painel (404 even via /painel stubs).
+ *
+ * @return list<string>
+ */
+function ve_painel_mu_retired_admin_screens(): array {
+	return array(
+		'plugins.php',
+		'plugin-install.php',
+		'plugin-editor.php',
+		'themes.php',
+		'theme-install.php',
+		'theme-editor.php',
+		'site-editor.php',
+		'customize.php',
+		'widgets.php',
+		'nav-menus.php',
+		'users.php',
+		'user-new.php',
+		'edit.php',
+		'edit-comments.php',
+		'edit-tags.php',
+		'post-new.php',
+		'upload.php',
+		'media-new.php',
+		'tools.php',
+		'import.php',
+		'export.php',
+		'export-personal-data.php',
+		'erase-personal-data.php',
+		'site-health.php',
+		'options-general.php',
+		'options-writing.php',
+		'options-reading.php',
+		'options-discussion.php',
+		'options-media.php',
+		'options-permalink.php',
+		'options-privacy.php',
+		'privacy.php',
+		'privacy-policy-guide.php',
+		'update-core.php',
+		'about.php',
+		'credits.php',
+		'freedoms.php',
+		'contribute.php',
+		'press-this.php',
+	);
+}
+
+/**
  * When disguise stubs exist, classic /wp-admin and /wp-login.php must 404
  * like any missing URL (no redirect that maps the disguise).
+ * Also 404 retired classic screens under /painel (e.g. /painel/plugins.php).
  */
 function ve_painel_mu_block_classic_surfaces(): void {
 	if ( defined( 'WP_CLI' ) && WP_CLI ) {
 		return;
 	}
-	if ( ( defined( 'VE_ADMIN_ENTRY' ) && VE_ADMIN_ENTRY )
-		|| ( defined( 'VE_LOGIN_ENTRY' ) && VE_LOGIN_ENTRY )
-	) {
+	if ( defined( 'VE_LOGIN_ENTRY' ) && VE_LOGIN_ENTRY ) {
 		return;
 	}
 	if ( ! defined( 'ABSPATH' ) ) {
@@ -186,12 +234,27 @@ function ve_painel_mu_block_classic_surfaces(): void {
 	$uri  = isset( $_SERVER['REQUEST_URI'] ) ? (string) $_SERVER['REQUEST_URI'] : '';
 	$path = parse_url( $uri, PHP_URL_PATH );
 	$path = is_string( $path ) ? rawurldecode( $path ) : '';
+	$base = strtolower( (string) basename( $path ) );
 
 	$login_ready = is_readable( trailingslashit( ABSPATH ) . 'id.php' );
 	$admin_ready = is_readable( trailingslashit( ABSPATH ) . 'painel/admin.php' );
 
 	if ( $login_ready && preg_match( '#(^|/)wp-login\.php$#', $path ) ) {
 		ve_painel_mu_send_404();
+	}
+
+	// /painel/plugins.php (and other retired WP screens) → 404.
+	if ( $admin_ready
+		&& $base !== ''
+		&& in_array( $base, ve_painel_mu_retired_admin_screens(), true )
+		&& preg_match( '#(^|/)(painel|wp-admin)(/|$)#', $path )
+	) {
+		ve_painel_mu_send_404();
+	}
+
+	// Skip further /wp-admin blocking when the request entered via /painel stubs.
+	if ( defined( 'VE_ADMIN_ENTRY' ) && VE_ADMIN_ENTRY ) {
+		return;
 	}
 
 	if ( ! $admin_ready || ! preg_match( '#(^|/)wp-admin(/|$)#', $path ) ) {
@@ -201,7 +264,6 @@ function ve_painel_mu_block_classic_surfaces(): void {
 	if ( preg_match( '/\.(css|js|map|png|jpe?g|gif|svg|webp|woff2?|ttf|eot|ico)(\?|$)/i', $path ) ) {
 		return;
 	}
-	$base = strtolower( basename( $path ) );
 	if ( in_array( $base, array( 'load-scripts.php', 'load-styles.php' ), true ) ) {
 		return;
 	}
@@ -209,9 +271,17 @@ function ve_painel_mu_block_classic_surfaces(): void {
 }
 
 /**
- * Emit a blank 404 and stop.
+ * Emit branded 404 ("Página Inexistente") and stop.
  */
 function ve_painel_mu_send_404(): void {
+	$not_found = WP_PLUGIN_DIR . '/relatasoft-secure-election-suite/src/Adapters/WordPress/Platform/NotFoundPage.php';
+	if ( is_readable( $not_found ) ) {
+		require_once $not_found;
+		if ( class_exists( '\\RelataSoft\\SecureElectionSuite\\Painel\\Adapters\\WordPress\\Platform\\NotFoundPage', false ) ) {
+			\RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\Platform\NotFoundPage::renderAndExit();
+		}
+	}
+
 	if ( function_exists( 'status_header' ) ) {
 		status_header( 404 );
 	} else {
@@ -221,8 +291,17 @@ function ve_painel_mu_send_404(): void {
 		nocache_headers();
 	}
 	if ( ! headers_sent() ) {
+		header( 'Content-Type: text/html; charset=UTF-8', true );
 		header( 'X-Robots-Tag: noindex, nofollow', true );
 	}
+	$logo = ( function_exists( 'content_url' ) )
+		? content_url( 'plugins/relatasoft-secure-election-suite/assets/brand/relatasoft-404-lockup.png' )
+		: '/wp-content/plugins/relatasoft-secure-election-suite/assets/brand/relatasoft-404-lockup.png';
+	$logo = htmlspecialchars( $logo, ENT_QUOTES, 'UTF-8' );
+	echo '<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><title>Página Inexistente</title>'
+		. '<style>html,body{margin:0;background:#000;color:#fff;min-height:100%}body{min-height:100vh;display:flex;align-items:center;justify-content:center;font-family:"Avenir Next","Nunito Sans","Trebuchet MS",sans-serif}.ve{text-align:center;padding:2rem 1rem}img{width:min(92vw,20rem);height:auto;margin:0 auto 2rem;display:block}h1{font-size:clamp(1.65rem,4.5vw,2.15rem);margin:0 0 .75rem}p{margin:0;color:rgba(255,255,255,.72)}</style></head><body><main class="ve">'
+		. '<img src="' . $logo . '" width="323" height="82" alt="RelataSoft — Participação mais Inteligente"/>'
+		. '<h1>Página Inexistente</h1><p>O endereço informado não existe neste site.</p></main></body></html>';
 	exit;
 }
 

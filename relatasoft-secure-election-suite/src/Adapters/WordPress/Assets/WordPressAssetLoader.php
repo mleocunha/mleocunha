@@ -75,6 +75,7 @@ final class WordPressAssetLoader implements AssetProvider {
 				'mode'         => is_string( $mode ) ? $mode : '',
 				'nav'          => $nav,
 				'darkMode'     => ! empty( $cfg['dark_mode'] ),
+				'markUrl'      => RSES_PLUGIN_URL . 'assets/brand/relatasoft-mark.png',
 			)
 		);
 	}

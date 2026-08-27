@@ -33,10 +33,15 @@ final class AdminBarCleaner {
 			'updates',
 			'comments',
 			'new-content',
+			'new-post',
+			'new-media',
+			'new-page',
+			'new-user',
 			'customize',
 			'themes',
 			'widgets',
 			'menus',
+			'plugins',
 			'search',
 		);
 		foreach ( $nodes as $id ) {
