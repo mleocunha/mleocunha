@@ -58,7 +58,7 @@ class KnowledgePage {
 
 		if ( ! $policy->can( $persona, AccessPolicy::PERM_KNOWLEDGE_VIEW ) && ! Capability::rses_can_manage_election() ) {
 			wp_die(
-				esc_html__( 'Sem permissão para acessar ao Conhecimento.', 'relatasoft-secure-election-suite' ),
+				esc_html__( 'Sem permissão para acessar o Conhecimento.', 'relatasoft-secure-election-suite' ),
 				esc_html__( 'Sem permissão', 'relatasoft-secure-election-suite' ),
 				array( 'response' => 403 )
 			);
