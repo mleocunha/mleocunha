@@ -70,7 +70,10 @@ final class WordPressLoginBranding {
 		echo '<p class="ve-painel-login-footnote">' . esc_html( self::$service->productName() ) . '</p>';
 	}
 
-	public static function filterLabels(string $translation, string $text, string $domain): string {
+	public static function filterLabels( $translation, $text = '', $domain = 'default' ) {
+		if ( ! is_string( $translation ) || ! is_string( $text ) || ! is_string( $domain ) ) {
+			return $translation;
+		}
 		if ( ! self::$service || ! self::$service->isEnabled() || 'default' !== $domain ) {
 			return $translation;
 		}
