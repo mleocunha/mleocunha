@@ -12,21 +12,16 @@
 | `login_enqueue_scripts`, `login_headerurl`, `login_headertext`, `login_body_class`, `login_footer`, `gettext` | WordPressLoginBranding | Login branding |
 | `in_admin_header` / `in_admin_footer` / `admin_body_class` | ShellView | Chrome do Painel |
 | `admin_url`, `home_url`, `esc_*` | Presentation / branding | URLs e escape |
-| `admin_url` / `login_url` / `site_url` / `wp_redirect` + `.htaccess` + stub `id.php` + alias `painel`→`wp-admin` | PlatformUrlMask | `/wp-admin` → `/painel`, `/wp-login.php` → `/id.php` (Apache e nginx) |
+| `admin_url` / `login_url` / rewrites / gateway `/painel/*.php` / stub `id.php` | PlatformUrlMask | `/wp-admin` → `/painel`, `/wp-login.php` → `/id.php` |
 | `wp_head` / `robots_txt` / REST / xmlrpc / script `ver=` | FingerprintHardening | Reduzir fingerprint WordPress para bots/crawlers |
 | `ModeLock` (RSES) | Bootstrap / HomeView | Modo do sítio |
 
-Artefactos na raiz da instalação: `id.php` (login) e `painel` (symlink ou árvore-stub para `wp-admin`). Em nginx o `.htaccess` é ignorado — o alias em disco é o que torna `/painel/` funcional.
+## URLs públicas (sem links simbólicos)
 
-### Nginx (opcional, se o alias em disco falhar)
+1. **Gateway PHP** em `ABSPATH/painel/` — ficheiros stub reais (não symlinks) que fazem `require` de `wp-admin/*.php`.
+2. **Assets estáticos** (CSS/JS/imagens) continuam em `/wp-admin/` (filtros não mascaram extensões estáticas).
+3. **Rewrites WordPress** `^painel/...` → front-controller, para quando o pedido chega ao `index.php` (nginx `try_files`).
+4. **Login:** `ABSPATH/id.php` (stub real).
+5. **Snippet opcional:** `wp-content/uploads/ve-painel-nginx.conf` para o operador incluir no `server{}` se quiser reforço Nginx — nunca é obrigatório criar `ln -s`.
 
-```nginx
-location /painel/ {
-    rewrite ^/painel/(.*)$ /wp-admin/$1 last;
-}
-location = /painel {
-    rewrite ^ /wp-admin/ last;
-}
-```
-
-Ou, na raiz do WordPress: `ln -sfn wp-admin painel`
+Não use `ln -sfn wp-admin painel`. Se existir um symlink legado, o plugin remove-o e substitui pelo gateway.

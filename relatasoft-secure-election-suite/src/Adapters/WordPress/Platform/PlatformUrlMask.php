@@ -432,16 +432,21 @@ final class PlatformUrlMask {
 	}
 
 	public static function filterAdminUrl( string $url, string $path = '', ?int $blog_id = null ): string {
-		unset( $path, $blog_id );
+		unset( $blog_id );
 		if ( ! self::enabled() ) {
+			return $url;
+		}
+		if ( self::isStaticAdminAsset( $path, $url ) ) {
 			return $url;
 		}
 		return UrlMaskConfig::maskAdminUrl( $url, self::adminPath() );
 	}
 
 	public static function filterNetworkAdminUrl( string $url, string $path = '' ): string {
-		unset( $path );
 		if ( ! self::enabled() ) {
+			return $url;
+		}
+		if ( self::isStaticAdminAsset( $path, $url ) ) {
 			return $url;
 		}
 		return UrlMaskConfig::maskAdminUrl( $url, self::adminPath() );

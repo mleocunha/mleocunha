@@ -51,8 +51,10 @@ class Activator {
 		GestorRoleRegistrar::ensureRole();
 
 		PlatformUrlMask::writeLoginStub();
-		PlatformUrlMask::writeAdminAlias();
+		PlatformUrlMask::writeAdminGateway();
 		PlatformUrlMask::writeHtaccessRules();
+		PlatformUrlMask::writeNginxSnippet();
+		PlatformUrlMask::registerRewrites();
 
 		flush_rewrite_rules();
 	}
