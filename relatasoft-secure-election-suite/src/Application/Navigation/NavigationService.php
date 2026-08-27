@@ -111,6 +111,7 @@ final class NavigationService {
 					array( 'import-authorities', 'Importar Autoridades Eleitorais', 'rses-electoral-authorities', 15, AccessPolicy::PERM_TALLY_MANAGE ),
 					array( 'share-submission', 'Submissão de Parcelas', 'rses-share-submission', 20, AccessPolicy::PERM_PARCELAS_OWN ),
 					array( 'certification', 'Certificação', 'rses-certification', 30, AccessPolicy::PERM_TALLY_MANAGE ),
+					array( 'audit-certification', 'Auditar Certificação', 'rses-audit-certification', 35, AccessPolicy::PERM_AUDIT_VIEW ),
 				) as $row
 			) {
 				$this->registry->register(

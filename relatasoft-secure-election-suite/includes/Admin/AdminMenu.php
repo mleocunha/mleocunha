@@ -12,6 +12,7 @@ use RelataSoft\SecureElectionSuite\Crypto\CryptoSelfTest;
 use RelataSoft\SecureElectionSuite\KeyAuthority\KeyAuthorityViews;
 use RelataSoft\SecureElectionSuite\Security\Capability;
 use RelataSoft\SecureElectionSuite\Security\Nonce;
+use RelataSoft\SecureElectionSuite\Tallying\CertificationAuditPage;
 use RelataSoft\SecureElectionSuite\Tallying\TallyingViews;
 use RelataSoft\SecureElectionSuite\Voting\VotingViews;
 use RelataSoft\SecureElectionSuite\I18n\RoleLabels;
@@ -308,6 +309,15 @@ class AdminMenu {
 				$rses_admin_cap,
 				'rses-certification',
 				array( TallyingViews::class, 'rses_render_certification_page' )
+			);
+
+			add_submenu_page(
+				'rses-dashboard',
+				__( 'Auditar Certificação', 'relatasoft-secure-election-suite' ),
+				__( 'Auditar Certificação', 'relatasoft-secure-election-suite' ),
+				$rses_official_cap,
+				CertificationAuditPage::SLUG,
+				array( CertificationAuditPage::class, 'rses_render' )
 			);
 		}
 	}

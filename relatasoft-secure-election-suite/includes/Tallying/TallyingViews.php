@@ -178,6 +178,29 @@ class TallyingViews {
 				<?php endif; ?>
 			<?php endif; ?>
 
+			<?php if ( ! empty( $_GET['rses_import_deleted'] ) ) : // phpcs:ignore WordPress.Security.NonceVerification.Recommended ?>
+				<?php
+				$rses_deleted_title = isset( $_GET['title'] ) // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+					? sanitize_text_field( wp_unslash( (string) $_GET['title'] ) )
+					: '';
+				?>
+				<div class="rses-panel rses-panel-success">
+					<p>
+						<?php
+						echo esc_html(
+							'' !== $rses_deleted_title
+								? sprintf(
+									/* translators: %s: election title */
+									__( 'Imported election “%s” was permanently deleted (shares, decryption cache, and certifications for that import included).', 'relatasoft-secure-election-suite' ),
+									$rses_deleted_title
+								)
+								: __( 'Imported election was permanently deleted.', 'relatasoft-secure-election-suite' )
+						);
+						?>
+					</p>
+				</div>
+			<?php endif; ?>
+
 			<section class="rses-panel rses-panel-card">
 				<header class="rses-panel-header">
 					<p class="rses-panel-kicker"><?php esc_html_e( 'Upload', 'relatasoft-secure-election-suite' ); ?></p>
@@ -212,6 +235,7 @@ class TallyingViews {
 						<p class="rses-empty"><?php esc_html_e( 'No imports yet.', 'relatasoft-secure-election-suite' ); ?></p>
 					</div>
 				<?php else : ?>
+					<?php $rses_confirm_word = TallyImportRepository::rses_delete_confirm_word(); ?>
 					<div class="rses-table-wrap">
 						<table class="rses-table">
 							<thead>
@@ -223,14 +247,16 @@ class TallyingViews {
 									<th><?php esc_html_e( 'Source', 'relatasoft-secure-election-suite' ); ?></th>
 									<th><?php esc_html_e( 'Status', 'relatasoft-secure-election-suite' ); ?></th>
 									<th><?php esc_html_e( 'Imported', 'relatasoft-secure-election-suite' ); ?></th>
+									<th><?php esc_html_e( 'Actions', 'relatasoft-secure-election-suite' ); ?></th>
 								</tr>
 							</thead>
 							<tbody>
 								<?php foreach ( $rses_imports as $rses_imp ) : ?>
+									<?php $rses_imp_title = TallyImportRepository::rses_display_election_title( $rses_imp ); ?>
 									<tr>
 										<td><?php echo esc_html( (string) $rses_imp->id ); ?></td>
 										<td>
-											<strong><?php echo esc_html( TallyImportRepository::rses_display_election_title( $rses_imp ) ); ?></strong>
+											<strong><?php echo esc_html( $rses_imp_title ); ?></strong>
 											<?php if ( ! empty( $rses_imp->election_external_id ) ) : ?>
 												<br /><span class="description">#<?php echo esc_html( (string) $rses_imp->election_external_id ); ?></span>
 											<?php endif; ?>
@@ -254,6 +280,62 @@ class TallyingViews {
 										<td><?php echo esc_html( $rses_imp->source_site_url ?? '—' ); ?></td>
 										<td><?php echo self::rses_status_pill( (string) $rses_imp->status ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></td>
 										<td><?php echo esc_html( $rses_imp->imported_at ); ?></td>
+										<td>
+											<details class="rses-import-delete">
+												<summary class="rses-import-delete-summary"><?php esc_html_e( 'Delete…', 'relatasoft-secure-election-suite' ); ?></summary>
+												<form
+													method="post"
+													action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>"
+													class="rses-form rses-import-delete-form"
+												>
+													<?php Nonce::rses_field( Nonce::RSES_ACTION_TALLY_IMPORT_DELETE ); ?>
+													<input type="hidden" name="action" value="rses_tally_import_delete" />
+													<input type="hidden" name="tally_import_id" value="<?php echo esc_attr( (string) $rses_imp->id ); ?>" />
+													<p class="description">
+														<?php
+														echo esc_html(
+															sprintf(
+																/* translators: 1: election title, 2: confirmation word in active locale */
+																__( 'Permanently delete “%1$s”, including submitted fractions and certifications for this import. Type %2$s to confirm.', 'relatasoft-secure-election-suite' ),
+																$rses_imp_title,
+																$rses_confirm_word
+															)
+														);
+														?>
+													</p>
+													<label class="screen-reader-text" for="rses_delete_confirm_<?php echo esc_attr( (string) $rses_imp->id ); ?>">
+														<?php
+														echo esc_html(
+															sprintf(
+																/* translators: %s: confirmation word */
+																__( 'Type %s to confirm deletion', 'relatasoft-secure-election-suite' ),
+																$rses_confirm_word
+															)
+														);
+														?>
+													</label>
+													<input
+														type="text"
+														name="rses_delete_confirm"
+														id="rses_delete_confirm_<?php echo esc_attr( (string) $rses_imp->id ); ?>"
+														class="regular-text"
+														autocomplete="off"
+														required
+														placeholder="<?php echo esc_attr( $rses_confirm_word ); ?>"
+													/>
+													<p class="rses-form-actions">
+														<?php
+														submit_button(
+															__( 'Delete imported election', 'relatasoft-secure-election-suite' ),
+															'delete',
+															'submit',
+															false
+														);
+														?>
+													</p>
+												</form>
+											</details>
+										</td>
 									</tr>
 								<?php endforeach; ?>
 							</tbody>
@@ -378,6 +460,11 @@ class TallyingViews {
 
 		TallyImportRepository::rses_backfill_summaries();
 		$rses_imports = TallyImportRepository::rses_list();
+
+		$rses_delete_flash = get_transient( 'rses_signed_delete_flash_' . get_current_user_id() );
+		if ( is_array( $rses_delete_flash ) ) {
+			delete_transient( 'rses_signed_delete_flash_' . get_current_user_id() );
+		}
 		?>
 		<div class="wrap rses-wrap rses-screen" <?php echo Translator::rses_html_attrs(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
 			<header class="rses-hero">
@@ -390,7 +477,13 @@ class TallyingViews {
 
 			<?php if ( ! empty( $_GET['rses_decrypted'] ) ) : // phpcs:ignore WordPress.Security.NonceVerification.Recommended ?>
 				<div class="rses-panel rses-panel-success">
-					<p><?php esc_html_e( 'Tally decrypted successfully. Review results below and generate certification.', 'relatasoft-secure-election-suite' ); ?></p>
+					<p><?php esc_html_e( 'Tally decrypted and digitally signed with the election private key. Review results below, download the signed package, or generate certification.', 'relatasoft-secure-election-suite' ); ?></p>
+				</div>
+			<?php endif; ?>
+
+			<?php if ( is_array( $rses_delete_flash ) ) : ?>
+				<div class="rses-panel <?php echo ! empty( $rses_delete_flash['ok'] ) ? 'rses-panel-success' : 'rses-panel-warning'; ?>">
+					<p><?php echo esc_html( (string) ( $rses_delete_flash['message'] ?? '' ) ); ?></p>
 				</div>
 			<?php endif; ?>
 
@@ -400,8 +493,31 @@ class TallyingViews {
 				if ( 'verified' !== $rses_imp->status ) {
 					continue;
 				}
-				$rses_any    = true;
-				$rses_result = get_transient( 'rses_decryption_result_' . $rses_imp->id );
+				$rses_any       = true;
+				$rses_result    = get_transient( 'rses_decryption_result_' . $rses_imp->id );
+				$rses_signed_pkg = SignedResultsService::rses_get_package( (int) $rses_imp->id )
+					?? ( is_array( $rses_result['signed_package'] ?? null ) ? $rses_result['signed_package'] : null );
+
+				if ( ! is_array( $rses_result ) && is_array( $rses_signed_pkg ) ) {
+					$rses_result = array(
+						'decrypted_results' => $rses_signed_pkg['results']['decrypted_results'] ?? array(),
+						'signed_package'    => $rses_signed_pkg,
+					);
+				}
+
+				$rses_humanized = null;
+				if ( is_array( $rses_result ) ) {
+					if ( is_array( $rses_signed_pkg['results']['humanized_results'] ?? null ) ) {
+						$rses_humanized = $rses_signed_pkg['results']['humanized_results'];
+					} else {
+						$rses_manifest = TallyImportRepository::rses_get_manifest( $rses_imp );
+						$rses_humanized = DecryptedResultsPresenter::rses_humanize(
+							is_array( $rses_result['decrypted_results'] ?? null ) ? $rses_result['decrypted_results'] : array(),
+							is_array( $rses_manifest['ballot'] ?? null ) ? $rses_manifest['ballot'] : array(),
+							DecryptedResultsPresenter::RSES_SORT_COUNT_DESC
+						);
+					}
+				}
 				?>
 				<article class="rses-cert-card">
 					<header class="rses-cert-card-header">
@@ -413,9 +529,50 @@ class TallyingViews {
 						</p>
 					</header>
 					<div class="rses-cert-card-body">
-						<?php if ( $rses_result ) : ?>
-							<p class="rses-field-label"><?php esc_html_e( 'Decrypted Results', 'relatasoft-secure-election-suite' ); ?></p>
-							<pre class="rses-decrypted-results"><?php echo esc_html( wp_json_encode( $rses_result['decrypted_results'], JSON_PRETTY_PRINT ) ); ?></pre>
+						<?php if ( $rses_result && is_array( $rses_humanized ) ) : ?>
+							<?php if ( is_array( $rses_signed_pkg ) ) : ?>
+								<div class="rses-panel rses-panel-success rses-signed-banner">
+									<p>
+										<strong><?php esc_html_e( 'Digitally signed', 'relatasoft-secure-election-suite' ); ?></strong>
+										—
+										<?php
+										echo esc_html(
+											sprintf(
+												/* translators: 1: fingerprint, 2: scheme */
+												__( 'Schnorr signature under election public key (fp %1$s), scheme %2$s. Anyone with the signed JSON can verify without trusting this server.', 'relatasoft-secure-election-suite' ),
+												(string) ( $rses_signed_pkg['public_key_fingerprint'] ?? '—' ),
+												(string) ( $rses_signed_pkg['scheme'] ?? '—' )
+											)
+										);
+										?>
+									</p>
+									<div class="rses-inline-actions">
+										<a class="button button-primary rses-btn-primary" href="<?php echo esc_url( Nonce::rses_url( admin_url( 'admin-post.php?action=rses_download_signed_results&import_id=' . $rses_imp->id ), Nonce::RSES_ACTION_CERTIFICATION ) ); ?>">
+											<?php esc_html_e( 'Download signed JSON', 'relatasoft-secure-election-suite' ); ?>
+										</a>
+										<a class="button rses-btn-secondary" href="<?php echo esc_url( Nonce::rses_url( admin_url( 'admin-post.php?action=rses_download_signed_pdf&import_id=' . $rses_imp->id ), Nonce::RSES_ACTION_CERTIFICATION ) ); ?>">
+											<?php esc_html_e( 'Download signed PDF', 'relatasoft-secure-election-suite' ); ?>
+										</a>
+									</div>
+								</div>
+							<?php else : ?>
+								<div class="rses-panel rses-panel-warning">
+									<p><?php esc_html_e( 'Results are decrypted but not signed yet. Clear fractions and decrypt again with a plugin build that includes dual Schnorr signing.', 'relatasoft-secure-election-suite' ); ?></p>
+								</div>
+							<?php endif; ?>
+
+							<?php DecryptedResultsPresenter::rses_render_html( $rses_humanized, (string) (int) $rses_imp->id ); ?>
+
+							<details class="rses-signed-json-details">
+								<summary><?php esc_html_e( 'Signed package JSON', 'relatasoft-secure-election-suite' ); ?></summary>
+								<?php if ( is_array( $rses_signed_pkg ) ) : ?>
+									<p class="description"><?php esc_html_e( 'Schnorr-signed package under the election public key (includes humanized results, document hashes, and PDF-binding signature). Same content as Download signed JSON.', 'relatasoft-secure-election-suite' ); ?></p>
+									<pre class="rses-decrypted-results"><?php echo esc_html( wp_json_encode( $rses_signed_pkg, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE ) ); ?></pre>
+								<?php else : ?>
+									<p class="description"><?php esc_html_e( 'Signed package not available yet. Showing unsigned raw decrypted tally for reference.', 'relatasoft-secure-election-suite' ); ?></p>
+									<pre class="rses-decrypted-results"><?php echo esc_html( wp_json_encode( $rses_result['decrypted_results'] ?? array(), JSON_PRETTY_PRINT ) ); ?></pre>
+								<?php endif; ?>
+							</details>
 
 							<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="rses-form">
 								<?php Nonce::rses_field( Nonce::RSES_ACTION_CERTIFICATION ); ?>
@@ -430,6 +587,40 @@ class TallyingViews {
 								<a class="button rses-btn-secondary" href="<?php echo esc_url( Nonce::rses_url( admin_url( 'admin-post.php?action=rses_export_certification&import_id=' . $rses_imp->id . '&format=zip' ), Nonce::RSES_ACTION_CERTIFICATION ) ); ?>"><?php esc_html_e( 'Export ZIP', 'relatasoft-secure-election-suite' ); ?></a>
 								<a class="button rses-btn-secondary" href="<?php echo esc_url( Nonce::rses_url( admin_url( 'admin-post.php?action=rses_export_certification&import_id=' . $rses_imp->id . '&format=pdf' ), Nonce::RSES_ACTION_CERTIFICATION ) ); ?>"><?php esc_html_e( 'Export PDF', 'relatasoft-secure-election-suite' ); ?></a>
 							</div>
+
+							<?php if ( is_array( $rses_signed_pkg ) ) : ?>
+								<?php $rses_confirm_word = TallyImportRepository::rses_delete_confirm_word(); ?>
+								<details class="rses-import-delete" style="margin-top: 1rem;">
+									<summary class="rses-import-delete-summary"><?php esc_html_e( 'Delete signed package…', 'relatasoft-secure-election-suite' ); ?></summary>
+									<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="rses-form rses-import-delete-form">
+										<?php Nonce::rses_field( Nonce::RSES_ACTION_CERTIFICATION ); ?>
+										<input type="hidden" name="action" value="rses_delete_signed_results" />
+										<input type="hidden" name="tally_import_id" value="<?php echo esc_attr( (string) $rses_imp->id ); ?>" />
+										<p class="description">
+											<?php
+											echo esc_html(
+												sprintf(
+													/* translators: %s: confirmation word */
+													__( 'Delete the persisted signed JSON/PDF for this import so decryption can run again. Type %s to confirm.', 'relatasoft-secure-election-suite' ),
+													$rses_confirm_word
+												)
+											);
+											?>
+										</p>
+										<input
+											type="text"
+											name="rses_delete_confirm"
+											class="regular-text"
+											autocomplete="off"
+											required
+											placeholder="<?php echo esc_attr( $rses_confirm_word ); ?>"
+										/>
+										<p class="rses-form-actions">
+											<?php submit_button( __( 'Delete signed package', 'relatasoft-secure-election-suite' ), 'delete', 'submit', false ); ?>
+										</p>
+									</form>
+								</details>
+							<?php endif; ?>
 						<?php else : ?>
 							<p class="rses-empty"><?php esc_html_e( 'Awaiting threshold share submissions and decryption.', 'relatasoft-secure-election-suite' ); ?></p>
 						<?php endif; ?>

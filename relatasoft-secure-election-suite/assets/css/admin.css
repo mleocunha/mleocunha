@@ -2262,3 +2262,44 @@ body.rses-rtl .rses-screen,
 	border: 1px solid var(--rses-line);
 }
 
+
+.rses-screen .rses-import-delete {
+	max-width: 18rem;
+}
+
+.rses-screen .rses-import-delete-summary {
+	cursor: pointer;
+	color: #b32d2e;
+	font-weight: 600;
+	list-style: none;
+}
+
+.rses-screen .rses-import-delete-summary::-webkit-details-marker {
+	display: none;
+}
+
+.rses-screen .rses-import-delete-form {
+	margin-top: 0.65rem;
+	padding: 0.75rem 0.85rem;
+	border: 1px solid #f0b7b8;
+	background: #fcf0f1;
+}
+
+.rses-screen .rses-import-delete-form .description {
+	margin: 0 0 0.55rem;
+	color: #5c2b2b;
+}
+
+.rses-screen .rses-import-delete-form input.regular-text {
+	width: 100%;
+	max-width: 100%;
+	margin-bottom: 0.45rem;
+}
+
+.rses-screen .rses-signed-banner {
+	margin-bottom: 1rem;
+}
+
+.rses-screen .rses-signed-json-details {
+	margin: 1rem 0;
+}

@@ -10,6 +10,7 @@ namespace RelataSoft\SecureElectionSuite\Tallying;
 use RelataSoft\SecureElectionSuite\Bootstrap\ModeLock;
 use RelataSoft\SecureElectionSuite\Crypto\ShamirSecretSharing;
 use RelataSoft\SecureElectionSuite\Database\Repository;
+use RelataSoft\SecureElectionSuite\Database\Schema;
 use RelataSoft\SecureElectionSuite\Exports\HashService;
 use RelataSoft\SecureElectionSuite\KeyAuthority\KeyRepository;
 use RelataSoft\SecureElectionSuite\KeyAuthority\ShareEncryptionService;
@@ -152,5 +153,34 @@ class OfficialShareSubmissionController {
 			'tally_import_id = %d',
 			array( $import_id )
 		);
+	}
+
+	/**
+	 * Delete all official share submissions for an import and drop decryption cache.
+	 *
+	 * @param int $import_id Import ID.
+	 * @return int Number of rows deleted.
+	 */
+	public static function rses_clear_submissions_for_import( int $import_id ): int {
+		global $wpdb;
+
+		if ( $import_id < 1 ) {
+			return 0;
+		}
+
+		$rses_before = self::rses_get_submission_count( $import_id );
+		$rses_table  = Schema::rses_table( 'rses_official_share_submissions' );
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+		$wpdb->delete(
+			$rses_table,
+			array( 'tally_import_id' => $import_id ),
+			array( '%d' )
+		);
+
+		delete_transient( 'rses_decryption_result_' . $import_id );
+		delete_transient( 'rses_certification_' . $import_id );
+
+		return $rses_before;
 	}
 }

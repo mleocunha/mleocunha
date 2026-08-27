@@ -18,6 +18,7 @@ require_once dirname( __DIR__ ) . '/includes/Crypto/ElGamal.php';
 require_once dirname( __DIR__ ) . '/includes/Crypto/CryptoEncoding.php';
 require_once dirname( __DIR__ ) . '/includes/Crypto/HomomorphicTally.php';
 require_once dirname( __DIR__ ) . '/includes/Crypto/ShamirSecretSharing.php';
+require_once dirname( __DIR__ ) . '/includes/Crypto/SchnorrSignature.php';
 require_once dirname( __DIR__ ) . '/includes/Crypto/CryptoSelfTest.php';
 
 if ( ! function_exists( '__' ) ) {

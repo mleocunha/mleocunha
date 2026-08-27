@@ -169,6 +169,73 @@ class TallyImportRepository {
 	}
 
 	/**
+	 * Short fingerprint of a public key (stable across sites; labels may collide).
+	 *
+	 * @param array<string,mixed> $public_key Public key fields.
+	 */
+	public static function rses_public_key_fingerprint( array $public_key ): string {
+		$rses_y = (string) ( $public_key['y'] ?? '' );
+		if ( '' === $rses_y ) {
+			return '';
+		}
+		return substr( hash( 'sha256', $rses_y ), 0, 12 );
+	}
+
+	/**
+	 * Locale-specific word an administrator must type to delete an import.
+	 */
+	public static function rses_delete_confirm_word(): string {
+		return \RelataSoft\SecureElectionSuite\Security\ConfirmWord::rses_word();
+	}
+
+	/**
+	 * Whether typed text matches the required confirmation word.
+	 *
+	 * @param string $typed User input.
+	 */
+	public static function rses_confirm_word_matches( string $typed ): bool {
+		return \RelataSoft\SecureElectionSuite\Security\ConfirmWord::rses_matches( $typed );
+	}
+
+	/**
+	 * Permanently delete an imported election and related tally data.
+	 *
+	 * Removes share submissions, certifications, signed/decryption caches, and the import row.
+	 *
+	 * @param int $import_id Import ID.
+	 * @return bool
+	 */
+	public static function rses_delete( int $import_id ): bool {
+		global $wpdb;
+
+		if ( $import_id < 1 ) {
+			return false;
+		}
+
+		$rses_import = self::rses_get( $import_id );
+		if ( ! $rses_import ) {
+			return false;
+		}
+
+		OfficialShareSubmissionController::rses_clear_submissions_for_import( $import_id );
+
+		$rses_cert_table = Schema::rses_table( 'rses_certifications' );
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+		$wpdb->delete(
+			$rses_cert_table,
+			array( 'tally_import_id' => $import_id ),
+			array( '%d' )
+		);
+
+		delete_transient( 'rses_certification_' . $import_id );
+		delete_transient( 'rses_decryption_result_' . $import_id );
+		delete_transient( 'rses_tally_import_flash_' . $import_id );
+		SignedResultsService::rses_clear( $import_id );
+
+		return Repository::rses_delete_by_id( 'rses_tally_imports', $import_id );
+	}
+
+	/**
 	 * Backfill election/round titles for older imports (safe-sized manifests only).
 	 *
 	 * @return int Rows updated.
