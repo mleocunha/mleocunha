@@ -11,7 +11,7 @@
 	--vetb-gold: #ffb800;
 	--vetb-gold-deep: #f58220;
 	--vetb-navy: #0b1230;
-	--vetb-shell: #000000;
+	--vetb-shell: #070a14;
 	--vetb-panel: #12182b;
 	--vetb-line: rgba(255, 184, 0, 0.22);
 	--vetb-radius: 14px;
@@ -39,7 +39,10 @@ body.vetb-theme {
 }
 
 body.vetb-theme {
-	background: #000000;
+	background:
+		radial-gradient(ellipse 70% 90% at 100% 0%, rgba(245, 166, 35, 0.12), transparent 55%),
+		radial-gradient(ellipse 50% 70% at 0% 100%, rgba(245, 130, 32, 0.08), transparent 50%),
+		linear-gradient(135deg, #070a14 0%, #12182b 48%, #0b1230 100%);
 	background-attachment: fixed;
 }
 

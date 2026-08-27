@@ -1,8 +1,7 @@
 @import url("https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700&display=swap");
 
 :root,
-.ve-painel-shell,
-body.ve-painel-login {
+.ve-painel-shell {
   --ve-color-primary: #0c7c9c;
   --ve-color-primary-dark: #095e77;
   --ve-color-ink: #1c2a32;
@@ -12,7 +11,10 @@ body.ve-painel-login {
   --ve-color-surface: #ffffff;
   --ve-color-danger: #b42318;
   --ve-color-success: #0b6e4f;
-  --ve-color-app-bg: #000000;
+  --ve-color-hero: #070a14;
+  --ve-color-hero-mid: #12182b;
+  --ve-color-gold: #ffb800;
+  --ve-color-gold-deep: #f58220;
   --ve-color-offwhite: #f2f0eb;
   --ve-font-sans: "Open Sans", "Segoe UI", sans-serif;
   --ve-space-1: 0.25rem;
@@ -31,11 +33,6 @@ body.ve-painel-login {
   --ve-topbar-height: 3.5rem;
 }
 
-/* App chrome: browser window / overscroll matches 404 black. */
-html {
-  background: var(--ve-color-app-bg) !important;
-}
-
 body.ve-painel-dark {
   --ve-color-ink: #e8eef2;
   --ve-color-muted: #9db0bb;
@@ -44,10 +41,12 @@ body.ve-painel-dark {
   --ve-color-surface: #101820;
 }
 
+/* Login: inverso do Painel claro — fundo preto + tons do hero. */
 body.ve-painel-login {
   --ve-color-ink: var(--ve-color-offwhite);
   --ve-color-muted: rgba(242, 240, 235, 0.72);
-  --ve-color-line: rgba(242, 240, 235, 0.28);
+  --ve-color-line: rgba(255, 184, 0, 0.22);
   --ve-color-soft: #000000;
-  --ve-color-surface: rgba(255, 255, 255, 0.06);
+  --ve-color-surface: #12182b;
+  --ve-font-sans: "Open Sans", "Segoe UI", sans-serif;
 }

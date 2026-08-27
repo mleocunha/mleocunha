@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\Branding;
 
+use RelataSoft\SecureElectionSuite\Admin\Brand;
 use RelataSoft\SecureElectionSuite\Painel\Application\Branding\LoginBrandingService;
 use RelataSoft\SecureElectionSuite\Painel\Contracts\Platform\AssetProvider;
 use RelataSoft\SecureElectionSuite\Frontend\JourneySettings;
@@ -23,7 +24,22 @@ final class WordPressLoginBranding {
 		add_filter( 'login_headertext', array( self::class, 'headerText' ) );
 		add_filter( 'login_body_class', array( self::class, 'bodyClass' ) );
 		add_action( 'login_footer', array( self::class, 'footerNote' ) );
+		add_action( 'login_footer', array( self::class, 'signatureMark' ), 20 );
 		add_filter( 'gettext', array( self::class, 'filterLabels' ), 20, 3 );
+	}
+
+	/**
+	 * Lockup completo no topo (custom attachment ou RelataSoft + slogan).
+	 */
+	public static function lockupUrl(): string {
+		$custom_id = absint( JourneySettings::rses_get()['login_logo_attachment_id'] ?? 0 );
+		if ( $custom_id > 0 ) {
+			$custom = wp_get_attachment_image_url( $custom_id, 'full' );
+			if ( is_string( $custom ) && '' !== $custom ) {
+				return $custom;
+			}
+		}
+		return Brand::rses_get_admin_logo_url();
 	}
 
 	public static function enqueue(): void {
@@ -31,10 +47,10 @@ final class WordPressLoginBranding {
 			return;
 		}
 		self::$assets->enqueueLoginBranding();
-		$logo = JourneySettings::rses_get_login_logo_url();
-		$css  = sprintf(
-			'#login h1 a{background-image:url(%s)!important;background-color:transparent!important;background-size:contain!important;width:140px!important;height:140px!important;margin:0 auto 1.25rem!important;box-shadow:none!important;}',
-			esc_url( $logo )
+		$lockup = self::lockupUrl();
+		$css    = sprintf(
+			'#login h1 a{background-image:url(%s)!important;background-color:transparent!important;background-size:contain!important;width:min(20.2rem,100%%)!important;height:5.25rem!important;margin:0 auto 1.75rem!important;box-shadow:none!important;}',
+			esc_url( $lockup )
 		);
 		wp_add_inline_style( 've-painel-login', $css );
 	}
@@ -68,6 +84,19 @@ final class WordPressLoginBranding {
 			return;
 		}
 		echo '<p class="ve-painel-login-footnote">' . esc_html( self::$service->productName() ) . '</p>';
+	}
+
+	/**
+	 * Roda de Fogo pequena — assinatura de qualidade no canto inferior direito.
+	 */
+	public static function signatureMark(): void {
+		if ( ! self::$service || ! self::$service->isEnabled() ) {
+			return;
+		}
+		$url = Brand::rses_asset_url( Brand::RSES_DEFAULT_MARK );
+		echo '<div class="ve-login-signature" aria-hidden="true">';
+		echo '<img src="' . esc_url( $url ) . '" width="36" height="36" alt="" decoding="async" />';
+		echo '</div>';
 	}
 
 	public static function filterLabels( $translation, $text = '', $domain = 'default' ) {
