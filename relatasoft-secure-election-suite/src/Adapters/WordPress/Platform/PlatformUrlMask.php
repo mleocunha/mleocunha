@@ -41,6 +41,8 @@ final class PlatformUrlMask {
 		add_filter( 'wp_redirect', array( self::class, 'filterRedirect' ), 100 );
 		add_filter( 'user_request_action_email_content', array( self::class, 'filterEmailContent' ), 100 );
 		add_filter( 'retrieve_password_message', array( self::class, 'filterEmailContent' ), 100 );
+		add_filter( 'login_redirect', array( self::class, 'filterLoginRedirect' ), 100, 3 );
+		add_action( 'login_init', array( self::class, 'forceLoginFormAction' ), 1 );
 
 		// Plugin load may happen during plugins_loaded — enforce mask on this request too.
 		self::bootstrapRequest();
@@ -167,8 +169,11 @@ final class PlatformUrlMask {
 		$files = glob( trailingslashit( $wp_admin ) . '*.php' ) ?: array();
 		foreach ( $files as $file ) {
 			$base = basename( $file );
+			if ( ! preg_match( '/^[a-z0-9_-]+\.php$/i', $base ) ) {
+				continue;
+			}
 			$stub = "<?php\n/** Voto Eletrônico — alias de gestão (não editar). */\n"
-				. "require dirname( __DIR__ ) . '/wp-admin/' . " . var_export( $base, true ) . ";\n";
+				. "require dirname( __DIR__ ) . '/wp-admin/{$base}';\n";
 			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
 			file_put_contents( $link . '/' . $base, $stub );
 		}
@@ -226,6 +231,9 @@ final class PlatformUrlMask {
 
 	/**
 	 * Block classic WP entry URLs; allow masked login stub.
+	 *
+	 * Important: never 404 POST to wp-login.php — the login form (or an old
+	 * bookmark) may still post there; denying it makes valid credentials fail.
 	 */
 	public static function bootstrapRequest(): void {
 		if ( ! self::enabled() || ( defined( 'WP_CLI' ) && WP_CLI ) ) {
@@ -234,6 +242,7 @@ final class PlatformUrlMask {
 
 		$uri  = isset( $_SERVER['REQUEST_URI'] ) ? (string) $_SERVER['REQUEST_URI'] : '';
 		$path = UrlMaskConfig::requestPath( $uri );
+		$method = strtoupper( (string) ( $_SERVER['REQUEST_METHOD'] ?? 'GET' ) );
 
 		// Login via stub id.php — branding treats it as login screen.
 		if ( defined( UrlMaskConfig::LOGIN_ENTRY_CONSTANT ) && constant( UrlMaskConfig::LOGIN_ENTRY_CONSTANT ) ) {
@@ -243,6 +252,20 @@ final class PlatformUrlMask {
 		}
 
 		if ( UrlMaskConfig::isWpLoginPath( $path ) ) {
+			// Allow authentication POST (and other login actions) to complete.
+			if ( 'POST' === $method ) {
+				return;
+			}
+			// GET/HEAD: send humans to the public identification URL.
+			if ( function_exists( 'wp_safe_redirect' ) && function_exists( 'home_url' ) ) {
+				$target = home_url( '/' . ltrim( self::loginPath(), '/' ) );
+				$query  = parse_url( $uri, PHP_URL_QUERY );
+				if ( is_string( $query ) && $query !== '' ) {
+					$target .= ( str_contains( $target, '?' ) ? '&' : '?' ) . $query;
+				}
+				wp_safe_redirect( $target, 302 );
+				exit;
+			}
 			self::denyAsNotFound();
 		}
 
@@ -263,6 +286,73 @@ final class PlatformUrlMask {
 			}
 			self::denyAsNotFound();
 		}
+	}
+
+	/**
+	 * Ensure post-login landing uses /painel, not /wp-admin.
+	 *
+	 * @param string             $redirect_to           Target.
+	 * @param string             $requested_redirect_to Requested target.
+	 * @param \WP_User|\WP_Error $user                  User or error.
+	 */
+	public static function filterLoginRedirect( string $redirect_to, string $requested_redirect_to, $user ): string {
+		unset( $requested_redirect_to );
+		if ( ! self::enabled() ) {
+			return $redirect_to;
+		}
+		if ( is_wp_error( $user ) ) {
+			return $redirect_to;
+		}
+		$fallback = admin_url( 'admin.php?page=rses-dashboard' );
+		if ( '' === $redirect_to || str_contains( $redirect_to, 'wp-admin' ) || str_contains( $redirect_to, 'wp-login.php' ) ) {
+			return $fallback;
+		}
+		return UrlMaskConfig::maskAdminUrl( $redirect_to, self::adminPath() );
+	}
+
+	/**
+	 * Force the HTML form action to /id.php (belt-and-suspenders with site_url).
+	 */
+	public static function forceLoginFormAction(): void {
+		if ( ! self::enabled() ) {
+			return;
+		}
+		add_filter(
+			'site_url',
+			static function ( string $url, $path = '', $scheme = null ) {
+				if ( ! is_string( $path ) ) {
+					return $url;
+				}
+				if ( str_contains( $path, 'wp-login.php' ) || str_contains( $url, 'wp-login.php' ) ) {
+					return UrlMaskConfig::maskLoginUrl( $url, PlatformUrlMask::loginPath() );
+				}
+				return $url;
+			},
+			1,
+			3
+		);
+		// Late output tweak if core printed an unfiltered action.
+		ob_start(
+			static function ( string $html ): string {
+				$login = PlatformUrlMask::loginPath();
+				$home  = untrailingslashit( home_url( '/' ) );
+				$repl  = esc_url( $home . '/' . ltrim( $login, '/' ) );
+				return (string) preg_replace(
+					'#action=(["\'])[^"\']*wp-login\.php[^"\']*\1#i',
+					'action=' . $repl,
+					$html
+				);
+			}
+		);
+		add_action(
+			'login_footer',
+			static function (): void {
+				if ( ob_get_level() > 0 ) {
+					ob_end_flush();
+				}
+			},
+			9999
+		);
 	}
 
 	public static function filterAdminUrl( string $url, string $path = '', ?int $blog_id = null ): string {
