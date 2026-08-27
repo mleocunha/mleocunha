@@ -389,20 +389,18 @@ final class PlatformUrlMask {
 	}
 
 	/**
-	 * Soft-handle classic URLs once the /painel gateway is ready.
+	 * Soft-handle classic URLs once the public disguise is ready.
 	 *
-	 * Typing /wp-admin must stop working (404) — except static assets and a few
-	 * async endpoints still referenced by core. Recovery while the gateway is
-	 * incomplete still allows classic /wp-admin.
+	 * Typing /wp-admin or /wp-login.php must stop working (404) — no redirect that
+	 * maps the disguise. /id.php and /painel stubs set VE_* constants and stay open.
 	 */
 	public static function bootstrapRequest(): void {
 		if ( ! self::enabled() || ( defined( 'WP_CLI' ) && WP_CLI ) ) {
 			return;
 		}
 
-		$uri    = isset( $_SERVER['REQUEST_URI'] ) ? (string) $_SERVER['REQUEST_URI'] : '';
-		$path   = UrlMaskConfig::requestPath( $uri );
-		$method = strtoupper( (string) ( $_SERVER['REQUEST_METHOD'] ?? 'GET' ) );
+		$uri  = isset( $_SERVER['REQUEST_URI'] ) ? (string) $_SERVER['REQUEST_URI'] : '';
+		$path = UrlMaskConfig::requestPath( $uri );
 
 		if ( defined( UrlMaskConfig::LOGIN_ENTRY_CONSTANT ) && constant( UrlMaskConfig::LOGIN_ENTRY_CONSTANT ) ) {
 			global $pagenow;
@@ -410,24 +408,12 @@ final class PlatformUrlMask {
 			return;
 		}
 
-		if ( UrlMaskConfig::isWpLoginPath( $path ) ) {
-			// Allow credential POST on classic path (plugins / recovery); rewrite GETs to /id.php.
-			if ( 'POST' === $method ) {
-				return;
-			}
-			if ( function_exists( 'wp_safe_redirect' ) && function_exists( 'home_url' ) ) {
-				$target = home_url( '/' . ltrim( self::loginPath(), '/' ) );
-				$query  = parse_url( $uri, PHP_URL_QUERY );
-				if ( is_string( $query ) && $query !== '' ) {
-					$target .= ( str_contains( $target, '?' ) ? '&' : '?' ) . $query;
-				}
-				wp_safe_redirect( $target, 302 );
-				exit;
-			}
-			return;
+		// Public /wp-login.php → 404 once /id.php exists (do not redirect to /id.php).
+		if ( UrlMaskConfig::isWpLoginPath( $path ) && self::loginStubReady() ) {
+			self::denyAsNotFound();
 		}
 
-		// Public /wp-admin must go dark once /painel is ready (no redirect that maps the disguise).
+		// Public /wp-admin must go dark once /painel is ready.
 		if ( UrlMaskConfig::isWpAdminPath( $path )
 			&& self::adminUrlMaskReady()
 			&& ! ( defined( 'VE_ADMIN_ENTRY' ) && VE_ADMIN_ENTRY )
@@ -436,6 +422,22 @@ final class PlatformUrlMask {
 		) {
 			self::denyAsNotFound();
 		}
+	}
+
+	/**
+	 * Whether the public login stub (id.php) is in place.
+	 */
+	public static function loginStubReady(): bool {
+		if ( ! defined( 'ABSPATH' ) ) {
+			return false;
+		}
+		$login  = self::loginPath();
+		$target = trailingslashit( ABSPATH ) . ltrim( $login, '/' );
+		if ( ! is_readable( $target ) ) {
+			return false;
+		}
+		$existing = (string) file_get_contents( $target );
+		return str_contains( $existing, UrlMaskConfig::LOGIN_ENTRY_CONSTANT );
 	}
 
 	private static function denyAsNotFound(): void {

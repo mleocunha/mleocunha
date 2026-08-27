@@ -167,28 +167,40 @@ function ve_painel_mu_filter_redirect( $location ) {
 ve_painel_mu_ensure_gateway();
 
 /**
- * When /painel is ready, classic /wp-admin must not answer (404) — except assets/async.
+ * When disguise stubs exist, classic /wp-admin and /wp-login.php must 404
+ * (no redirect that maps them to /painel or /id.php).
  */
-function ve_painel_mu_block_classic_admin(): void {
+function ve_painel_mu_block_classic_surfaces(): void {
 	if ( defined( 'WP_CLI' ) && WP_CLI ) {
 		return;
 	}
-	if ( defined( 'VE_ADMIN_ENTRY' ) && VE_ADMIN_ENTRY ) {
+	if ( ( defined( 'VE_ADMIN_ENTRY' ) && VE_ADMIN_ENTRY )
+		|| ( defined( 'VE_LOGIN_ENTRY' ) && VE_LOGIN_ENTRY )
+	) {
 		return;
 	}
+	if ( ! defined( 'ABSPATH' ) ) {
+		return;
+	}
+
 	$uri  = isset( $_SERVER['REQUEST_URI'] ) ? (string) $_SERVER['REQUEST_URI'] : '';
 	$path = parse_url( $uri, PHP_URL_PATH );
 	$path = is_string( $path ) ? rawurldecode( $path ) : '';
-	if ( ! preg_match( '#(^|/)wp-admin(/|$)#', $path ) ) {
-		return;
+
+	$login_ready = is_readable( trailingslashit( ABSPATH ) . 'id.php' );
+	$admin_ready = is_readable( trailingslashit( ABSPATH ) . 'painel/admin.php' );
+
+	if ( $login_ready && preg_match( '#(^|/)wp-login\.php$#', $path ) ) {
+		ve_painel_mu_send_404();
 	}
-	if ( ! defined( 'ABSPATH' ) || ! is_readable( trailingslashit( ABSPATH ) . 'painel/admin.php' ) ) {
+
+	if ( ! $admin_ready || ! preg_match( '#(^|/)wp-admin(/|$)#', $path ) ) {
 		return;
 	}
 	if ( preg_match( '/\.(css|js|map|png|jpe?g|gif|svg|webp|woff2?|ttf|eot|ico)(\?|$)/i', $path ) ) {
 		return;
 	}
-	$base = strtolower( basename( $path ) );
+	$base  = strtolower( basename( $path ) );
 	$allow = array(
 		'admin-ajax.php',
 		'admin-post.php',
@@ -199,6 +211,13 @@ function ve_painel_mu_block_classic_admin(): void {
 	if ( in_array( $base, $allow, true ) ) {
 		return;
 	}
+	ve_painel_mu_send_404();
+}
+
+/**
+ * Emit a blank 404 and stop.
+ */
+function ve_painel_mu_send_404(): void {
 	if ( function_exists( 'status_header' ) ) {
 		status_header( 404 );
 	} else {
@@ -213,8 +232,8 @@ function ve_painel_mu_block_classic_admin(): void {
 	exit;
 }
 
-add_action( 'muplugins_loaded', 've_painel_mu_block_classic_admin', 0 );
-add_action( 'plugins_loaded', 've_painel_mu_block_classic_admin', 0 );
+add_action( 'muplugins_loaded', 've_painel_mu_block_classic_surfaces', 0 );
+add_action( 'plugins_loaded', 've_painel_mu_block_classic_surfaces', 0 );
 
 add_action( 'set_auth_cookie', 've_painel_mu_mirror_auth_cookie', 10, 6 );
 add_action( 'clear_auth_cookie', 've_painel_mu_clear_auth_cookie', 10 );
