@@ -55,9 +55,9 @@ final class NavigationService {
 			);
 			$this->registry->register(
 				new MenuItem(
-					id: 'users-registry',
-					title: 'Cadastro de Usuários',
-					slug: 'rses-users-registry',
+					id: 'electoral-roll',
+					title: 'Cadastro Eleitoral',
+					slug: 'rses-electoral-roll',
 					parentId: 'home',
 					priority: 12,
 					visibleForPermissions: array( AccessPolicy::PERM_KEYS_MANAGE ),
@@ -85,7 +85,6 @@ final class NavigationService {
 					array( 'shortcodes', 'Shortcodes', 'rses-shortcodes', 30, AccessPolicy::PERM_ELECTIONS_MANAGE ),
 					array( 'redirections', 'Redirecionamentos', 'rses-redirections', 40, AccessPolicy::PERM_ELECTIONS_MANAGE ),
 					array( 'electoral-roll', 'Cadastro Eleitoral', 'rses-electoral-roll', 50, AccessPolicy::PERM_ELECTIONS_MANAGE ),
-					array( 'users-registry', 'Cadastro de Usuários', 'rses-users-registry', 52, AccessPolicy::PERM_ELECTIONS_MANAGE ),
 					array( 'import-authorities', 'Importar Autoridades Eleitorais', 'rses-electoral-authorities', 55, AccessPolicy::PERM_ELECTIONS_MANAGE ),
 					array( 'voting-export', 'Exportação', 'rses-voting-export', 60, AccessPolicy::PERM_ELECTIONS_MANAGE ),
 				) as $row
@@ -108,7 +107,7 @@ final class NavigationService {
 			foreach (
 				array(
 					array( 'tally-import', 'Importação / Apuração', 'rses-tally-import', 10, AccessPolicy::PERM_TALLY_MANAGE ),
-					array( 'users-registry', 'Cadastro de Usuários', 'rses-users-registry', 12, AccessPolicy::PERM_TALLY_MANAGE ),
+					array( 'electoral-roll', 'Cadastro Eleitoral', 'rses-electoral-roll', 12, AccessPolicy::PERM_TALLY_MANAGE ),
 					array( 'import-authorities', 'Importar Autoridades Eleitorais', 'rses-electoral-authorities', 15, AccessPolicy::PERM_TALLY_MANAGE ),
 					array( 'share-submission', 'Submissão de Parcelas', 'rses-share-submission', 20, AccessPolicy::PERM_PARCELAS_OWN ),
 					array( 'certification', 'Certificação', 'rses-certification', 30, AccessPolicy::PERM_TALLY_MANAGE ),
@@ -191,6 +190,17 @@ final class NavigationService {
 				parentId: 'home',
 				priority: 110,
 				visibleForPermissions: array( AccessPolicy::PERM_AUDIT_VIEW ),
+				mode: 'any',
+			)
+		);
+		$this->registry->register(
+			new MenuItem(
+				id: 'knowledge',
+				title: 'Conhecimento',
+				slug: 'rses-knowledge',
+				parentId: 'home',
+				priority: 115,
+				visibleForPermissions: array( AccessPolicy::PERM_KNOWLEDGE_VIEW ),
 				mode: 'any',
 			)
 		);

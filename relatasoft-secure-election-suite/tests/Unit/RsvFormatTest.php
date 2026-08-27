@@ -46,6 +46,15 @@ final class RsvFormatTest extends TestCase {
 		$this->assertNull( RsvFormat::mapRole( 'desconhecido' ) );
 	}
 
+	public function test_reverse_role(): void {
+		$this->assertSame( 'eleitor', RsvFormat::reverseRole( 'subscriber' ) );
+		$this->assertSame( 'auditor', RsvFormat::reverseRole( 've_auditor' ) );
+		$this->assertSame( 'autoridade', RsvFormat::reverseRole( 'editor' ) );
+		$this->assertSame( 'administrador', RsvFormat::reverseRole( 'administrator' ) );
+		$this->assertSame( 'gestor', RsvFormat::reverseRole( 've_gestor' ) );
+		$this->assertSame( '', RsvFormat::reverseRole( 'author' ) );
+	}
+
 	public function test_adaptive_chunk_respects_ceiling_and_cap(): void {
 		$this->assertSame( 256 * 1024, RsvFormat::adaptiveChunkBytes( 0 ) );
 		$this->assertLessThanOrEqual( 1024 * 1024, RsvFormat::adaptiveChunkBytes( 50 * 1024 * 1024 ) );

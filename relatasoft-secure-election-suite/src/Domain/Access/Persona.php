@@ -10,13 +10,15 @@ enum Persona: string {
 	case Gestor = 'gestor';
 	case AdministradorEleitoral = 'administrador_eleitoral';
 	case AutoridadeEleitoral = 'autoridade_eleitoral';
+	case Auditor = 'auditor';
 	case Eleitor = 'eleitor';
 
 	public function labelPt(): string {
 		return match ( $this ) {
-			self::Gestor => 'Gestor Voto Eletrônico',
+			self::Gestor => 'Gestor pelo Cliente',
 			self::AdministradorEleitoral => 'Administrador Eleitoral',
 			self::AutoridadeEleitoral => 'Autoridade Eleitoral',
+			self::Auditor => 'Auditor',
 			self::Eleitor => 'Eleitor',
 		};
 	}

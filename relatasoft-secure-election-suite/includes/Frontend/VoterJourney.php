@@ -397,6 +397,9 @@ class VoterJourney {
 			? absint( $_GET['round_id'] )
 			: 0;
 		$rses_welcome     = JourneySettings::rses_page_url( 'welcome_page_id' );
+		$rses_audio_url   = $rses_round_id > 0
+			? \RelataSoft\SecureElectionSuite\Voting\ElectionController::rses_get_round_end_audio_url( $rses_round_id )
+			: '';
 
 		ob_start();
 		?>
@@ -407,6 +410,9 @@ class VoterJourney {
 			data-rses-round-id="<?php echo esc_attr( (string) $rses_round_id ); ?>"
 			<?php echo Translator::rses_html_attrs(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
 		>
+			<?php if ( '' !== $rses_audio_url ) : ?>
+				<audio class="rses-round-end-audio" autoplay preload="auto" src="<?php echo esc_url( $rses_audio_url ); ?>"></audio>
+			<?php endif; ?>
 			<div class="rses-journey-card">
 				<p class="rses-journey-kicker"><?php esc_html_e( 'Vote recorded', 'relatasoft-secure-election-suite' ); ?></p>
 				<h2 class="rses-journey-title"><?php esc_html_e( 'Thank you for participating', 'relatasoft-secure-election-suite' ); ?></h2>

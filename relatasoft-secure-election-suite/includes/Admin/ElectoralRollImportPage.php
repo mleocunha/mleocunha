@@ -11,15 +11,18 @@ use RelataSoft\SecureElectionSuite\Bootstrap\ModeLock;
 use RelataSoft\SecureElectionSuite\Bootstrap\Plugin;
 use RelataSoft\SecureElectionSuite\I18n\RoleLabels;
 use RelataSoft\SecureElectionSuite\I18n\Translator;
+use RelataSoft\SecureElectionSuite\Painel\Domain\ElectoralRoll\RsvFormat;
 use RelataSoft\SecureElectionSuite\Security\Capability;
 use RelataSoft\SecureElectionSuite\Security\Nonce;
+use RelataSoft\SecureElectionSuite\Voting\ElectoralRollExportJob;
+use RelataSoft\SecureElectionSuite\Voting\ElectoralRollExportService;
 use RelataSoft\SecureElectionSuite\Voting\ElectoralRollImportJob;
 use RelataSoft\SecureElectionSuite\Voting\ElectoralRollImportService;
 
 defined( 'ABSPATH' ) || exit;
 
 /**
- * Electoral roll CSV import screen (Voting Platform).
+ * Cadastro Eleitoral — listagem/criação + import/export .rsv (voting).
  */
 class ElectoralRollImportPage {
 
@@ -33,6 +36,7 @@ class ElectoralRollImportPage {
 		add_action( 'admin_post_rses_import_electoral_roll', array( self::class, 'rses_handle_import' ) );
 		add_action( 'admin_post_rses_download_electoral_roll_sample', array( self::class, 'rses_handle_sample' ) );
 		add_action( 'admin_post_rses_download_electoral_roll_errors', array( self::class, 'rses_handle_errors_download' ) );
+		add_action( 'admin_post_rses_download_electoral_roll_export', array( self::class, 'rses_handle_export_download' ) );
 
 		add_action( 'wp_ajax_rses_electoral_roll_init', array( self::class, 'rses_ajax_init' ) );
 		add_action( 'wp_ajax_rses_electoral_roll_chunk', array( self::class, 'rses_ajax_chunk' ) );
@@ -42,11 +46,18 @@ class ElectoralRollImportPage {
 		add_action( 'wp_ajax_rses_electoral_roll_status', array( self::class, 'rses_ajax_status' ) );
 		add_action( 'wp_ajax_rses_electoral_roll_cancel', array( self::class, 'rses_ajax_cancel' ) );
 
+		add_action( 'wp_ajax_rses_electoral_roll_export_init', array( self::class, 'rses_ajax_export_init' ) );
+		add_action( 'wp_ajax_rses_electoral_roll_export_tick', array( self::class, 'rses_ajax_export_tick' ) );
+		add_action( 'wp_ajax_rses_electoral_roll_export_status', array( self::class, 'rses_ajax_export_status' ) );
+		add_action( 'wp_ajax_rses_electoral_roll_export_cancel', array( self::class, 'rses_ajax_export_cancel' ) );
+		add_action( 'wp_ajax_rses_electoral_roll_export_estimate', array( self::class, 'rses_ajax_export_estimate' ) );
+
 		// admin_init passes '' into callbacks — do not bind the typed method directly.
 		add_action(
 			'admin_init',
 			static function (): void {
 				ElectoralRollImportJob::rses_purge_if_expired();
+				ElectoralRollExportJob::rses_purge_if_expired();
 			}
 		);
 	}
@@ -88,21 +99,21 @@ class ElectoralRollImportPage {
 			case UPLOAD_ERR_FORM_SIZE:
 				return sprintf(
 					/* translators: %s: max size label */
-					__( 'The CSV exceeds the server upload limit (%s). Try again — the importer will send the file in smaller chunks.', 'relatasoft-secure-election-suite' ),
+					__( 'O ficheiro RSV excede o limite de upload do servidor (%s). Tente novamente — o importador enviará em pedaços menores.', 'relatasoft-secure-election-suite' ),
 					size_format( self::rses_php_upload_ceiling() ?: ElectoralRollImportJob::MAX_UPLOAD_BYTES )
 				);
 			case UPLOAD_ERR_PARTIAL:
-				return __( 'The CSV upload was only partially received. Please try again.', 'relatasoft-secure-election-suite' );
+				return __( 'O upload do RSV foi recebido apenas parcialmente. Tente novamente.', 'relatasoft-secure-election-suite' );
 			case UPLOAD_ERR_NO_FILE:
-				return __( 'No CSV file uploaded.', 'relatasoft-secure-election-suite' );
+				return __( 'Nenhum ficheiro RSV enviado.', 'relatasoft-secure-election-suite' );
 			case UPLOAD_ERR_NO_TMP_DIR:
-				return __( 'Server temporary folder is missing; contact the host.', 'relatasoft-secure-election-suite' );
+				return __( 'Pasta temporária do servidor em falta; contacte o alojamento.', 'relatasoft-secure-election-suite' );
 			case UPLOAD_ERR_CANT_WRITE:
-				return __( 'Server could not write the uploaded CSV to disk.', 'relatasoft-secure-election-suite' );
+				return __( 'O servidor não conseguiu gravar o RSV no disco.', 'relatasoft-secure-election-suite' );
 			case UPLOAD_ERR_EXTENSION:
-				return __( 'A PHP extension blocked the CSV upload.', 'relatasoft-secure-election-suite' );
+				return __( 'Uma extensão PHP bloqueou o upload do RSV.', 'relatasoft-secure-election-suite' );
 			default:
-				return __( 'Invalid upload.', 'relatasoft-secure-election-suite' );
+				return __( 'Upload inválido.', 'relatasoft-secure-election-suite' );
 		}
 	}
 
@@ -305,12 +316,113 @@ class ElectoralRollImportPage {
 	}
 
 	/**
-	 * Render page.
+	 * AJAX: start export job (one WP role + max data lines).
+	 */
+	public static function rses_ajax_export_init(): void {
+		self::rses_ajax_guard();
+		$role  = isset( $_POST['wp_role'] ) ? sanitize_key( wp_unslash( (string) $_POST['wp_role'] ) ) : '';
+		$lines = isset( $_POST['max_lines'] ) ? absint( $_POST['max_lines'] ) : 1000;
+		$job   = ElectoralRollExportJob::rses_create( $role, $lines );
+		if ( is_wp_error( $job ) ) {
+			wp_send_json_error( array( 'message' => $job->get_error_message() ) );
+		}
+		wp_send_json_success( ElectoralRollExportJob::rses_public_status( $job ) );
+	}
+
+	/**
+	 * AJAX: export tick.
+	 */
+	public static function rses_ajax_export_tick(): void {
+		self::rses_ajax_guard();
+		$job = ElectoralRollExportJob::rses_tick();
+		if ( is_wp_error( $job ) ) {
+			wp_send_json_error(
+				array(
+					'message' => $job->get_error_message(),
+					'status'  => ElectoralRollExportJob::rses_public_status( ElectoralRollExportJob::rses_get() ),
+				)
+			);
+		}
+		wp_send_json_success( ElectoralRollExportJob::rses_public_status( $job ) );
+	}
+
+	/**
+	 * AJAX: export status.
+	 */
+	public static function rses_ajax_export_status(): void {
+		self::rses_ajax_guard();
+		wp_send_json_success( ElectoralRollExportJob::rses_public_status( ElectoralRollExportJob::rses_get() ) );
+	}
+
+	/**
+	 * AJAX: cancel export.
+	 */
+	public static function rses_ajax_export_cancel(): void {
+		self::rses_ajax_guard();
+		$job = ElectoralRollExportJob::rses_cancel();
+		wp_send_json_success( ElectoralRollExportJob::rses_public_status( $job ) );
+	}
+
+	/**
+	 * AJAX: estimate export bytes.
+	 */
+	public static function rses_ajax_export_estimate(): void {
+		self::rses_ajax_guard();
+		$lines = isset( $_POST['max_lines'] ) ? absint( $_POST['max_lines'] ) : 0;
+		$role  = isset( $_POST['wp_role'] ) ? sanitize_key( wp_unslash( (string) $_POST['wp_role'] ) ) : '';
+		$bytes = ElectoralRollExportService::rses_estimate_bytes( $lines );
+		$count = '' !== $role ? ElectoralRollExportService::rses_count_role( $role ) : 0;
+		wp_send_json_success(
+			array(
+				'estimated_bytes' => $bytes,
+				'estimated_label' => size_format( $bytes ),
+				'role_count'      => $count,
+			)
+		);
+	}
+
+	/**
+	 * Download completed export RSV.
+	 */
+	public static function rses_handle_export_download(): void {
+		Capability::rses_require_admin();
+		ModeLock::rses_require_mode( ModeLock::RSES_MODE_VOTING );
+		Nonce::rses_verify_or_die( Nonce::RSES_ACTION_ELECTORAL_ROLL_SAMPLE );
+
+		$job  = ElectoralRollExportJob::rses_get();
+		$path = ElectoralRollExportJob::rses_download_path( $job );
+		if ( null === $path || ! $job ) {
+			wp_die( esc_html__( 'Nenhuma exportação .rsv pronta para descarga.', 'relatasoft-secure-election-suite' ) );
+		}
+
+		$filename = sanitize_file_name( (string) ( $job['original_name'] ?? 'cadastro.rsv' ) );
+		$size     = filesize( $path );
+
+		nocache_headers();
+		header( 'Content-Type: text/plain; charset=utf-8' );
+		header( 'Content-Disposition: attachment; filename="' . $filename . '"' );
+		if ( false !== $size ) {
+			header( 'Content-Length: ' . (string) $size );
+		}
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_readfile
+		readfile( $path );
+		exit;
+	}
+
+	/**
+	 * Render page (all modes with the menu). Import/export AJAX remain voting-only.
 	 */
 	public static function rses_render(): void {
 		Capability::rses_require_admin();
-		ModeLock::rses_require_mode( ModeLock::RSES_MODE_VOTING );
-		Plugin::rses_enqueue_electoral_roll_script();
+		if ( ! ModeLock::rses_has_mode() ) {
+			echo '<div class="wrap rses-wrap"><p>' . esc_html__( 'Defina o modo de operação antes de gerir o cadastro eleitoral.', 'relatasoft-secure-election-suite' ) . '</p></div>';
+			return;
+		}
+
+		$is_voting = ModeLock::rses_is_mode( ModeLock::RSES_MODE_VOTING );
+		if ( $is_voting ) {
+			Plugin::rses_enqueue_electoral_roll_script();
+		}
 
 		$electors    = RoleLabels::rses_elector_plural();
 		$headers     = ElectoralRollImportService::rses_expected_headers();
@@ -322,28 +434,37 @@ class ElectoralRollImportPage {
 			$errors = is_array( $raw ) ? $raw : array();
 		}
 
-		$active_job = ElectoralRollImportJob::rses_public_status( ElectoralRollImportJob::rses_get() );
-		$max_label  = number_format_i18n( ElectoralRollImportService::MAX_ROWS );
-		$max_size   = size_format( ElectoralRollImportJob::MAX_UPLOAD_BYTES );
+		$active_job  = ElectoralRollImportJob::rses_public_status( ElectoralRollImportJob::rses_get() );
+		$export_job  = ElectoralRollExportJob::rses_public_status( ElectoralRollExportJob::rses_get() );
+		$max_label   = number_format_i18n( ElectoralRollImportService::MAX_ROWS );
+		$max_size    = size_format( ElectoralRollImportJob::MAX_UPLOAD_BYTES );
+		$php_ceiling = self::rses_php_upload_ceiling();
+		$chunk_bytes = RsvFormat::adaptiveChunkBytes( $php_ceiling );
+		$export_roles = ElectoralRollExportService::rses_exportable_roles();
 		?>
 		<div class="wrap rses-wrap rses-screen rses-electoral-roll" <?php echo Translator::rses_html_attrs(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
 			<header class="rses-hero rses-hero--brand">
 				<?php Brand::rses_render_hero_brand(); ?>
-				<p class="rses-hero-kicker"><?php esc_html_e( 'Voting Platform', 'relatasoft-secure-election-suite' ); ?></p>
-				<h1 class="rses-hero-title"><?php esc_html_e( 'Electoral roll import', 'relatasoft-secure-election-suite' ); ?></h1>
+				<p class="rses-hero-kicker"><?php esc_html_e( 'Acessos do sistema', 'relatasoft-secure-election-suite' ); ?></p>
+				<h1 class="rses-hero-title"><?php esc_html_e( 'Cadastro Eleitoral', 'relatasoft-secure-election-suite' ); ?></h1>
 				<p class="rses-hero-lead">
 					<?php
 					echo esc_html(
-						sprintf(
-							/* translators: %s: electors label */
-							__( 'Import the electoral registration spreadsheet used for %s. Keep the existing columns and add password as the last column on the right. Passwords are accepted as provided, without platform strength checks.', 'relatasoft-secure-election-suite' ),
-							$electors
-						)
+						$is_voting
+							? sprintf(
+								/* translators: %s: electors label */
+								__( 'Liste e crie contas, e importe/exporte o ficheiro .rsv do cadastro usado para %s. No update, senha vazia mantém a senha atual.', 'relatasoft-secure-election-suite' ),
+								$electors
+							)
+							: __( 'Liste e crie contas do Painel neste modo de operação.', 'relatasoft-secure-election-suite' )
 					);
 					?>
 				</p>
 			</header>
 
+			<?php UsersRegistryPage::rses_render_sections(); ?>
+
+			<?php if ( $is_voting ) : ?>
 			<div id="rses-electoral-result" class="rses-electoral-result" <?php echo empty( $_GET['rses_import_done'] ) ? 'hidden' : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended ?>>
 				<?php if ( ! empty( $_GET['rses_import_done'] ) ) : // phpcs:ignore WordPress.Security.NonceVerification.Recommended ?>
 					<?php
@@ -358,7 +479,7 @@ class ElectoralRollImportPage {
 							echo esc_html(
 								sprintf(
 									/* translators: 1: created 2: updated 3: skipped 4: error count */
-									__( 'Electoral roll import finished. Created: %1$d. Updated: %2$d. Skipped: %3$d. Errors: %4$d.', 'relatasoft-secure-election-suite' ),
+									__( 'Importação do cadastro eleitoral concluída. Criados: %1$d. Atualizados: %2$d. Ignorados: %3$d. Erros: %4$d.', 'relatasoft-secure-election-suite' ),
 									$created,
 									$updated,
 									$skipped,
@@ -378,14 +499,14 @@ class ElectoralRollImportPage {
 			<div id="rses-electoral-errors-live" class="rses-electoral-errors-live" <?php echo empty( $errors ) ? 'hidden' : ''; ?>>
 				<section class="rses-panel rses-panel-card rses-electoral-errors">
 					<div class="rses-panel-header">
-						<h2 class="rses-panel-title"><?php esc_html_e( 'Import errors', 'relatasoft-secure-election-suite' ); ?></h2>
+						<h2 class="rses-panel-title"><?php esc_html_e( 'Erros de importação', 'relatasoft-secure-election-suite' ); ?></h2>
 						<p class="rses-panel-desc" id="rses-electoral-errors-desc">
 							<?php
 							if ( ! empty( $errors ) ) {
 								echo esc_html(
 									sprintf(
 										/* translators: %d: error count */
-										__( '%d issue(s) were reported. Review the table below or download the error CSV.', 'relatasoft-secure-election-suite' ),
+										__( '%d problema(s) reportado(s). Reveja a tabela ou descarregue o relatório RSV.', 'relatasoft-secure-election-suite' ),
 										count( $errors )
 									)
 								);
@@ -395,7 +516,7 @@ class ElectoralRollImportPage {
 					</div>
 					<p>
 						<a class="button" id="rses-electoral-errors-download" href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=rses_download_electoral_roll_errors' ), Nonce::RSES_ACTION_ELECTORAL_ROLL_ERRORS, '_rses_nonce' ) ); ?>">
-							<?php esc_html_e( 'Download error report CSV', 'relatasoft-secure-election-suite' ); ?>
+							<?php esc_html_e( 'Descarregar relatório de erros (.rsv)', 'relatasoft-secure-election-suite' ); ?>
 						</a>
 					</p>
 					<div class="rses-security-table-scroll rses-electoral-errors-scroll">
@@ -403,7 +524,7 @@ class ElectoralRollImportPage {
 							<thead>
 								<tr>
 									<th style="width:4rem"><?php esc_html_e( '#', 'relatasoft-secure-election-suite' ); ?></th>
-									<th><?php esc_html_e( 'Message', 'relatasoft-secure-election-suite' ); ?></th>
+									<th><?php esc_html_e( 'Mensagem', 'relatasoft-secure-election-suite' ); ?></th>
 								</tr>
 							</thead>
 							<tbody id="rses-electoral-errors-body">
@@ -422,30 +543,30 @@ class ElectoralRollImportPage {
 			<div class="rses-electoral-layout">
 				<section class="rses-panel rses-panel-card rses-electoral-model">
 					<header class="rses-panel-header">
-						<p class="rses-panel-kicker"><?php esc_html_e( 'Template', 'relatasoft-secure-election-suite' ); ?></p>
-						<h2 class="rses-panel-title"><?php esc_html_e( 'Spreadsheet model', 'relatasoft-secure-election-suite' ); ?></h2>
+						<p class="rses-panel-kicker"><?php esc_html_e( 'Modelo', 'relatasoft-secure-election-suite' ); ?></p>
+						<h2 class="rses-panel-title"><?php esc_html_e( 'Ficheiro modelo .rsv', 'relatasoft-secure-election-suite' ); ?></h2>
 						<p class="rses-panel-desc">
-							<?php esc_html_e( 'Compatible with the Brazilian test roll columns (user_login … shipping_postcode). Append password as the rightmost column. Role “customer” is mapped to Electors (subscriber).', 'relatasoft-secure-election-suite' ); ?>
+							<?php esc_html_e( 'Formato RelataSoft Separated Values: campos separados por “:”, séries (e-mails/celulares) por “;”. Vírgulas só em texto livre (ex.: endereço). Papéis: eleitor, auditor, autoridade, administrador, gestor.', 'relatasoft-secure-election-suite' ); ?>
 						</p>
 					</header>
 
 					<ul class="rses-electoral-meta">
 						<li>
-							<span class="rses-electoral-meta-label"><?php esc_html_e( 'Max rows', 'relatasoft-secure-election-suite' ); ?></span>
+							<span class="rses-electoral-meta-label"><?php esc_html_e( 'Máx. linhas', 'relatasoft-secure-election-suite' ); ?></span>
 							<strong><?php echo esc_html( $max_label ); ?></strong>
 						</li>
 						<li>
-							<span class="rses-electoral-meta-label"><?php esc_html_e( 'Max upload', 'relatasoft-secure-election-suite' ); ?></span>
+							<span class="rses-electoral-meta-label"><?php esc_html_e( 'Máx. upload', 'relatasoft-secure-election-suite' ); ?></span>
 							<strong><?php echo esc_html( $max_size ); ?></strong>
 						</li>
 						<li>
-							<span class="rses-electoral-meta-label"><?php esc_html_e( 'Transport', 'relatasoft-secure-election-suite' ); ?></span>
-							<strong><?php esc_html_e( 'Chunked AJAX', 'relatasoft-secure-election-suite' ); ?></strong>
+							<span class="rses-electoral-meta-label"><?php esc_html_e( 'Transporte', 'relatasoft-secure-election-suite' ); ?></span>
+							<strong><?php esc_html_e( 'AJAX em pedaços', 'relatasoft-secure-election-suite' ); ?></strong>
 						</li>
 					</ul>
 
 					<div class="rses-electoral-headers" tabindex="0">
-						<code><?php echo esc_html( implode( ',', $headers ) ); ?></code>
+						<code><?php echo esc_html( implode( RsvFormat::FIELD_SEP, $headers ) ); ?></code>
 					</div>
 
 					<p class="rses-panel-desc">
@@ -453,7 +574,7 @@ class ElectoralRollImportPage {
 						echo esc_html(
 							sprintf(
 								/* translators: %s: localized example filename */
-								__( 'Download %s — one metadata (header) line and 10 example data rows.', 'relatasoft-secure-election-suite' ),
+								__( 'Descarregue %s — uma linha de metadados (cabeçalho) e 10 linhas de exemplo.', 'relatasoft-secure-election-suite' ),
 								$sample_name
 							)
 						);
@@ -465,7 +586,7 @@ class ElectoralRollImportPage {
 							echo esc_html(
 								sprintf(
 									/* translators: %s: localized example filename */
-									__( 'Download %s', 'relatasoft-secure-election-suite' ),
+									__( 'Descarregar %s', 'relatasoft-secure-election-suite' ),
 									$sample_name
 								)
 							);
@@ -476,10 +597,10 @@ class ElectoralRollImportPage {
 
 				<section class="rses-panel rses-panel-card rses-electoral-upload">
 					<header class="rses-panel-header">
-						<p class="rses-panel-kicker"><?php esc_html_e( 'Import', 'relatasoft-secure-election-suite' ); ?></p>
-						<h2 class="rses-panel-title"><?php esc_html_e( 'Upload electoral roll', 'relatasoft-secure-election-suite' ); ?></h2>
+						<p class="rses-panel-kicker"><?php esc_html_e( 'Importar', 'relatasoft-secure-election-suite' ); ?></p>
+						<h2 class="rses-panel-title"><?php esc_html_e( 'Importar .rsv', 'relatasoft-secure-election-suite' ); ?></h2>
 						<p class="rses-panel-desc">
-							<?php esc_html_e( 'Large files are uploaded in chunks and imported in small batches with a live progress bar, so PHP time limits and upload size caps are less likely to interrupt the job.', 'relatasoft-secure-election-suite' ); ?>
+							<?php esc_html_e( 'Ficheiros grandes são enviados em pedaços e importados em lotes com barras de progresso de upload e de importação.', 'relatasoft-secure-election-suite' ); ?>
 						</p>
 					</header>
 
@@ -489,22 +610,31 @@ class ElectoralRollImportPage {
 						<?php echo ! empty( $active_job['active'] ) ? '' : 'hidden'; ?>
 					>
 						<div class="rses-panel rses-panel-info rses-electoral-progress-inner">
-							<p id="rses-electoral-message"><?php echo esc_html( (string) ( $active_job['message'] ?: __( 'Preparing…', 'relatasoft-secure-election-suite' ) ) ); ?></p>
+							<p id="rses-electoral-message"><?php echo esc_html( (string) ( $active_job['message'] ?: __( 'A preparar…', 'relatasoft-secure-election-suite' ) ) ); ?></p>
+							<p class="rses-electoral-progress-label"><?php esc_html_e( 'Upload', 'relatasoft-secure-election-suite' ); ?></p>
 							<div class="rses-progress-bar rses-electoral-bar">
-								<div id="rses-electoral-bar-fill" class="rses-progress-fill" style="width:<?php echo esc_attr( (string) (int) $active_job['progress'] ); ?>%"></div>
+								<div id="rses-electoral-upload-bar-fill" class="rses-progress-fill" style="width:<?php echo esc_attr( (string) (int) ( $active_job['upload_progress'] ?? 0 ) ); ?>%"></div>
 							</div>
 							<p class="rses-electoral-progress-meta">
-								<span id="rses-electoral-percent"><?php echo esc_html( (string) (int) $active_job['progress'] ); ?>%</span>
+								<span id="rses-electoral-upload-percent"><?php echo esc_html( (string) (int) ( $active_job['upload_progress'] ?? 0 ) ); ?>%</span>
+							</p>
+							<p class="rses-electoral-progress-label"><?php esc_html_e( 'Importação', 'relatasoft-secure-election-suite' ); ?></p>
+							<div class="rses-progress-bar rses-electoral-bar">
+								<div id="rses-electoral-import-bar-fill" class="rses-progress-fill" style="width:<?php echo esc_attr( (string) (int) ( $active_job['import_progress'] ?? 0 ) ); ?>%"></div>
+							</div>
+							<p class="rses-electoral-progress-meta">
+								<span id="rses-electoral-import-percent"><?php echo esc_html( (string) (int) ( $active_job['import_progress'] ?? 0 ) ); ?>%</span>
+								— <span id="rses-electoral-percent"><?php echo esc_html( (string) (int) $active_job['progress'] ); ?>%</span>
 								— <span id="rses-electoral-stage"><?php echo esc_html( (string) ( $active_job['stage_label'] ?: $active_job['stage'] ) ); ?></span>
 							</p>
 							<ul class="rses-electoral-counters" aria-live="polite">
-								<li><span><?php esc_html_e( 'Created', 'relatasoft-secure-election-suite' ); ?></span> <strong id="rses-electoral-created"><?php echo esc_html( (string) (int) $active_job['created'] ); ?></strong></li>
-								<li><span><?php esc_html_e( 'Updated', 'relatasoft-secure-election-suite' ); ?></span> <strong id="rses-electoral-updated"><?php echo esc_html( (string) (int) $active_job['updated'] ); ?></strong></li>
-								<li><span><?php esc_html_e( 'Skipped', 'relatasoft-secure-election-suite' ); ?></span> <strong id="rses-electoral-skipped"><?php echo esc_html( (string) (int) $active_job['skipped'] ); ?></strong></li>
-								<li><span><?php esc_html_e( 'Errors', 'relatasoft-secure-election-suite' ); ?></span> <strong id="rses-electoral-error-count"><?php echo esc_html( (string) (int) $active_job['error_count'] ); ?></strong></li>
+								<li><span><?php esc_html_e( 'Criados', 'relatasoft-secure-election-suite' ); ?></span> <strong id="rses-electoral-created"><?php echo esc_html( (string) (int) $active_job['created'] ); ?></strong></li>
+								<li><span><?php esc_html_e( 'Atualizados', 'relatasoft-secure-election-suite' ); ?></span> <strong id="rses-electoral-updated"><?php echo esc_html( (string) (int) $active_job['updated'] ); ?></strong></li>
+								<li><span><?php esc_html_e( 'Ignorados', 'relatasoft-secure-election-suite' ); ?></span> <strong id="rses-electoral-skipped"><?php echo esc_html( (string) (int) $active_job['skipped'] ); ?></strong></li>
+								<li><span><?php esc_html_e( 'Erros', 'relatasoft-secure-election-suite' ); ?></span> <strong id="rses-electoral-error-count"><?php echo esc_html( (string) (int) $active_job['error_count'] ); ?></strong></li>
 							</ul>
 							<p>
-								<button type="button" class="button rses-btn-secondary" id="rses-electoral-cancel"><?php esc_html_e( 'Cancel', 'relatasoft-secure-election-suite' ); ?></button>
+								<button type="button" class="button rses-btn-secondary" id="rses-electoral-cancel"><?php esc_html_e( 'Cancelar', 'relatasoft-secure-election-suite' ); ?></button>
 							</p>
 						</div>
 					</div>
@@ -518,50 +648,96 @@ class ElectoralRollImportPage {
 						data-rses-ajax-url="<?php echo esc_url( admin_url( 'admin-ajax.php' ) ); ?>"
 						data-rses-nonce="<?php echo esc_attr( wp_create_nonce( self::AJAX_NONCE_ACTION ) ); ?>"
 						data-rses-max-bytes="<?php echo esc_attr( (string) ElectoralRollImportJob::MAX_UPLOAD_BYTES ); ?>"
-						data-rses-chunk-bytes="131072"
-						data-rses-php-upload-max="<?php echo esc_attr( (string) self::rses_php_upload_ceiling() ); ?>"
+						data-rses-chunk-bytes="<?php echo esc_attr( (string) $chunk_bytes ); ?>"
+						data-rses-php-upload-max="<?php echo esc_attr( (string) $php_ceiling ); ?>"
 					>
 						<?php Nonce::rses_field( Nonce::RSES_ACTION_ELECTORAL_ROLL_IMPORT ); ?>
 
 						<label class="rses-electoral-dropzone" for="rses_electoral_roll_csv" id="rses-electoral-dropzone">
-							<span class="rses-electoral-dropzone-title"><?php esc_html_e( 'CSV file', 'relatasoft-secure-election-suite' ); ?></span>
-							<span class="rses-electoral-dropzone-hint" id="rses-electoral-file-label"><?php esc_html_e( 'Choose a file or drop it here', 'relatasoft-secure-election-suite' ); ?></span>
-							<input type="file" name="rses_electoral_roll_csv" id="rses_electoral_roll_csv" accept=".csv,text/csv" required />
+							<span class="rses-electoral-dropzone-title"><?php esc_html_e( 'Ficheiro .rsv', 'relatasoft-secure-election-suite' ); ?></span>
+							<span class="rses-electoral-dropzone-hint" id="rses-electoral-file-label"><?php esc_html_e( 'Escolha um ficheiro ou largue-o aqui', 'relatasoft-secure-election-suite' ); ?></span>
+							<input type="file" name="rses_electoral_roll_csv" id="rses_electoral_roll_csv" accept=".rsv,text/plain" required />
 						</label>
 
 						<p class="rses-electoral-option">
 							<label>
 								<input type="checkbox" name="rses_update_existing" id="rses_update_existing" value="1" checked />
-								<?php esc_html_e( 'Update existing records when user_login or user_email matches (including password).', 'relatasoft-secure-election-suite' ); ?>
+								<?php esc_html_e( 'Atualizar registos existentes quando o login ou IDs coincidirem. Senha vazia no update mantém a senha atual.', 'relatasoft-secure-election-suite' ); ?>
 							</label>
 						</p>
 
 						<p class="submit">
 							<button type="submit" class="button button-primary" id="rses-electoral-submit">
-								<?php esc_html_e( 'Import electoral roll', 'relatasoft-secure-election-suite' ); ?>
+								<?php esc_html_e( 'Importar cadastro .rsv', 'relatasoft-secure-election-suite' ); ?>
 							</button>
 						</p>
 					</form>
+				</section>
 
-					<noscript>
-						<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" enctype="multipart/form-data" class="rses-form">
-							<?php Nonce::rses_field( Nonce::RSES_ACTION_ELECTORAL_ROLL_IMPORT ); ?>
-							<input type="hidden" name="action" value="rses_import_electoral_roll" />
-							<p><?php esc_html_e( 'JavaScript is required for chunked import. Without it, a single synchronous upload is used and may time out on large files.', 'relatasoft-secure-election-suite' ); ?></p>
-							<p>
-								<input type="file" name="rses_electoral_roll_csv" accept=".csv,text/csv" required />
+				<section class="rses-panel rses-panel-card rses-electoral-export">
+					<header class="rses-panel-header">
+						<p class="rses-panel-kicker"><?php esc_html_e( 'Exportar', 'relatasoft-secure-election-suite' ); ?></p>
+						<h2 class="rses-panel-title"><?php esc_html_e( 'Exportar .rsv', 'relatasoft-secure-election-suite' ); ?></h2>
+						<p class="rses-panel-desc">
+							<?php esc_html_e( 'Exporte um papel WP de cada vez. O campo senha sai vazio (hashes não são recuperáveis).', 'relatasoft-secure-election-suite' ); ?>
+						</p>
+					</header>
+
+					<div
+						id="rses-electoral-export-progress"
+						class="rses-electoral-progress is-idle"
+						<?php echo ! empty( $export_job['active'] ) || ! empty( $export_job['download_ready'] ) ? '' : 'hidden'; ?>
+					>
+						<div class="rses-panel rses-panel-info rses-electoral-progress-inner" id="rses-electoral-export-alert">
+							<p id="rses-electoral-export-message"><?php echo esc_html( (string) ( $export_job['message'] ?: '' ) ); ?></p>
+							<div class="rses-progress-bar rses-electoral-bar">
+								<div id="rses-electoral-export-bar-fill" class="rses-progress-fill" style="width:<?php echo esc_attr( (string) (int) $export_job['progress'] ); ?>%"></div>
+							</div>
+							<p class="rses-electoral-progress-meta">
+								<span id="rses-electoral-export-percent"><?php echo esc_html( (string) (int) $export_job['progress'] ); ?>%</span>
+								— <span id="rses-electoral-export-stage"><?php echo esc_html( (string) ( $export_job['stage_label'] ?: $export_job['stage'] ) ); ?></span>
+							</p>
+							<p id="rses-electoral-export-download-wrap" <?php echo empty( $export_job['download_ready'] ) ? 'hidden' : ''; ?>>
+								<a class="button button-primary" id="rses-electoral-export-download" href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=rses_download_electoral_roll_export' ), Nonce::RSES_ACTION_ELECTORAL_ROLL_SAMPLE, '_rses_nonce' ) ); ?>">
+									<?php esc_html_e( 'Descarregar .rsv', 'relatasoft-secure-election-suite' ); ?>
+								</a>
 							</p>
 							<p>
-								<label>
-									<input type="checkbox" name="rses_update_existing" value="1" checked />
-									<?php esc_html_e( 'Update existing records when user_login or user_email matches (including password).', 'relatasoft-secure-election-suite' ); ?>
-								</label>
+								<button type="button" class="button rses-btn-secondary" id="rses-electoral-export-cancel"><?php esc_html_e( 'Cancelar', 'relatasoft-secure-election-suite' ); ?></button>
 							</p>
-							<?php submit_button( __( 'Import electoral roll', 'relatasoft-secure-election-suite' ), 'primary' ); ?>
-						</form>
-					</noscript>
+						</div>
+					</div>
+
+					<form id="rses-electoral-export-form" class="rses-form">
+						<div class="rses-field-grid">
+							<div class="rses-field">
+								<label class="rses-field-label" for="rses_export_role"><?php esc_html_e( 'Papel', 'relatasoft-secure-election-suite' ); ?></label>
+								<select name="wp_role" id="rses_export_role" required>
+									<?php foreach ( $export_roles as $wp_role => $papel ) : ?>
+										<option value="<?php echo esc_attr( $wp_role ); ?>">
+											<?php echo esc_html( $papel . ' (' . $wp_role . ')' ); ?>
+										</option>
+									<?php endforeach; ?>
+								</select>
+							</div>
+							<div class="rses-field">
+								<label class="rses-field-label" for="rses_export_max_lines"><?php esc_html_e( 'Máx. linhas de dados', 'relatasoft-secure-election-suite' ); ?></label>
+								<input type="number" min="1" max="<?php echo esc_attr( (string) ElectoralRollExportService::MAX_LINES ); ?>" value="5000" id="rses_export_max_lines" name="max_lines" />
+							</div>
+						</div>
+						<p class="description">
+							<?php esc_html_e( 'Estimativa de tamanho:', 'relatasoft-secure-election-suite' ); ?>
+							<strong id="rses-export-estimate"><?php echo esc_html( size_format( ElectoralRollExportService::rses_estimate_bytes( 5000 ) ) ); ?></strong>
+						</p>
+						<p class="submit">
+							<button type="submit" class="button button-primary" id="rses-electoral-export-submit">
+								<?php esc_html_e( 'Exportar cadastro .rsv', 'relatasoft-secure-election-suite' ); ?>
+							</button>
+						</p>
+					</form>
 				</section>
 			</div>
+			<?php endif; ?>
 		</div>
 		<?php
 	}
@@ -575,7 +751,7 @@ class ElectoralRollImportPage {
 		Nonce::rses_verify_or_die( Nonce::RSES_ACTION_ELECTORAL_ROLL_IMPORT );
 
 		if ( empty( $_FILES['rses_electoral_roll_csv']['tmp_name'] ) ) {
-			wp_die( esc_html__( 'No CSV file uploaded.', 'relatasoft-secure-election-suite' ) );
+			wp_die( esc_html__( 'Nenhum ficheiro RSV enviado.', 'relatasoft-secure-election-suite' ) );
 		}
 
 		$tmp = (string) $_FILES['rses_electoral_roll_csv']['tmp_name']; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
@@ -621,7 +797,7 @@ class ElectoralRollImportPage {
 		$filename = ElectoralRollImportService::rses_sample_filename();
 
 		nocache_headers();
-		header( 'Content-Type: text/csv; charset=utf-8' );
+		header( 'Content-Type: text/plain; charset=utf-8' );
 		header( 'Content-Disposition: attachment; filename="' . $filename . '"' );
 		header( 'Content-Length: ' . strlen( $csv ) );
 		echo $csv; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
@@ -629,7 +805,7 @@ class ElectoralRollImportPage {
 	}
 
 	/**
-	 * Download the last import error report as CSV.
+	 * Download the last import error report as RSV.
 	 */
 	public static function rses_handle_errors_download(): void {
 		Capability::rses_require_admin();
@@ -656,10 +832,10 @@ class ElectoralRollImportPage {
 			'he_IL' => 'shgiot',
 		);
 		$error_stem = $error_stems[ $locale ] ?? 'errors';
-		$filename   = $error_stem . '-cadastro-eleitoral.csv';
+		$filename   = $error_stem . '-cadastro-eleitoral.rsv';
 
 		nocache_headers();
-		header( 'Content-Type: text/csv; charset=utf-8' );
+		header( 'Content-Type: text/plain; charset=utf-8' );
 		header( 'Content-Disposition: attachment; filename="' . $filename . '"' );
 		header( 'Content-Length: ' . strlen( $csv ) );
 		echo $csv; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped

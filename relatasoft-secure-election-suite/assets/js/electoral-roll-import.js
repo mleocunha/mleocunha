@@ -259,6 +259,20 @@
 		$('#rses-electoral-stage').text(rsesStageLabel(status));
 		$('#rses-electoral-percent').text((status.progress || 0) + '%');
 		$('#rses-electoral-bar-fill').css('width', (status.progress || 0) + '%');
+
+		var uploadPct =
+			typeof status.upload_progress === 'number'
+				? status.upload_progress
+				: status.progress || 0;
+		var importPct =
+			typeof status.import_progress === 'number'
+				? status.import_progress
+				: 0;
+		$('#rses-electoral-upload-percent').text(uploadPct + '%');
+		$('#rses-electoral-upload-bar-fill').css('width', uploadPct + '%');
+		$('#rses-electoral-import-percent').text(importPct + '%');
+		$('#rses-electoral-import-bar-fill').css('width', importPct + '%');
+
 		$('#rses-electoral-created').text(status.created || 0);
 		$('#rses-electoral-updated').text(status.updated || 0);
 		$('#rses-electoral-skipped').text(status.skipped || 0);
@@ -492,7 +506,7 @@
 			.fail(function (err) {
 				// Fall back to chunked upload when a single POST is rejected by PHP limits.
 				var msg = rsesErrorMessage(err);
-				if (/post_max_size|upload limit|partially received|No CSV file/i.test(msg)) {
+				if (/post_max_size|upload limit|partially received|No CSV file|Nenhum ficheiro RSV/i.test(msg)) {
 					rsesStartChunkedUpload(file, updateExisting);
 					return;
 				}
@@ -549,10 +563,12 @@
 					return;
 				}
 				rsesSetProgress({
-					message: (cfg.i18n && cfg.i18n.validating) || 'Validating CSV…',
+					message: (cfg.i18n && cfg.i18n.validating) || 'Validating RSV…',
 					progress: 22,
 					stage: 'ready',
-					stage_label: cfg.i18n && cfg.i18n.stages ? cfg.i18n.stages.ready : ''
+					stage_label: cfg.i18n && cfg.i18n.stages ? cfg.i18n.stages.ready : '',
+					upload_progress: 100,
+					import_progress: 0
 				});
 				return rsesPost('rses_electoral_roll_begin');
 			})
@@ -608,12 +624,12 @@
 
 		if (!file) {
 			rsesBusy = false;
-			rsesFail((cfg.i18n && cfg.i18n.noFile) || 'Choose a CSV file first.');
+			rsesFail((cfg.i18n && cfg.i18n.noFile) || 'Choose a RSV file first.');
 			return;
 		}
 		if (cfg.maxBytes && file.size > cfg.maxBytes) {
 			rsesBusy = false;
-			rsesFail((cfg.i18n && cfg.i18n.tooLarge) || 'CSV file is too large.');
+			rsesFail((cfg.i18n && cfg.i18n.tooLarge) || 'RSV file is too large.');
 			return;
 		}
 		if (!cfg.ajaxUrl || !cfg.nonce) {
@@ -698,21 +714,200 @@
 		});
 	}
 
-	$(function () {
-		if (!$('#rses-electoral-form').length) {
+	function rsesPlayBeep() {
+		try {
+			var Ctx = window.AudioContext || window.webkitAudioContext;
+			if (!Ctx) {
+				return;
+			}
+			var ctx = new Ctx();
+			var osc = ctx.createOscillator();
+			var gain = ctx.createGain();
+			osc.type = 'sine';
+			osc.frequency.value = 880;
+			gain.gain.value = 0.08;
+			osc.connect(gain);
+			gain.connect(ctx.destination);
+			osc.start();
+			gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.35);
+			osc.stop(ctx.currentTime + 0.4);
+			window.setTimeout(function () {
+				ctx.close();
+			}, 500);
+		} catch (e) {
+			/* ignore */
+		}
+	}
+
+	var rsesExportBusy = false;
+	var rsesExportCancelled = false;
+
+	function rsesSetExportProgress(status) {
+		status = status || {};
+		var $box = $('#rses-electoral-export-progress');
+		$box.removeAttr('hidden').removeClass('is-idle').addClass('is-active').show();
+		$('#rses-electoral-export-message').text(status.message || '');
+		$('#rses-electoral-export-stage').text(rsesStageLabel(status));
+		$('#rses-electoral-export-percent').text((status.progress || 0) + '%');
+		$('#rses-electoral-export-bar-fill').css('width', (status.progress || 0) + '%');
+		if (status.download_ready) {
+			$('#rses-electoral-export-download-wrap').removeAttr('hidden').show();
+			$('#rses-electoral-export-alert')
+				.removeClass('rses-panel-info')
+				.addClass('rses-panel-success rses-export-complete-alert');
+		}
+	}
+
+	function rsesExportTickLoop() {
+		if (rsesExportCancelled) {
 			return;
 		}
-		rsesBindDropzone();
-		$('#rses-electoral-form').on('submit', rsesStartImport);
-		$('#rses-electoral-cancel').on('click', rsesCancel);
-		$('#rses-electoral-cancel').prop('disabled', true);
+		rsesPost('rses_electoral_roll_export_tick')
+			.done(function (resp) {
+				if (!resp || !resp.success) {
+					rsesExportBusy = false;
+					$('#rses-electoral-export-submit').prop('disabled', false);
+					$('#rses-electoral-export-message').text(
+						rsesErrorMessage(resp && resp.data, (rsesCfg().i18n && rsesCfg().i18n.exportError) || 'Export failed.')
+					);
+					return;
+				}
+				var status = resp.data || {};
+				rsesSetExportProgress(status);
+				if (status.stage === 'complete') {
+					rsesExportBusy = false;
+					$('#rses-electoral-export-submit').prop('disabled', false);
+					$('#rses-electoral-export-cancel').prop('disabled', true);
+					if (rsesCfg().beepOnExport !== false) {
+						rsesPlayBeep();
+					}
+					return;
+				}
+				if (status.stage === 'failed' || status.stage === 'cancelled') {
+					rsesExportBusy = false;
+					$('#rses-electoral-export-submit').prop('disabled', false);
+					return;
+				}
+				window.setTimeout(rsesExportTickLoop, 40);
+			})
+			.fail(function (err) {
+				rsesExportBusy = false;
+				$('#rses-electoral-export-submit').prop('disabled', false);
+				$('#rses-electoral-export-message').text(rsesErrorMessage(err));
+			});
+	}
 
+	function rsesStartExport(e) {
+		if (e) {
+			e.preventDefault();
+		}
+		if (rsesExportBusy) {
+			return;
+		}
 		var cfg = rsesCfg();
-		if (cfg.resume && cfg.resume.active) {
-			rsesSetProgress(cfg.resume);
-			rsesSetFormBusy(true);
-			if (cfg.resume.stage === 'importing') {
-				rsesTickLoop();
+		var role = $('#rses_export_role').val();
+		var maxLines = parseInt($('#rses_export_max_lines').val(), 10) || 1000;
+		rsesExportBusy = true;
+		rsesExportCancelled = false;
+		$('#rses-electoral-export-submit').prop('disabled', true);
+		$('#rses-electoral-export-cancel').prop('disabled', false);
+		$('#rses-electoral-export-download-wrap').attr('hidden', true).hide();
+		$('#rses-electoral-export-alert')
+			.removeClass('rses-panel-success rses-export-complete-alert')
+			.addClass('rses-panel-info');
+		rsesSetExportProgress({
+			message: (cfg.i18n && cfg.i18n.exportStarting) || 'Starting export…',
+			progress: 1,
+			stage: 'exporting',
+			stage_label: cfg.i18n && cfg.i18n.stages ? cfg.i18n.stages.exporting : ''
+		});
+		rsesPost('rses_electoral_roll_export_init', {
+			wp_role: role,
+			max_lines: maxLines
+		})
+			.done(function (resp) {
+				if (!resp || !resp.success) {
+					rsesExportBusy = false;
+					$('#rses-electoral-export-submit').prop('disabled', false);
+					$('#rses-electoral-export-message').text(
+						rsesErrorMessage(resp && resp.data, (cfg.i18n && cfg.i18n.exportError) || 'Export failed.')
+					);
+					return;
+				}
+				rsesSetExportProgress(resp.data || {});
+				rsesExportTickLoop();
+			})
+			.fail(function (err) {
+				rsesExportBusy = false;
+				$('#rses-electoral-export-submit').prop('disabled', false);
+				$('#rses-electoral-export-message').text(rsesErrorMessage(err));
+			});
+	}
+
+	function rsesCancelExport() {
+		var cfg = rsesCfg();
+		rsesExportCancelled = true;
+		rsesPost('rses_electoral_roll_export_cancel').always(function (resp) {
+			var status =
+				resp && resp.success && resp.data
+					? resp.data
+					: {
+							message: (cfg.i18n && cfg.i18n.exportCancelled) || 'Export cancelled.',
+							progress: 0,
+							stage: 'cancelled'
+						};
+			rsesSetExportProgress(status);
+			rsesExportBusy = false;
+			$('#rses-electoral-export-submit').prop('disabled', false);
+		});
+	}
+
+	function rsesRefreshExportEstimate() {
+		var maxLines = parseInt($('#rses_export_max_lines').val(), 10) || 0;
+		var role = $('#rses_export_role').val() || '';
+		rsesPost('rses_electoral_roll_export_estimate', {
+			max_lines: maxLines,
+			wp_role: role
+		}).done(function (resp) {
+			if (resp && resp.success && resp.data && resp.data.estimated_label) {
+				$('#rses-export-estimate').text(resp.data.estimated_label);
+			}
+		});
+	}
+
+	$(function () {
+		if (!$('#rses-electoral-form').length && !$('#rses-electoral-export-form').length) {
+			return;
+		}
+		if ($('#rses-electoral-form').length) {
+			rsesBindDropzone();
+			$('#rses-electoral-form').on('submit', rsesStartImport);
+			$('#rses-electoral-cancel').on('click', rsesCancel);
+			$('#rses-electoral-cancel').prop('disabled', true);
+
+			var cfg = rsesCfg();
+			if (cfg.resume && cfg.resume.active) {
+				rsesSetProgress(cfg.resume);
+				rsesSetFormBusy(true);
+				if (cfg.resume.stage === 'importing') {
+					rsesTickLoop();
+				}
+			}
+		}
+		if ($('#rses-electoral-export-form').length) {
+			$('#rses-electoral-export-form').on('submit', rsesStartExport);
+			$('#rses-electoral-export-cancel').on('click', rsesCancelExport);
+			$('#rses-electoral-export-cancel').prop('disabled', true);
+			$('#rses_export_max_lines, #rses_export_role').on('change input', rsesRefreshExportEstimate);
+			var cfgE = rsesCfg();
+			if (cfgE.exportResume && (cfgE.exportResume.active || cfgE.exportResume.download_ready)) {
+				rsesSetExportProgress(cfgE.exportResume);
+				if (cfgE.exportResume.active) {
+					rsesExportBusy = true;
+					$('#rses-electoral-export-submit').prop('disabled', true);
+					$('#rses-electoral-export-cancel').prop('disabled', false);
+					rsesExportTickLoop();
+				}
 			}
 		}
 	});

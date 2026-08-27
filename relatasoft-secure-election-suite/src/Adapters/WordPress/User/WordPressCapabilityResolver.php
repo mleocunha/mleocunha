@@ -12,7 +12,8 @@ use RelataSoft\SecureElectionSuite\Security\Capability;
  */
 final class WordPressCapabilityResolver implements CapabilityResolver {
 
-	public const GESTOR_ROLE = 've_gestor';
+	public const GESTOR_ROLE  = 've_gestor';
+	public const AUDITOR_ROLE = 've_auditor';
 
 	public function resolvePersona(?int $userId = null): Persona {
 		$userId = $userId ?? get_current_user_id();
@@ -30,6 +31,9 @@ final class WordPressCapabilityResolver implements CapabilityResolver {
 		}
 		if ( in_array( Capability::RSES_ADMIN_ROLE, $roles, true ) ) {
 			return Persona::AdministradorEleitoral;
+		}
+		if ( in_array( self::AUDITOR_ROLE, $roles, true ) ) {
+			return Persona::Auditor;
 		}
 		if ( in_array( Capability::RSES_OFFICIAL_ROLE, $roles, true ) ) {
 			return Persona::AutoridadeEleitoral;

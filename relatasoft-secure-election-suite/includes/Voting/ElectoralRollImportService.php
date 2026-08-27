@@ -528,17 +528,8 @@ class ElectoralRollImportService {
 		}
 
 		// Passwords accepted as-is except outer spreadsheet whitespace/BOM noise.
+		// Empty senha is allowed on UPDATE (keep existing hash); CREATE still requires it.
 		$password = self::rses_normalize_cell( $assoc['senha'] );
-		if ( '' === $password ) {
-			return new \WP_Error(
-				'rses_password',
-				sprintf(
-					/* translators: %d: row */
-					__( 'Row %d: password (senha) is required.', 'relatasoft-secure-election-suite' ),
-					$row_num
-				)
-			);
-		}
 
 		$papel = self::rses_normalize_cell( $assoc['papel'] );
 		$role  = RsvFormat::mapRole( $papel );
@@ -685,8 +676,11 @@ class ElectoralRollImportService {
 			}
 
 			$user_id = (int) $existing->ID;
-			// wp_set_password(): hashes and stores; bypasses strength UI (filters suppress nags).
-			wp_set_password( $data['password'], $user_id );
+			// Empty senha on UPDATE → keep existing password (hashes are not recoverable).
+			if ( '' !== $data['password'] ) {
+				// wp_set_password(): hashes and stores; bypasses strength UI (filters suppress nags).
+				wp_set_password( $data['password'], $user_id );
+			}
 
 			$updated = wp_update_user(
 				array(
@@ -704,6 +698,13 @@ class ElectoralRollImportService {
 			$existing->set_role( $data['role'] );
 			self::rses_write_meta( $user_id, $data );
 			return 'updated';
+		}
+
+		if ( '' === $data['password'] ) {
+			return new \WP_Error(
+				'rses_password',
+				__( 'Password (senha) is required when creating a new user.', 'relatasoft-secure-election-suite' )
+			);
 		}
 
 		// wp_insert_user(): creates WP user; role from RsvFormat (admin/gestor/auditor allowed).

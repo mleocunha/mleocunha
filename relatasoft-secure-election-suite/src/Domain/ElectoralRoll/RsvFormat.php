@@ -143,6 +143,23 @@ final class RsvFormat {
 	}
 
 	/**
+	 * Resolve slug WP → papel canónico PT-BR (exportação .rsv).
+	 *
+	 * @return string Papel canónico ou string vazia se desconhecido.
+	 */
+	public static function reverseRole( string $wp_role ): string {
+		$wp_role = strtolower( trim( $wp_role ) );
+		$map     = array(
+			'subscriber'    => 'eleitor',
+			've_auditor'    => 'auditor',
+			'editor'        => 'autoridade',
+			'administrator' => 'administrador',
+			've_gestor'     => 'gestor',
+		);
+		return $map[ $wp_role ] ?? '';
+	}
+
+	/**
 	 * Tamanho de chunk adaptativo: consulta teto PHP e limita eficiência.
 	 *
 	 * @param int $php_ceiling_bytes min(post_max, upload_max) ou 0 se desconhecido

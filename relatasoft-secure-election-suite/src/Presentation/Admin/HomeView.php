@@ -53,6 +53,12 @@ final class HomeView {
 					</div>
 				<?php endforeach; ?>
 			</div>
+
+			<?php
+			if ( class_exists( \RelataSoft\SecureElectionSuite\Admin\AuditorDashboardPage::class ) ) {
+				\RelataSoft\SecureElectionSuite\Admin\AuditorDashboardPage::rses_render_section();
+			}
+			?>
 		</div>
 		<?php
 	}

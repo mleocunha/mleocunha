@@ -382,6 +382,49 @@ class VotingViews {
 			</div>
 		</section>
 
+		<?php if ( $rses_round ) : ?>
+		<section class="rses-panel rses-panel-card">
+			<header class="rses-panel-header">
+				<p class="rses-panel-kicker"><?php esc_html_e( 'Áudio', 'relatasoft-secure-election-suite' ); ?></p>
+				<h2 class="rses-panel-title"><?php esc_html_e( 'Áudio de fim de rodada', 'relatasoft-secure-election-suite' ); ?></h2>
+				<p class="rses-panel-desc"><?php esc_html_e( 'Reproduzido automaticamente na página de agradecimento quando o eleitor conclui esta rodada (mp3/wav/ogg).', 'relatasoft-secure-election-suite' ); ?></p>
+			</header>
+			<?php
+			$rses_audio_id  = ElectionController::rses_get_round_end_audio_id( $rses_round_id );
+			$rses_audio_url = ElectionController::rses_get_round_end_audio_url( $rses_round_id );
+			?>
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="rses-form">
+				<?php Nonce::rses_field( Nonce::RSES_ACTION_ELECTION_SAVE ); ?>
+				<input type="hidden" name="action" value="rses_save_round_audio" />
+				<input type="hidden" name="election_id" value="<?php echo esc_attr( (string) $election_id ); ?>" />
+				<input type="hidden" name="round_id" value="<?php echo esc_attr( (string) $rses_round_id ); ?>" />
+				<input type="hidden" name="rses_round_end_audio_id" id="rses_round_end_audio_id" value="<?php echo esc_attr( (string) $rses_audio_id ); ?>" />
+				<div class="rses-option-media-controls">
+					<span id="rses-round-audio-preview" class="rses-option-media-preview" <?php echo $rses_audio_url ? '' : 'hidden'; ?>>
+						<?php if ( $rses_audio_url ) : ?>
+							<audio controls preload="metadata" src="<?php echo esc_url( $rses_audio_url ); ?>"></audio>
+						<?php endif; ?>
+					</span>
+					<button
+						type="button"
+						class="button rses-btn-secondary"
+						id="rses-round-audio-pick"
+						data-rses-title="<?php echo esc_attr__( 'Selecionar áudio de fim de rodada', 'relatasoft-secure-election-suite' ); ?>"
+						data-rses-button="<?php echo esc_attr__( 'Usar este áudio', 'relatasoft-secure-election-suite' ); ?>"
+					>
+						<?php esc_html_e( 'Escolher áudio (mp3/wav/ogg)', 'relatasoft-secure-election-suite' ); ?>
+					</button>
+					<button type="button" class="button rses-btn-secondary" id="rses-round-audio-clear" <?php echo $rses_audio_id ? '' : 'hidden'; ?>>
+						<?php esc_html_e( 'Remover áudio', 'relatasoft-secure-election-suite' ); ?>
+					</button>
+				</div>
+				<p class="rses-form-actions">
+					<?php submit_button( __( 'Guardar áudio', 'relatasoft-secure-election-suite' ), 'secondary rses-btn-secondary', 'submit', false ); ?>
+				</p>
+			</form>
+		</section>
+		<?php endif; ?>
+
 		<section class="rses-panel rses-panel-card">
 			<header class="rses-panel-header">
 				<p class="rses-panel-kicker"><?php esc_html_e( 'Ballot', 'relatasoft-secure-election-suite' ); ?></p>

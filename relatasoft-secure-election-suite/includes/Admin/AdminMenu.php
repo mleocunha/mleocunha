@@ -20,6 +20,7 @@ use RelataSoft\SecureElectionSuite\Admin\Brand;
 use RelataSoft\SecureElectionSuite\Admin\ElectoralAuthoritiesPage;
 use RelataSoft\SecureElectionSuite\Admin\UsersRegistryPage;
 use RelataSoft\SecureElectionSuite\Admin\ElectoralRollImportPage;
+use RelataSoft\SecureElectionSuite\Admin\KnowledgePage;
 use RelataSoft\SecureElectionSuite\Admin\RedirectionsPage;
 use RelataSoft\SecureElectionSuite\Admin\SystemAppearancePage;
 use RelataSoft\SecureElectionSuite\Admin\SystemBecapePage;
@@ -116,9 +117,17 @@ class AdminMenu {
 			'rses-dashboard',
 			__( 'Registro de Auditoria', 'relatasoft-secure-election-suite' ),
 			__( 'Registro de Auditoria', 'relatasoft-secure-election-suite' ),
-			$rses_admin_cap,
+			$rses_official_cap,
 			'rses-audit-log',
 			array( AuditLogPage::class, 'rses_render' )
+		);
+		add_submenu_page(
+			'rses-dashboard',
+			__( 'Conhecimento', 'relatasoft-secure-election-suite' ),
+			__( 'Conhecimento', 'relatasoft-secure-election-suite' ),
+			$rses_official_cap,
+			KnowledgePage::SLUG,
+			array( KnowledgePage::class, 'rses_render' )
 		);
 		add_submenu_page(
 			'rses-dashboard',
@@ -145,8 +154,18 @@ class AdminMenu {
 
 			add_submenu_page(
 				'rses-dashboard',
-				__( 'Cadastro de Usuários', 'relatasoft-secure-election-suite' ),
-				__( 'Cadastro de Usuários', 'relatasoft-secure-election-suite' ),
+				__( 'Cadastro Eleitoral', 'relatasoft-secure-election-suite' ),
+				__( 'Cadastro Eleitoral', 'relatasoft-secure-election-suite' ),
+				$rses_admin_cap,
+				'rses-electoral-roll',
+				array( ElectoralRollImportPage::class, 'rses_render' )
+			);
+
+			// Alias legado — redireciona via UsersRegistryPage::render.
+			add_submenu_page(
+				null,
+				__( 'Cadastro Eleitoral', 'relatasoft-secure-election-suite' ),
+				__( 'Cadastro Eleitoral', 'relatasoft-secure-election-suite' ),
 				$rses_admin_cap,
 				UsersRegistryPage::SLUG,
 				array( UsersRegistryPage::class, 'render' )
@@ -209,9 +228,9 @@ class AdminMenu {
 			);
 
 			add_submenu_page(
-				'rses-dashboard',
-				__( 'Cadastro de Usuários', 'relatasoft-secure-election-suite' ),
-				__( 'Cadastro de Usuários', 'relatasoft-secure-election-suite' ),
+				null,
+				__( 'Cadastro Eleitoral', 'relatasoft-secure-election-suite' ),
+				__( 'Cadastro Eleitoral', 'relatasoft-secure-election-suite' ),
 				$rses_admin_cap,
 				UsersRegistryPage::SLUG,
 				array( UsersRegistryPage::class, 'render' )
@@ -248,8 +267,17 @@ class AdminMenu {
 
 			add_submenu_page(
 				'rses-dashboard',
-				__( 'Cadastro de Usuários', 'relatasoft-secure-election-suite' ),
-				__( 'Cadastro de Usuários', 'relatasoft-secure-election-suite' ),
+				__( 'Cadastro Eleitoral', 'relatasoft-secure-election-suite' ),
+				__( 'Cadastro Eleitoral', 'relatasoft-secure-election-suite' ),
+				$rses_admin_cap,
+				'rses-electoral-roll',
+				array( ElectoralRollImportPage::class, 'rses_render' )
+			);
+
+			add_submenu_page(
+				null,
+				__( 'Cadastro Eleitoral', 'relatasoft-secure-election-suite' ),
+				__( 'Cadastro Eleitoral', 'relatasoft-secure-election-suite' ),
 				$rses_admin_cap,
 				UsersRegistryPage::SLUG,
 				array( UsersRegistryPage::class, 'render' )

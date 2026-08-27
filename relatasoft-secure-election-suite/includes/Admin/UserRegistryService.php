@@ -33,10 +33,11 @@ final class UserRegistryService {
 	 */
 	public static function role_labels(): array {
 		return array(
-			Capability::RSES_ADMIN_ROLE     => __( 'Administrador Eleitoral', 'relatasoft-secure-election-suite' ),
-			WordPressCapabilityResolver::GESTOR_ROLE => __( 'Gestor Voto Eletrônico', 'relatasoft-secure-election-suite' ),
-			Capability::RSES_OFFICIAL_ROLE  => RoleLabels::rses_editor_singular(),
-			Capability::RSES_VOTER_ROLE     => RoleLabels::rses_elector_singular(),
+			Capability::RSES_ADMIN_ROLE                  => __( 'Administrador Eleitoral', 'relatasoft-secure-election-suite' ),
+			WordPressCapabilityResolver::GESTOR_ROLE     => __( 'Gestor pelo Cliente', 'relatasoft-secure-election-suite' ),
+			Capability::RSES_OFFICIAL_ROLE               => RoleLabels::rses_editor_singular(),
+			WordPressCapabilityResolver::AUDITOR_ROLE    => __( 'Auditor', 'relatasoft-secure-election-suite' ),
+			Capability::RSES_VOTER_ROLE                  => RoleLabels::rses_elector_singular(),
 		);
 	}
 
@@ -74,7 +75,10 @@ final class UserRegistryService {
 	 */
 	public static function creatable_roles( ?string $mode = null ): array {
 		$mode = $mode ?? ModeLock::rses_get_mode();
-		$roles = array( Capability::RSES_OFFICIAL_ROLE );
+		$roles = array(
+			Capability::RSES_OFFICIAL_ROLE,
+			WordPressCapabilityResolver::AUDITOR_ROLE,
+		);
 		if ( ModeLock::RSES_MODE_VOTING === $mode ) {
 			$roles[] = Capability::RSES_VOTER_ROLE;
 		}

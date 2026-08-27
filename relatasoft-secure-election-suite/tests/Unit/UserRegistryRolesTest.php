@@ -13,6 +13,7 @@ final class UserRegistryRolesTest extends TestCase {
 		$this->assertContains( UserRegistryRoles::ROLE_ADMIN, $roles );
 		$this->assertContains( UserRegistryRoles::ROLE_GESTOR, $roles );
 		$this->assertContains( UserRegistryRoles::ROLE_OFFICIAL, $roles );
+		$this->assertContains( UserRegistryRoles::ROLE_AUDITOR, $roles );
 		$this->assertFalse( UserRegistryRoles::includesVoters( 'key_authority' ) );
 	}
 
@@ -20,6 +21,7 @@ final class UserRegistryRolesTest extends TestCase {
 		$roles = UserRegistryRoles::forMode( 'voting' );
 		$this->assertContains( UserRegistryRoles::ROLE_ADMIN, $roles );
 		$this->assertContains( UserRegistryRoles::ROLE_OFFICIAL, $roles );
+		$this->assertContains( UserRegistryRoles::ROLE_AUDITOR, $roles );
 		$this->assertContains( UserRegistryRoles::ROLE_VOTER, $roles );
 		$this->assertTrue( UserRegistryRoles::includesVoters( 'voting' ) );
 	}

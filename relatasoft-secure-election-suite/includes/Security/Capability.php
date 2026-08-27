@@ -63,6 +63,46 @@ class Capability {
 	}
 
 	/**
+	 * Whether the user may view the audit log (admin/gestor OR auditor).
+	 *
+	 * @param int|null $user_id User ID, or null for the current user.
+	 */
+	public static function rses_can_view_audit( ?int $user_id = null ): bool {
+		if ( self::rses_user_has_admin_role( $user_id ) ) {
+			return true;
+		}
+		if ( null === $user_id ) {
+			if ( ! is_user_logged_in() ) {
+				return false;
+			}
+			$user_id = get_current_user_id();
+		}
+		$user_id = absint( $user_id );
+		if ( $user_id < 1 ) {
+			return false;
+		}
+		$user = get_userdata( $user_id );
+		if ( ! $user || ! $user->exists() ) {
+			return false;
+		}
+		$roles = array_map( 'strval', (array) $user->roles );
+		return in_array( 've_auditor', $roles, true );
+	}
+
+	/**
+	 * Require audit-view capability or die.
+	 */
+	public static function rses_require_audit_view(): void {
+		if ( ! self::rses_can_view_audit( null ) ) {
+			wp_die(
+				esc_html__( 'Só quem administra a eleição ou audita o processo pode ver o registro de auditoria.', 'relatasoft-secure-election-suite' ),
+				esc_html__( 'Sem permissão', 'relatasoft-secure-election-suite' ),
+				array( 'response' => 403 )
+			);
+		}
+	}
+
+	/**
 	 * WordPress role for election officials / Shamir share holders.
 	 *
 	 * Intentionally a role slug (not edit_posts): Authors also have edit_posts.

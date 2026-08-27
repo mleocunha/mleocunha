@@ -11,6 +11,7 @@ use RelataSoft\SecureElectionSuite\Database\Migration;
 use RelataSoft\SecureElectionSuite\Frontend\JourneySettings;
 use RelataSoft\SecureElectionSuite\Frontend\VoterJourney;
 use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\Platform\PlatformUrlMask;
+use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\User\AuditorRoleRegistrar;
 use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\User\GestorRoleRegistrar;
 
 defined( 'ABSPATH' ) || exit;
@@ -50,6 +51,7 @@ class Activator {
 		}
 
 		GestorRoleRegistrar::ensureRole();
+		AuditorRoleRegistrar::ensureRole();
 
 		try {
 			PlatformUrlMask::writeLoginStub();

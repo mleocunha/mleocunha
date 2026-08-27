@@ -18,6 +18,8 @@ final class AccessPolicy {
 	public const PERM_AUDIT_VIEW = 'audit.view';
 	public const PERM_SHELL_ADMIN = 'shell.admin';
 	public const PERM_SYSTEM_MANAGE = 'system.manage';
+	public const PERM_KNOWLEDGE_VIEW = 'knowledge.view';
+	public const PERM_VOTING_STATS_VIEW = 'voting.stats.view';
 
 	/**
 	 * @return list<string>
@@ -35,6 +37,8 @@ final class AccessPolicy {
 				self::PERM_AUDIT_VIEW,
 				self::PERM_SHELL_ADMIN,
 				self::PERM_SYSTEM_MANAGE,
+				self::PERM_KNOWLEDGE_VIEW,
+				self::PERM_VOTING_STATS_VIEW,
 			),
 			Persona::AdministradorEleitoral => array(
 				self::PERM_DASHBOARD_VIEW,
@@ -47,11 +51,21 @@ final class AccessPolicy {
 				self::PERM_AUDIT_VIEW,
 				self::PERM_SHELL_ADMIN,
 				self::PERM_SYSTEM_MANAGE,
+				self::PERM_KNOWLEDGE_VIEW,
+				self::PERM_VOTING_STATS_VIEW,
 			),
 			Persona::AutoridadeEleitoral => array(
 				self::PERM_DASHBOARD_VIEW,
 				self::PERM_PARCELAS_OWN,
 				self::PERM_SHELL_ADMIN,
+				self::PERM_KNOWLEDGE_VIEW,
+			),
+			Persona::Auditor => array(
+				self::PERM_DASHBOARD_VIEW,
+				self::PERM_AUDIT_VIEW,
+				self::PERM_SHELL_ADMIN,
+				self::PERM_KNOWLEDGE_VIEW,
+				self::PERM_VOTING_STATS_VIEW,
 			),
 			Persona::Eleitor => array(),
 		};

@@ -38,6 +38,8 @@ class SettingsPage {
 		$rses_logo_id    = absint( $rses_settings['admin_logo_attachment_id'] ?? 0 );
 		$rses_logo_url   = $rses_logo_id > 0 ? wp_get_attachment_image_url( $rses_logo_id, 'medium' ) : '';
 		$rses_default    = Brand::rses_asset_url( Brand::RSES_DEFAULT_LOCKUP );
+		$rses_cliente_id = (string) ( $rses_settings['cliente_id'] ?? '' );
+		$rses_cliente_nome = (string) ( $rses_settings['cliente_nome'] ?? '' );
 		?>
 		<div class="wrap rses-wrap rses-screen" <?php echo Translator::rses_html_attrs(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
 			<header class="rses-hero rses-hero--brand">
@@ -51,6 +53,22 @@ class SettingsPage {
 			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="rses-form" id="rses-settings-form">
 				<?php Nonce::rses_field( Nonce::RSES_ACTION_SETTINGS_SAVE ); ?>
 				<input type="hidden" name="action" value="rses_save_settings" />
+
+				<h2 class="rses-panel-title"><?php esc_html_e( 'Cliente (E1)', 'relatasoft-secure-election-suite' ); ?></h2>
+				<table class="form-table">
+					<tr>
+						<th scope="row"><label for="rses_cliente_id"><?php esc_html_e( 'ID do cliente', 'relatasoft-secure-election-suite' ); ?></label></th>
+						<td>
+							<input type="text" class="regular-text" name="rses_cliente_id" id="rses_cliente_id" value="<?php echo esc_attr( $rses_cliente_id ); ?>" autocomplete="off" />
+						</td>
+					</tr>
+					<tr>
+						<th scope="row"><label for="rses_cliente_nome"><?php esc_html_e( 'Nome do cliente', 'relatasoft-secure-election-suite' ); ?></label></th>
+						<td>
+							<input type="text" class="regular-text" name="rses_cliente_nome" id="rses_cliente_nome" value="<?php echo esc_attr( $rses_cliente_nome ); ?>" autocomplete="organization" />
+						</td>
+					</tr>
+				</table>
 
 				<h2 class="rses-panel-title"><?php esc_html_e( 'Admin branding', 'relatasoft-secure-election-suite' ); ?></h2>
 				<p class="description"><?php esc_html_e( 'Logo shown in the top-left of Election Suite admin heroes. When unset, the RelataSoft lockup is used. Aspect ratio is always preserved.', 'relatasoft-secure-election-suite' ); ?></p>
@@ -107,6 +125,8 @@ class SettingsPage {
 		$rses_settings = JourneySettings::rses_get();
 		$rses_settings['allow_full_private_export'] = ! empty( $_POST['rses_allow_full_private_export'] );
 		$rses_settings['admin_logo_attachment_id']  = absint( $_POST['rses_admin_logo_attachment_id'] ?? 0 );
+		$rses_settings['cliente_id']                = sanitize_text_field( wp_unslash( (string) ( $_POST['rses_cliente_id'] ?? '' ) ) );
+		$rses_settings['cliente_nome']              = sanitize_text_field( wp_unslash( (string) ( $_POST['rses_cliente_nome'] ?? '' ) ) );
 
 		update_option( 'rses_settings', $rses_settings );
 

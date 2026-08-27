@@ -15,6 +15,7 @@ use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\Navigation\WordPres
 use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\Platform\FingerprintHardening;
 use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\Platform\PlatformUrlMask;
 use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\Settings\WordPressSettingsRepository;
+use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\User\AuditorRoleRegistrar;
 use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\User\GestorRoleRegistrar;
 use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\User\WordPressCapabilityResolver;
 use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\User\WordPressUserProvider;
@@ -68,12 +69,14 @@ final class Bootstrap {
 		);
 
 		GestorRoleRegistrar::register();
+		AuditorRoleRegistrar::register();
 		$settingsSvc->migrate();
 
 		$mode = ModeLock::rses_has_mode() ? ModeLock::rses_get_mode() : '';
 		$navigation->seedDefaultItems( $mode );
 
 		add_action( 'init', array( GestorRoleRegistrar::class, 'ensureRole' ), 5 );
+		add_action( 'init', array( AuditorRoleRegistrar::class, 'ensureRole' ), 5 );
 		add_action( 'admin_init', array( AdminRedirect::class, 'maybeRedirectDashboard' ) );
 		add_action( 'admin_menu', array( WordPressMenuChrome::class, 'hideNativeMenus' ), 999 );
 		add_action( 'admin_bar_menu', array( AdminBarCleaner::class, 'filter' ), 999 );

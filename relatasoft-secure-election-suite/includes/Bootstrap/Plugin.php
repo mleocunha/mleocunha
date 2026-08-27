@@ -270,7 +270,7 @@ class Plugin {
 	}
 
 	/**
-	 * Register, localize, and enqueue electoral-roll chunked import script.
+	 * Register, localize, and enqueue electoral-roll chunked import/export script.
 	 */
 	public static function rses_enqueue_electoral_roll_script(): void {
 		wp_register_script(
@@ -284,8 +284,12 @@ class Plugin {
 		$resume = \RelataSoft\SecureElectionSuite\Voting\ElectoralRollImportJob::rses_public_status(
 			\RelataSoft\SecureElectionSuite\Voting\ElectoralRollImportJob::rses_get()
 		);
+		$export_resume = \RelataSoft\SecureElectionSuite\Voting\ElectoralRollExportJob::rses_public_status(
+			\RelataSoft\SecureElectionSuite\Voting\ElectoralRollExportJob::rses_get()
+		);
 
 		$php_ceiling = \RelataSoft\SecureElectionSuite\Admin\ElectoralRollImportPage::rses_php_upload_ceiling();
+		$chunk_bytes = \RelataSoft\SecureElectionSuite\Painel\Domain\ElectoralRoll\RsvFormat::adaptiveChunkBytes( $php_ceiling );
 
 		wp_localize_script(
 			'rses-electoral-roll',
@@ -294,27 +298,40 @@ class Plugin {
 				'ajaxUrl'       => admin_url( 'admin-ajax.php' ),
 				'nonce'         => wp_create_nonce( \RelataSoft\SecureElectionSuite\Admin\ElectoralRollImportPage::AJAX_NONCE_ACTION ),
 				'maxBytes'      => \RelataSoft\SecureElectionSuite\Voting\ElectoralRollImportJob::MAX_UPLOAD_BYTES,
-				'chunkBytes'    => 131072,
+				'chunkBytes'    => $chunk_bytes,
 				'phpUploadMax'  => $php_ceiling,
 				'resume'        => $resume,
+				'exportResume'  => $export_resume,
+				'beepOnExport'  => true,
+				'downloadUrl'   => wp_nonce_url(
+					admin_url( 'admin-post.php?action=rses_download_electoral_roll_export' ),
+					\RelataSoft\SecureElectionSuite\Security\Nonce::RSES_ACTION_ELECTORAL_ROLL_SAMPLE,
+					'_rses_nonce'
+				),
 				'i18n'          => array(
-					'starting'        => __( 'Starting chunked import…', 'relatasoft-secure-election-suite' ),
-					'validating'      => __( 'Validating CSV…', 'relatasoft-secure-election-suite' ),
-					'error'           => __( 'Electoral roll import failed.', 'relatasoft-secure-election-suite' ),
-					'cancelled'       => __( 'Electoral roll import cancelled.', 'relatasoft-secure-election-suite' ),
-					'noFile'          => __( 'Choose a CSV file first.', 'relatasoft-secure-election-suite' ),
-					'tooLarge'        => __( 'CSV file is too large for import.', 'relatasoft-secure-election-suite' ),
-					'noJs'            => __( 'JavaScript failed to start the import. Hard-refresh this page and try again.', 'relatasoft-secure-election-suite' ),
-					'finished'        => __( 'Electoral roll import finished. Created: %1$d. Updated: %2$d. Skipped: %3$d. Errors: %4$d.', 'relatasoft-secure-election-suite' ),
-					'errorsDesc'      => __( '%d issue(s) were reported. Review the table below or download the error CSV.', 'relatasoft-secure-election-suite' ),
-					'errorsTruncated' => __( 'Additional errors were omitted from this preview; download the CSV for the stored sample.', 'relatasoft-secure-election-suite' ),
+					'starting'        => __( 'A iniciar importação em pedaços…', 'relatasoft-secure-election-suite' ),
+					'validating'      => __( 'A validar RSV…', 'relatasoft-secure-election-suite' ),
+					'error'           => __( 'Falha na importação do cadastro eleitoral.', 'relatasoft-secure-election-suite' ),
+					'cancelled'       => __( 'Importação do cadastro eleitoral cancelada.', 'relatasoft-secure-election-suite' ),
+					'noFile'          => __( 'Escolha primeiro um ficheiro .rsv.', 'relatasoft-secure-election-suite' ),
+					'tooLarge'        => __( 'O ficheiro RSV é demasiado grande para importar.', 'relatasoft-secure-election-suite' ),
+					'noJs'            => __( 'O JavaScript não conseguiu iniciar a importação. Atualize a página e tente novamente.', 'relatasoft-secure-election-suite' ),
+					'finished'        => __( 'Importação do cadastro eleitoral concluída. Criados: %1$d. Atualizados: %2$d. Ignorados: %3$d. Erros: %4$d.', 'relatasoft-secure-election-suite' ),
+					'errorsDesc'      => __( '%d problema(s) reportado(s). Reveja a tabela ou descarregue o relatório RSV.', 'relatasoft-secure-election-suite' ),
+					'errorsTruncated' => __( 'Erros adicionais foram omitidos nesta pré-visualização; descarregue o RSV para a amostra guardada.', 'relatasoft-secure-election-suite' ),
+					'exportStarting'  => __( 'A iniciar exportação .rsv…', 'relatasoft-secure-election-suite' ),
+					'exportDone'      => __( 'Exportação .rsv concluída.', 'relatasoft-secure-election-suite' ),
+					'exportError'     => __( 'Falha na exportação do cadastro eleitoral.', 'relatasoft-secure-election-suite' ),
+					'exportCancelled' => __( 'Exportação cancelada.', 'relatasoft-secure-election-suite' ),
 					'stages'          => array(
-						'receiving' => __( 'Receiving', 'relatasoft-secure-election-suite' ),
-						'ready'     => __( 'Validating', 'relatasoft-secure-election-suite' ),
-						'importing' => __( 'Importing', 'relatasoft-secure-election-suite' ),
-						'complete'  => __( 'Finished', 'relatasoft-secure-election-suite' ),
-						'failed'    => __( 'Failure', 'relatasoft-secure-election-suite' ),
-						'cancelled' => __( 'Cancelled', 'relatasoft-secure-election-suite' ),
+						'receiving' => __( 'A receber', 'relatasoft-secure-election-suite' ),
+						'ready'     => __( 'A validar', 'relatasoft-secure-election-suite' ),
+						'importing' => __( 'A importar', 'relatasoft-secure-election-suite' ),
+						'preparing' => __( 'A preparar', 'relatasoft-secure-election-suite' ),
+						'exporting' => __( 'A exportar', 'relatasoft-secure-election-suite' ),
+						'complete'  => __( 'Concluído', 'relatasoft-secure-election-suite' ),
+						'failed'    => __( 'Falha', 'relatasoft-secure-election-suite' ),
+						'cancelled' => __( 'Cancelado', 'relatasoft-secure-election-suite' ),
 					),
 				),
 			)

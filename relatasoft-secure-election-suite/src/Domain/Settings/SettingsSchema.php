@@ -32,6 +32,8 @@ final class SettingsSchema {
 			'ink_color'                   => '#1c2a32',
 			'font_family'                 => 'Open Sans',
 			'dark_mode'                   => false,
+			'cliente_id'                  => '',
+			'cliente_nome'                => '',
 		);
 	}
 }

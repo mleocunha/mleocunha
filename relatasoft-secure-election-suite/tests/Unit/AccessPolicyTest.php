@@ -31,4 +31,22 @@ final class AccessPolicyTest extends TestCase {
 		$this->assertTrue( $policy->can( Persona::AdministradorEleitoral, AccessPolicy::PERM_SYSTEM_MANAGE ) );
 		$this->assertFalse( $policy->can( Persona::AutoridadeEleitoral, AccessPolicy::PERM_SYSTEM_MANAGE ) );
 	}
+
+	public function test_auditor_can_view_audit_knowledge_and_shell(): void {
+		$policy = new AccessPolicy();
+		$this->assertTrue( $policy->can( Persona::Auditor, AccessPolicy::PERM_AUDIT_VIEW ) );
+		$this->assertTrue( $policy->can( Persona::Auditor, AccessPolicy::PERM_KNOWLEDGE_VIEW ) );
+		$this->assertTrue( $policy->can( Persona::Auditor, AccessPolicy::PERM_DASHBOARD_VIEW ) );
+		$this->assertTrue( $policy->can( Persona::Auditor, AccessPolicy::PERM_SHELL_ADMIN ) );
+		$this->assertTrue( $policy->can( Persona::Auditor, AccessPolicy::PERM_VOTING_STATS_VIEW ) );
+		$this->assertFalse( $policy->can( Persona::Auditor, AccessPolicy::PERM_SETTINGS_MANAGE ) );
+		$this->assertTrue( Persona::Auditor->mayEnterAdminShell() );
+	}
+
+	public function test_shell_personas_have_knowledge(): void {
+		$policy = new AccessPolicy();
+		foreach ( array( Persona::Gestor, Persona::AdministradorEleitoral, Persona::AutoridadeEleitoral, Persona::Auditor ) as $persona ) {
+			$this->assertTrue( $policy->can( $persona, AccessPolicy::PERM_KNOWLEDGE_VIEW ) );
+		}
+	}
 }
