@@ -274,11 +274,7 @@ class DecryptedResultsPresenter {
 				if ( 0 !== $cmp ) {
 					return $cmp;
 				}
-				// Tie-break: alphabetical option_label, then option_id.
-				$rses_label_cmp = strcasecmp( (string) ( $a['option_label'] ?? '' ), (string) ( $b['option_label'] ?? '' ) );
-				if ( 0 !== $rses_label_cmp ) {
-					return $rses_label_cmp;
-				}
+				// Tie-break: stable option_id (ballot technical id).
 				return (int) ( $a['option_id'] ?? 0 ) <=> (int) ( $b['option_id'] ?? 0 );
 			}
 		);

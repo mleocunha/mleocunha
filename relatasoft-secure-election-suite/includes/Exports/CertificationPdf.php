@@ -150,7 +150,8 @@ class CertificationPdf {
 		$this->rses_text(
 			self::RSES_MARGIN,
 			$rses_y0 + 90,
-			__( 'Voto Eletrônico by RelataSoft', 'relatasoft-secure-election-suite' ),
+			// English / international product line; pt_BR & pt_PT catalogs map to Voto Eletrônico.
+			__( 'RelataSoft Secure Election Suite', 'relatasoft-secure-election-suite' ),
 			9,
 			$rses_mute
 		);

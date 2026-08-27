@@ -655,7 +655,6 @@
   "Thank-you page with vote receipt hash.",
   "Sends a password-reset email to the currently logged-in user (plain text). Place on the welcome page for the Votador PoC password-change flow.",
   "confirm",
-  "Voto Eletrônico by RelataSoft",
   "Legal declaration",
   "These results were obtained by reconstructing the election private key under a Shamir secret-sharing threshold from official share parcels, then decrypting the homomorphic tally. The results JSON is Schnorr-signed under the election ElGamal key; a second Schnorr signature binds the PDF bytes (pdf_sha256). Independent auditors may verify both signatures with the embedded public key alone.",
   "Audit Certification",
