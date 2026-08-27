@@ -690,34 +690,4 @@ final class PlatformUrlMask {
 			insert_with_markers( $htaccess, UrlMaskConfig::HTACCESS_MARKER, array() );
 		}
 	}
-
-	/**
-	 * Endpoints that must remain reachable under /wp-admin for compatibility.
-	 */
-	private static function isExemptWpAdminRequest( string $path ): bool {
-		$base = basename( $path );
-		$allow = array(
-			'admin-ajax.php',
-			'admin-post.php',
-			'async-upload.php',
-			'load-scripts.php',
-			'load-styles.php',
-		);
-		return in_array( $base, $allow, true );
-	}
-
-	private static function denyAsNotFound(): void {
-		if ( function_exists( 'status_header' ) ) {
-			status_header( 404 );
-		} else {
-			http_response_code( 404 );
-		}
-		if ( function_exists( 'nocache_headers' ) ) {
-			nocache_headers();
-		}
-		if ( ! headers_sent() ) {
-			header( 'X-Robots-Tag: noindex, nofollow', true );
-		}
-		exit;
-	}
 }
