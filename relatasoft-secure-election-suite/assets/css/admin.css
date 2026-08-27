@@ -2198,6 +2198,18 @@ body.rses-rtl .rses-screen,
 	padding: 1.4rem 1.55rem 1.55rem;
 }
 
+/* Padding do contentor já dá o respiro — sem margin horizontal extra nos filhos. */
+.rses-screen .rses-knowledge-body.rses-panel-card > p,
+.rses-screen .rses-knowledge-body.rses-panel-card > ul,
+.rses-screen .rses-knowledge-body.rses-panel-card > ol,
+.rses-screen .rses-knowledge-body.rses-panel-card > h1,
+.rses-screen .rses-knowledge-body.rses-panel-card > h2,
+.rses-screen .rses-knowledge-body.rses-panel-card > h3,
+.rses-screen .rses-knowledge-body.rses-panel-card > h4 {
+	margin-left: 0;
+	margin-right: 0;
+}
+
 .rses-screen .rses-knowledge-body > :first-child {
 	margin-top: 0;
 }
