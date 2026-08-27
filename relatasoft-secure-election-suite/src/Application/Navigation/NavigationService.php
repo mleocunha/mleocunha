@@ -105,7 +105,7 @@ final class NavigationService {
 		$this->registry->register(
 			new MenuItem(
 				id: 'settings',
-				title: 'Definições',
+				title: 'Configurações',
 				slug: 'rses-settings',
 				parentId: 'home',
 				priority: 90,
@@ -116,7 +116,7 @@ final class NavigationService {
 		$this->registry->register(
 			new MenuItem(
 				id: 'audit',
-				title: 'Registo de Auditoria',
+				title: 'Registro de Auditoria',
 				slug: 'rses-audit-log',
 				parentId: 'home',
 				priority: 95,

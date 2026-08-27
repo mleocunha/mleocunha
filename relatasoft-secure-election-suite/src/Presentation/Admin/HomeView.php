@@ -35,7 +35,7 @@ final class HomeView {
 
 			<div class="rses-panel rses-panel-info ve-painel-mode-chip">
 				<p>
-					<strong><?php esc_html_e( 'Modo activo:', 'relatasoft-secure-election-suite' ); ?></strong>
+					<strong><?php esc_html_e( 'Modo ativo:', 'relatasoft-secure-election-suite' ); ?></strong>
 					<?php echo esc_html( ModeLock::rses_get_mode_label( $mode ) ); ?>
 				</p>
 			</div>

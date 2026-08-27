@@ -29,9 +29,9 @@ final class DashboardHomeService {
 					AccessPolicy::PERM_KEYS_MANAGE,
 				),
 				new ModeHomeCard(
-					'As Minhas Parcelas',
-					'Consulte, copie e guarde offline a parcela que lhe foi atribuída. Nunca a partilhe por canais inseguros.',
-					'Abrir as Minhas Parcelas',
+					'Minhas Parcelas',
+					'Consulte, copie e guarde offline a parcela que lhe foi atribuída. Nunca a compartilhe por canais inseguros.',
+					'Abrir Minhas Parcelas',
 					'rses-key-authority',
 					AccessPolicy::PERM_PARCELAS_OWN,
 				),
@@ -40,14 +40,14 @@ final class DashboardHomeService {
 				new ModeHomeCard(
 					'1. Importar chave pública',
 					'Importe o pacote de chave pública exportado do site de geração de chaves.',
-					'Gerir chaves públicas',
+					'Gerenciar chaves públicas',
 					'rses-public-keys',
 					AccessPolicy::PERM_ELECTIONS_MANAGE,
 				),
 				new ModeHomeCard(
 					'2. Configurar eleição e boletim',
 					'Crie eleições, associe a chave pública, defina perguntas e abra o escrutínio.',
-					'Gerir eleições',
+					'Gerenciar eleições',
 					'rses-elections',
 					AccessPolicy::PERM_ELECTIONS_MANAGE,
 				),
@@ -69,7 +69,7 @@ final class DashboardHomeService {
 				),
 				new ModeHomeCard(
 					'Submeter parcelas',
-					'As autoridades eleitorais submetem as suas parcelas para a reconstrução autorizada do segredo.',
+					'As autoridades eleitorais submetem suas parcelas para a reconstrução autorizada do segredo.',
 					'Submeter parcela',
 					'rses-share-submission',
 					AccessPolicy::PERM_PARCELAS_OWN,
