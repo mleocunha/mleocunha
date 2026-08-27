@@ -1,20 +1,19 @@
 # Dependências WordPress (adapters do Painel)
 
-| API / hook | Onde | Motivo |
-|------------|------|--------|
-| `admin_url` / rewrites / gateway / `id.php` / mu-plugin | PlatformUrlMask | `/painel` e `/id.php` sem symlinks |
-| demais | ver código | shell, branding, personas |
+## URLs públicas (sem symlinks)
 
-## URLs públicas (nginx-safe, sem symlinks)
+| Peça | Comportamento |
+|------|----------------|
+| `/id.php` | Stub real de login (sempre) |
+| `/painel/*.php` | Gateway de stubs reais; só então os links `admin_url` passam a `/painel/…` |
+| `/wp-admin` | **Sempre acessível** para activar/actualizar (nunca 404) |
+| Nginx | Snippet opcional em `uploads/ve-painel-nginx.conf` |
 
-Problema do nginx: `location ~ \.php$ { try_files $uri =404; }` devolve 404 **antes** do PHP se `/painel/plugins.php` não existir como ficheiro.
+Regra de ouro: **não mascarar links para `/painel` enquanto o gateway (incl. `plugins.php`) não existir em disco**. Caso contrário a activação no nginx falha com 404.
 
-Solução do produto:
+Fluxo de activação quando `/painel/…` está partido:
 
-1. **URLs públicas sem `.php`**: `/wp-admin/plugins.php` → `/painel/plugins` (rewrites + front-controller).
-2. **Gateway stub** em `ABSPATH/painel/*.php` (ficheiros reais) para bookmarks legados com `.php`.
-3. **Must-use plugin** `wp-content/mu-plugins/ve-painel-gateway.php` — cria o gateway mesmo durante activate/update.
-4. **Snippet Nginx** em `uploads/ve-painel-nginx.conf` (`location ^~ /painel`) — recomendado no Virtualmin; faz `/painel/*` ir ao `index.php` sem depender de stubs.
-5. Enquanto o gateway não existir, **`/wp-admin` continua acessível** para activar/actualizar o plugin.
-
-Não use `ln -s`.
+1. Abrir `https://votoeletronico.com.br/wp-admin/plugins.php`
+2. Activar o plugin
+3. Recarregar o sítio (gera gateway + mu-plugin)
+4. Passar a usar `/painel/` quando o aviso desaparecer

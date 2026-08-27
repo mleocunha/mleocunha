@@ -544,7 +544,10 @@ final class PlatformUrlMask {
 			return $location;
 		}
 		$location = UrlMaskConfig::maskLoginUrl( $location, self::loginPath() );
-		return UrlMaskConfig::maskAdminUrl( $location, self::adminPath() );
+		if ( self::adminUrlMaskReady() ) {
+			$location = UrlMaskConfig::maskAdminUrl( $location, self::adminPath() );
+		}
+		return $location;
 	}
 
 	public static function filterEmailContent( string $content ): string {
@@ -552,7 +555,10 @@ final class PlatformUrlMask {
 			return $content;
 		}
 		$content = UrlMaskConfig::maskLoginUrl( $content, self::loginPath() );
-		return UrlMaskConfig::maskAdminUrl( $content, self::adminPath() );
+		if ( self::adminUrlMaskReady() ) {
+			$content = UrlMaskConfig::maskAdminUrl( $content, self::adminPath() );
+		}
+		return $content;
 	}
 
 	/**
