@@ -9,6 +9,7 @@ namespace RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\Platform;
 final class NotFoundPage {
 
 	public const LOCKUP_BASENAME = 'relatasoft-404-lockup.png';
+	public const MARK_BASENAME   = 'relatasoft-mark.png';
 
 	/**
 	 * Emit HTTP 404 headers and the branded HTML body, then stop.
@@ -27,10 +28,12 @@ final class NotFoundPage {
 			header( 'X-Robots-Tag: noindex, nofollow', true );
 		}
 
-		$logo = self::lockupUrl();
-		$title = 'Página Inexistente';
+		$logo      = self::lockupUrl();
+		$mark      = self::markUrl();
+		$title     = 'Página Inexistente';
 		$esc_title = htmlspecialchars( $title, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8' );
 		$esc_logo  = htmlspecialchars( $logo, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8' );
+		$esc_mark  = htmlspecialchars( $mark, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8' );
 
 		echo '<!DOCTYPE html>' . "\n";
 		echo '<html lang="pt-BR">' . "\n";
@@ -39,6 +42,10 @@ final class NotFoundPage {
 		echo '<meta name="viewport" content="width=device-width, initial-scale=1"/>' . "\n";
 		echo '<meta name="robots" content="noindex,nofollow"/>' . "\n";
 		echo '<title>' . $esc_title . '</title>' . "\n";
+		echo '<link rel="preconnect" href="https://fonts.googleapis.com"/>' . "\n";
+		echo '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>' . "\n";
+		echo '<link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700&display=swap" rel="stylesheet"/>' . "\n";
+		echo '<link rel="icon" href="' . $esc_mark . '" type="image/png" sizes="any"/>' . "\n";
 		echo '<style>' . self::css() . '</style>' . "\n";
 		echo '</head>' . "\n";
 		echo '<body>' . "\n";
@@ -56,19 +63,30 @@ final class NotFoundPage {
 	 * Absolute URL for the lockup asset (plugin URL when available).
 	 */
 	public static function lockupUrl(): string {
+		return self::brandAssetUrl( self::LOCKUP_BASENAME );
+	}
+
+	/**
+	 * Absolute URL for the Roda de Fogo favicon mark.
+	 */
+	public static function markUrl(): string {
+		return self::brandAssetUrl( self::MARK_BASENAME );
+	}
+
+	private static function brandAssetUrl( string $basename ): string {
 		if ( defined( 'RSES_PLUGIN_URL' ) ) {
-			return rtrim( (string) RSES_PLUGIN_URL, '/' ) . '/assets/brand/' . self::LOCKUP_BASENAME;
+			return rtrim( (string) RSES_PLUGIN_URL, '/' ) . '/assets/brand/' . $basename;
 		}
 		if ( function_exists( 'content_url' ) ) {
-			return content_url( 'plugins/relatasoft-secure-election-suite/assets/brand/' . self::LOCKUP_BASENAME );
+			return content_url( 'plugins/relatasoft-secure-election-suite/assets/brand/' . $basename );
 		}
-		return '/wp-content/plugins/relatasoft-secure-election-suite/assets/brand/' . self::LOCKUP_BASENAME;
+		return '/wp-content/plugins/relatasoft-secure-election-suite/assets/brand/' . $basename;
 	}
 
 	private static function css(): string {
 		return <<<'CSS'
 html,body{margin:0;padding:0;min-height:100%;background:#000000;color:#ffffff}
-body{min-height:100vh;display:flex;align-items:center;justify-content:center;font-family:"Avenir Next","Nunito Sans","Trebuchet MS",sans-serif;-webkit-font-smoothing:antialiased}
+body{min-height:100vh;display:flex;align-items:center;justify-content:center;font-family:"Open Sans","Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
 .ve-404{width:min(92vw,28rem);text-align:center;padding:2.5rem 1.25rem}
 .ve-404__lockup{display:block;width:min(100%,20.1875rem);height:auto;margin:0 auto 2rem;animation:ve404In .7s ease both}
 .ve-404__title{margin:0 0 .75rem;font-size:clamp(1.65rem,4.5vw,2.15rem);font-weight:700;letter-spacing:.01em;line-height:1.2;animation:ve404In .7s .12s ease both}

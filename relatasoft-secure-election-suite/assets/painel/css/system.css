@@ -1,6 +1,6 @@
 /* Gestão da plataforma — páginas de sistema (sem estética WP nativa). */
 .ve-system-page {
-  font-family: var(--ve-font-sans, "Open Sans", "Source Sans 3", "Segoe UI", sans-serif);
+  font-family: var(--ve-font-sans, "Open Sans", "Segoe UI", sans-serif);
   color: var(--ve-color-ink, #1c2a32);
   max-width: 56rem;
 }

@@ -7,7 +7,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'VETB_VERSION', '1.0.1' );
+define( 'VETB_VERSION', '1.0.2' );
 define( 'VETB_DIR', get_template_directory() );
 define( 'VETB_URI', get_template_directory_uri() );
 

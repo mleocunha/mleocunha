@@ -299,7 +299,7 @@ function ve_painel_mu_send_404(): void {
 		: '/wp-content/plugins/relatasoft-secure-election-suite/assets/brand/relatasoft-404-lockup.png';
 	$logo = htmlspecialchars( $logo, ENT_QUOTES, 'UTF-8' );
 	echo '<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><title>Página Inexistente</title>'
-		. '<style>html,body{margin:0;background:#000;color:#fff;min-height:100%}body{min-height:100vh;display:flex;align-items:center;justify-content:center;font-family:"Avenir Next","Nunito Sans","Trebuchet MS",sans-serif}.ve{text-align:center;padding:2rem 1rem}img{width:min(92vw,20rem);height:auto;margin:0 auto 2rem;display:block}h1{font-size:clamp(1.65rem,4.5vw,2.15rem);margin:0 0 .75rem}p{margin:0;color:rgba(255,255,255,.72)}</style></head><body><main class="ve">'
+		. '<style>html,body{margin:0;background:#000;color:#fff;min-height:100%}body{min-height:100vh;display:flex;align-items:center;justify-content:center;font-family:"Open Sans","Segoe UI",sans-serif}.ve{text-align:center;padding:2rem 1rem}img{width:min(92vw,20rem);height:auto;margin:0 auto 2rem;display:block}h1{font-size:clamp(1.65rem,4.5vw,2.15rem);margin:0 0 .75rem}p{margin:0;color:rgba(255,255,255,.72)}</style></head><body><main class="ve">'
 		. '<img src="' . $logo . '" width="323" height="82" alt="RelataSoft — Participação mais Inteligente"/>'
 		. '<h1>Página Inexistente</h1><p>O endereço informado não existe neste site.</p></main></body></html>';
 	exit;

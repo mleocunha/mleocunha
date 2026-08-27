@@ -3,7 +3,7 @@
  * Admin screens (Key Authority, Voting, Tallying) share the voting booth visual language.
  */
 
-@import url("https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,500;8..60,600;8..60,700&family=Source+Sans+3:wght@400;500;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700&display=swap");
 
 /* -------------------------------------------------------------------------
    Key Authority shell (matches voting-front tokens)
@@ -34,8 +34,8 @@
 	--rses-info-line: #f0d59a;
 	--rses-danger: #b42318;
 	--rses-radius: 10px;
-	--rses-font: "Source Sans 3", "Segoe UI", sans-serif;
-	--rses-display: "Source Serif 4", Georgia, serif;
+	--rses-font: "Open Sans", "Segoe UI", sans-serif;
+	--rses-display: "Open Sans", "Segoe UI", sans-serif;
 	--rses-ease: cubic-bezier(0.22, 1, 0.36, 1);
 	--rses-max: 920px;
 

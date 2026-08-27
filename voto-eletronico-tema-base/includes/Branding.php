@@ -73,7 +73,7 @@ final class Branding {
 	}
 
 	/**
-	 * Compact pinwheel (favicon / low-clutter marks).
+	 * Compact Roda de Fogo mark (favicon / low-clutter marks).
 	 */
 	public static function pinwheel_url(): string {
 		$settings = self::plugin_settings();
@@ -85,24 +85,29 @@ final class Branding {
 			}
 		}
 
+		if ( defined( 'RSES_PLUGIN_URL' ) ) {
+			return RSES_PLUGIN_URL . 'assets/brand/relatasoft-mark.png';
+		}
+
 		return self::asset_url( self::PINWHEEL );
 	}
 
 	/**
-	 * Vertical lockup for formal/official screens (PDF / printable tone).
-	 * Pinwheel centered above name + slogan — marketing-approved asset only.
-	 */
-	public static function vertical_lockup_url(): string {
-		return self::asset_url( self::LOCKUP_VERTICAL );
-	}
-
-	/**
-	 * Favicon / apple touch using pinwheel (URL marker; low visual noise).
+	 * Favicon / apple touch using Roda de Fogo.
 	 */
 	public static function output_favicon(): void {
 		$url = esc_url( self::pinwheel_url() );
-		echo '<link rel="icon" href="' . $url . '" type="image/svg+xml" />' . "\n";
+		$type = str_ends_with( strtolower( $url ), '.svg' ) ? 'image/svg+xml' : 'image/png';
+		echo '<link rel="icon" href="' . $url . '" type="' . esc_attr( $type ) . '" sizes="any" />' . "\n";
+		echo '<link rel="shortcut icon" href="' . $url . '" type="' . esc_attr( $type ) . '" />' . "\n";
 		echo '<link rel="apple-touch-icon" href="' . $url . '" />' . "\n";
+	}
+
+	/**
+	 * Vertical lockup for formal/official screens (PDF / printable tone).
+	 */
+	public static function vertical_lockup_url(): string {
+		return self::asset_url( self::LOCKUP_VERTICAL );
 	}
 
 	/**

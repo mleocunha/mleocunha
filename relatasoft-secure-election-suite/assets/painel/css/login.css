@@ -1,10 +1,14 @@
+html,
+body.login,
 body.login.ve-painel-login {
-  background:
-    radial-gradient(120% 80% at 0% 0%, rgba(12, 124, 156, 0.12), transparent 55%),
-    radial-gradient(90% 70% at 100% 0%, rgba(9, 94, 119, 0.08), transparent 50%),
-    linear-gradient(180deg, #f7fbfc, #ffffff 45%);
-  color: var(--ve-color-ink);
-  font-family: var(--ve-font-sans);
+  background: #000000 !important;
+  color: var(--ve-color-offwhite, #f2f0eb);
+  font-family: "Open Sans", "Segoe UI", sans-serif;
+  min-height: 100%;
+}
+
+body.login.ve-painel-login {
+  background: #000000 !important;
 }
 
 body.login.ve-painel-login #login {
@@ -21,27 +25,81 @@ body.login.ve-painel-login #login h1 a {
 }
 
 body.login.ve-painel-login #loginform,
-body.login.ve-painel-login #lostpasswordform {
+body.login.ve-painel-login #lostpasswordform,
+body.login.ve-painel-login #registerform {
   margin-top: 0;
   padding: 1.5rem 1.35rem 1.25rem;
-  border: 1px solid var(--ve-color-line);
-  border-radius: var(--ve-radius-lg);
-  box-shadow: var(--ve-shadow-md);
-  background: #fff;
+  border: 1px solid rgba(242, 240, 235, 0.22);
+  border-radius: var(--ve-radius-lg, 14px);
+  box-shadow: none;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+body.login.ve-painel-login label,
+body.login.ve-painel-login .message,
+body.login.ve-painel-login #nav a,
+body.login.ve-painel-login #backtoblog a,
+body.login.ve-painel-login .privacy-policy-link,
+body.login.ve-painel-login .language-switcher label {
+  color: #f2f0eb !important;
+}
+
+body.login.ve-painel-login input[type="text"],
+body.login.ve-painel-login input[type="password"],
+body.login.ve-painel-login input[type="email"],
+body.login.ve-painel-login input[type="search"],
+body.login.ve-painel-login select {
+  color: #f2f0eb !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+  border: 1px solid rgba(242, 240, 235, 0.28) !important;
+  border-radius: var(--ve-radius-md, 10px);
+  box-shadow: none !important;
+  font-family: "Open Sans", "Segoe UI", sans-serif;
+}
+
+body.login.ve-painel-login input::placeholder {
+  color: rgba(242, 240, 235, 0.45);
+}
+
+body.login.ve-painel-login input[type="checkbox"] {
+  border-color: rgba(242, 240, 235, 0.45) !important;
+  background: rgba(255, 255, 255, 0.08) !important;
 }
 
 body.login.ve-painel-login .wp-core-ui .button-primary {
-  background: linear-gradient(180deg, var(--ve-color-primary), var(--ve-color-primary-dark));
+  background: linear-gradient(180deg, var(--ve-color-primary, #0c7c9c), var(--ve-color-primary-dark, #095e77));
   border: none;
-  border-radius: var(--ve-radius-md);
+  border-radius: var(--ve-radius-md, 10px);
   box-shadow: 0 4px 14px rgba(12, 124, 156, 0.28);
   text-shadow: none;
   font-weight: 700;
+  font-family: "Open Sans", "Segoe UI", sans-serif;
+  color: #fff;
+}
+
+body.login.ve-painel-login #nav,
+body.login.ve-painel-login #backtoblog {
+  text-align: center;
+}
+
+body.login.ve-painel-login #nav a:hover,
+body.login.ve-painel-login #backtoblog a:hover {
+  color: #ffffff !important;
 }
 
 body.login.ve-painel-login .ve-painel-login-footnote {
   text-align: center;
-  color: var(--ve-color-muted);
+  color: rgba(242, 240, 235, 0.72);
   font-size: 0.85rem;
   margin-top: 1rem;
+  font-family: "Open Sans", "Segoe UI", sans-serif;
+}
+
+body.login.ve-painel-login .message,
+body.login.ve-painel-login .success,
+body.login.ve-painel-login #login_error {
+  background: rgba(255, 255, 255, 0.06) !important;
+  border-left-color: var(--ve-color-primary, #0c7c9c) !important;
+  color: #f2f0eb !important;
+  box-shadow: none;
 }

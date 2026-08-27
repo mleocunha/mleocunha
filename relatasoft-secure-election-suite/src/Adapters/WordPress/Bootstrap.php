@@ -8,6 +8,7 @@ use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\Admin\AdminBarClean
 use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\Admin\AdminFooterBranding;
 use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\Admin\AdminRedirect;
 use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\Assets\WordPressAssetLoader;
+use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\Branding\SiteIconBranding;
 use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\Branding\WordPressLoginBranding;
 use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\Logging\WordPressLogger;
 use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\Navigation\WordPressMenuChrome;
@@ -83,6 +84,7 @@ final class Bootstrap {
 		add_filter( 'admin_body_class', array( ShellView::class, 'bodyClass' ) );
 
 		WordPressLoginBranding::register( $loginBrand, $assets );
+		SiteIconBranding::register();
 		PlatformUrlMask::register();
 		FingerprintHardening::register();
 
