@@ -62,7 +62,7 @@ class JourneySettings {
 	}
 
 	/**
-	 * Login logo URL (custom attachment or default pinwheel).
+	 * Login logo URL (custom attachment or default Roda de Fogo).
 	 */
 	public static function rses_get_login_logo_url(): string {
 		$rses_id = absint( self::rses_get()['login_logo_attachment_id'] ?? 0 );
@@ -73,7 +73,7 @@ class JourneySettings {
 			}
 		}
 
-		return Brand::rses_asset_url( 'relatasoft-mark.svg' );
+		return Brand::rses_asset_url( Brand::RSES_DEFAULT_MARK );
 	}
 
 	/**

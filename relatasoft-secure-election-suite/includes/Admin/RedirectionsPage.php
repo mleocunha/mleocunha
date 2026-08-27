@@ -60,7 +60,7 @@ class RedirectionsPage {
 
 			<section class="rses-panel rses-panel-card">
 				<h2 class="rses-panel-title"><?php esc_html_e( 'Login branding', 'relatasoft-secure-election-suite' ); ?></h2>
-				<p class="description"><?php esc_html_e( 'Replace the default login logo. When no custom logo is set, the RelataSoft pinwheel is used.', 'relatasoft-secure-election-suite' ); ?></p>
+				<p class="description"><?php esc_html_e( 'Substitui o logo padrão do login. Sem logo personalizado, usa a Roda de Fogo RelataSoft.', 'relatasoft-secure-election-suite' ); ?></p>
 
 				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="rses-form" id="rses-redirections-form">
 					<?php Nonce::rses_field( Nonce::RSES_ACTION_REDIRECTIONS_SAVE ); ?>
@@ -76,12 +76,12 @@ class RedirectionsPage {
 										<?php if ( $rses_logo_url ) : ?>
 											<img src="<?php echo esc_url( $rses_logo_url ); ?>" alt="" width="80" height="80" />
 										<?php else : ?>
-											<img src="<?php echo esc_url( Brand::rses_asset_url( 'relatasoft-mark.svg' ) ); ?>" alt="" width="80" height="80" />
+											<img src="<?php echo esc_url( Brand::rses_asset_url( Brand::RSES_DEFAULT_MARK ) ); ?>" alt="" width="80" height="80" />
 										<?php endif; ?>
 									</div>
 									<p>
 										<button type="button" class="button" id="rses_pick_login_logo"><?php esc_html_e( 'Choose logo', 'relatasoft-secure-election-suite' ); ?></button>
-										<button type="button" class="button" id="rses_clear_login_logo"><?php esc_html_e( 'Use default pinwheel', 'relatasoft-secure-election-suite' ); ?></button>
+										<button type="button" class="button" id="rses_clear_login_logo"><?php esc_html_e( 'Usar Roda de Fogo padrão', 'relatasoft-secure-election-suite' ); ?></button>
 									</p>
 								</div>
 							</td>

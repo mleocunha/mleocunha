@@ -52,12 +52,15 @@ class SystemModulesPage {
 			<?php endif; ?>
 
 			<section class="ve-system-card">
-				<h2><?php esc_html_e( 'Instalar módulo (ZIP)', 'relatasoft-secure-election-suite' ); ?></h2>
+				<h2><?php esc_html_e( 'Instalar ou atualizar módulo (ZIP)', 'relatasoft-secure-election-suite' ); ?></h2>
+				<p class="description">
+					<?php esc_html_e( 'Envie um ZIP para instalar um módulo novo ou substituir um já instalado (inclusive esta suíte), sem usar a interface clássica do WordPress.', 'relatasoft-secure-election-suite' ); ?>
+				</p>
 				<form method="post" enctype="multipart/form-data" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
 					<input type="hidden" name="action" value="ve_module_upload" />
 					<?php Nonce::rses_field( 've_module_upload' ); ?>
 					<input type="file" name="ve_module_zip" accept=".zip,application/zip" required />
-					<button type="submit" class="ve-btn ve-btn-primary"><?php esc_html_e( 'Instalar módulo', 'relatasoft-secure-election-suite' ); ?></button>
+					<button type="submit" class="ve-btn ve-btn-primary"><?php esc_html_e( 'Instalar / atualizar', 'relatasoft-secure-election-suite' ); ?></button>
 				</form>
 			</section>
 
@@ -189,11 +192,30 @@ class SystemModulesPage {
 		require_once ABSPATH . 'wp-admin/includes/class-wp-upgrader.php';
 		$file = $_FILES['ve_module_zip'] ?? null; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput
 		$msg  = 'Falha no envio.';
-		if ( is_array( $file ) && ! empty( $file['tmp_name'] ) ) {
+		if ( is_array( $file ) && ! empty( $file['tmp_name'] ) && is_uploaded_file( (string) $file['tmp_name'] ) ) {
 			$skin     = new \Automatic_Upgrader_Skin();
 			$upgrader = new \Plugin_Upgrader( $skin );
-			$result   = $upgrader->install( $file['tmp_name'] );
-			$msg      = is_wp_error( $result ) ? $result->get_error_message() : ( $result ? 'Módulo instalado.' : 'Instalação não concluída.' );
+			// overwrite_package (WP 5.5+): atualiza no lugar se a pasta já existir
+			// (sem apagar via CLI nem abrir plugins.php clássico).
+			$result = $upgrader->install(
+				(string) $file['tmp_name'],
+				array( 'overwrite_package' => true )
+			);
+			if ( is_wp_error( $result ) ) {
+				$msg = $result->get_error_message();
+			} elseif ( $result ) {
+				$msg      = 'Módulo instalado ou atualizado.';
+				$basename = 'relatasoft-secure-election-suite/relatasoft-secure-election-suite.php';
+				if ( ! is_plugin_active( $basename ) && file_exists( WP_PLUGIN_DIR . '/' . $basename ) ) {
+					$reactivate = activate_plugin( $basename );
+					if ( is_wp_error( $reactivate ) ) {
+						$msg .= ' ' . $reactivate->get_error_message();
+					}
+				}
+			} else {
+				$feedback = method_exists( $skin, 'get_upgrade_messages' ) ? $skin->get_upgrade_messages() : array();
+				$msg      = $feedback ? implode( ' ', array_map( 'wp_strip_all_tags', (array) $feedback ) ) : 'Instalação não concluída.';
+			}
 		}
 		wp_safe_redirect( admin_url( 'admin.php?page=rses-system-modules&ve_notice=' . rawurlencode( $msg ) ) );
 		exit;
