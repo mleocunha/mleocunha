@@ -33,7 +33,7 @@ final class WordPressLoginBranding {
 		self::$assets->enqueueLoginBranding();
 		$logo = JourneySettings::rses_get_login_logo_url();
 		$css  = sprintf(
-			'#login h1 a{background-image:url(%s)!important;background-size:contain!important;width:140px!important;height:140px!important;margin:0 auto 1.25rem!important;}',
+			'#login h1 a{background-image:url(%s)!important;background-color:transparent!important;background-size:contain!important;width:140px!important;height:140px!important;margin:0 auto 1.25rem!important;box-shadow:none!important;}',
 			esc_url( $logo )
 		);
 		wp_add_inline_style( 've-painel-login', $css );
@@ -81,10 +81,19 @@ final class WordPressLoginBranding {
 			return $translation;
 		}
 		if ( 'Username' === $text || 'Username or Email Address' === $text ) {
-			return __( 'Identification', 'relatasoft-secure-election-suite' );
+			return __( 'Identificação', 'relatasoft-secure-election-suite' );
 		}
 		if ( 'Password' === $text ) {
-			return __( 'Secret', 'relatasoft-secure-election-suite' );
+			return __( 'Segredo', 'relatasoft-secure-election-suite' );
+		}
+		if ( 'Lost your password?' === $text || 'Lost Password' === $text ) {
+			return __( 'Alterar ou recuperar senha', 'relatasoft-secure-election-suite' );
+		}
+		if ( 'Remember Me' === $text ) {
+			return __( 'Lembrar-me', 'relatasoft-secure-election-suite' );
+		}
+		if ( 'Log In' === $text ) {
+			return __( 'Acessar', 'relatasoft-secure-election-suite' );
 		}
 		return $translation;
 	}

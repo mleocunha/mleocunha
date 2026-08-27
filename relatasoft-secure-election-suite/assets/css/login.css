@@ -29,9 +29,9 @@ body.login.rses-login-screen #login {
 }
 
 body.login.rses-login-screen #login h1 a {
-	border-radius: calc(var(--rses-radius) + 4px);
-	box-shadow: 0 8px 24px rgba(12, 124, 156, 0.12);
-	background-color: #fff;
+	border-radius: 0;
+	box-shadow: none;
+	background-color: transparent;
 	background-position: center;
 	background-repeat: no-repeat;
 }

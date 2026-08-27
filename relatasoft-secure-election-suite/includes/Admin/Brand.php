@@ -24,7 +24,7 @@ class Brand {
 	/**
 	 * Compact pinwheel mark (login fallback / solo decoration).
 	 */
-	public const RSES_DEFAULT_MARK = 'relatasoft-mark.svg';
+	public const RSES_DEFAULT_MARK = 'relatasoft-mark.png';
 
 	/**
 	 * URL to a brand asset.

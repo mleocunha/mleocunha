@@ -13,9 +13,9 @@ body.login.ve-painel-login #login {
 }
 
 body.login.ve-painel-login #login h1 a {
-  border-radius: calc(var(--ve-radius-md) + 4px);
-  box-shadow: var(--ve-shadow-md);
-  background-color: #fff;
+  border-radius: 0;
+  box-shadow: none;
+  background-color: transparent !important;
   background-position: center;
   background-repeat: no-repeat;
 }

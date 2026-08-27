@@ -27,7 +27,7 @@ class SystemAppearancePage {
 	public static function render(): void {
 		Capability::rses_require_admin();
 		wp_enqueue_style( 've-painel-system' );
-		$themes  = wp_get_themes();
+		$themes  = self::list_operator_themes();
 		$current = get_stylesheet();
 		$notice  = isset( $_GET['ve_notice'] ) ? sanitize_text_field( wp_unslash( (string) $_GET['ve_notice'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 		?>
@@ -36,7 +36,7 @@ class SystemAppearancePage {
 				<p class="ve-system-kicker"><?php esc_html_e( 'Gestão da plataforma', 'relatasoft-secure-election-suite' ); ?></p>
 				<h1><?php esc_html_e( 'Identidade Visual', 'relatasoft-secure-election-suite' ); ?></h1>
 				<p class="ve-system-lead">
-					<?php esc_html_e( 'Instale, active ou remova modelos de apresentação do sítio eleitoral — sem a linguagem técnica habitual de painéis genéricos.', 'relatasoft-secure-election-suite' ); ?>
+					<?php esc_html_e( 'Instale, ative ou remova modelos de apresentação do site eleitoral — sem expor nomes técnicos de painéis genéricos.', 'relatasoft-secure-election-suite' ); ?>
 				</p>
 			</header>
 
@@ -56,6 +56,11 @@ class SystemAppearancePage {
 
 			<section class="ve-system-card">
 				<h2><?php esc_html_e( 'Modelos instalados', 'relatasoft-secure-election-suite' ); ?></h2>
+				<?php if ( empty( $themes ) ) : ?>
+					<p class="ve-system-muted">
+						<?php esc_html_e( 'Nenhum modelo eleitoral instalado ainda. Envie um ZIP acima para publicar a identidade do site.', 'relatasoft-secure-election-suite' ); ?>
+					</p>
+				<?php else : ?>
 				<div class="ve-system-table-wrap">
 					<table class="ve-system-table">
 						<thead>
@@ -104,9 +109,49 @@ class SystemAppearancePage {
 						</tbody>
 					</table>
 				</div>
+				<?php endif; ?>
 			</section>
 		</div>
 		<?php
+	}
+
+	/**
+	 * Themes shown to operators — stock WordPress “Twenty*” packs stay installed as silent fallbacks.
+	 *
+	 * @return array<string, \WP_Theme>
+	 */
+	public static function list_operator_themes(): array {
+		$out = array();
+		foreach ( wp_get_themes() as $slug => $theme ) {
+			if ( self::is_stock_wordpress_theme( (string) $slug, $theme ) ) {
+				continue;
+			}
+			$out[ $slug ] = $theme;
+		}
+		return $out;
+	}
+
+	/**
+	 * Default WP themes kept on disk for emergency fallback — never listed in Identidade Visual.
+	 *
+	 * @param string $slug  Stylesheet slug.
+	 * @param object $theme Theme-like object with get( string $key ).
+	 */
+	public static function is_stock_wordpress_theme( string $slug, $theme ): bool {
+		$slug = strtolower( $slug );
+		if ( preg_match( '/^twenty(ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|nineteen)$/', $slug ) ) {
+			return true;
+		}
+		if ( preg_match( '/^twentytwenty([a-z0-9]*)$/', $slug ) ) {
+			return true;
+		}
+		if ( ! str_starts_with( $slug, 'twenty' ) || ! is_object( $theme ) || ! method_exists( $theme, 'get' ) ) {
+			return false;
+		}
+		$uri    = strtolower( (string) $theme->get( 'ThemeURI' ) );
+		$author = strtolower( (string) $theme->get( 'Author' ) );
+		return str_contains( $uri, 'wordpress.org' )
+			|| str_contains( $author, 'wordpress' );
 	}
 
 	public static function handle_activate(): void {
@@ -126,7 +171,7 @@ class SystemAppearancePage {
 		$sheet = isset( $_POST['stylesheet'] ) ? sanitize_text_field( wp_unslash( (string) $_POST['stylesheet'] ) ) : '';
 		if ( $sheet && $sheet !== get_stylesheet() ) {
 			$theme = wp_get_theme( $sheet );
-			if ( $theme->exists() ) {
+			if ( $theme->exists() && ! self::is_stock_wordpress_theme( $sheet, $theme ) ) {
 				require_once ABSPATH . 'wp-admin/includes/theme.php';
 				delete_theme( $sheet );
 			}
