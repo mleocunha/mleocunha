@@ -18,6 +18,7 @@ final class PlatformUrlMask {
 
 	private static bool $registered = false;
 	public const ADMIN_ALIAS_MARKER = '.ve-admin-alias';
+	public const QUERY_VAR = 've_painel_admin';
 
 	public static function register(): void {
 		if ( self::$registered ) {
@@ -26,9 +27,12 @@ final class PlatformUrlMask {
 		self::$registered = true;
 
 		add_action( 'init', array( self::class, 'ensureArtifacts' ), 0 );
+		add_action( 'init', array( self::class, 'registerRewrites' ), 1 );
 		add_action( 'init', array( self::class, 'bootstrapRequest' ), 0 );
 		add_action( 'login_init', array( self::class, 'bootstrapRequest' ), 0 );
 		add_action( 'admin_notices', array( self::class, 'maybeAliasNotice' ) );
+		add_filter( 'query_vars', array( self::class, 'addQueryVar' ) );
+		add_action( 'parse_request', array( self::class, 'handleRewriteRequest' ), 1 );
 
 		add_filter( 'admin_url', array( self::class, 'filterAdminUrl' ), 100, 3 );
 		add_filter( 'network_admin_url', array( self::class, 'filterNetworkAdminUrl' ), 100, 2 );
@@ -44,7 +48,8 @@ final class PlatformUrlMask {
 		add_filter( 'login_redirect', array( self::class, 'filterLoginRedirect' ), 100, 3 );
 		add_action( 'login_footer', array( self::class, 'forceLoginFormAction' ), 1 );
 
-		// Plugin load may happen during plugins_loaded — enforce mask on this request too.
+		// Front-controller early: /painel/* may arrive via index.php (nginx try_files).
+		self::maybeFrontController();
 		self::bootstrapRequest();
 	}
 
@@ -74,45 +79,127 @@ final class PlatformUrlMask {
 			return;
 		}
 		self::writeLoginStub();
-		self::writeAdminAlias();
+		self::writeAdminGateway();
 		self::writeHtaccessRules();
+		self::writeNginxSnippet();
+	}
+
+	/** @param list<string> $vars */
+	public static function addQueryVar( array $vars ): array {
+		$vars[] = self::QUERY_VAR;
+		return $vars;
+	}
+
+	public static function registerRewrites(): void {
+		if ( ! self::enabled() ) {
+			return;
+		}
+		$slug = preg_quote( self::adminPath(), '#' );
+		add_rewrite_rule( '^' . $slug . '/?$', 'index.php?' . self::QUERY_VAR . '=index.php', 'top' );
+		add_rewrite_rule( '^' . $slug . '/(.+)$', 'index.php?' . self::QUERY_VAR . '=$matches[1]', 'top' );
 	}
 
 	/**
-	 * Warn admins when /painel is not reachable on disk (typical nginx without alias).
+	 * When WP rewrite delivers ?ve_painel_admin=admin.php, bootstrap that admin script.
+	 *
+	 * @param \WP $wp WP request.
+	 */
+	public static function handleRewriteRequest( $wp ): void {
+		if ( ! self::enabled() || ! is_object( $wp ) || empty( $wp->query_vars[ self::QUERY_VAR ] ) ) {
+			return;
+		}
+		self::bootstrapAdminScript( (string) $wp->query_vars[ self::QUERY_VAR ] );
+	}
+
+	/**
+	 * If nginx handed /painel/... to index.php without rewrite vars, route here.
+	 */
+	public static function maybeFrontController(): void {
+		if ( ! self::enabled() || ( defined( 'WP_CLI' ) && WP_CLI ) ) {
+			return;
+		}
+		if ( defined( 'VE_ADMIN_ENTRY' ) || ( defined( 'WP_ADMIN' ) && WP_ADMIN ) ) {
+			return;
+		}
+		$uri  = isset( $_SERVER['REQUEST_URI'] ) ? (string) $_SERVER['REQUEST_URI'] : '';
+		$path = UrlMaskConfig::requestPath( $uri );
+		$slug = self::adminPath();
+		if ( ! preg_match( '#/(?:' . preg_quote( $slug, '#' ) . ')(?:/(.*))?$#', $path, $m ) ) {
+			return;
+		}
+		// Only when the current script is the WP front controller (not a gateway stub).
+		$script = isset( $_SERVER['SCRIPT_FILENAME'] ) ? (string) $_SERVER['SCRIPT_FILENAME'] : '';
+		if ( $script !== '' && str_contains( wp_normalize_path( $script ), '/' . $slug . '/' ) ) {
+			return;
+		}
+		$rest = isset( $m[1] ) ? (string) $m[1] : '';
+		self::bootstrapAdminScript( $rest !== '' ? $rest : 'index.php' );
+	}
+
+	/**
+	 * Load a wp-admin PHP entry by basename (no directory traversal).
+	 */
+	private static function bootstrapAdminScript( string $rest ): void {
+		$rest = rawurldecode( $rest );
+		$rest = ltrim( $rest, '/' );
+		if ( '' === $rest || str_ends_with( $rest, '/' ) ) {
+			$rest = 'index.php';
+		}
+		// Drop query string if present in rewrite match.
+		$qpos = strpos( $rest, '?' );
+		if ( false !== $qpos ) {
+			$rest = substr( $rest, 0, $qpos );
+		}
+		$base = basename( $rest );
+		if ( ! preg_match( '/^[a-z0-9_-]+\.php$/i', $base ) ) {
+			$base = 'index.php';
+		}
+		$file = trailingslashit( ABSPATH ) . 'wp-admin/' . $base;
+		if ( ! is_readable( $file ) ) {
+			return;
+		}
+		if ( ! defined( 'VE_ADMIN_ENTRY' ) ) {
+			define( 'VE_ADMIN_ENTRY', true );
+		}
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_require
+		require $file;
+		exit;
+	}
+
+	/**
+	 * Warn when the public /painel gateway could not be materialized.
 	 */
 	public static function maybeAliasNotice(): void {
 		if ( ! self::enabled() || ! function_exists( 'current_user_can' ) || ! current_user_can( 'manage_options' ) ) {
 			return;
 		}
-		if ( self::adminAliasExists() ) {
+		if ( self::adminGatewayExists() ) {
 			return;
 		}
-		$cmd = 'ln -sfn wp-admin ' . self::adminPath();
 		echo '<div class="notice notice-error"><p>';
 		echo esc_html__(
-			'A URL pública /painel/ ainda não está disponível neste servidor (comum em nginx). Na raiz da instalação execute:',
+			'Não foi possível criar o gateway /painel/ na raiz da instalação (permissões). O Painel tentará servir via rewrites; se /painel/ falhar, torne a raiz gravável ou inclua o snippet Nginx gerado em wp-content/uploads/ve-painel-nginx.conf.',
 			'relatasoft-secure-election-suite'
 		);
-		echo ' <code>' . esc_html( $cmd ) . '</code>';
 		echo '</p></div>';
 	}
 
-	public static function adminAliasExists(): bool {
+	public static function adminGatewayExists(): bool {
 		if ( ! defined( 'ABSPATH' ) ) {
 			return false;
 		}
-		$link = trailingslashit( ABSPATH ) . self::adminPath();
-		if ( is_link( $link ) ) {
-			return true;
-		}
-		return is_dir( $link ) && is_readable( $link . '/' . self::ADMIN_ALIAS_MARKER );
+		$dir = trailingslashit( ABSPATH ) . self::adminPath();
+		return is_dir( $dir )
+			&& ! is_link( $dir )
+			&& is_readable( $dir . '/' . self::ADMIN_ALIAS_MARKER )
+			&& is_readable( $dir . '/admin.php' );
 	}
 
 	/**
-	 * Nginx-friendly alias: symlink (or stub tree) so /painel/* maps to wp-admin/*.
+	 * Real PHP gateway directory (no symlinks): each wp-admin/*.php gets a thin stub.
+	 * Static assets keep using /wp-admin/ via URL filters.
 	 */
-	public static function writeAdminAlias(): bool {
+	public static function writeAdminGateway(): bool {
 		if ( ! defined( 'ABSPATH' ) ) {
 			return false;
 		}
@@ -120,51 +207,45 @@ final class PlatformUrlMask {
 		if ( '' === $admin_slug || false !== strpos( $admin_slug, '/' ) || false !== strpos( $admin_slug, '..' ) ) {
 			return false;
 		}
-		$link   = trailingslashit( ABSPATH ) . $admin_slug;
-		$target = trailingslashit( ABSPATH ) . 'wp-admin';
+		$dir      = trailingslashit( ABSPATH ) . $admin_slug;
+		$wp_admin = trailingslashit( ABSPATH ) . 'wp-admin';
 
-		if ( ! is_dir( $target ) ) {
+		if ( ! is_dir( $wp_admin ) ) {
 			return false;
 		}
 
-		if ( is_link( $link ) ) {
-			$current = readlink( $link );
-			if ( 'wp-admin' === $current || $target === $current || realpath( $link ) === realpath( $target ) ) {
-				return true;
-			}
+		// Replace legacy symlink with a proper gateway.
+		if ( is_link( $dir ) ) {
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink
+			@unlink( $dir );
+		}
+
+		if ( file_exists( $dir ) && ! is_dir( $dir ) ) {
 			return false;
 		}
 
-		if ( file_exists( $link ) ) {
-			// Already a real dir we created?
-			return is_dir( $link ) && is_readable( $link . '/' . self::ADMIN_ALIAS_MARKER );
-		}
-
-		// Prefer relative symlink (portable when docroot moves).
-		// phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
-		if ( @symlink( 'wp-admin', $link ) ) {
-			return true;
-		}
-		// phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
-		if ( @symlink( $target, $link ) ) {
-			return true;
-		}
-
-		return self::writeAdminStubDirectory( $link, $target );
+		return self::writeAdminStubDirectory( $dir, $wp_admin );
 	}
 
 	/**
-	 * Fallback when symlink() is disabled: stub PHP entries + symlink asset dirs.
+	 * Create real stub PHP files that require the corresponding wp-admin scripts.
 	 */
-	private static function writeAdminStubDirectory( string $link, string $wp_admin ): bool {
-		if ( ! wp_mkdir_p( $link ) ) {
+	private static function writeAdminStubDirectory( string $dir, string $wp_admin ): bool {
+		if ( ! function_exists( 'wp_mkdir_p' ) ) {
+			return false;
+		}
+		if ( ! is_dir( $dir ) && ! wp_mkdir_p( $dir ) ) {
 			return false;
 		}
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
 		file_put_contents(
-			$link . '/' . self::ADMIN_ALIAS_MARKER,
-			"Voto Eletrônico admin alias — do not delete\n"
+			$dir . '/' . self::ADMIN_ALIAS_MARKER,
+			"Voto Eletrônico — gateway do Painel (ficheiros stub; não é symlink).\n"
 		);
+
+		// Deny directory listing.
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
+		file_put_contents( $dir . '/index.php', self::stubPhp( 'index.php' ) );
 
 		$files = glob( trailingslashit( $wp_admin ) . '*.php' ) ?: array();
 		foreach ( $files as $file ) {
@@ -172,40 +253,62 @@ final class PlatformUrlMask {
 			if ( ! preg_match( '/^[a-z0-9_-]+\.php$/i', $base ) ) {
 				continue;
 			}
-			$stub = "<?php\n/** Voto Eletrônico — alias de gestão (não editar). */\n"
-				. "require dirname( __DIR__ ) . '/wp-admin/{$base}';\n";
 			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
-			file_put_contents( $link . '/' . $base, $stub );
+			file_put_contents( $dir . '/' . $base, self::stubPhp( $base ) );
 		}
 
-		foreach ( array( 'css', 'js', 'images', 'maint', 'network', 'user' ) as $subdir ) {
-			$from = trailingslashit( $wp_admin ) . $subdir;
-			$to   = $link . '/' . $subdir;
-			if ( ! is_dir( $from ) || file_exists( $to ) ) {
-				continue;
-			}
-			// phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
-			if ( ! @symlink( '../wp-admin/' . $subdir, $to ) ) {
-				// phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
-				@symlink( $from, $to );
-			}
-		}
+		return is_readable( $dir . '/admin.php' );
+	}
 
-		return is_readable( $link . '/index.php' ) || is_readable( $link . '/admin.php' );
+	private static function stubPhp( string $base ): string {
+		return "<?php\n"
+			. "/**\n * Voto Eletrônico — gateway do Painel de Controle Eleitoral.\n"
+			. " * Ficheiro gerado automaticamente (não é link simbólico). Não editar.\n */\n"
+			. "define( 'VE_ADMIN_ENTRY', true );\n"
+			. "require dirname( __DIR__ ) . '/wp-admin/{$base}';\n";
+	}
+
+	/**
+	 * Optional Nginx include (no server mutation — operator includes one file).
+	 */
+	public static function writeNginxSnippet(): void {
+		if ( ! function_exists( 'wp_upload_dir' ) ) {
+			return;
+		}
+		$upload = wp_upload_dir();
+		if ( ! empty( $upload['error'] ) || empty( $upload['basedir'] ) ) {
+			return;
+		}
+		$slug = self::adminPath();
+		$login = self::loginPath();
+		$body = "# Voto Eletrônico — incluir no server{} Nginx (opcional se o gateway /{$slug}/ já existir)\n"
+			. "# include {$upload['basedir']}/ve-painel-nginx.conf;\n"
+			. "location /{$slug}/ {\n"
+			. "    try_files \$uri \$uri/ /index.php?\$args;\n"
+			. "}\n"
+			. "location = /{$slug} {\n"
+			. "    return 301 /{$slug}/;\n"
+			. "}\n"
+			. "location = /{$login} {\n"
+			. "    try_files \$uri /{$login};\n"
+			. "}\n";
+		$path = trailingslashit( (string) $upload['basedir'] ) . 've-painel-nginx.conf';
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
+		@file_put_contents( $path, $body );
 	}
 
 	public static function removeAdminAlias(): void {
 		if ( ! defined( 'ABSPATH' ) ) {
 			return;
 		}
-		$link = trailingslashit( ABSPATH ) . self::adminPath();
-		if ( is_link( $link ) ) {
+		$dir = trailingslashit( ABSPATH ) . self::adminPath();
+		if ( is_link( $dir ) ) {
 			// phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink
-			@unlink( $link );
+			@unlink( $dir );
 			return;
 		}
-		if ( is_dir( $link ) && is_readable( $link . '/' . self::ADMIN_ALIAS_MARKER ) ) {
-			self::rrmdir( $link );
+		if ( is_dir( $dir ) && is_readable( $dir . '/' . self::ADMIN_ALIAS_MARKER ) ) {
+			self::rrmdir( $dir );
 		}
 	}
 
@@ -227,6 +330,13 @@ final class PlatformUrlMask {
 		}
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_rmdir
 		@rmdir( $dir );
+	}
+
+	/**
+	 * Keep CSS/JS/fonts on /wp-admin (public page URLs use /painel).
+	 */
+	private static function isStaticAdminAsset( string $path, string $url ): bool {
+		return (bool) preg_match( '/\.(css|js|map|png|jpe?g|gif|svg|webp|woff2?|ttf|eot|ico)(\?|$)/i', $path . ' ' . $url );
 	}
 
 	/**
