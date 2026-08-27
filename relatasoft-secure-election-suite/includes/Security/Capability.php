@@ -58,7 +58,8 @@ class Capability {
 
 		$roles = array_map( 'strval', (array) $user->roles );
 		return in_array( self::RSES_ADMIN_ROLE, $roles, true )
-			|| in_array( 've_gestor', $roles, true );
+			|| in_array( 've_gestor', $roles, true )
+			|| user_can( $user_id, 'manage_options' );
 	}
 
 	/**
@@ -208,8 +209,8 @@ class Capability {
 	public static function rses_require_admin(): void {
 		if ( ! self::rses_can_manage_election() ) {
 			wp_die(
-				esc_html__( 'Only users with the Administrator role may perform this action.', 'relatasoft-secure-election-suite' ),
-				esc_html__( 'Permission Denied', 'relatasoft-secure-election-suite' ),
+				esc_html__( 'Só quem administra a eleição pode fazer isso.', 'relatasoft-secure-election-suite' ),
+				esc_html__( 'Sem permissão', 'relatasoft-secure-election-suite' ),
 				array( 'response' => 403 )
 			);
 		}

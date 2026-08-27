@@ -49,8 +49,12 @@ final class WordPressAssetLoader implements AssetProvider {
 			$mode = \RelataSoft\SecureElectionSuite\Bootstrap\ModeLock::rses_get_mode();
 		}
 		$items = $kernel->navigation->visibleItems( is_string( $mode ) ? $mode : '' );
-		$nav   = array();
+		$allowed_slugs = self::registeredPainelSlugs();
+		$nav           = array();
 		foreach ( $items as $item ) {
+			if ( $allowed_slugs && ! in_array( $item->slug, $allowed_slugs, true ) ) {
+				continue;
+			}
 			$nav[] = array(
 				'id'       => $item->id,
 				'title'    => $item->title,
@@ -64,15 +68,34 @@ final class WordPressAssetLoader implements AssetProvider {
 			've-painel-shell',
 			'vePainel',
 			array(
-				'productName' => $kernel->loginBranding->productName(),
-				'panelName'   => $kernel->loginBranding->panelName(),
-				'persona'     => $kernel->permissions->currentPersona()->value,
-				'personaLabel'=> $kernel->permissions->currentPersona()->labelPt(),
-				'mode'        => is_string( $mode ) ? $mode : '',
-				'nav'         => $nav,
-				'darkMode'    => ! empty( $cfg['dark_mode'] ),
+				'productName'  => $kernel->loginBranding->productName(),
+				'panelName'    => $kernel->loginBranding->panelName(),
+				'persona'      => $kernel->permissions->currentPersona()->value,
+				'personaLabel' => $kernel->permissions->currentPersona()->labelPt(),
+				'mode'         => is_string( $mode ) ? $mode : '',
+				'nav'          => $nav,
+				'darkMode'     => ! empty( $cfg['dark_mode'] ),
 			)
 		);
+	}
+
+	/**
+	 * Slugs actually registered under the Painel parent (avoids shell links to missing pages).
+	 *
+	 * @return list<string>
+	 */
+	private static function registeredPainelSlugs(): array {
+		global $submenu;
+		$slugs = array( 'rses-dashboard' );
+		if ( ! is_array( $submenu ) || empty( $submenu['rses-dashboard'] ) ) {
+			return $slugs;
+		}
+		foreach ( $submenu['rses-dashboard'] as $row ) {
+			if ( ! empty( $row[2] ) && is_string( $row[2] ) ) {
+				$slugs[] = $row[2];
+			}
+		}
+		return array_values( array_unique( $slugs ) );
 	}
 
 	public function enqueueLoginBranding(): void {

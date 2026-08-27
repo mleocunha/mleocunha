@@ -37,6 +37,10 @@ final class WordPressCapabilityResolver implements CapabilityResolver {
 		if ( in_array( Capability::RSES_VOTER_ROLE, $roles, true ) ) {
 			return Persona::Eleitor;
 		}
+		// Painéis de hospedagem às vezes usam papel customizado com manage_options.
+		if ( user_can( $userId, 'manage_options' ) ) {
+			return Persona::AdministradorEleitoral;
+		}
 		return Persona::Eleitor;
 	}
 

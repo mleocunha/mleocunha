@@ -45,11 +45,10 @@ class AdminMenu {
 	 * Register admin menu pages.
 	 */
 	public static function rses_register_menus(): void {
-		if ( ! Capability::rses_can_manage_election() && ! Capability::rses_is_election_official() ) {
-			return;
-		}
-
-		// edit_posts so Editors always see Election Suite; admin-only pages use manage_options.
+		// Register by capability string — never gate registration on the current user's role.
+		// Hosts (Virtualmin etc.) sometimes use custom roles with manage_options but without
+		// the slug "administrator"; wrapping add_*_page in role checks left pages unregistered
+		// and the shell linked to them → "Sem permissão para acessar esta página."
 		$rses_official_cap = 'edit_posts';
 		$rses_admin_cap    = 'manage_options';
 
@@ -63,51 +62,71 @@ class AdminMenu {
 			30
 		);
 
-		// Always available so admins can lock mode or perform destructive reset.
-		if ( Capability::rses_can_manage_election() ) {
-			add_submenu_page(
-				'rses-dashboard',
-				__( 'Mode Setup', 'relatasoft-secure-election-suite' ),
-				__( 'Mode Setup', 'relatasoft-secure-election-suite' ),
-				$rses_admin_cap,
-				'rses-mode-setup',
-				array( ModeSetupPage::class, 'rses_render' )
-			);
-
-			// Gestão da plataforma — disponível antes e depois do modo.
-			add_submenu_page(
-				'rses-dashboard',
-				__( 'Atualizar o Sistema', 'relatasoft-secure-election-suite' ),
-				__( 'Atualizar o Sistema', 'relatasoft-secure-election-suite' ),
-				$rses_admin_cap,
-				'rses-system-update',
-				array( SystemUpdatePage::class, 'render' )
-			);
-			add_submenu_page(
-				'rses-dashboard',
-				__( 'Identidade Visual', 'relatasoft-secure-election-suite' ),
-				__( 'Identidade Visual', 'relatasoft-secure-election-suite' ),
-				$rses_admin_cap,
-				'rses-system-appearance',
-				array( SystemAppearancePage::class, 'render' )
-			);
-			add_submenu_page(
-				'rses-dashboard',
-				__( 'Módulos do Sistema', 'relatasoft-secure-election-suite' ),
-				__( 'Módulos do Sistema', 'relatasoft-secure-election-suite' ),
-				$rses_admin_cap,
-				'rses-system-modules',
-				array( SystemModulesPage::class, 'render' )
-			);
-			add_submenu_page(
-				'rses-dashboard',
-				__( 'Becape e Restauração', 'relatasoft-secure-election-suite' ),
-				__( 'Becape e Restauração', 'relatasoft-secure-election-suite' ),
-				$rses_admin_cap,
-				'rses-system-becape',
-				array( SystemBecapePage::class, 'render' )
-			);
-		}
+		// Platform management — available before and after mode lock.
+		add_submenu_page(
+			'rses-dashboard',
+			__( 'Configuração de Modo', 'relatasoft-secure-election-suite' ),
+			__( 'Configuração de Modo', 'relatasoft-secure-election-suite' ),
+			$rses_admin_cap,
+			'rses-mode-setup',
+			array( ModeSetupPage::class, 'rses_render' )
+		);
+		add_submenu_page(
+			'rses-dashboard',
+			__( 'Atualizar o Sistema', 'relatasoft-secure-election-suite' ),
+			__( 'Atualizar o Sistema', 'relatasoft-secure-election-suite' ),
+			$rses_admin_cap,
+			'rses-system-update',
+			array( SystemUpdatePage::class, 'render' )
+		);
+		add_submenu_page(
+			'rses-dashboard',
+			__( 'Identidade Visual', 'relatasoft-secure-election-suite' ),
+			__( 'Identidade Visual', 'relatasoft-secure-election-suite' ),
+			$rses_admin_cap,
+			'rses-system-appearance',
+			array( SystemAppearancePage::class, 'render' )
+		);
+		add_submenu_page(
+			'rses-dashboard',
+			__( 'Módulos do Sistema', 'relatasoft-secure-election-suite' ),
+			__( 'Módulos do Sistema', 'relatasoft-secure-election-suite' ),
+			$rses_admin_cap,
+			'rses-system-modules',
+			array( SystemModulesPage::class, 'render' )
+		);
+		add_submenu_page(
+			'rses-dashboard',
+			__( 'Becape e Restauração', 'relatasoft-secure-election-suite' ),
+			__( 'Becape e Restauração', 'relatasoft-secure-election-suite' ),
+			$rses_admin_cap,
+			'rses-system-becape',
+			array( SystemBecapePage::class, 'render' )
+		);
+		add_submenu_page(
+			'rses-dashboard',
+			__( 'Configurações', 'relatasoft-secure-election-suite' ),
+			__( 'Configurações', 'relatasoft-secure-election-suite' ),
+			$rses_admin_cap,
+			'rses-settings',
+			array( SettingsPage::class, 'rses_render' )
+		);
+		add_submenu_page(
+			'rses-dashboard',
+			__( 'Registro de Auditoria', 'relatasoft-secure-election-suite' ),
+			__( 'Registro de Auditoria', 'relatasoft-secure-election-suite' ),
+			$rses_admin_cap,
+			'rses-audit-log',
+			array( AuditLogPage::class, 'rses_render' )
+		);
+		add_submenu_page(
+			'rses-dashboard',
+			__( 'Autoteste Criptográfico', 'relatasoft-secure-election-suite' ),
+			__( 'Autoteste Criptográfico', 'relatasoft-secure-election-suite' ),
+			$rses_admin_cap,
+			'rses-crypto-self-test',
+			array( self::class, 'rses_render_crypto_self_test' )
+		);
 
 		if ( ! ModeLock::rses_has_mode() ) {
 			return;
@@ -116,32 +135,28 @@ class AdminMenu {
 		if ( ModeLock::rses_is_mode( ModeLock::RSES_MODE_KEY_AUTHORITY ) ) {
 			add_submenu_page(
 				'rses-dashboard',
-				__( 'Key Authority', 'relatasoft-secure-election-suite' ),
-				Capability::rses_can_manage_election()
-					? __( 'Key Authority', 'relatasoft-secure-election-suite' )
-					: __( 'My Shamir Shares', 'relatasoft-secure-election-suite' ),
+				__( 'Autoridade de Chaves', 'relatasoft-secure-election-suite' ),
+				__( 'Autoridade de Chaves', 'relatasoft-secure-election-suite' ),
 				$rses_official_cap,
 				'rses-key-authority',
 				array( KeyAuthorityViews::class, 'rses_render_dashboard' )
 			);
 
-			if ( Capability::rses_can_manage_election() ) {
-				add_submenu_page(
-					'rses-dashboard',
-					__( 'Export Electoral Authorities', 'relatasoft-secure-election-suite' ),
-					__( 'Export Electoral Authorities', 'relatasoft-secure-election-suite' ),
-					$rses_admin_cap,
-					ElectoralAuthoritiesPage::SLUG,
-					array( ElectoralAuthoritiesPage::class, 'render' )
-				);
-			}
+			add_submenu_page(
+				'rses-dashboard',
+				__( 'Exportar Autoridades Eleitorais', 'relatasoft-secure-election-suite' ),
+				__( 'Exportar Autoridades Eleitorais', 'relatasoft-secure-election-suite' ),
+				$rses_admin_cap,
+				ElectoralAuthoritiesPage::SLUG,
+				array( ElectoralAuthoritiesPage::class, 'render' )
+			);
 		}
 
 		if ( ModeLock::rses_is_mode( ModeLock::RSES_MODE_VOTING ) ) {
 			add_submenu_page(
 				'rses-dashboard',
-				__( 'Public Keys', 'relatasoft-secure-election-suite' ),
-				__( 'Public Keys', 'relatasoft-secure-election-suite' ),
+				__( 'Chaves Públicas', 'relatasoft-secure-election-suite' ),
+				__( 'Chaves Públicas', 'relatasoft-secure-election-suite' ),
 				$rses_admin_cap,
 				'rses-public-keys',
 				array( VotingViews::class, 'rses_render_public_keys_page' )
@@ -149,8 +164,8 @@ class AdminMenu {
 
 			add_submenu_page(
 				'rses-dashboard',
-				__( 'Elections', 'relatasoft-secure-election-suite' ),
-				__( 'Elections', 'relatasoft-secure-election-suite' ),
+				__( 'Eleições', 'relatasoft-secure-election-suite' ),
+				__( 'Eleições', 'relatasoft-secure-election-suite' ),
 				$rses_admin_cap,
 				'rses-elections',
 				array( VotingViews::class, 'rses_render_elections_list' )
@@ -167,8 +182,8 @@ class AdminMenu {
 
 			add_submenu_page(
 				'rses-dashboard',
-				__( 'Redirections', 'relatasoft-secure-election-suite' ),
-				__( 'Redirections', 'relatasoft-secure-election-suite' ),
+				__( 'Redirecionamentos', 'relatasoft-secure-election-suite' ),
+				__( 'Redirecionamentos', 'relatasoft-secure-election-suite' ),
 				$rses_admin_cap,
 				'rses-redirections',
 				array( RedirectionsPage::class, 'rses_render' )
@@ -176,8 +191,8 @@ class AdminMenu {
 
 			add_submenu_page(
 				'rses-dashboard',
-				__( 'Electoral roll import', 'relatasoft-secure-election-suite' ),
-				__( 'Electoral roll', 'relatasoft-secure-election-suite' ),
+				__( 'Cadastro Eleitoral', 'relatasoft-secure-election-suite' ),
+				__( 'Cadastro Eleitoral', 'relatasoft-secure-election-suite' ),
 				$rses_admin_cap,
 				'rses-electoral-roll',
 				array( ElectoralRollImportPage::class, 'rses_render' )
@@ -185,8 +200,8 @@ class AdminMenu {
 
 			add_submenu_page(
 				'rses-dashboard',
-				__( 'Import Electoral Authorities', 'relatasoft-secure-election-suite' ),
-				__( 'Import Electoral Authorities', 'relatasoft-secure-election-suite' ),
+				__( 'Importar Autoridades Eleitorais', 'relatasoft-secure-election-suite' ),
+				__( 'Importar Autoridades Eleitorais', 'relatasoft-secure-election-suite' ),
 				$rses_admin_cap,
 				ElectoralAuthoritiesPage::SLUG,
 				array( ElectoralAuthoritiesPage::class, 'render' )
@@ -194,8 +209,8 @@ class AdminMenu {
 
 			add_submenu_page(
 				'rses-dashboard',
-				__( 'Voting Export', 'relatasoft-secure-election-suite' ),
-				__( 'Voting Export', 'relatasoft-secure-election-suite' ),
+				__( 'Exportação', 'relatasoft-secure-election-suite' ),
+				__( 'Exportação', 'relatasoft-secure-election-suite' ),
 				$rses_admin_cap,
 				'rses-voting-export',
 				array( VotingViews::class, 'rses_render_export_page' )
@@ -203,74 +218,40 @@ class AdminMenu {
 		}
 
 		if ( ModeLock::rses_is_mode( ModeLock::RSES_MODE_TALLYING ) ) {
-			if ( Capability::rses_can_manage_election() ) {
-				add_submenu_page(
-					'rses-dashboard',
-					__( 'Tally Import', 'relatasoft-secure-election-suite' ),
-					__( 'Tally Import', 'relatasoft-secure-election-suite' ),
-					$rses_admin_cap,
-					'rses-tally-import',
-					array( TallyingViews::class, 'rses_render_import_page' )
-				);
-
-				add_submenu_page(
-					'rses-dashboard',
-					__( 'Import Electoral Authorities', 'relatasoft-secure-election-suite' ),
-					__( 'Import Electoral Authorities', 'relatasoft-secure-election-suite' ),
-					$rses_admin_cap,
-					ElectoralAuthoritiesPage::SLUG,
-					array( ElectoralAuthoritiesPage::class, 'render' )
-				);
-			}
-
-			// Every Editor must be able to submit their Shamir share.
 			add_submenu_page(
 				'rses-dashboard',
-				__( 'Share Submission', 'relatasoft-secure-election-suite' ),
-				__( 'Share Submission', 'relatasoft-secure-election-suite' ),
+				__( 'Importação / Apuração', 'relatasoft-secure-election-suite' ),
+				__( 'Importação / Apuração', 'relatasoft-secure-election-suite' ),
+				$rses_admin_cap,
+				'rses-tally-import',
+				array( TallyingViews::class, 'rses_render_import_page' )
+			);
+
+			add_submenu_page(
+				'rses-dashboard',
+				__( 'Importar Autoridades Eleitorais', 'relatasoft-secure-election-suite' ),
+				__( 'Importar Autoridades Eleitorais', 'relatasoft-secure-election-suite' ),
+				$rses_admin_cap,
+				ElectoralAuthoritiesPage::SLUG,
+				array( ElectoralAuthoritiesPage::class, 'render' )
+			);
+
+			add_submenu_page(
+				'rses-dashboard',
+				__( 'Submissão de Parcelas', 'relatasoft-secure-election-suite' ),
+				__( 'Submissão de Parcelas', 'relatasoft-secure-election-suite' ),
 				$rses_official_cap,
 				'rses-share-submission',
 				array( TallyingViews::class, 'rses_render_share_submission_page' )
 			);
 
-			if ( Capability::rses_can_manage_election() ) {
-				add_submenu_page(
-					'rses-dashboard',
-					__( 'Certification', 'relatasoft-secure-election-suite' ),
-					__( 'Certification', 'relatasoft-secure-election-suite' ),
-					$rses_admin_cap,
-					'rses-certification',
-					array( TallyingViews::class, 'rses_render_certification_page' )
-				);
-			}
-		}
-
-		if ( Capability::rses_can_manage_election() ) {
 			add_submenu_page(
 				'rses-dashboard',
-				__( 'Settings', 'relatasoft-secure-election-suite' ),
-				__( 'Settings', 'relatasoft-secure-election-suite' ),
+				__( 'Certificação', 'relatasoft-secure-election-suite' ),
+				__( 'Certificação', 'relatasoft-secure-election-suite' ),
 				$rses_admin_cap,
-				'rses-settings',
-				array( SettingsPage::class, 'rses_render' )
-			);
-
-			add_submenu_page(
-				'rses-dashboard',
-				__( 'Audit Log', 'relatasoft-secure-election-suite' ),
-				__( 'Audit Log', 'relatasoft-secure-election-suite' ),
-				$rses_admin_cap,
-				'rses-audit-log',
-				array( AuditLogPage::class, 'rses_render' )
-			);
-
-			add_submenu_page(
-				'rses-dashboard',
-				__( 'Crypto Self Test', 'relatasoft-secure-election-suite' ),
-				__( 'Crypto Self Test', 'relatasoft-secure-election-suite' ),
-				$rses_admin_cap,
-				'rses-crypto-self-test',
-				array( self::class, 'rses_render_crypto_self_test' )
+				'rses-certification',
+				array( TallyingViews::class, 'rses_render_certification_page' )
 			);
 		}
 	}

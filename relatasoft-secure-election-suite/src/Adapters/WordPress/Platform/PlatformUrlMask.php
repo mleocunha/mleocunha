@@ -190,7 +190,7 @@ final class PlatformUrlMask {
 		}
 		echo '<div class="notice notice-warning"><p>';
 		echo esc_html__(
-			'O gateway /painel/ ainda não está pronto. Use /wp-admin/ para activar e gerir plugins. Após a activação, recarregue o sítio para gerar o gateway automaticamente (sem links simbólicos).',
+			'O gateway /painel/ ainda não está pronto. Use /wp-admin/ para ativar e gerir plugins. Depois da ativação, recarregue o site para gerar o gateway (sem links simbólicos).',
 			'relatasoft-secure-election-suite'
 		);
 		echo '</p></div>';
