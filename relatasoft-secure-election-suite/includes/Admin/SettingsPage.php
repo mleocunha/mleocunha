@@ -8,6 +8,7 @@
 namespace RelataSoft\SecureElectionSuite\Admin;
 
 use RelataSoft\SecureElectionSuite\Frontend\JourneySettings;
+use RelataSoft\SecureElectionSuite\Painel\Domain\Settings\SettingsSchema;
 use RelataSoft\SecureElectionSuite\Security\AuditLogger;
 use RelataSoft\SecureElectionSuite\Security\Capability;
 use RelataSoft\SecureElectionSuite\Security\Nonce;
@@ -38,8 +39,11 @@ class SettingsPage {
 		$rses_logo_id    = absint( $rses_settings['admin_logo_attachment_id'] ?? 0 );
 		$rses_logo_url   = $rses_logo_id > 0 ? wp_get_attachment_image_url( $rses_logo_id, 'medium' ) : '';
 		$rses_default    = Brand::rses_asset_url( Brand::RSES_DEFAULT_LOCKUP );
-		$rses_cliente_id = (string) ( $rses_settings['cliente_id'] ?? '' );
-		$rses_cliente_nome = (string) ( $rses_settings['cliente_nome'] ?? '' );
+		// E1: prefer rses_settings; fall back to Painel schema (ve_painel_settings) for future orchestrator.
+		$painel          = get_option( SettingsSchema::OPTION_KEY, array() );
+		$painel          = is_array( $painel ) ? $painel : array();
+		$rses_cliente_id = (string) ( $rses_settings['cliente_id'] ?? $painel['cliente_id'] ?? '' );
+		$rses_cliente_nome = (string) ( $rses_settings['cliente_nome'] ?? $painel['cliente_nome'] ?? '' );
 		?>
 		<div class="wrap rses-wrap rses-screen" <?php echo Translator::rses_html_attrs(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
 			<header class="rses-hero rses-hero--brand">
@@ -128,7 +132,16 @@ class SettingsPage {
 		$rses_settings['cliente_id']                = sanitize_text_field( wp_unslash( (string) ( $_POST['rses_cliente_id'] ?? '' ) ) );
 		$rses_settings['cliente_nome']              = sanitize_text_field( wp_unslash( (string) ( $_POST['rses_cliente_nome'] ?? '' ) ) );
 
+		// get_option/update_option: persist runtime settings for this WP install.
 		update_option( 'rses_settings', $rses_settings );
+
+		// Mirror E1 into Painel schema so a future orchestrator can read one canonical key.
+		$painel = get_option( SettingsSchema::OPTION_KEY, array() );
+		$painel = is_array( $painel ) ? $painel : array();
+		$painel = array_merge( SettingsSchema::defaults(), $painel );
+		$painel['cliente_id']   = $rses_settings['cliente_id'];
+		$painel['cliente_nome'] = $rses_settings['cliente_nome'];
+		update_option( SettingsSchema::OPTION_KEY, $painel, false );
 
 		AuditLogger::rses_log( 'settings_saved', 'settings', null, $rses_settings );
 
