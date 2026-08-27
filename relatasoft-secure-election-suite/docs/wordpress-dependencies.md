@@ -10,8 +10,9 @@
 | `/wp-login.php` | **404** quando `/id.php` existe (sem redirecionar) |
 | `/painel/plugins.php` (e telas clássicas WP) | **404** — use Módulos do Sistema / Identidade Visual |
 | Nginx | Snippet opcional em `uploads/ve-painel-nginx.conf` (`return 404` em `/wp-admin` e `/wp-login.php`) |
+| Atualizar a suíte | **Módulos do Sistema → Instalar / atualizar (ZIP)** com `overwrite_package` (não precisa apagar via CLI) |
 
-### Superfícies clássicas fechadas (1.0.43–1.0.46)
+### Superfícies clássicas fechadas (1.0.43–1.0.47)
 
 Com os stubs prontos, digitar `/wp-admin` ou `/wp-login.php` devolve **404** — igual a qualquer URL inexistente (sem redirecionar para `/painel` ou `/id.php`, para não mapear o disfarce). A página 404 é branded RelataSoft («Página Inexistente», fundo `#000`).
 
