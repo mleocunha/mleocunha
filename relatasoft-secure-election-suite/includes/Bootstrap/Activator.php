@@ -7,6 +7,7 @@
 
 namespace RelataSoft\SecureElectionSuite\Bootstrap;
 
+use RelataSoft\SecureElectionSuite\Database\Migration;
 use RelataSoft\SecureElectionSuite\Frontend\JourneySettings;
 use RelataSoft\SecureElectionSuite\Frontend\VoterJourney;
 use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\Platform\PlatformUrlMask;
@@ -81,8 +82,10 @@ class Activator {
 		}
 
 		if ( ! extension_loaded( 'gmp' ) ) {
-			$rses_errors[] = __( 'The GMP extension is required for cryptographic operations.', 'relatasoft-secure-election-suite' );
+			// Soft dependency: allow activation; crypto screens show the admin notice.
 			update_option( 'rses_gmp_missing_notice', '1' );
+		} else {
+			delete_option( 'rses_gmp_missing_notice' );
 		}
 
 		if ( ! extension_loaded( 'json' ) ) {
