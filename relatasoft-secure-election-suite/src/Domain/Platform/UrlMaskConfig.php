@@ -40,12 +40,13 @@ final class UrlMaskConfig {
 	public static function maskAdminUrl(string $url, string $admin_path): string {
 		$admin_path = self::normalizeAdminPath( $admin_path );
 		$url        = (string) preg_replace( '#(/)wp-admin(/|$)#', '$1' . $admin_path . '$2', $url, 1 );
-		$url        = (string) preg_replace(
-			'#(/' . preg_quote( $admin_path, '#' ) . '/[A-Za-z0-9_-]+)\.php(?=[\?#]|$)#',
+		// Strip .php from public painel URLs (nginx-safe). Use ~ delimiter so # in class is fine.
+		$stripped = preg_replace(
+			'~(/' . preg_quote( $admin_path, '~' ) . '/[A-Za-z0-9_-]+)\.php(?=[?\#]|$)~',
 			'$1',
 			$url
 		);
-		return $url;
+		return is_string( $stripped ) ? $stripped : $url;
 	}
 
 	/**
