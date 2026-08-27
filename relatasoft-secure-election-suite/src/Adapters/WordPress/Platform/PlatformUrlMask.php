@@ -42,7 +42,7 @@ final class PlatformUrlMask {
 		add_filter( 'user_request_action_email_content', array( self::class, 'filterEmailContent' ), 100 );
 		add_filter( 'retrieve_password_message', array( self::class, 'filterEmailContent' ), 100 );
 		add_filter( 'login_redirect', array( self::class, 'filterLoginRedirect' ), 100, 3 );
-		add_action( 'login_init', array( self::class, 'forceLoginFormAction' ), 1 );
+		add_action( 'login_footer', array( self::class, 'forceLoginFormAction' ), 1 );
 
 		// Plugin load may happen during plugins_loaded — enforce mask on this request too.
 		self::bootstrapRequest();
@@ -311,48 +311,14 @@ final class PlatformUrlMask {
 	}
 
 	/**
-	 * Force the HTML form action to /id.php (belt-and-suspenders with site_url).
+	 * Ensure the login <form action> points at /id.php.
 	 */
 	public static function forceLoginFormAction(): void {
 		if ( ! self::enabled() ) {
 			return;
 		}
-		add_filter(
-			'site_url',
-			static function ( string $url, $path = '', $scheme = null ) {
-				if ( ! is_string( $path ) ) {
-					return $url;
-				}
-				if ( str_contains( $path, 'wp-login.php' ) || str_contains( $url, 'wp-login.php' ) ) {
-					return UrlMaskConfig::maskLoginUrl( $url, PlatformUrlMask::loginPath() );
-				}
-				return $url;
-			},
-			1,
-			3
-		);
-		// Late output tweak if core printed an unfiltered action.
-		ob_start(
-			static function ( string $html ): string {
-				$login = PlatformUrlMask::loginPath();
-				$home  = untrailingslashit( home_url( '/' ) );
-				$repl  = esc_url( $home . '/' . ltrim( $login, '/' ) );
-				return (string) preg_replace(
-					'#action=(["\'])[^"\']*wp-login\.php[^"\']*\1#i',
-					'action=' . $repl,
-					$html
-				);
-			}
-		);
-		add_action(
-			'login_footer',
-			static function (): void {
-				if ( ob_get_level() > 0 ) {
-					ob_end_flush();
-				}
-			},
-			9999
-		);
+		$action = esc_url( home_url( '/' . ltrim( self::loginPath(), '/' ) ) );
+		echo '<script>(function(){document.addEventListener("DOMContentLoaded",function(){var f=document.getElementById("loginform")||document.getElementById("lostpasswordform")||document.getElementById("resetpassform");if(f){f.action=' . wp_json_encode( $action ) . ';}});})();</script>' . "\n";
 	}
 
 	public static function filterAdminUrl( string $url, string $path = '', ?int $blog_id = null ): string {
@@ -376,10 +342,10 @@ final class PlatformUrlMask {
 		if ( ! self::enabled() ) {
 			return $url;
 		}
-		if ( is_string( $path ) && str_contains( $path, 'wp-login.php' ) ) {
+		if ( ( is_string( $path ) && str_contains( $path, 'wp-login.php' ) ) || str_contains( $url, 'wp-login.php' ) ) {
 			return UrlMaskConfig::maskLoginUrl( $url, self::loginPath() );
 		}
-		if ( is_string( $path ) && str_contains( $path, 'wp-admin' ) ) {
+		if ( ( is_string( $path ) && str_contains( $path, 'wp-admin' ) ) || str_contains( $url, '/wp-admin' ) ) {
 			return UrlMaskConfig::maskAdminUrl( $url, self::adminPath() );
 		}
 		return $url;
