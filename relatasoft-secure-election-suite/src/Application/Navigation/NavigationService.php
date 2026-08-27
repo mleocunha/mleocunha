@@ -115,11 +115,55 @@ final class NavigationService {
 		);
 		$this->registry->register(
 			new MenuItem(
+				id: 'system-update',
+				title: 'Atualizar o Sistema',
+				slug: 'rses-system-update',
+				parentId: 'home',
+				priority: 100,
+				visibleForPermissions: array( AccessPolicy::PERM_SYSTEM_MANAGE ),
+				mode: 'any',
+			)
+		);
+		$this->registry->register(
+			new MenuItem(
+				id: 'system-appearance',
+				title: 'Identidade Visual',
+				slug: 'rses-system-appearance',
+				parentId: 'home',
+				priority: 101,
+				visibleForPermissions: array( AccessPolicy::PERM_SYSTEM_MANAGE ),
+				mode: 'any',
+			)
+		);
+		$this->registry->register(
+			new MenuItem(
+				id: 'system-modules',
+				title: 'Módulos do Sistema',
+				slug: 'rses-system-modules',
+				parentId: 'home',
+				priority: 102,
+				visibleForPermissions: array( AccessPolicy::PERM_SYSTEM_MANAGE ),
+				mode: 'any',
+			)
+		);
+		$this->registry->register(
+			new MenuItem(
+				id: 'system-becape',
+				title: 'Becape e Restauração',
+				slug: 'rses-system-becape',
+				parentId: 'home',
+				priority: 103,
+				visibleForPermissions: array( AccessPolicy::PERM_SYSTEM_MANAGE ),
+				mode: 'any',
+			)
+		);
+		$this->registry->register(
+			new MenuItem(
 				id: 'audit',
 				title: 'Registro de Auditoria',
 				slug: 'rses-audit-log',
 				parentId: 'home',
-				priority: 95,
+				priority: 110,
 				visibleForPermissions: array( AccessPolicy::PERM_AUDIT_VIEW ),
 				mode: 'any',
 			)

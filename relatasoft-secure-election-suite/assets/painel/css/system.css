@@ -1,0 +1,207 @@
+/* Gestão da plataforma — páginas de sistema (sem estética WP nativa). */
+.ve-system-page {
+  font-family: var(--ve-font-sans, "Open Sans", "Source Sans 3", "Segoe UI", sans-serif);
+  color: var(--ve-color-ink, #1c2a32);
+  max-width: 56rem;
+}
+
+.ve-system-hero {
+  margin: 0 0 1.5rem;
+  padding: 1.25rem 1.5rem;
+  background:
+    linear-gradient(135deg, rgba(12, 124, 156, 0.08), rgba(238, 245, 248, 0.9)),
+    var(--ve-color-surface, #fff);
+  border: 1px solid var(--ve-color-line, #c9d6dc);
+  border-radius: 10px;
+}
+
+.ve-system-kicker {
+  margin: 0 0 0.35rem;
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ve-color-primary-dark, #095e77);
+  font-weight: 700;
+}
+
+.ve-system-hero h1 {
+  margin: 0 0 0.5rem;
+  font-size: 1.65rem;
+  line-height: 1.25;
+  color: var(--ve-color-ink, #1c2a32);
+}
+
+.ve-system-lead {
+  margin: 0;
+  color: var(--ve-color-muted, #5a6b75);
+  max-width: 42rem;
+  line-height: 1.5;
+}
+
+.ve-system-notice {
+  margin: 0 0 1rem;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  background: #e8f6fb;
+  border: 1px solid #b7dce8;
+  color: var(--ve-color-ink, #1c2a32);
+}
+
+.ve-system-card {
+  margin: 0 0 1.25rem;
+  padding: 1.25rem 1.35rem;
+  background: var(--ve-color-surface, #fff);
+  border: 1px solid var(--ve-color-line, #c9d6dc);
+  border-radius: 10px;
+}
+
+.ve-system-card h2 {
+  margin: 0 0 0.75rem;
+  font-size: 1.1rem;
+}
+
+.ve-system-card--danger {
+  border-color: #d9a3a3;
+  background: linear-gradient(180deg, #fff8f8, #fff);
+}
+
+.ve-system-muted {
+  color: var(--ve-color-muted, #5a6b75);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.ve-system-ok {
+  color: #1a6b4a;
+  font-weight: 600;
+}
+
+.ve-system-inline-form {
+  margin-top: 0.75rem;
+}
+
+.ve-system-table-wrap {
+  overflow-x: auto;
+}
+
+.ve-system-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92rem;
+}
+
+.ve-system-table th,
+.ve-system-table td {
+  text-align: left;
+  padding: 0.7rem 0.55rem;
+  border-bottom: 1px solid var(--ve-color-line, #c9d6dc);
+  vertical-align: top;
+}
+
+.ve-system-table th {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ve-color-muted, #5a6b75);
+}
+
+.ve-system-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.ve-system-actions form {
+  margin: 0;
+}
+
+.ve-system-badge {
+  display: inline-block;
+  margin-left: 0.35rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.ve-system-badge--warn {
+  background: #fff3d6;
+  color: #7a5a00;
+}
+
+.ve-system-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin: 0 0 0.85rem;
+  max-width: 28rem;
+}
+
+.ve-system-field span {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.ve-system-restore-form input[type="text"],
+.ve-system-restore-form input[type="file"],
+.ve-system-card input[type="file"] {
+  font: inherit;
+}
+
+.ve-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0.45rem 0.9rem;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.88rem;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+
+.ve-btn-primary {
+  background: var(--ve-color-primary, #0c7c9c);
+  color: #fff;
+}
+
+.ve-btn-primary:hover {
+  background: var(--ve-color-primary-dark, #095e77);
+  color: #fff;
+}
+
+.ve-btn-ghost {
+  background: transparent;
+  border-color: var(--ve-color-line, #c9d6dc);
+  color: var(--ve-color-ink, #1c2a32);
+}
+
+.ve-btn-ghost:hover {
+  background: var(--ve-color-soft, #eef5f8);
+}
+
+.ve-btn-danger {
+  background: #8b2e2e;
+  color: #fff;
+}
+
+.ve-btn-danger:hover {
+  background: #6e2323;
+  color: #fff;
+}
+
+@media (max-width: 782px) {
+  .ve-system-hero h1 {
+    font-size: 1.35rem;
+  }
+
+  .ve-system-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

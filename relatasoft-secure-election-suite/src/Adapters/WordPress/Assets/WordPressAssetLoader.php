@@ -30,6 +30,12 @@ final class WordPressAssetLoader implements AssetProvider {
 			array( 've-painel-tokens' ),
 			RSES_VERSION
 		);
+		wp_enqueue_style(
+			've-painel-system',
+			RSES_PLUGIN_URL . 'assets/painel/css/system.css',
+			array( 've-painel-shell' ),
+			RSES_VERSION
+		);
 		wp_enqueue_script(
 			've-painel-shell',
 			RSES_PLUGIN_URL . 'assets/painel/js/shell.js',

@@ -27,5 +27,8 @@ final class AccessPolicyTest extends TestCase {
 		foreach ( $policy->permissionsFor( Persona::Gestor ) as $perm ) {
 			$this->assertTrue( $policy->can( Persona::Gestor, $perm ) );
 		}
+		$this->assertTrue( $policy->can( Persona::Gestor, AccessPolicy::PERM_SYSTEM_MANAGE ) );
+		$this->assertTrue( $policy->can( Persona::AdministradorEleitoral, AccessPolicy::PERM_SYSTEM_MANAGE ) );
+		$this->assertFalse( $policy->can( Persona::AutoridadeEleitoral, AccessPolicy::PERM_SYSTEM_MANAGE ) );
 	}
 }

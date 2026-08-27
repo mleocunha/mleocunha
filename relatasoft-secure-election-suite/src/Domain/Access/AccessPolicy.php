@@ -17,6 +17,7 @@ final class AccessPolicy {
 	public const PERM_TALLY_MANAGE = 'tally.manage';
 	public const PERM_AUDIT_VIEW = 'audit.view';
 	public const PERM_SHELL_ADMIN = 'shell.admin';
+	public const PERM_SYSTEM_MANAGE = 'system.manage';
 
 	/**
 	 * @return list<string>
@@ -33,6 +34,7 @@ final class AccessPolicy {
 				self::PERM_TALLY_MANAGE,
 				self::PERM_AUDIT_VIEW,
 				self::PERM_SHELL_ADMIN,
+				self::PERM_SYSTEM_MANAGE,
 			),
 			Persona::AdministradorEleitoral => array(
 				self::PERM_DASHBOARD_VIEW,
@@ -44,6 +46,7 @@ final class AccessPolicy {
 				self::PERM_TALLY_MANAGE,
 				self::PERM_AUDIT_VIEW,
 				self::PERM_SHELL_ADMIN,
+				self::PERM_SYSTEM_MANAGE,
 			),
 			Persona::AutoridadeEleitoral => array(
 				self::PERM_DASHBOARD_VIEW,

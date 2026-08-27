@@ -10,10 +10,12 @@
     const brand = document.createElement('div');
     brand.className = 've-painel-brand';
     brand.innerHTML =
-      '<span class="ve-painel-brand-mark" aria-hidden="true"></span>' +
-      '<div class="ve-painel-brand-text"><strong></strong><span></span></div>';
-    brand.querySelector('strong').textContent = cfg.productName || 'Voto Eletrônico by RelataSoft';
-    brand.querySelector('span').textContent = cfg.panelName || 'Painel de Controle Eleitoral';
+      '<div class="ve-painel-brand-mark" aria-hidden="true"></div>' +
+      '<div class="ve-painel-brand-text">' +
+      '<div class="ve-painel-brand-product"></div>' +
+      '</div>';
+    brand.querySelector('.ve-painel-brand-product').textContent =
+      cfg.productName || 'Voto Eletrônico by RelataSoft';
     aside.appendChild(brand);
 
     const nav = document.createElement('nav');
@@ -24,7 +26,7 @@
       const a = document.createElement('a');
       a.href = item.url;
       a.textContent = item.title;
-      if (item.parentId) a.classList.add('is-child');
+      if (item.parentId && item.parentId !== 'home') a.classList.add('is-child');
       if (item.slug && item.slug === page) a.classList.add('is-active');
       nav.appendChild(a);
     });
@@ -41,7 +43,8 @@
     bar.innerHTML =
       '<div class="ve-painel-topbar-title"></div>' +
       '<div class="ve-painel-topbar-meta"><span class="ve-painel-persona"></span></div>';
-    bar.querySelector('.ve-painel-topbar-title').textContent = cfg.panelName || 'Painel de Controle Eleitoral';
+    bar.querySelector('.ve-painel-topbar-title').textContent =
+      cfg.panelName || 'Painel de Controle Eleitoral';
     bar.querySelector('.ve-painel-persona').textContent = cfg.personaLabel || '';
     wpbody.insertBefore(bar, wpbody.firstChild);
   }

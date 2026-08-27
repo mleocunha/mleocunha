@@ -100,45 +100,48 @@ body.ve-painel-active #wpfooter a {
 }
 
 .ve-painel-brand {
-  display: flex;
-  gap: var(--ve-space-3);
-  align-items: flex-start;
+  display: grid;
+  grid-template-columns: 2.75rem minmax(0, 1fr);
+  column-gap: 0.75rem;
+  align-items: start;
   margin-bottom: var(--ve-space-5);
   min-width: 0;
+  padding-bottom: var(--ve-space-4);
+  border-bottom: 1px solid var(--ve-color-line);
 }
 
 .ve-painel-brand-mark {
-  width: 2.25rem;
-  height: 2.25rem;
-  border-radius: 999px;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 12px;
   background: linear-gradient(145deg, var(--ve-color-primary), var(--ve-color-primary-dark));
   box-shadow: var(--ve-shadow-sm);
-  flex: 0 0 auto;
-  margin-top: 0.15rem;
+  grid-column: 1;
+  grid-row: 1;
+  flex-shrink: 0;
 }
 
 .ve-painel-brand-text {
-  display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
-  line-height: 1.25;
+  grid-column: 2;
+  grid-row: 1;
   min-width: 0;
-  flex: 1 1 auto;
+  padding-top: 0.15rem;
 }
 
-.ve-painel-brand-text strong {
+.ve-painel-brand-product {
   display: block;
-  font-size: 0.86rem;
+  font-size: 0.92rem;
   font-weight: 700;
+  line-height: 1.35;
+  color: var(--ve-color-ink);
+  overflow-wrap: anywhere;
   word-break: break-word;
+  hyphens: auto;
 }
 
+.ve-painel-brand-text strong,
 .ve-painel-brand-text span {
-  display: block;
-  font-size: 0.75rem;
-  font-weight: 500;
-  color: var(--ve-color-muted);
-  word-break: break-word;
+  display: none;
 }
 
 .ve-painel-nav {

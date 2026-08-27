@@ -19,6 +19,10 @@ use RelataSoft\SecureElectionSuite\I18n\Translator;
 use RelataSoft\SecureElectionSuite\Admin\Brand;
 use RelataSoft\SecureElectionSuite\Admin\ElectoralRollImportPage;
 use RelataSoft\SecureElectionSuite\Admin\RedirectionsPage;
+use RelataSoft\SecureElectionSuite\Admin\SystemAppearancePage;
+use RelataSoft\SecureElectionSuite\Admin\SystemBecapePage;
+use RelataSoft\SecureElectionSuite\Admin\SystemModulesPage;
+use RelataSoft\SecureElectionSuite\Admin\SystemUpdatePage;
 use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\Bootstrap as PainelBootstrap;
 
 defined( 'ABSPATH' ) || exit;
@@ -67,6 +71,40 @@ class AdminMenu {
 				$rses_admin_cap,
 				'rses-mode-setup',
 				array( ModeSetupPage::class, 'rses_render' )
+			);
+
+			// Gestão da plataforma — disponível antes e depois do modo.
+			add_submenu_page(
+				'rses-dashboard',
+				__( 'Atualizar o Sistema', 'relatasoft-secure-election-suite' ),
+				__( 'Atualizar o Sistema', 'relatasoft-secure-election-suite' ),
+				$rses_admin_cap,
+				'rses-system-update',
+				array( SystemUpdatePage::class, 'render' )
+			);
+			add_submenu_page(
+				'rses-dashboard',
+				__( 'Identidade Visual', 'relatasoft-secure-election-suite' ),
+				__( 'Identidade Visual', 'relatasoft-secure-election-suite' ),
+				$rses_admin_cap,
+				'rses-system-appearance',
+				array( SystemAppearancePage::class, 'render' )
+			);
+			add_submenu_page(
+				'rses-dashboard',
+				__( 'Módulos do Sistema', 'relatasoft-secure-election-suite' ),
+				__( 'Módulos do Sistema', 'relatasoft-secure-election-suite' ),
+				$rses_admin_cap,
+				'rses-system-modules',
+				array( SystemModulesPage::class, 'render' )
+			);
+			add_submenu_page(
+				'rses-dashboard',
+				__( 'Becape e Restauração', 'relatasoft-secure-election-suite' ),
+				__( 'Becape e Restauração', 'relatasoft-secure-election-suite' ),
+				$rses_admin_cap,
+				'rses-system-becape',
+				array( SystemBecapePage::class, 'render' )
 			);
 		}
 
