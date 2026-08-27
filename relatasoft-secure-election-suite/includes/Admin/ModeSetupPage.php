@@ -44,11 +44,11 @@ class ModeSetupPage {
 				<?php Brand::rses_render_hero_brand(); ?>
 				<p class="rses-hero-kicker"><?php esc_html_e( 'Setup', 'relatasoft-secure-election-suite' ); ?></p>
 				<h1 class="rses-hero-title"><?php esc_html_e( 'Mode Setup', 'relatasoft-secure-election-suite' ); ?></h1>
-				<p class="rses-hero-lead"><?php esc_html_e( 'Select exactly one mode for this WordPress installation. Once selected, the mode is locked.', 'relatasoft-secure-election-suite' ); ?></p>
+				<p class="rses-hero-lead"><?php esc_html_e( 'Select exactly one mode for this RSES installation. Once selected, the mode is locked.', 'relatasoft-secure-election-suite' ); ?></p>
 			</header>
 
 			<div class="rses-panel rses-panel-warning">
-				<p><?php esc_html_e( 'Select exactly one mode for this WordPress installation. Once selected, the mode is locked. Switching requires a destructive reset that removes all election data.', 'relatasoft-secure-election-suite' ); ?></p>
+				<p><?php esc_html_e( 'Select exactly one mode for this RSES installation. Once selected, the mode is locked. Switching requires a destructive reset that removes all election data.', 'relatasoft-secure-election-suite' ); ?></p>
 			</div>
 
 			<?php if ( $rses_locked && $rses_mode ) : ?>

@@ -20,7 +20,7 @@ final class NavigationService {
 		$this->registry->register(
 			new MenuItem(
 				id: 'home',
-				title: 'Painel de Controle Eleitoral',
+				title: 'Início',
 				slug: 'rses-dashboard',
 				priority: 1,
 				icon: 'dashicons-privacy',

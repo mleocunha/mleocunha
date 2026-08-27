@@ -1,22 +1,85 @@
-/* Scoped Painel shell — does not style body * globally. */
+/* Scoped Painel shell — does not style body * globally.
+ * Variables duplicated here so layout never depends on tokens.css load order.
+ */
+body.ve-painel-active {
+  --ve-sidebar-width: 17.5rem;
+  --ve-topbar-height: 3.5rem;
+  --ve-color-primary: #0c7c9c;
+  --ve-color-primary-dark: #095e77;
+  --ve-color-ink: #1c2a32;
+  --ve-color-muted: #5a6b75;
+  --ve-color-line: #c9d6dc;
+  --ve-color-soft: #eef5f8;
+  --ve-color-surface: #ffffff;
+  --ve-font-sans: "Open Sans", "Source Sans 3", "Segoe UI", sans-serif;
+  --ve-space-1: 0.25rem;
+  --ve-space-2: 0.5rem;
+  --ve-space-3: 0.75rem;
+  --ve-space-4: 1rem;
+  --ve-space-5: 1.5rem;
+  --ve-radius-sm: 6px;
+  --ve-radius-md: 10px;
+  --ve-shadow-sm: 0 1px 2px rgba(28, 42, 50, 0.06);
+  --ve-motion-fast: 120ms ease;
+  background: var(--ve-color-soft) !important;
+}
+
 body.ve-painel-active #adminmenumain,
 body.ve-painel-active #adminmenuback,
 body.ve-painel-active #adminmenuwrap {
   display: none !important;
 }
 
+/* Keep main column clear of the fixed sidebar (WP fold/auto-fold variants). */
 body.ve-painel-active #wpcontent,
-body.ve-painel-active #wpfooter {
+body.ve-painel-active #wpfooter,
+body.ve-painel-active.folded #wpcontent,
+body.ve-painel-active.folded #wpfooter,
+body.ve-painel-active.auto-fold #wpcontent,
+body.ve-painel-active.auto-fold #wpfooter,
+body.ve-painel-active.auto-fold .wp-responsive-open #wpcontent {
   margin-left: var(--ve-sidebar-width) !important;
+  padding-left: 20px !important;
 }
 
-body.ve-painel-active.folded #wpcontent,
-body.ve-painel-active.folded #wpfooter {
-  margin-left: var(--ve-sidebar-width) !important;
+body.ve-painel-active #wpbody-content {
+  padding-left: 0;
+  float: none;
+  overflow: visible;
+}
+
+body.ve-painel-active .wrap {
+  margin-right: 20px;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 body.ve-painel-active #wpadminbar {
-  background: var(--ve-color-ink);
+  background: var(--ve-color-ink) !important;
+}
+
+body.ve-painel-active #wpadminbar .ab-item,
+body.ve-painel-active #wpadminbar a.ab-item,
+body.ve-painel-active #wpadminbar > #wp-toolbar span.ab-label {
+  color: #e8eef2 !important;
+}
+
+/* Replace default WP grey chrome with VE surface. */
+body.ve-painel-active #wpwrap,
+body.ve-painel-active #wpcontent {
+  background: var(--ve-color-soft) !important;
+}
+
+body.ve-painel-active #wpfooter {
+  margin-left: var(--ve-sidebar-width) !important;
+  border-top: 1px solid var(--ve-color-line);
+  background: var(--ve-color-surface);
+  color: var(--ve-color-muted);
+  font-family: var(--ve-font-sans);
+}
+
+body.ve-painel-active #wpfooter a {
+  color: var(--ve-color-primary-dark) !important;
 }
 
 .ve-painel-sidebar {
@@ -25,11 +88,13 @@ body.ve-painel-active #wpadminbar {
   left: 0;
   bottom: 0;
   width: var(--ve-sidebar-width);
+  box-sizing: border-box;
   background: var(--ve-color-surface);
   border-right: 1px solid var(--ve-color-line);
   padding: var(--ve-space-5) var(--ve-space-4);
   z-index: 1000;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
   font-family: var(--ve-font-sans);
   color: var(--ve-color-ink);
 }
@@ -37,8 +102,9 @@ body.ve-painel-active #wpadminbar {
 .ve-painel-brand {
   display: flex;
   gap: var(--ve-space-3);
-  align-items: center;
+  align-items: flex-start;
   margin-bottom: var(--ve-space-5);
+  min-width: 0;
 }
 
 .ve-painel-brand-mark {
@@ -48,22 +114,31 @@ body.ve-painel-active #wpadminbar {
   background: linear-gradient(145deg, var(--ve-color-primary), var(--ve-color-primary-dark));
   box-shadow: var(--ve-shadow-sm);
   flex: 0 0 auto;
+  margin-top: 0.15rem;
 }
 
 .ve-painel-brand-text {
   display: flex;
   flex-direction: column;
-  gap: 0.15rem;
-  line-height: 1.2;
+  gap: 0.2rem;
+  line-height: 1.25;
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 .ve-painel-brand-text strong {
-  font-size: 0.92rem;
+  display: block;
+  font-size: 0.86rem;
+  font-weight: 700;
+  word-break: break-word;
 }
 
 .ve-painel-brand-text span {
-  font-size: 0.78rem;
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 500;
   color: var(--ve-color-muted);
+  word-break: break-word;
 }
 
 .ve-painel-nav {
@@ -106,14 +181,16 @@ body.ve-painel-active #wpadminbar {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: var(--ve-space-3);
   min-height: var(--ve-topbar-height);
   margin: 0 0 var(--ve-space-4);
   padding: var(--ve-space-3) var(--ve-space-4);
   border: 1px solid var(--ve-color-line);
   border-radius: var(--ve-radius-md);
-  background: rgba(255, 255, 255, 0.92);
+  background: rgba(255, 255, 255, 0.96);
   font-family: var(--ve-font-sans);
   box-shadow: var(--ve-shadow-sm);
+  box-sizing: border-box;
 }
 
 .ve-painel-topbar-title {
@@ -140,12 +217,16 @@ body.ve-painel-active #wpadminbar {
 
 .ve-painel-card:hover {
   transform: translateY(-2px);
-  box-shadow: var(--ve-shadow-md);
+  box-shadow: 0 8px 24px rgba(28, 42, 50, 0.08);
 }
 
 @media (max-width: 960px) {
   body.ve-painel-active #wpcontent,
-  body.ve-painel-active #wpfooter {
+  body.ve-painel-active #wpfooter,
+  body.ve-painel-active.folded #wpcontent,
+  body.ve-painel-active.folded #wpfooter,
+  body.ve-painel-active.auto-fold #wpcontent,
+  body.ve-painel-active.auto-fold #wpfooter {
     margin-left: 0 !important;
   }
   .ve-painel-sidebar {

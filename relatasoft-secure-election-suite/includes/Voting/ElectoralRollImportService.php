@@ -566,7 +566,7 @@ class ElectoralRollImportService {
 				'rses_csv_password',
 				sprintf(
 					/* translators: %s: password column name */
-					__( 'Add a final column named “%s” to the right of the electoral spreadsheet. Imported passwords are accepted as-is (no WordPress strength checks).', 'relatasoft-secure-election-suite' ),
+					__( 'Add a final column named “%s” to the right of the electoral spreadsheet. Imported passwords are accepted as-is (no platform strength checks).', 'relatasoft-secure-election-suite' ),
 					self::PASSWORD_COLUMN
 				)
 			);

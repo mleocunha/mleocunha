@@ -5,6 +5,7 @@ namespace RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress;
 
 use RelataSoft\SecureElectionSuite\Bootstrap\ModeLock;
 use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\Admin\AdminBarCleaner;
+use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\Admin\AdminFooterBranding;
 use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\Admin\AdminRedirect;
 use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\Assets\WordPressAssetLoader;
 use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\Branding\WordPressLoginBranding;
@@ -73,6 +74,7 @@ final class Bootstrap {
 		add_action( 'admin_init', array( AdminRedirect::class, 'maybeRedirectDashboard' ) );
 		add_action( 'admin_menu', array( WordPressMenuChrome::class, 'hideNativeMenus' ), 999 );
 		add_action( 'admin_bar_menu', array( AdminBarCleaner::class, 'filter' ), 999 );
+		AdminFooterBranding::register();
 		add_action( 'admin_enqueue_scripts', array( $assets, 'enqueueAdminShell' ) );
 		add_action( 'in_admin_header', array( ShellView::class, 'renderOpen' ), 1 );
 		add_action( 'in_admin_footer', array( ShellView::class, 'renderClose' ), 999 );

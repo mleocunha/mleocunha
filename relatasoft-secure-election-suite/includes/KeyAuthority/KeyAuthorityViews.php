@@ -78,7 +78,7 @@ class KeyAuthorityViews {
 						echo esc_html(
 							sprintf(
 								/* translators: %s: electoral authority role label (singular) */
-								__( 'No %1$s accounts found. Create WordPress users with the %1$s role before assigning Shamir shares.', 'relatasoft-secure-election-suite' ),
+								__( 'No %1$s accounts found. Create users with the %1$s role before assigning Shamir shares.', 'relatasoft-secure-election-suite' ),
 								RoleLabels::rses_editor_singular()
 							)
 						);

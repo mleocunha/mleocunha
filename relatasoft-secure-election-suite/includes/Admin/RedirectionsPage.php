@@ -60,7 +60,7 @@ class RedirectionsPage {
 
 			<section class="rses-panel rses-panel-card">
 				<h2 class="rses-panel-title"><?php esc_html_e( 'Login branding', 'relatasoft-secure-election-suite' ); ?></h2>
-				<p class="description"><?php esc_html_e( 'Replace the WordPress logo on wp-login.php. When no custom logo is set, the RelataSoft pinwheel is used.', 'relatasoft-secure-election-suite' ); ?></p>
+				<p class="description"><?php esc_html_e( 'Replace the default login logo. When no custom logo is set, the RelataSoft pinwheel is used.', 'relatasoft-secure-election-suite' ); ?></p>
 
 				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="rses-form" id="rses-redirections-form">
 					<?php Nonce::rses_field( Nonce::RSES_ACTION_REDIRECTIONS_SAVE ); ?>
@@ -111,7 +111,7 @@ class RedirectionsPage {
 									echo esc_html(
 										sprintf(
 											/* translators: %s: electoral authority role label (plural) */
-											__( 'Editable by administrators, authors, and %s like any WordPress page.', 'relatasoft-secure-election-suite' ),
+											__( 'Editable by administrators, authors, and %s like any content page.', 'relatasoft-secure-election-suite' ),
 											RoleLabels::rses_editor_plural()
 										)
 									);

@@ -336,7 +336,7 @@ class ElectoralRollImportPage {
 					echo esc_html(
 						sprintf(
 							/* translators: %s: electors label */
-							__( 'Import the electoral registration spreadsheet used for %s. Keep the existing columns and add password as the last column on the right. Passwords are accepted as provided, without WordPress strength checks.', 'relatasoft-secure-election-suite' ),
+							__( 'Import the electoral registration spreadsheet used for %s. Keep the existing columns and add password as the last column on the right. Passwords are accepted as provided, without platform strength checks.', 'relatasoft-secure-election-suite' ),
 							$electors
 						)
 					);

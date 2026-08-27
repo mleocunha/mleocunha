@@ -332,7 +332,7 @@ class VotingViews {
 						<?php
 						printf(
 							/* translators: %s: public key id */
-							esc_html__( 'Public key ID: %s — paste the booth shortcode on a WordPress page once voting is open.', 'relatasoft-secure-election-suite' ),
+							esc_html__( 'Public key ID: %s — paste the booth shortcode on a page once voting is open.', 'relatasoft-secure-election-suite' ),
 							esc_html( (string) ( $rses_round->key_id ?: '—' ) )
 						);
 						?>
@@ -509,7 +509,7 @@ class VotingViews {
 					echo esc_html(
 						sprintf(
 							/* translators: %s: elector role label (plural) */
-							__( 'Copy a shortcode and paste it into any WordPress page or post. Only %s may cast a ballot.', 'relatasoft-secure-election-suite' ),
+							__( 'Copy a shortcode and paste it into any page or post. Only %s may cast a ballot.', 'relatasoft-secure-election-suite' ),
 							RoleLabels::rses_elector_plural()
 						)
 					);
