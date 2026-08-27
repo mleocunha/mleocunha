@@ -65,7 +65,7 @@
   "Current Mode:": "Modo atual:",
   "(Locked)": "(Bloqueado)",
   "Destructive Reset": "Redefinição destrutiva",
-  "To change modes, you must perform a destructive reset. This removes all keys, shares, elections, votes, tally imports, certifications, and audit logs.": "Para alterar os modos, você deve realizar uma reinicialização destrutiva. Isso remove todas as chaves, compartilhamentos, eleições, votos, importações de registros, certificações e registros de auditoria.",
+  "To change modes, you must perform a destructive reset. This removes all keys, shares, elections, votes, tally imports, certifications, and audit logs.": "Para alterar os modos, você deve realizar uma reinicialização destrutiva. Isso remove todas as chaves, parcelas, eleições, votos, importações de apuração, certificações e registros de auditoria.",
   "This will permanently delete ALL election data. Are you sure?": "Isso excluirá permanentemente TODOS os dados eleitorais. Tem certeza?",
   "Select Mode": "Selecionar modo",
   "Lock Mode": "Bloquear modo",
