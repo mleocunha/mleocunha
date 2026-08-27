@@ -29,3 +29,5 @@ O home e a navegação mudam com `key_authority` | `voting` | `tallying`.
 ## Portabilidade
 
 Substituir o adapter do sítio hospedeiro por outro adapter sem reescrever Domain/Application/tests de domínio.
+
+Cronograma (PMBOK, caminho crítico): `docs/roadmap-independencia-adapter.md`.
