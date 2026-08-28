@@ -196,6 +196,11 @@ img.ve-painel-brand-mark {
   font-size: 0.88rem;
 }
 
+.ve-painel-nav a.is-active-parent {
+  color: var(--ve-color-primary-dark);
+  font-weight: 700;
+}
+
 .ve-painel-topbar {
   display: flex;
   justify-content: space-between;

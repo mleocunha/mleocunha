@@ -16,6 +16,7 @@ use RelataSoft\SecureElectionSuite\Admin\Notices;
 use RelataSoft\SecureElectionSuite\Admin\SettingsPage;
 use RelataSoft\SecureElectionSuite\Admin\SystemAppearancePage;
 use RelataSoft\SecureElectionSuite\Admin\SystemBecapePage;
+use RelataSoft\SecureElectionSuite\Admin\SystemContentPage;
 use RelataSoft\SecureElectionSuite\Admin\SystemModulesPage;
 use RelataSoft\SecureElectionSuite\Admin\SystemUpdatePage;
 use RelataSoft\SecureElectionSuite\Ajax\AjaxRouter;
@@ -76,6 +77,7 @@ class Plugin {
 		SettingsPage::register();
 		AuditLogPage::register();
 		SystemUpdatePage::register();
+		SystemContentPage::register();
 		SystemAppearancePage::register();
 		SystemModulesPage::register();
 		SystemBecapePage::register();

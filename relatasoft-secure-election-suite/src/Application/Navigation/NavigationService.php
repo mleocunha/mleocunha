@@ -152,11 +152,22 @@ final class NavigationService {
 		);
 		$this->registry->register(
 			new MenuItem(
+				id: 'system-content',
+				title: 'Páginas e Posts',
+				slug: 'rses-system-content',
+				parentId: 'system-update',
+				priority: 101,
+				visibleForPermissions: array( AccessPolicy::PERM_SYSTEM_MANAGE ),
+				mode: 'any',
+			)
+		);
+		$this->registry->register(
+			new MenuItem(
 				id: 'system-appearance',
 				title: 'Identidade Visual',
 				slug: 'rses-system-appearance',
 				parentId: 'home',
-				priority: 101,
+				priority: 110,
 				visibleForPermissions: array( AccessPolicy::PERM_SYSTEM_MANAGE ),
 				mode: 'any',
 			)
@@ -167,7 +178,7 @@ final class NavigationService {
 				title: 'Módulos do Sistema',
 				slug: 'rses-system-modules',
 				parentId: 'home',
-				priority: 102,
+				priority: 111,
 				visibleForPermissions: array( AccessPolicy::PERM_SYSTEM_MANAGE ),
 				mode: 'any',
 			)
@@ -178,7 +189,7 @@ final class NavigationService {
 				title: 'Becape e Restauração',
 				slug: 'rses-system-becape',
 				parentId: 'home',
-				priority: 103,
+				priority: 112,
 				visibleForPermissions: array( AccessPolicy::PERM_SYSTEM_MANAGE ),
 				mode: 'any',
 			)

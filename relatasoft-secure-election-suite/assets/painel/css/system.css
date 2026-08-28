@@ -195,6 +195,38 @@
   color: #fff;
 }
 
+.ve-content-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0 0 1rem;
+}
+
+.ve-content-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.ve-content-toolbar h2 {
+  margin: 0;
+}
+
+.ve-content-toolbar .ve-system-inline-form {
+  margin-top: 0;
+}
+
+.ve-content-id {
+  display: inline-block;
+  margin-left: 0.4rem;
+  color: var(--ve-color-muted, #5a6b75);
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
 @media (max-width: 782px) {
   .ve-system-hero h1 {
     font-size: 1.35rem;

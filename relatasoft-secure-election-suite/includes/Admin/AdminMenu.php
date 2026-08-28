@@ -25,6 +25,7 @@ use RelataSoft\SecureElectionSuite\Admin\KnowledgePage;
 use RelataSoft\SecureElectionSuite\Admin\RedirectionsPage;
 use RelataSoft\SecureElectionSuite\Admin\SystemAppearancePage;
 use RelataSoft\SecureElectionSuite\Admin\SystemBecapePage;
+use RelataSoft\SecureElectionSuite\Admin\SystemContentPage;
 use RelataSoft\SecureElectionSuite\Admin\SystemModulesPage;
 use RelataSoft\SecureElectionSuite\Admin\SystemUpdatePage;
 use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\Bootstrap as PainelBootstrap;
@@ -81,6 +82,14 @@ class AdminMenu {
 			$rses_admin_cap,
 			'rses-system-update',
 			array( SystemUpdatePage::class, 'render' )
+		);
+		add_submenu_page(
+			'rses-dashboard',
+			__( 'Pages and Posts', 'relatasoft-secure-election-suite' ),
+			__( 'Pages and Posts', 'relatasoft-secure-election-suite' ),
+			$rses_admin_cap,
+			SystemContentPage::SLUG,
+			array( SystemContentPage::class, 'render' )
 		);
 		add_submenu_page(
 			'rses-dashboard',

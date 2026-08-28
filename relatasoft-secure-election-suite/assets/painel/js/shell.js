@@ -38,6 +38,16 @@
       if (item.slug && item.slug === page) a.classList.add('is-active');
       nav.appendChild(a);
     });
+    // Mark parent when a child page is active.
+    const activeChild = (cfg.nav || []).find(function (item) {
+      return item.slug === page && item.parentId && item.parentId !== 'home';
+    });
+    if (activeChild) {
+      Array.prototype.forEach.call(nav.querySelectorAll('a'), function (a, idx) {
+        const item = (cfg.nav || [])[idx];
+        if (item && item.id === activeChild.parentId) a.classList.add('is-active-parent');
+      });
+    }
     aside.appendChild(nav);
     document.body.appendChild(aside);
   }
