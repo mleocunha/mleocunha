@@ -7,6 +7,7 @@ A plataforma hospedeira é um **adapter**. O domínio e a aplicação do Painel 
 ## Camadas
 
 1. **Domain** — Persona, AccessPolicy, MenuItem, NavigationRegistry, SettingsSchema; **Crypto** portável (`src/Domain/Crypto`: ElGamal, Shamir, Schnorr, CanonicalHash, …); formatos (`.rsv`, AuthoritiesPackage). Sem boot do sítio — PHPUnit em `tests/Unit`. Adapter #1 mantém facades em `includes/Crypto` / `Exports\HashService`.
+2. **Contracts / Persistence (A2)** — ports de repositório (`src/Contracts/{Keys,Elections,Votes,Tallies,Audit}`); composição em `PersistenceGateway`; Adapter #1 em `src/Adapters/WordPress/Persistence`; doubles InMemory em `src/Infrastructure/Persistence` para testes.
 2. **Application** — SettingsService, PermissionResolver, NavigationService, DashboardHomeService, LoginBrandingService
 3. **Contracts** — SettingsRepository, UserProvider, CapabilityResolver, NavigationRegistrar, AssetProvider, Logger
 4. **Infrastructure** — defaults / stores de teste

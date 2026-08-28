@@ -7,9 +7,8 @@
 
 namespace RelataSoft\SecureElectionSuite\Security;
 
-use RelataSoft\SecureElectionSuite\Database\Repository;
-use RelataSoft\SecureElectionSuite\Database\Schema;
 use RelataSoft\SecureElectionSuite\Exports\HashService;
+use RelataSoft\SecureElectionSuite\Painel\Application\Persistence\PersistenceGateway;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -67,11 +66,7 @@ class AuditLogger {
 			$rses_current_hash          = HashService::rses_hash_audit_entry( $rses_entry );
 			$rses_entry['current_hash'] = $rses_current_hash;
 
-			return Repository::rses_insert(
-				'rses_audit_log',
-				$rses_entry,
-				array( '%d', '%s', '%s', '%d', '%s', '%s', '%s', '%s' )
-			);
+			return PersistenceGateway::get()->auditLog->append( $rses_entry );
 		} catch ( \Throwable $rses_e ) {
 			return 0;
 		}
@@ -83,16 +78,7 @@ class AuditLogger {
 	 * @return string|null
 	 */
 	public static function rses_get_last_hash(): ?string {
-		global $wpdb;
-
-		$rses_table = Schema::rses_table( 'rses_audit_log' );
-
-		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-		$rses_hash = $wpdb->get_var(
-			"SELECT current_hash FROM {$rses_table} ORDER BY id DESC LIMIT 1"
-		);
-
-		return $rses_hash ? (string) $rses_hash : null;
+		return PersistenceGateway::get()->auditLog->lastHash();
 	}
 
 	/**
@@ -102,7 +88,10 @@ class AuditLogger {
 	 * @return array<int,object>
 	 */
 	public static function rses_get_entries( int $limit = 100 ): array {
-		return Repository::rses_get_rows( 'rses_audit_log', '1=1', array(), 'id DESC', $limit );
+		return array_map(
+			static fn( array $row ) => (object) $row,
+			PersistenceGateway::get()->auditLog->listRecent( $limit )
+		);
 	}
 
 	/**
@@ -111,56 +100,45 @@ class AuditLogger {
 	 * @return array{valid:bool,errors:array<int,string>}
 	 */
 	public static function rses_verify_chain(): array {
-		global $wpdb;
-
-		$rses_table = Schema::rses_table( 'rses_audit_log' );
-
-		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-		$rses_rows = $wpdb->get_results(
-			"SELECT * FROM {$rses_table} ORDER BY id ASC"
-		);
+		$rses_rows = PersistenceGateway::get()->auditLog->listAllOrdered();
 
 		$rses_errors   = array();
 		$rses_expected = null;
 
-		if ( ! is_array( $rses_rows ) ) {
-			return array( 'valid' => true, 'errors' => array() );
-		}
-
 		foreach ( $rses_rows as $rses_row ) {
 			$rses_entry = array(
-				'actor_user_id' => $rses_row->actor_user_id,
-				'action'        => $rses_row->action,
-				'object_type'   => $rses_row->object_type,
-				'object_id'     => $rses_row->object_id,
-				'previous_hash' => $rses_row->previous_hash,
-				'payload_json'  => $rses_row->payload_json,
-				'created_at'    => $rses_row->created_at,
+				'actor_user_id' => $rses_row['actor_user_id'] ?? null,
+				'action'        => $rses_row['action'] ?? '',
+				'object_type'   => $rses_row['object_type'] ?? '',
+				'object_id'     => $rses_row['object_id'] ?? null,
+				'previous_hash' => $rses_row['previous_hash'] ?? null,
+				'payload_json'  => $rses_row['payload_json'] ?? null,
+				'created_at'    => $rses_row['created_at'] ?? null,
 			);
 
 			$rses_computed = HashService::rses_hash_audit_entry( $rses_entry );
 
-			if ( ! hash_equals( (string) $rses_row->current_hash, $rses_computed ) ) {
+			if ( ! hash_equals( (string) ( $rses_row['current_hash'] ?? '' ), $rses_computed ) ) {
 				$rses_errors[] = sprintf(
 					/* translators: %d: audit log entry ID */
 					__( 'Hash mismatch at entry %d', 'relatasoft-secure-election-suite' ),
-					(int) $rses_row->id
+					(int) $rses_row['id']
 				);
 			}
 
-			$rses_prev = ( null === $rses_row->previous_hash || '' === $rses_row->previous_hash )
+			$rses_prev = ( null === ( $rses_row['previous_hash'] ?? null ) || '' === $rses_row['previous_hash'] )
 				? null
-				: (string) $rses_row->previous_hash;
+				: (string) $rses_row['previous_hash'];
 
 			if ( $rses_prev !== $rses_expected ) {
 				$rses_errors[] = sprintf(
 					/* translators: %d: audit log entry ID */
 					__( 'Chain break at entry %d', 'relatasoft-secure-election-suite' ),
-					(int) $rses_row->id
+					(int) $rses_row['id']
 				);
 			}
 
-			$rses_expected = (string) $rses_row->current_hash;
+			$rses_expected = (string) ( $rses_row['current_hash'] ?? '' );
 		}
 
 		return array(
@@ -178,16 +156,9 @@ class AuditLogger {
 	 * @return array{repaired:int,valid:bool}
 	 */
 	public static function rses_repair_chain(): array {
-		global $wpdb;
+		$rses_rows = PersistenceGateway::get()->auditLog->listAllOrdered();
 
-		$rses_table = Schema::rses_table( 'rses_audit_log' );
-
-		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-		$rses_rows = $wpdb->get_results(
-			"SELECT * FROM {$rses_table} ORDER BY id ASC"
-		);
-
-		if ( ! is_array( $rses_rows ) || empty( $rses_rows ) ) {
+		if ( empty( $rses_rows ) ) {
 			return array(
 				'repaired' => 0,
 				'valid'    => true,
@@ -196,30 +167,22 @@ class AuditLogger {
 
 		$rses_previous = null;
 		$rses_repaired = 0;
+		$audit         = PersistenceGateway::get()->auditLog;
 
 		foreach ( $rses_rows as $rses_row ) {
 			$rses_entry = array(
-				'actor_user_id' => $rses_row->actor_user_id,
-				'action'        => $rses_row->action,
-				'object_type'   => $rses_row->object_type,
-				'object_id'     => $rses_row->object_id,
+				'actor_user_id' => $rses_row['actor_user_id'] ?? null,
+				'action'        => $rses_row['action'] ?? '',
+				'object_type'   => $rses_row['object_type'] ?? '',
+				'object_id'     => $rses_row['object_id'] ?? null,
 				'previous_hash' => $rses_previous,
-				'payload_json'  => $rses_row->payload_json,
-				'created_at'    => $rses_row->created_at,
+				'payload_json'  => $rses_row['payload_json'] ?? null,
+				'created_at'    => $rses_row['created_at'] ?? null,
 			);
 
 			$rses_current = HashService::rses_hash_audit_entry( $rses_entry );
 
-			$wpdb->update(
-				$rses_table,
-				array(
-					'previous_hash' => $rses_previous,
-					'current_hash'  => $rses_current,
-				),
-				array( 'id' => (int) $rses_row->id ),
-				array( '%s', '%s' ),
-				array( '%d' )
-			);
+			$audit->updateHashes( (int) $rses_row['id'], $rses_previous, $rses_current );
 
 			$rses_previous = $rses_current;
 			++$rses_repaired;

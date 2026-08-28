@@ -9,11 +9,10 @@ namespace RelataSoft\SecureElectionSuite\Tallying;
 
 use RelataSoft\SecureElectionSuite\Bootstrap\ModeLock;
 use RelataSoft\SecureElectionSuite\Crypto\ShamirSecretSharing;
-use RelataSoft\SecureElectionSuite\Database\Repository;
-use RelataSoft\SecureElectionSuite\Database\Schema;
 use RelataSoft\SecureElectionSuite\Exports\HashService;
 use RelataSoft\SecureElectionSuite\KeyAuthority\KeyRepository;
 use RelataSoft\SecureElectionSuite\KeyAuthority\ShareEncryptionService;
+use RelataSoft\SecureElectionSuite\Painel\Application\Persistence\PersistenceGateway;
 use RelataSoft\SecureElectionSuite\Security\AuditLogger;
 use RelataSoft\SecureElectionSuite\Security\Capability;
 use RelataSoft\SecureElectionSuite\Security\Nonce;
@@ -63,10 +62,9 @@ class OfficialShareSubmissionController {
 
 		$rses_share_index = (int) $rses_payload['share_index'];
 
-		$rses_existing = Repository::rses_count(
-			'rses_official_share_submissions',
-			'tally_import_id = %d AND share_index = %d',
-			array( $rses_import_id, $rses_share_index )
+		$rses_existing = PersistenceGateway::get()->shareSubmissions->countByImportAndIndex(
+			$rses_import_id,
+			$rses_share_index
 		);
 
 		if ( $rses_existing > 0 ) {
@@ -87,11 +85,7 @@ class OfficialShareSubmissionController {
 
 		$rses_row['audit_hash'] = HashService::rses_hash_json( $rses_row );
 
-		$rses_submission_id = Repository::rses_insert(
-			'rses_official_share_submissions',
-			$rses_row,
-			array( '%d', '%d', '%d', '%d', '%d', '%s', '%s', '%s' )
-		);
+		$rses_submission_id = PersistenceGateway::get()->shareSubmissions->create( $rses_row );
 
 		AuditLogger::rses_log(
 			'share_submit',
@@ -134,11 +128,7 @@ class OfficialShareSubmissionController {
 	 * @return int
 	 */
 	public static function rses_get_submission_count( int $import_id ): int {
-		return Repository::rses_count(
-			'rses_official_share_submissions',
-			'tally_import_id = %d',
-			array( $import_id )
-		);
+		return PersistenceGateway::get()->shareSubmissions->countByImport( $import_id );
 	}
 
 	/**
@@ -148,10 +138,9 @@ class OfficialShareSubmissionController {
 	 * @return array<int,object>
 	 */
 	public static function rses_get_submissions( int $import_id ): array {
-		return Repository::rses_get_rows(
-			'rses_official_share_submissions',
-			'tally_import_id = %d',
-			array( $import_id )
+		return array_map(
+			static fn( array $row ) => (object) $row,
+			PersistenceGateway::get()->shareSubmissions->listByImport( $import_id )
 		);
 	}
 
@@ -162,21 +151,11 @@ class OfficialShareSubmissionController {
 	 * @return int Number of rows deleted.
 	 */
 	public static function rses_clear_submissions_for_import( int $import_id ): int {
-		global $wpdb;
-
 		if ( $import_id < 1 ) {
 			return 0;
 		}
 
-		$rses_before = self::rses_get_submission_count( $import_id );
-		$rses_table  = Schema::rses_table( 'rses_official_share_submissions' );
-
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-		$wpdb->delete(
-			$rses_table,
-			array( 'tally_import_id' => $import_id ),
-			array( '%d' )
-		);
+		$rses_before = PersistenceGateway::get()->shareSubmissions->deleteByImport( $import_id );
 
 		delete_transient( 'rses_decryption_result_' . $import_id );
 		delete_transient( 'rses_certification_' . $import_id );

@@ -12,6 +12,7 @@ use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\Branding\SiteIconBr
 use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\Branding\WordPressLoginBranding;
 use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\Logging\WordPressLogger;
 use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\Navigation\WordPressMenuChrome;
+use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\Persistence\WordPressPersistenceBootstrap;
 use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\Platform\FingerprintHardening;
 use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\Platform\PlatformUrlMask;
 use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\Settings\WordPressSettingsRepository;
@@ -36,6 +37,8 @@ use RelataSoft\SecureElectionSuite\Painel\Presentation\Admin\ShellView;
 final class Bootstrap {
 
 	public static function register(): void {
+		WordPressPersistenceBootstrap::boot();
+
 		$logger       = new WordPressLogger();
 		$settingsRepo = new WordPressSettingsRepository();
 		$users        = new WordPressUserProvider();

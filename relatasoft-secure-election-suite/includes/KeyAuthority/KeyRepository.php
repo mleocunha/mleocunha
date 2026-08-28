@@ -7,13 +7,13 @@
 
 namespace RelataSoft\SecureElectionSuite\KeyAuthority;
 
-use RelataSoft\SecureElectionSuite\Database\Repository;
 use RelataSoft\SecureElectionSuite\Exports\HashService;
+use RelataSoft\SecureElectionSuite\Painel\Application\Persistence\PersistenceGateway;
 
 defined( 'ABSPATH' ) || exit;
 
 /**
- * Database operations for ElGamal keys.
+ * Database operations for ElGamal keys (delegates to A2 persistence ports).
  */
 class KeyRepository {
 
@@ -49,11 +49,7 @@ class KeyRepository {
 
 		$rses_row['audit_hash'] = HashService::rses_hash_json( $rses_row );
 
-		return Repository::rses_insert(
-			'rses_keys',
-			$rses_row,
-			array( '%d', '%s', '%s', '%s', '%s', '%s', '%d', '%s', '%d', '%s', '%s', '%d', '%d', '%s', '%s', '%d', '%s', '%d', '%s' )
-		);
+		return PersistenceGateway::get()->keys->create( $rses_row );
 	}
 
 	/**
@@ -63,13 +59,8 @@ class KeyRepository {
 	 * @return object|null
 	 */
 	public static function rses_get( int $key_id ): ?object {
-		$rses_key = Repository::rses_get_by_id( 'rses_keys', $key_id );
-
-		if ( $rses_key && (int) $rses_key->is_deleted === 1 ) {
-			return null;
-		}
-
-		return $rses_key;
+		$row = PersistenceGateway::get()->keys->find( $key_id );
+		return null === $row ? null : (object) $row;
 	}
 
 	/**
@@ -78,7 +69,10 @@ class KeyRepository {
 	 * @return array<int,object>
 	 */
 	public static function rses_list_active(): array {
-		return Repository::rses_get_rows( 'rses_keys', 'is_deleted = 0', array() );
+		return array_map(
+			static fn( array $row ) => (object) $row,
+			PersistenceGateway::get()->keys->listActive()
+		);
 	}
 
 	/**
@@ -88,16 +82,7 @@ class KeyRepository {
 	 * @return bool
 	 */
 	public static function rses_trash( int $key_id ): bool {
-		return Repository::rses_update(
-			'rses_keys',
-			array(
-				'is_deleted' => 1,
-				'deleted_at' => current_time( 'mysql', true ),
-			),
-			array( 'id' => $key_id ),
-			array( '%d', '%s' ),
-			array( '%d' )
-		);
+		return PersistenceGateway::get()->keys->trash( $key_id );
 	}
 
 	/**
@@ -107,16 +92,7 @@ class KeyRepository {
 	 * @return bool
 	 */
 	public static function rses_restore( int $key_id ): bool {
-		return Repository::rses_update(
-			'rses_keys',
-			array(
-				'is_deleted' => 0,
-				'deleted_at' => null,
-			),
-			array( 'id' => $key_id ),
-			array( '%d', '%s' ),
-			array( '%d' )
-		);
+		return PersistenceGateway::get()->keys->restore( $key_id );
 	}
 
 	/**
@@ -126,7 +102,7 @@ class KeyRepository {
 	 * @return bool
 	 */
 	public static function rses_delete( int $key_id ): bool {
-		return Repository::rses_delete_by_id( 'rses_keys', $key_id );
+		return PersistenceGateway::get()->keys->delete( $key_id );
 	}
 
 	/**
@@ -136,7 +112,10 @@ class KeyRepository {
 	 * @return array<int,object>
 	 */
 	public static function rses_get_shares( int $key_id ): array {
-		return Repository::rses_get_rows( 'rses_shares', 'key_id = %d', array( $key_id ) );
+		return array_map(
+			static fn( array $row ) => (object) $row,
+			PersistenceGateway::get()->shares->listByKey( $key_id )
+		);
 	}
 
 	/**
@@ -147,14 +126,7 @@ class KeyRepository {
 	 * @return object|null
 	 */
 	public static function rses_get_share_for_user( int $key_id, int $user_id ): ?object {
-		$rses_shares = Repository::rses_get_rows(
-			'rses_shares',
-			'key_id = %d AND official_user_id = %d',
-			array( $key_id, $user_id ),
-			'id ASC',
-			1
-		);
-
-		return $rses_shares[0] ?? null;
+		$row = PersistenceGateway::get()->shares->findForUser( $key_id, $user_id );
+		return null === $row ? null : (object) $row;
 	}
 }

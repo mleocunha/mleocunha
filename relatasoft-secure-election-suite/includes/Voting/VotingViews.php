@@ -805,15 +805,7 @@ class VotingViews {
 			return;
 		}
 
-		$rses_votes = EncryptedVoteRepository::rses_get_by_round( $round_id );
-		$rses_voted = false;
-		foreach ( $rses_votes as $rses_v ) {
-			if ( (int) $rses_v->voter_user_id === get_current_user_id() ) {
-				$rses_voted = true;
-				break;
-			}
-		}
-		if ( $rses_voted ) {
+		if ( EncryptedVoteRepository::rses_has_voted_round( get_current_user_id(), $round_id ) ) {
 			self::rses_render_voter_receipt( $election_id, $round_id );
 			return;
 		}

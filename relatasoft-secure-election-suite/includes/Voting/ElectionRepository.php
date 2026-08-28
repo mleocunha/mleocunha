@@ -7,13 +7,13 @@
 
 namespace RelataSoft\SecureElectionSuite\Voting;
 
-use RelataSoft\SecureElectionSuite\Database\Repository;
 use RelataSoft\SecureElectionSuite\Exports\HashService;
+use RelataSoft\SecureElectionSuite\Painel\Application\Persistence\PersistenceGateway;
 
 defined( 'ABSPATH' ) || exit;
 
 /**
- * Election database operations.
+ * Election database operations (delegates to A2 persistence ports).
  */
 class ElectionRepository {
 
@@ -38,11 +38,7 @@ class ElectionRepository {
 
 		$rses_row['audit_hash'] = HashService::rses_hash_json( $rses_row );
 
-		return Repository::rses_insert(
-			'rses_elections',
-			$rses_row,
-			array( '%s', '%s', '%s', '%s', '%d', '%s', '%s', '%s', '%s', '%s' )
-		);
+		return PersistenceGateway::get()->elections->createElection( $rses_row );
 	}
 
 	/**
@@ -52,7 +48,8 @@ class ElectionRepository {
 	 * @return object|null
 	 */
 	public static function rses_get( int $election_id ): ?object {
-		return Repository::rses_get_by_id( 'rses_elections', $election_id );
+		$row = PersistenceGateway::get()->elections->findElection( $election_id );
+		return null === $row ? null : (object) $row;
 	}
 
 	/**
@@ -61,7 +58,10 @@ class ElectionRepository {
 	 * @return array<int,object>
 	 */
 	public static function rses_list(): array {
-		return Repository::rses_get_rows( 'rses_elections' );
+		return array_map(
+			static fn( array $row ) => (object) $row,
+			PersistenceGateway::get()->elections->listElections()
+		);
 	}
 
 	/**
@@ -85,23 +85,7 @@ class ElectionRepository {
 
 		$rses_row['audit_hash'] = HashService::rses_hash_json( $rses_row );
 
-		$rses_round_id = Repository::rses_insert(
-			'rses_election_rounds',
-			$rses_row,
-			array( '%d', '%d', '%s', '%s', '%s', '%d', '%d', '%d', '%s', '%s' )
-		);
-
-		if ( $rses_round_id ) {
-			Repository::rses_update(
-				'rses_elections',
-				array( 'current_round_id' => $rses_round_id ),
-				array( 'id' => $data['election_id'] ),
-				array( '%d' ),
-				array( '%d' )
-			);
-		}
-
-		return $rses_round_id;
+		return PersistenceGateway::get()->elections->createRound( $rses_row );
 	}
 
 	/**
@@ -111,7 +95,8 @@ class ElectionRepository {
 	 * @return object|null
 	 */
 	public static function rses_get_round( int $round_id ): ?object {
-		return Repository::rses_get_by_id( 'rses_election_rounds', $round_id );
+		$row = PersistenceGateway::get()->elections->findRound( $round_id );
+		return null === $row ? null : (object) $row;
 	}
 
 	/**
@@ -121,11 +106,9 @@ class ElectionRepository {
 	 * @return array<int,object>
 	 */
 	public static function rses_get_rounds( int $election_id ): array {
-		return Repository::rses_get_rows(
-			'rses_election_rounds',
-			'election_id = %d',
-			array( $election_id ),
-			'round_number ASC'
+		return array_map(
+			static fn( array $row ) => (object) $row,
+			PersistenceGateway::get()->elections->listRounds( $election_id )
 		);
 	}
 
@@ -150,11 +133,7 @@ class ElectionRepository {
 
 		$rses_row['audit_hash'] = HashService::rses_hash_json( $rses_row );
 
-		return Repository::rses_insert(
-			'rses_ballot_questions',
-			$rses_row,
-			array( '%d', '%d', '%s', '%s', '%s', '%d', '%d', '%d', '%s', '%s' )
-		);
+		return PersistenceGateway::get()->elections->createQuestion( $rses_row );
 	}
 
 	/**
@@ -191,11 +170,7 @@ class ElectionRepository {
 			)
 		);
 
-		return Repository::rses_insert(
-			'rses_ballot_options',
-			$rses_row,
-			array( '%d', '%d', '%s', '%s', '%d', '%s', '%s' )
-		);
+		return PersistenceGateway::get()->elections->createOption( $rses_row );
 	}
 
 	/**
@@ -205,11 +180,9 @@ class ElectionRepository {
 	 * @return array<int,object>
 	 */
 	public static function rses_get_questions( int $round_id ): array {
-		return Repository::rses_get_rows(
-			'rses_ballot_questions',
-			'round_id = %d',
-			array( $round_id ),
-			'order_index ASC'
+		return array_map(
+			static fn( array $row ) => (object) $row,
+			PersistenceGateway::get()->elections->listQuestions( $round_id )
 		);
 	}
 
@@ -220,11 +193,9 @@ class ElectionRepository {
 	 * @return array<int,object>
 	 */
 	public static function rses_get_options( int $question_id ): array {
-		return Repository::rses_get_rows(
-			'rses_ballot_options',
-			'question_id = %d',
-			array( $question_id ),
-			'order_index ASC'
+		return array_map(
+			static fn( array $row ) => (object) $row,
+			PersistenceGateway::get()->elections->listOptions( $question_id )
 		);
 	}
 
@@ -236,13 +207,7 @@ class ElectionRepository {
 	 * @return bool
 	 */
 	public static function rses_update_status( int $election_id, string $status ): bool {
-		return Repository::rses_update(
-			'rses_elections',
-			array( 'status' => $status ),
-			array( 'id' => $election_id ),
-			array( '%s' ),
-			array( '%d' )
-		);
+		return PersistenceGateway::get()->elections->updateElectionStatus( $election_id, $status );
 	}
 
 	/**
@@ -253,20 +218,15 @@ class ElectionRepository {
 	 * @return bool
 	 */
 	public static function rses_update_round_status( int $round_id, string $status ): bool {
-		$rses_data = array( 'status' => $status );
+		$opened = null;
+		$closed = null;
 
 		if ( 'open' === $status ) {
-			$rses_data['opened_at'] = current_time( 'mysql', true );
+			$opened = current_time( 'mysql', true );
 		} elseif ( 'closed' === $status ) {
-			$rses_data['closed_at'] = current_time( 'mysql', true );
+			$closed = current_time( 'mysql', true );
 		}
 
-		return Repository::rses_update(
-			'rses_election_rounds',
-			$rses_data,
-			array( 'id' => $round_id ),
-			array_fill( 0, count( $rses_data ), '%s' ),
-			array( '%d' )
-		);
+		return PersistenceGateway::get()->elections->updateRoundStatus( $round_id, $status, $opened, $closed );
 	}
 }

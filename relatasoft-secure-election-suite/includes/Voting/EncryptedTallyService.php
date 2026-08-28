@@ -9,9 +9,8 @@ namespace RelataSoft\SecureElectionSuite\Voting;
 
 use RelataSoft\SecureElectionSuite\Crypto\BigInt;
 use RelataSoft\SecureElectionSuite\Crypto\ElGamalCiphertext;
-use RelataSoft\SecureElectionSuite\Database\Repository;
-use RelataSoft\SecureElectionSuite\Database\Schema;
 use RelataSoft\SecureElectionSuite\Exports\HashService;
+use RelataSoft\SecureElectionSuite\Painel\Application\Persistence\PersistenceGateway;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -83,7 +82,7 @@ class EncryptedTallyService {
 
 		self::rses_delete_by_round( $round_id );
 
-		$rses_count = 0;
+		$rses_rows = array();
 		foreach ( $rses_groups as $rses_group ) {
 			$rses_row = array(
 				'election_id'      => $rses_group['election_id'],
@@ -98,17 +97,10 @@ class EncryptedTallyService {
 			);
 
 			$rses_row['audit_hash'] = HashService::rses_hash_json( $rses_row );
-
-			Repository::rses_insert(
-				'rses_encrypted_tallies',
-				$rses_row,
-				array( '%d', '%d', '%d', '%d', '%s', '%s', '%d', '%d', '%s', '%s' )
-			);
-
-			++$rses_count;
+			$rses_rows[]            = $rses_row;
 		}
 
-		return $rses_count;
+		return PersistenceGateway::get()->encryptedTallies->replaceForRound( $round_id, $rses_rows );
 	}
 
 	/**
@@ -117,16 +109,7 @@ class EncryptedTallyService {
 	 * @param int $round_id Round ID.
 	 */
 	public static function rses_delete_by_round( int $round_id ): void {
-		global $wpdb;
-
-		$rses_table = Schema::rses_table( 'rses_encrypted_tallies' );
-		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-		$wpdb->query(
-			$wpdb->prepare(
-				"DELETE FROM {$rses_table} WHERE round_id = %d",
-				$round_id
-			)
-		);
+		PersistenceGateway::get()->encryptedTallies->deleteByRound( $round_id );
 	}
 
 	/**
@@ -136,10 +119,9 @@ class EncryptedTallyService {
 	 * @return array<int,object>
 	 */
 	public static function rses_get_by_round( int $round_id ): array {
-		return Repository::rses_get_rows(
-			'rses_encrypted_tallies',
-			'round_id = %d',
-			array( $round_id )
+		return array_map(
+			static fn( array $row ) => (object) $row,
+			PersistenceGateway::get()->encryptedTallies->listByRound( $round_id )
 		);
 	}
 

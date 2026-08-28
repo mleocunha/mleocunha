@@ -7,8 +7,8 @@
 
 namespace RelataSoft\SecureElectionSuite\Tallying;
 
-use RelataSoft\SecureElectionSuite\Database\Repository;
 use RelataSoft\SecureElectionSuite\Exports\HashService;
+use RelataSoft\SecureElectionSuite\Painel\Application\Persistence\PersistenceGateway;
 use RelataSoft\SecureElectionSuite\Security\AuditLogger;
 use RelataSoft\SecureElectionSuite\Security\Capability;
 use RelataSoft\SecureElectionSuite\Security\Nonce;
@@ -125,13 +125,11 @@ class CertificationService {
 			'certified_at'             => current_time( 'mysql', true ),
 			'audit_hash'               => HashService::rses_hash_json( $rses_report ),
 		);
-		$rses_fmt = array( '%d', '%s', '%s', '%s', '%s', '%d', '%s', '%s' );
 		if ( $rses_atts['pdf_attachment_id'] > 0 ) {
 			$rses_row['pdf_attachment_id'] = $rses_atts['pdf_attachment_id'];
-			$rses_fmt[]                    = '%d';
 		}
 
-		$rses_cert_id = Repository::rses_insert( 'rses_certifications', $rses_row, $rses_fmt );
+		$rses_cert_id = PersistenceGateway::get()->certifications->create( $rses_row );
 
 		set_transient( 'rses_certification_' . $rses_import_id, $rses_report, DAY_IN_SECONDS );
 
@@ -177,17 +175,11 @@ class CertificationService {
 	 * @return array<string,mixed>|null
 	 */
 	private static function rses_load_report_from_db( int $import_id ): ?array {
-		$rses_rows = Repository::rses_get_rows(
-			'rses_certifications',
-			'tally_import_id = %d',
-			array( $import_id ),
-			'id DESC',
-			1
-		);
-		if ( empty( $rses_rows[0] ) ) {
+		$rses_row = PersistenceGateway::get()->certifications->findLatestReportByImport( $import_id );
+		if ( null === $rses_row ) {
 			return null;
 		}
-		$rses_json = (string) ( $rses_rows[0]->verification_report_json ?? '' );
+		$rses_json = (string) ( $rses_row['verification_report_json'] ?? '' );
 		$rses_data = json_decode( $rses_json, true );
 		return is_array( $rses_data ) ? $rses_data : null;
 	}

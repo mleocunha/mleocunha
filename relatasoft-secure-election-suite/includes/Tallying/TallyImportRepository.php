@@ -7,9 +7,9 @@
 
 namespace RelataSoft\SecureElectionSuite\Tallying;
 
-use RelataSoft\SecureElectionSuite\Database\Repository;
 use RelataSoft\SecureElectionSuite\Database\Schema;
 use RelataSoft\SecureElectionSuite\Exports\HashService;
+use RelataSoft\SecureElectionSuite\Painel\Application\Persistence\PersistenceGateway;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -46,11 +46,7 @@ class TallyImportRepository {
 
 		$rses_row['audit_hash'] = HashService::rses_hash_json( $rses_row );
 
-		return Repository::rses_insert(
-			'rses_tally_imports',
-			$rses_row,
-			array( '%s', '%s', '%s', '%s', '%s', '%d', '%s', '%s', '%d', '%s', '%s', '%s' )
-		);
+		return PersistenceGateway::get()->tallyImports->create( $rses_row );
 	}
 
 	/**
@@ -60,7 +56,8 @@ class TallyImportRepository {
 	 * @return object|null
 	 */
 	public static function rses_get( int $import_id ): ?object {
-		return Repository::rses_get_by_id( 'rses_tally_imports', $import_id );
+		$row = PersistenceGateway::get()->tallyImports->find( $import_id );
+		return null === $row ? null : (object) $row;
 	}
 
 	/**
@@ -69,21 +66,10 @@ class TallyImportRepository {
 	 * @return array<int,object>
 	 */
 	public static function rses_list(): array {
-		global $wpdb;
-
-		$rses_table = Schema::rses_table( 'rses_tally_imports' );
-
-		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-		$rses_rows = $wpdb->get_results(
-			"SELECT id, source_site_url, election_external_id, round_external_id,
-				election_title, round_title, ballot_count,
-				import_hash, imported_by, imported_at, status, audit_hash,
-				LENGTH(import_manifest_json) AS manifest_bytes
-			FROM {$rses_table}
-			ORDER BY id DESC"
+		return array_map(
+			static fn( array $row ) => (object) $row,
+			PersistenceGateway::get()->tallyImports->listSummaries()
 		);
-
-		return is_array( $rses_rows ) ? $rses_rows : array();
 	}
 
 	/**
@@ -206,8 +192,6 @@ class TallyImportRepository {
 	 * @return bool
 	 */
 	public static function rses_delete( int $import_id ): bool {
-		global $wpdb;
-
 		if ( $import_id < 1 ) {
 			return false;
 		}
@@ -218,21 +202,14 @@ class TallyImportRepository {
 		}
 
 		OfficialShareSubmissionController::rses_clear_submissions_for_import( $import_id );
-
-		$rses_cert_table = Schema::rses_table( 'rses_certifications' );
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-		$wpdb->delete(
-			$rses_cert_table,
-			array( 'tally_import_id' => $import_id ),
-			array( '%d' )
-		);
+		PersistenceGateway::get()->certifications->deleteByImport( $import_id );
 
 		delete_transient( 'rses_certification_' . $import_id );
 		delete_transient( 'rses_decryption_result_' . $import_id );
 		delete_transient( 'rses_tally_import_flash_' . $import_id );
 		SignedResultsService::rses_clear( $import_id );
 
-		return Repository::rses_delete_by_id( 'rses_tally_imports', $import_id );
+		return PersistenceGateway::get()->tallyImports->delete( $import_id );
 	}
 
 	/**
@@ -276,16 +253,13 @@ class TallyImportRepository {
 			if ( '' === $rses_summary['election_title'] && '' === $rses_summary['round_title'] ) {
 				continue;
 			}
-			$rses_ok = Repository::rses_update(
-				'rses_tally_imports',
+			$rses_ok = PersistenceGateway::get()->tallyImports->updateSummary(
+				(int) $rses_id,
 				array(
 					'election_title' => $rses_summary['election_title'] ?: null,
 					'round_title'    => $rses_summary['round_title'] ?: null,
 					'ballot_count'   => $rses_summary['ballot_count'],
-				),
-				array( 'id' => (int) $rses_id ),
-				array( '%s', '%s', '%d' ),
-				array( '%d' )
+				)
 			);
 			if ( $rses_ok ) {
 				++$rses_updated;
@@ -339,13 +313,7 @@ class TallyImportRepository {
 	 * @return bool
 	 */
 	public static function rses_update_status( int $import_id, string $status ): bool {
-		return Repository::rses_update(
-			'rses_tally_imports',
-			array( 'status' => $status ),
-			array( 'id' => $import_id ),
-			array( '%s' ),
-			array( '%d' )
-		);
+		return PersistenceGateway::get()->tallyImports->updateStatus( $import_id, $status );
 	}
 
 	/**
