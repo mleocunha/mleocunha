@@ -301,12 +301,12 @@ exige:
 | Nó | Estado aproximado |
 |----|-------------------|
 | A0 | Em curso / avançado (glossário sítio; máscara documentada) |
-| A1 | Parcial (RsvFormat puro; crypto ainda em `includes/Crypto`) |
+| A1 | **Feito (gate M1)** — crypto/formatos em `src/Domain/Crypto` + `RsvFormat`/`AuthoritiesPackage`; PHPUnit sem boot do sítio; facades Adapter #1 em `includes/Crypto` |
 | A2–A6 | Não iniciados como programa formal |
 | B1–B6 | Parcialmente entregues no Adapter #1 |
 | C1–C3 | Operacionais; manter |
 
-**Próximo passo no caminho crítico:** fechar **A0** (doc de fachada no Conhecimento, se faltar) e iniciar **A1** (extracção formal da biblioteca crypto/formatos).
+**Próximo passo no caminho crítico:** iniciar **A2** (ports de repositório: keys, elections, votes, tallies, audit).
 
 ---
 

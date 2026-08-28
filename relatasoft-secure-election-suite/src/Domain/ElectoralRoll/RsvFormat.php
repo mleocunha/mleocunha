@@ -176,6 +176,9 @@ final class RsvFormat {
 		return max( $min, min( $max, $ideal ) );
 	}
 
+	/**
+	 * Max RSV upload size in bytes (4 GiB product ceiling).
+	 */
 	public static function maxUploadBytes(): int {
 		return 4 * 1024 * 1024 * 1024; // 4 GiB oficial.
 	}

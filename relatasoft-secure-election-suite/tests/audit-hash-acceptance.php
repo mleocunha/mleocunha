@@ -7,19 +7,7 @@
 
 define( 'ABSPATH', true );
 
-if ( ! function_exists( 'wp_json_encode' ) ) {
-	/**
-	 * Minimal wp_json_encode stub.
-	 *
-	 * @param mixed $data Data.
-	 * @param int   $options Options.
-	 * @return string|false
-	 */
-	function wp_json_encode( $data, int $options = 0 ) {
-		return json_encode( $data, $options ); // phpcs:ignore WordPress.WP.AlternativeFunctions.json_encode_json_encode
-	}
-}
-
+require_once dirname( __DIR__ ) . '/vendor/autoload.php';
 require_once dirname( __DIR__ ) . '/includes/Exports/HashService.php';
 
 use RelataSoft\SecureElectionSuite\Exports\HashService;
