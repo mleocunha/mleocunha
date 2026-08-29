@@ -15,6 +15,7 @@ use RelataSoft\SecureElectionSuite\Crypto\HomomorphicTally;
 use RelataSoft\SecureElectionSuite\Exports\HashService;
 use RelataSoft\SecureElectionSuite\KeyAuthority\KeyRepository;
 use RelataSoft\SecureElectionSuite\I18n\RoleLabels;
+use RelataSoft\SecureElectionSuite\Painel\Application\Identity\IdentityGateway;
 use RelataSoft\SecureElectionSuite\Security\AuditLogger;
 use RelataSoft\SecureElectionSuite\Security\Capability;
 
@@ -43,7 +44,9 @@ class VoteEncryptionService {
 	): string {
 		// Defense in depth: never rely solely on UI/controller capability checks.
 		$voter_id = absint( $voter_id );
-		if ( $voter_id < 1 || get_current_user_id() !== $voter_id ) {
+		try {
+			IdentityGateway::get()->session->assertCurrentUser( $voter_id );
+		} catch ( \RuntimeException $e ) {
 			throw new CryptoException( __( 'Vote casting identity mismatch.', 'relatasoft-secure-election-suite' ) );
 		}
 

@@ -10,6 +10,7 @@
 
 namespace RelataSoft\SecureElectionSuite\Voting;
 
+use RelataSoft\SecureElectionSuite\Painel\Application\Identity\IdentityGateway;
 use RelataSoft\SecureElectionSuite\Painel\Domain\ElectoralRoll\RsvFormat;
 use RelataSoft\SecureElectionSuite\Security\AuditLogger;
 
@@ -592,33 +593,29 @@ class ElectoralRollImportService {
 	}
 
 	/**
-	 * Resolve existing WP user: login → civil ID meta → electoral ID meta.
+	 * Resolve existing user: login → civil ID meta → electoral ID meta.
 	 *
 	 * @param array<string,string> $data Parsed row.
+	 * @return array<string,mixed>|null UserDirectory row.
 	 */
-	private static function rses_find_existing_user( array $data ): ?\WP_User {
-		$by_login = get_user_by( 'login', $data['user_login'] );
-		if ( $by_login instanceof \WP_User ) {
+	private static function rses_find_existing_user( array $data ): ?array {
+		$dir      = IdentityGateway::get()->users;
+		$by_login = $dir->findByLogin( $data['user_login'] );
+		if ( null !== $by_login ) {
 			return $by_login;
 		}
 
 		if ( '' !== $data['id_civil'] ) {
-			$uid = self::rses_user_id_by_meta( self::META_ID_CIVIL, $data['id_civil'] );
+			$uid = $dir->findIdByMeta( self::META_ID_CIVIL, $data['id_civil'] );
 			if ( $uid > 0 ) {
-				$user = get_user_by( 'id', $uid );
-				if ( $user instanceof \WP_User ) {
-					return $user;
-				}
+				return $dir->findById( $uid );
 			}
 		}
 
 		if ( '' !== $data['id_eleitoral'] ) {
-			$uid = self::rses_user_id_by_meta( self::META_ID_ELEITORAL, $data['id_eleitoral'] );
+			$uid = $dir->findIdByMeta( self::META_ID_ELEITORAL, $data['id_eleitoral'] );
 			if ( $uid > 0 ) {
-				$user = get_user_by( 'id', $uid );
-				if ( $user instanceof \WP_User ) {
-					return $user;
-				}
+				return $dir->findById( $uid );
 			}
 		}
 
@@ -626,43 +623,24 @@ class ElectoralRollImportService {
 	}
 
 	/**
-	 * Look up a single user ID by exact meta value (civil / electoral ID conflict → update).
-	 */
-	private static function rses_user_id_by_meta( string $meta_key, string $meta_value ): int {
-		// get_users(): WP helper — returns matching users; we only need the first ID.
-		$users = get_users(
-			array(
-				'meta_key'   => $meta_key, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key
-				'meta_value' => $meta_value, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_value
-				'number'     => 1,
-				'fields'     => 'ID',
-				'count_total'=> false,
-			)
-		);
-		if ( empty( $users ) ) {
-			return 0;
-		}
-		return (int) ( is_array( $users ) ? ( $users[0] ?? 0 ) : $users );
-	}
-
-	/**
 	 * @param array<string,string> $data Parsed row.
 	 * @return string|\WP_Error created|updated|skipped
 	 */
 	private static function rses_upsert_user( array $data, bool $update_existing ): string|\WP_Error {
+		$dir      = IdentityGateway::get()->users;
 		$existing = self::rses_find_existing_user( $data );
 
 		// Email collision with a *different* login/account must not silently rewrite passwords.
-		$by_email = get_user_by( 'email', $data['user_email'] );
-		if ( $by_email instanceof \WP_User ) {
-			$same = $existing instanceof \WP_User && (int) $by_email->ID === (int) $existing->ID;
+		$by_email = $dir->findByEmail( $data['user_email'] );
+		if ( null !== $by_email ) {
+			$same = null !== $existing && (int) $by_email['id'] === (int) $existing['id'];
 			if ( ! $same ) {
 				return new \WP_Error(
 					'rses_email_collision',
 					sprintf(
 						/* translators: 1: existing login, 2: RSV login, 3: email */
 						__( 'Email %3$s already belongs to user “%1$s”, but this row uses login “%2$s”. Fix the RSV (unique emails) or rename the existing account.', 'relatasoft-secure-election-suite' ),
-						$by_email->user_login,
+						$by_email['login'],
 						$data['user_login'],
 						$data['user_email']
 					)
@@ -670,32 +648,31 @@ class ElectoralRollImportService {
 			}
 		}
 
-		if ( $existing instanceof \WP_User ) {
+		if ( null !== $existing ) {
 			if ( ! $update_existing ) {
 				return 'skipped';
 			}
 
-			$user_id = (int) $existing->ID;
+			$user_id = (int) $existing['id'];
 			// Empty senha on UPDATE → keep existing password (hashes are not recoverable).
 			if ( '' !== $data['password'] ) {
-				// wp_set_password(): hashes and stores; bypasses strength UI (filters suppress nags).
-				wp_set_password( $data['password'], $user_id );
+				$dir->setPassword( $user_id, $data['password'] );
 			}
 
-			$updated = wp_update_user(
+			$updated = $dir->update(
+				$user_id,
 				array(
-					'ID'           => $user_id,
-					'user_email'   => $data['user_email'],
-					'display_name' => $data['display_name'],
-					'first_name'   => $data['first_name'],
-					'last_name'    => $data['last_name'],
+					'email'       => $data['user_email'],
+					'displayName' => $data['display_name'],
+					'firstName'   => $data['first_name'],
+					'lastName'    => $data['last_name'],
+					'role'        => $data['role'],
 				)
 			);
-			if ( is_wp_error( $updated ) ) {
-				return $updated;
+			if ( ! $updated['ok'] ) {
+				return new \WP_Error( 'rses_update_user', $updated['error'] );
 			}
 
-			$existing->set_role( $data['role'] );
 			self::rses_write_meta( $user_id, $data );
 			return 'updated';
 		}
@@ -707,24 +684,23 @@ class ElectoralRollImportService {
 			);
 		}
 
-		// wp_insert_user(): creates WP user; role from RsvFormat (admin/gestor/auditor allowed).
-		$user_id = wp_insert_user(
+		$created = $dir->create(
 			array(
-				'user_login'   => $data['user_login'],
-				'user_email'   => $data['user_email'],
-				'user_pass'    => $data['password'],
-				'display_name' => $data['display_name'],
-				'first_name'   => $data['first_name'],
-				'last_name'    => $data['last_name'],
-				'role'         => $data['role'],
+				'login'       => $data['user_login'],
+				'email'       => $data['user_email'],
+				'password'    => $data['password'],
+				'displayName' => $data['display_name'],
+				'firstName'   => $data['first_name'],
+				'lastName'    => $data['last_name'],
+				'role'        => $data['role'],
 			)
 		);
 
-		if ( is_wp_error( $user_id ) ) {
-			return $user_id;
+		if ( ! $created['ok'] ) {
+			return new \WP_Error( 'rses_create_user', $created['error'] );
 		}
 
-		self::rses_write_meta( (int) $user_id, $data );
+		self::rses_write_meta( (int) $created['id'], $data );
 		return 'created';
 	}
 
@@ -734,14 +710,15 @@ class ElectoralRollImportService {
 	 * @param array<string,string> $data Row data.
 	 */
 	private static function rses_write_meta( int $user_id, array $data ): void {
-		update_user_meta( $user_id, self::META_ID_CIVIL, $data['id_civil'] );
-		update_user_meta( $user_id, self::META_ID_ELEITORAL, $data['id_eleitoral'] );
-		update_user_meta( $user_id, self::META_REGIAO_AMPLA, $data['regiao_ampla'] );
-		update_user_meta( $user_id, self::META_REGIAO_ESPECIFICA, $data['regiao_especifica'] );
-		update_user_meta( $user_id, self::META_CELULAR, $data['celular'] );
-		update_user_meta( $user_id, self::META_EMAILS, $data['emails'] );
-		update_user_meta( $user_id, self::META_ENDERECO, $data['endereco'] );
-		update_user_meta( $user_id, self::META_ELECTORAL_ROLL, '1' );
+		$dir = IdentityGateway::get()->users;
+		$dir->setMeta( $user_id, self::META_ID_CIVIL, $data['id_civil'] );
+		$dir->setMeta( $user_id, self::META_ID_ELEITORAL, $data['id_eleitoral'] );
+		$dir->setMeta( $user_id, self::META_REGIAO_AMPLA, $data['regiao_ampla'] );
+		$dir->setMeta( $user_id, self::META_REGIAO_ESPECIFICA, $data['regiao_especifica'] );
+		$dir->setMeta( $user_id, self::META_CELULAR, $data['celular'] );
+		$dir->setMeta( $user_id, self::META_EMAILS, $data['emails'] );
+		$dir->setMeta( $user_id, self::META_ENDERECO, $data['endereco'] );
+		$dir->setMeta( $user_id, self::META_ELECTORAL_ROLL, '1' );
 	}
 
 	/**

@@ -11,6 +11,10 @@ final class WordPressUserProvider implements UserProvider {
 		return (int) get_current_user_id();
 	}
 
+	public function isAuthenticated(): bool {
+		return is_user_logged_in();
+	}
+
 	public function currentRoles(): array {
 		$user = wp_get_current_user();
 		if ( ! $user || ! $user->exists() ) {

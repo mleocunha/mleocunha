@@ -303,11 +303,12 @@ exige:
 | A0 | Em curso / avançado (glossário sítio; máscara documentada) |
 | A1 | **Feito (gate M1)** — crypto/formatos em `src/Domain/Crypto` + `RsvFormat`/`AuthoritiesPackage`; PHPUnit sem boot do sítio; facades Adapter #1 em `includes/Crypto` |
 | A2 | **Feito (gate M2)** — ports em `src/Contracts/{Keys,Elections,Votes,Tallies,Audit}`; InMemory + Adapter #1 em `src/Adapters/WordPress/Persistence`; `PersistenceGateway`; repositórios/serviços legados sem `$wpdb`/`Repository` directo nas operações de domínio |
-| A3–A6 | Não iniciados como programa formal |
+| A3 | **Feito (gate M3)** — ports UserDirectory / CapabilityResolver / SessionPort / SecretKeyProvider; `IdentityGateway`; RSV, autoridades e cast via ports; `ShareEncryptionService` sem sais do host (só no adapter) |
+| A4–A6 | Não iniciados como programa formal |
 | B1–B6 | Parcialmente entregues no Adapter #1 |
 | C1–C3 | Operacionais; manter |
 
-**Próximo passo no caminho crítico:** iniciar **A3** (ports de identidade/capacidade/sessão + key provider).
+**Próximo passo no caminho crítico:** iniciar **A4** (jobs: keygen / import-export RSV como API de domínio).
 
 ---
 

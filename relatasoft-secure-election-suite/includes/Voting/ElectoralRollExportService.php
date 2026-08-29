@@ -7,6 +7,7 @@
 
 namespace RelataSoft\SecureElectionSuite\Voting;
 
+use RelataSoft\SecureElectionSuite\Painel\Application\Identity\IdentityGateway;
 use RelataSoft\SecureElectionSuite\Painel\Domain\ElectoralRoll\RsvFormat;
 use RelataSoft\SecureElectionSuite\Security\AuditLogger;
 
@@ -65,11 +66,13 @@ class ElectoralRollExportService {
 	}
 
 	/**
-	 * Build one RSV data line for a WP user (senha always empty — hashes are irreversible).
+	 * Build one RSV data line for a directory user row (senha always empty — hashes are irreversible).
+	 *
+	 * @param array<string,mixed> $user UserDirectory row.
 	 */
-	public static function rses_user_to_line( \WP_User $user ): string {
-		$roles   = array_map( 'strval', (array) $user->roles );
-		$papel   = '';
+	public static function rses_user_to_line( array $user ): string {
+		$roles = array_map( 'strval', (array) ( $user['roles'] ?? array() ) );
+		$papel = '';
 		foreach ( $roles as $role ) {
 			$papel = RsvFormat::reverseRole( $role );
 			if ( '' !== $papel ) {
@@ -77,28 +80,30 @@ class ElectoralRollExportService {
 			}
 		}
 
-		$emails_meta = (string) get_user_meta( $user->ID, ElectoralRollImportService::META_EMAILS, true );
+		$dir         = IdentityGateway::get()->users;
+		$user_id     = (int) ( $user['id'] ?? 0 );
+		$emails_meta = $dir->getMeta( $user_id, ElectoralRollImportService::META_EMAILS );
 		if ( '' === $emails_meta ) {
-			$emails_meta = (string) $user->user_email;
+			$emails_meta = (string) ( $user['email'] ?? '' );
 		}
 
-		$celular = (string) get_user_meta( $user->ID, ElectoralRollImportService::META_CELULAR, true );
-		$nome    = (string) $user->display_name;
+		$celular = $dir->getMeta( $user_id, ElectoralRollImportService::META_CELULAR );
+		$nome    = (string) ( $user['displayName'] ?? '' );
 		if ( '' === $nome ) {
-			$nome = (string) $user->user_login;
+			$nome = (string) ( $user['login'] ?? '' );
 		}
 
 		return RsvFormat::serializeLine(
 			array(
-				(string) $user->user_login,
-				(string) get_user_meta( $user->ID, ElectoralRollImportService::META_ID_CIVIL, true ),
-				(string) get_user_meta( $user->ID, ElectoralRollImportService::META_ID_ELEITORAL, true ),
-				(string) get_user_meta( $user->ID, ElectoralRollImportService::META_REGIAO_AMPLA, true ),
-				(string) get_user_meta( $user->ID, ElectoralRollImportService::META_REGIAO_ESPECIFICA, true ),
+				(string) ( $user['login'] ?? '' ),
+				$dir->getMeta( $user_id, ElectoralRollImportService::META_ID_CIVIL ),
+				$dir->getMeta( $user_id, ElectoralRollImportService::META_ID_ELEITORAL ),
+				$dir->getMeta( $user_id, ElectoralRollImportService::META_REGIAO_AMPLA ),
+				$dir->getMeta( $user_id, ElectoralRollImportService::META_REGIAO_ESPECIFICA ),
 				$nome,
 				$celular,
 				$emails_meta,
-				(string) get_user_meta( $user->ID, ElectoralRollImportService::META_ENDERECO, true ),
+				$dir->getMeta( $user_id, ElectoralRollImportService::META_ENDERECO ),
 				$papel,
 				'', // senha never exported
 			)
@@ -108,7 +113,7 @@ class ElectoralRollExportService {
 	/**
 	 * Fetch a page of users for one role (ordered by ID for stable chunked export).
 	 *
-	 * @return list<\WP_User>
+	 * @return list<array<string,mixed>>
 	 */
 	public static function rses_fetch_batch( string $wp_role, int $offset, int $limit ): array {
 		$wp_role = sanitize_key( $wp_role );
@@ -117,16 +122,7 @@ class ElectoralRollExportService {
 		}
 		$limit  = max( 1, $limit );
 		$offset = max( 0, $offset );
-		$users  = get_users(
-			array(
-				'role'    => $wp_role,
-				'orderby' => 'ID',
-				'order'   => 'ASC',
-				'number'  => $limit,
-				'offset'  => $offset,
-			)
-		);
-		return is_array( $users ) ? $users : array();
+		return IdentityGateway::get()->users->listByRole( $wp_role, $offset, $limit );
 	}
 
 	/**

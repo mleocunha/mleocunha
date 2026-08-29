@@ -9,6 +9,7 @@ namespace RelataSoft\SecureElectionSuite\Voting;
 
 use RelataSoft\SecureElectionSuite\Bootstrap\ModeLock;
 use RelataSoft\SecureElectionSuite\Crypto\CryptoException;
+use RelataSoft\SecureElectionSuite\Painel\Application\Identity\IdentityGateway;
 use RelataSoft\SecureElectionSuite\Security\AuditLogger;
 use RelataSoft\SecureElectionSuite\Security\Capability;
 use RelataSoft\SecureElectionSuite\Security\Nonce;
@@ -106,7 +107,7 @@ class BallotController {
 			$rses_receipt = VoteEncryptionService::rses_cast_ballot(
 				$rses_election_id,
 				$rses_round_id,
-				get_current_user_id(),
+				IdentityGateway::get()->session->currentUserId(),
 				$rses_ballot
 			);
 
@@ -159,7 +160,7 @@ class BallotController {
 			$rses_receipt = VoteEncryptionService::rses_cast_ballot(
 				$rses_election_id,
 				$rses_round_id,
-				get_current_user_id(),
+				IdentityGateway::get()->session->currentUserId(),
 				$rses_ballot
 			);
 

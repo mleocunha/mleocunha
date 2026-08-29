@@ -10,6 +10,7 @@ use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\Admin\AdminRedirect
 use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\Assets\WordPressAssetLoader;
 use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\Branding\SiteIconBranding;
 use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\Branding\WordPressLoginBranding;
+use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\Identity\WordPressIdentityBootstrap;
 use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\Logging\WordPressLogger;
 use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\Navigation\WordPressMenuChrome;
 use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\Persistence\WordPressPersistenceBootstrap;
@@ -18,8 +19,6 @@ use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\Platform\PlatformUr
 use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\Settings\WordPressSettingsRepository;
 use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\User\AuditorRoleRegistrar;
 use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\User\GestorRoleRegistrar;
-use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\User\WordPressCapabilityResolver;
-use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\User\WordPressUserProvider;
 use RelataSoft\SecureElectionSuite\Painel\Application\Access\PermissionResolver;
 use RelataSoft\SecureElectionSuite\Painel\Application\Branding\LoginBrandingService;
 use RelataSoft\SecureElectionSuite\Painel\Application\Dashboard\DashboardHomeService;
@@ -38,11 +37,12 @@ final class Bootstrap {
 
 	public static function register(): void {
 		WordPressPersistenceBootstrap::boot();
+		$identity = WordPressIdentityBootstrap::boot();
 
 		$logger       = new WordPressLogger();
 		$settingsRepo = new WordPressSettingsRepository();
-		$users        = new WordPressUserProvider();
-		$caps         = new WordPressCapabilityResolver();
+		$users        = $identity->currentUser;
+		$caps         = $identity->capabilities;
 		$navRegistrar = new WordPressMenuChrome();
 		$assets       = new WordPressAssetLoader();
 		$policy       = new AccessPolicy();

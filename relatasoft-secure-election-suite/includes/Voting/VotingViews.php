@@ -8,6 +8,7 @@
 namespace RelataSoft\SecureElectionSuite\Voting;
 
 use RelataSoft\SecureElectionSuite\KeyAuthority\KeyRepository;
+use RelataSoft\SecureElectionSuite\Painel\Application\Identity\IdentityGateway;
 use RelataSoft\SecureElectionSuite\Security\Capability;
 use RelataSoft\SecureElectionSuite\Security\Nonce;
 use RelataSoft\SecureElectionSuite\Frontend\VoterJourney;
@@ -783,7 +784,8 @@ class VotingViews {
 	 * @param int $round_id    Round ID.
 	 */
 	public static function rses_render_voting_booth( int $election_id, int $round_id ): void {
-		if ( ! is_user_logged_in() ) {
+		$session = IdentityGateway::get()->session;
+		if ( ! $session->isAuthenticated() ) {
 			$rses_login = VoterJourney::rses_login_url();
 			echo '<div class="rses-booth" ' . Translator::rses_html_attrs() . '><div class="rses-message rses-message-warning rses-login-required">';
 			echo esc_html__( 'Please log in to vote.', 'relatasoft-secure-election-suite' );
@@ -805,7 +807,7 @@ class VotingViews {
 			return;
 		}
 
-		if ( EncryptedVoteRepository::rses_has_voted_round( get_current_user_id(), $round_id ) ) {
+		if ( EncryptedVoteRepository::rses_has_voted_round( $session->currentUserId(), $round_id ) ) {
 			self::rses_render_voter_receipt( $election_id, $round_id );
 			return;
 		}
@@ -831,12 +833,13 @@ class VotingViews {
 	 * @param int $round_id    Round ID.
 	 */
 	public static function rses_render_voter_receipt( int $election_id, int $round_id ): void {
-		if ( ! is_user_logged_in() ) {
+		$session = IdentityGateway::get()->session;
+		if ( ! $session->isAuthenticated() ) {
 			echo '<div class="rses-booth" ' . Translator::rses_html_attrs() . '><div class="rses-message rses-message-warning">' . esc_html__( 'Please log in to view your receipt.', 'relatasoft-secure-election-suite' ) . '</div></div>';
 			return;
 		}
 
-		$rses_hash = EncryptedVoteRepository::rses_get_receipt_hash( get_current_user_id(), $round_id );
+		$rses_hash = EncryptedVoteRepository::rses_get_receipt_hash( $session->currentUserId(), $round_id );
 
 		if ( ! $rses_hash ) {
 			echo '<div class="rses-booth" ' . Translator::rses_html_attrs() . '><div class="rses-message rses-message-info">' . esc_html__( 'No vote receipt found.', 'relatasoft-secure-election-suite' ) . '</div></div>';
