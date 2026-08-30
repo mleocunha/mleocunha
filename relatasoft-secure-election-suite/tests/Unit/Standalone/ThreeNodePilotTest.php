@@ -15,6 +15,7 @@ use RelataSoft\SecureElectionSuite\Painel\Adapters\Standalone\EnvModeLock;
 use RelataSoft\SecureElectionSuite\Painel\Adapters\Standalone\NodeRuntime;
 use RelataSoft\SecureElectionSuite\Painel\Application\Standalone\ThreeNodePilot;
 use RelataSoft\SecureElectionSuite\Painel\Contracts\Mode\SiteModes;
+use RelataSoft\SecureElectionSuite\Painel\Domain\Material\MaterialCourier;
 use RelataSoft\SecureElectionSuite\Painel\Domain\Material\PublicKeyPackage;
 use RelataSoft\SecureElectionSuite\Painel\Domain\Material\VoteMaterialPackage;
 
@@ -41,6 +42,14 @@ final class ThreeNodePilotTest extends TestCase {
 		$lock->lock( SiteModes::TALLYING );
 	}
 
+	public function test_mode_lock_from_environment(): void {
+		putenv( 'RSES_MODE=tallying' );
+		$lock = EnvModeLock::fromEnvironment();
+		$this->assertTrue( $lock->isMode( SiteModes::TALLYING ) );
+		$this->assertTrue( $lock->isLocked() );
+		putenv( 'RSES_MODE' );
+	}
+
 	public function test_nodes_do_not_share_persistence(): void {
 		$ka = NodeRuntime::create( SiteModes::KEY_AUTHORITY, $this->root . '/ka' );
 		$vt = NodeRuntime::create( SiteModes::VOTING, $this->root . '/vt' );
@@ -60,6 +69,8 @@ final class ThreeNodePilotTest extends TestCase {
 		$this->assertCount( 1, $ka->persistence->keys->listActive() );
 		$this->assertCount( 0, $vt->persistence->keys->listActive() );
 		$this->assertNotSame( $ka->persistence, $vt->persistence );
+		$this->assertNotSame( $ka->identity, $vt->identity );
+		$this->assertNotSame( $ka->jobs, $vt->jobs );
 	}
 
 	public function test_full_pilot_without_legacy_host(): void {
@@ -91,11 +102,63 @@ final class ThreeNodePilotTest extends TestCase {
 			(string) file_get_contents( $pilot->courier->path( ThreeNodePilot::PUBLIC_KEY_FILE ) )
 		);
 		$this->assertNotNull( $pub );
+		$this->assertArrayNotHasKey( 'private_x', $pub );
+
 		$votes = VoteMaterialPackage::fromJson(
 			(string) file_get_contents( $pilot->courier->path( ThreeNodePilot::VOTE_MATERIAL_FILE ) )
 		);
 		$this->assertNotNull( $votes );
 		$this->assertCount( 2, $votes['ballots'] );
+		$this->assertArrayNotHasKey( 'private_x', $votes );
+
+		foreach ( $result['courier_files'] as $basename ) {
+			$raw = (string) file_get_contents( $pilot->courier->path( $basename ) );
+			$this->assertStringNotContainsString( 'private_x', $raw, $basename );
+		}
+	}
+
+	public function test_public_key_package_rejects_private_x(): void {
+		$pkg = PublicKeyPackage::build(
+			array(
+				'p' => '11',
+				'q' => '5',
+				'g' => '2',
+				'y' => '3',
+			)
+		);
+		$pkg['private_x'] = '999';
+		$pkg['checksum']  = PublicKeyPackage::checksum( $pkg );
+		$v = PublicKeyPackage::validate( $pkg );
+		$this->assertFalse( $v['ok'] );
+		$this->assertSame( 'private_x', $v['error'] ?? null );
+	}
+
+	public function test_vote_material_rejects_private_x(): void {
+		$pkg = VoteMaterialPackage::build(
+			array(
+				'ballots' => array(
+					array( 'alpha' => '1', 'beta' => '2' ),
+				),
+			)
+		);
+		$pkg['private_x'] = 'leak';
+		$pkg['checksum']  = VoteMaterialPackage::checksum( $pkg );
+		$v = VoteMaterialPackage::validate( $pkg );
+		$this->assertFalse( $v['ok'] );
+		$this->assertSame( 'private_x', $v['error'] ?? null );
+	}
+
+	public function test_courier_rejects_path_traversal(): void {
+		$courier = new MaterialCourier( $this->root . '/courier' );
+		$this->expectException( \InvalidArgumentException::class );
+		$courier->path( '../etc/passwd' );
+	}
+
+	public function test_bootstrap_supported_modes(): void {
+		$this->assertSame(
+			array( SiteModes::KEY_AUTHORITY, SiteModes::VOTING, SiteModes::TALLYING ),
+			Bootstrap::supportedModes()
+		);
 	}
 
 	public function test_wrong_mode_blocks_keygen(): void {

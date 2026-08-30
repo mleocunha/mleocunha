@@ -44,6 +44,9 @@ final class VoteMaterialPackage {
 		if ( ( $package['format'] ?? '' ) !== self::FORMAT ) {
 			return array( 'ok' => false, 'error' => 'format' );
 		}
+		if ( array_key_exists( 'private_x', $package ) ) {
+			return array( 'ok' => false, 'error' => 'private_x' );
+		}
 		if ( empty( $package['ballots'] ) || ! is_array( $package['ballots'] ) ) {
 			return array( 'ok' => false, 'error' => 'ballots' );
 		}

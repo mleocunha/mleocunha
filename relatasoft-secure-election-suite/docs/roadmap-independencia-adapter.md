@@ -306,7 +306,7 @@ exige:
 | A3 | **Feito (gate M3)** — ports UserDirectory (`countByRole`) / CapabilityResolver / SessionPort / SecretKeyProvider; `IdentityGateway`; RSV, autoridades, cadastro de usuários e cast via ports; papéis em `UserRegistryRoles` (Domain); `ShareEncryptionService` sem sais do host; CI cobre `IdentityPortsTest` |
 | A4 | **Feito (gate M4)** — `JobStore` + job services + `JobGateway` + `JobResult`; estado só no adapter (`WordPressJobStore`); AJAX/download clientes finos; CI cobre `JobPortsTest` |
 | A5 | **Feito (gate M5)** — rotas nativas `/voto`, `/voto/cabina`, `/voto/obrigado`; `JourneyUrlGenerator` / `JourneyRouteResolver` / `JourneyPresenter` + `JourneyGateway`; shortcodes e páginas do host são adaptadores finos **opt-in** (sem provisionamento na activação); verificação `docs/verificacao-m5.md`; CI cobre `JourneyPortsTest` |
-| A6 | **Feito (gate M6)** — Adapter #2 `Standalone` (`NodeRuntime`, `ModePort`/`EnvModeLock`, `ThreeNodePilot`, `bin/ve-node`); 3 nós isolados + courier manual; crypto real sem host; doc `piloto-adapter2-3-nos.md` |
+| A6 | **Feito (gate M6)** — Adapter #2 `Standalone` (`NodeRuntime`, `ModePort`/`EnvModeLock`, `ThreeNodePilot`, `bin/ve-node`); 3 nós isolados + courier manual; crypto real sem host; pacotes recusam `private_x`; verificação `docs/verificacao-m6.md`; CI cobre `ThreeNodePilotTest` + smoke `ve-node pilot` |
 | B1–B6 | Parcialmente entregues no Adapter #1 |
 | C1–C3 | Operacionais; manter |
 

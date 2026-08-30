@@ -55,6 +55,12 @@ final class PublicKeyPackage {
 		if ( ( $package['format'] ?? '' ) !== self::FORMAT ) {
 			return array( 'ok' => false, 'error' => 'format' );
 		}
+		// Courier packages must never carry the private exponent.
+		if ( array_key_exists( 'private_x', $package )
+			|| ( isset( $package['public_key'] ) && is_array( $package['public_key'] ) && array_key_exists( 'private_x', $package['public_key'] ) )
+		) {
+			return array( 'ok' => false, 'error' => 'private_x' );
+		}
 		$pk = $package['public_key'] ?? null;
 		if ( ! is_array( $pk ) ) {
 			return array( 'ok' => false, 'error' => 'public_key' );

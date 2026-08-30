@@ -19,8 +19,16 @@ final class MaterialCourier {
 	}
 
 	public function path( string $filename ): string {
-		$safe = basename( str_replace( array( '\\', "\0" ), '', $filename ) );
-		if ( '' === $safe || '.' === $safe || '..' === $safe ) {
+		if ( '' === $filename
+			|| str_contains( $filename, "\0" )
+			|| str_contains( $filename, '..' )
+			|| str_contains( $filename, '/' )
+			|| str_contains( $filename, '\\' )
+		) {
+			throw new \InvalidArgumentException( 'Invalid courier filename.' );
+		}
+		$safe = basename( $filename );
+		if ( '' === $safe || '.' === $safe || '..' === $safe || $safe !== $filename ) {
 			throw new \InvalidArgumentException( 'Invalid courier filename.' );
 		}
 		return rtrim( $this->directory, '/\\' ) . DIRECTORY_SEPARATOR . $safe;

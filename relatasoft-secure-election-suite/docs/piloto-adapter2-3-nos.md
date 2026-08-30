@@ -69,3 +69,5 @@ PHPUnit (gate M6):
 |----|-------|
 | 3 nós, um modo cada, material só via courier | Sync automático entre nós |
 | Crypto real (ElGamal + Shamir + tally) sem boot do host | Um único runtime a fingir os 3 papéis |
+
+Verificação fechada: `docs/verificacao-m6.md`.

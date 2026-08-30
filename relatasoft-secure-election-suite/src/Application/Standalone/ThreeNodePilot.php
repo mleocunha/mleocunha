@@ -292,12 +292,12 @@ final class ThreeNodePilot {
 	public function runTallying( array $publicPackage, string $fieldPrime, int $expectedTally ): array {
 		$this->tallying->requireMode( SiteModes::TALLYING );
 
-		$votesPkg = VoteMaterialPackage::fromJson(
-			(string) file_get_contents( $this->courier->path( self::VOTE_MATERIAL_FILE ) )
-		);
-		if ( null === $votesPkg ) {
-			throw new \RuntimeException( 'Invalid vote material package.' );
+		$votesRaw = $this->courier->readJson( self::VOTE_MATERIAL_FILE );
+		$votesOk  = VoteMaterialPackage::validate( $votesRaw );
+		if ( empty( $votesOk['ok'] ) ) {
+			throw new \RuntimeException( 'Invalid vote material package: ' . ( $votesOk['error'] ?? '?' ) );
 		}
+		$votesPkg = $votesRaw;
 
 		// Collect threshold parcels from courier (manual offline shares).
 		$sharePoints = array();
