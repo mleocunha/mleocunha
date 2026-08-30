@@ -20,6 +20,10 @@
     }
   },
   "scripts": {
-    "test": "phpunit"
-  }
+    "test": "phpunit",
+    "piloto": "php bin/ve-node pilot --root=/tmp/ve-piloto --votes=2"
+  },
+  "bin": [
+    "bin/ve-node"
+  ]
 }
