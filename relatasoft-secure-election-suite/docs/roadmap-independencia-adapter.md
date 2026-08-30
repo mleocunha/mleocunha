@@ -307,10 +307,11 @@ exige:
 | A4 | **Feito (gate M4)** — `JobStore` + job services + `JobGateway` + `JobResult`; estado só no adapter (`WordPressJobStore`); AJAX/download clientes finos; CI cobre `JobPortsTest` |
 | A5 | **Feito (gate M5)** — rotas nativas `/voto`, `/voto/cabina`, `/voto/obrigado`; `JourneyUrlGenerator` / `JourneyRouteResolver` / `JourneyPresenter` + `JourneyGateway`; shortcodes e páginas do host são adaptadores finos **opt-in** (sem provisionamento na activação); verificação `docs/verificacao-m5.md`; CI cobre `JourneyPortsTest` |
 | A6 | **Feito (gate M6)** — Adapter #2 `Standalone` (`NodeRuntime`, `ModePort`/`EnvModeLock`, `ThreeNodePilot`, `bin/ve-node`); 3 nós isolados + courier manual; crypto real sem host; pacotes recusam `private_x`; verificação `docs/verificacao-m6.md`; CI cobre `ThreeNodePilotTest` + smoke `ve-node pilot` |
+| A6.1 | **Feito** — persistência JSON durável por nó (`StandalonePersistenceFactory` / `persistence.json`); Identity/Jobs InMemory; `docs/verificacao-a61-persistencia.md`; CI cobre `DurablePersistenceTest` |
 | B1–B6 | Parcialmente entregues no Adapter #1 |
 | C1–C3 | Operacionais; manter |
 
-**Caminho crítico A0→A6 concluído** (gates M1–M6). Próximos focos: endurecer Adapter #2 (persistência durável / UI HTTP), B* no Adapter #1, e operação C*.
+**Caminho crítico A0→A6 concluído** (gates M1–M6). Endurecimento Adapter #2: **A6.1 persistência** feito; próximo: UI HTTP mínima no standalone, ou B* no Adapter #1.
 
 ---
 

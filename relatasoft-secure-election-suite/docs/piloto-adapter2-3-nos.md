@@ -8,7 +8,7 @@
 | | Adapter #1 | Adapter #2 (`Standalone`) |
 |---|------------|---------------------------|
 | Runtime | Sítio hospedeiro actual | Processo PHP isolado (`bin/ve-node`) |
-| Persistência | Ports → DB do host | Ports → stores InMemory por nó (piloto) |
+| Persistência | Ports → DB do host | Ports → **JSON por nó** (`dataDir/persistence.json`); Identity/Jobs InMemory no piloto |
 | Modo | `ModeLock` (opções do host) | `EnvModeLock` / `ModePort` — imutável após lock |
 | Jornada | `/voto/…` no host | URL generator InMemory (piloto CLI) |
 | Transporte | Exportações manuais | `MaterialCourier` (ficheiros JSON) |
@@ -19,9 +19,9 @@ O Adapter #1 **continua suportado**. O Adapter #2 fecha o gate **M6**: nós sem 
 
 ```text
 root/
-  ka/          → modo key_authority
-  voting/      → modo voting
-  tallying/    → modo tallying
+  ka/          → modo key_authority + persistence.json
+  voting/      → modo voting + persistence.json
+  tallying/    → modo tallying + persistence.json
   courier/     → ÚNICO canal de material (cópia manual)
     public-key.json
     parcela-1.json … parcela-n.json
@@ -59,8 +59,9 @@ PHPUnit (gate M6):
 
 ## Limitações conscientes do piloto
 
-- Stores InMemory (não SQLite/produção) — suficiente para provar isolamento + crypto  
-- UI HTTP completa do eleitor no Adapter #2 fica para endurecimento pós-M6  
+- Persistência JSON por nó (não SQL multi-writer) — suficiente para sobreviver a restart do processo  
+- Identity / Jobs ainda InMemory no Adapter #2 (fora do caminho courier)  
+- UI HTTP completa do eleitor no Adapter #2 fica para endurecimento seguinte  
 - Adapter #1 permanece o caminho de produção até o cliente piloto migrar nó a nó  
 
 ## Critério M6
@@ -70,4 +71,5 @@ PHPUnit (gate M6):
 | 3 nós, um modo cada, material só via courier | Sync automático entre nós |
 | Crypto real (ElGamal + Shamir + tally) sem boot do host | Um único runtime a fingir os 3 papéis |
 
-Verificação fechada: `docs/verificacao-m6.md`.
+Verificação fechada: `docs/verificacao-m6.md`.  
+Endurecimento pós-M6 (persistência durável): `docs/verificacao-a61-persistencia.md`.

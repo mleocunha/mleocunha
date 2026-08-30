@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace RelataSoft\SecureElectionSuite\Painel\Adapters\Standalone;
 
+use RelataSoft\SecureElectionSuite\Painel\Adapters\Standalone\Persistence\StandalonePersistenceFactory;
 use RelataSoft\SecureElectionSuite\Painel\Application\Identity\IdentityGateway;
 use RelataSoft\SecureElectionSuite\Painel\Application\Jobs\JobGateway;
 use RelataSoft\SecureElectionSuite\Painel\Application\Journey\JourneyGateway;
@@ -34,6 +35,9 @@ use RelataSoft\SecureElectionSuite\Painel\Infrastructure\Persistence\Votes\InMem
 /**
  * One isolated site node (Adapter #2) — own gateways, own mode, no shared DB.
  *
+ * Persistence defaults to durable JSON under dataDir/persistence.json (survives process restart).
+ * Identity/Jobs stay InMemory until HTTP auth / async jobs need durability.
+ *
  * Intentionally does not call Gateway::boot() singletons so three nodes can
  * coexist in one PHPUnit process (production = three separate processes).
  */
@@ -47,6 +51,7 @@ final class NodeRuntime {
 		public readonly JobGateway $jobs,
 		public readonly JourneyGateway $journey,
 		public readonly string $clienteId = '',
+		public readonly bool $durablePersistence = true,
 	) {}
 
 	public function requireMode( string $expected ): void {
@@ -61,10 +66,16 @@ final class NodeRuntime {
 		}
 	}
 
+	public function persistencePath(): string {
+		return rtrim( $this->dataDir, '/\\' ) . DIRECTORY_SEPARATOR . 'persistence.json';
+	}
+
 	/**
 	 * Create a fresh isolated node for the given E3 mode.
+	 *
+	 * @param bool $durable When true (default), PersistenceGateway uses JSON under dataDir.
 	 */
-	public static function create( string $mode, string $dataDir, string $clienteId = 'piloto' ): self {
+	public static function create( string $mode, string $dataDir, string $clienteId = 'piloto', bool $durable = true ): self {
 		if ( ! SiteModes::isValid( $mode ) ) {
 			throw new \InvalidArgumentException( 'Invalid mode: ' . $mode );
 		}
@@ -75,21 +86,23 @@ final class NodeRuntime {
 		$modePort = new EnvModeLock();
 		$modePort->lock( $mode );
 
-		$users = new InMemoryUserStore();
+		$users    = new InMemoryUserStore();
 		$jobStore = new InMemoryJobStore();
 
-		$persistence = new PersistenceGateway(
-			new InMemoryKeyRepository(),
-			new InMemoryShareRepository(),
-			new InMemoryElectionRepository(),
-			new InMemoryEncryptedVoteRepository(),
-			new InMemoryEncryptedTallyRepository(),
-			new InMemoryTallyImportRepository(),
-			new InMemoryOfficialShareSubmissionRepository(),
-			new InMemoryCertificationRepository(),
-			new InMemoryAuditLogRepository(),
-			new InMemorySignedResultsStore(),
-		);
+		$persistence = $durable
+			? StandalonePersistenceFactory::create( rtrim( $dataDir, '/\\' ) . DIRECTORY_SEPARATOR . 'persistence.json' )
+			: new PersistenceGateway(
+				new InMemoryKeyRepository(),
+				new InMemoryShareRepository(),
+				new InMemoryElectionRepository(),
+				new InMemoryEncryptedVoteRepository(),
+				new InMemoryEncryptedTallyRepository(),
+				new InMemoryTallyImportRepository(),
+				new InMemoryOfficialShareSubmissionRepository(),
+				new InMemoryCertificationRepository(),
+				new InMemoryAuditLogRepository(),
+				new InMemorySignedResultsStore(),
+			);
 
 		$identity = new IdentityGateway(
 			$users,
@@ -116,15 +129,17 @@ final class NodeRuntime {
 			rtrim( $dataDir, '/\\' ) . DIRECTORY_SEPARATOR . 'node.json',
 			json_encode(
 				array(
-					'mode'       => $mode,
-					'cliente_id' => $clienteId,
-					'adapter'    => 'standalone',
-					'created_at' => gmdate( 'c' ),
+					'mode'                  => $mode,
+					'cliente_id'            => $clienteId,
+					'adapter'               => 'standalone',
+					'persistence'           => $durable ? 'json' : 'memory',
+					'persistence_file'      => $durable ? 'persistence.json' : null,
+					'created_at'            => gmdate( 'c' ),
 				),
 				JSON_PRETTY_PRINT
 			) . "\n"
 		);
 
-		return new self( $dataDir, $modePort, $persistence, $identity, $jobs, $journey, $clienteId );
+		return new self( $dataDir, $modePort, $persistence, $identity, $jobs, $journey, $clienteId, $durable );
 	}
 }

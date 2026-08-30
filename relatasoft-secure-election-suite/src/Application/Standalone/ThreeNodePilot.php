@@ -42,11 +42,13 @@ final class ThreeNodePilot {
 
 	/**
 	 * Spin three nodes under $root/{ka,voting,tallying} + courier/.
+	 *
+	 * @param bool $durable Persistence JSON per node (default true — Adapter #2 hardening).
 	 */
-	public static function createWorkspace( string $root, string $clienteId = 'piloto', int $bits = 512 ): self {
-		$ka = NodeRuntime::create( SiteModes::KEY_AUTHORITY, $root . '/ka', $clienteId );
-		$vt = NodeRuntime::create( SiteModes::VOTING, $root . '/voting', $clienteId );
-		$tl = NodeRuntime::create( SiteModes::TALLYING, $root . '/tallying', $clienteId );
+	public static function createWorkspace( string $root, string $clienteId = 'piloto', int $bits = 512, bool $durable = true ): self {
+		$ka = NodeRuntime::create( SiteModes::KEY_AUTHORITY, $root . '/ka', $clienteId, $durable );
+		$vt = NodeRuntime::create( SiteModes::VOTING, $root . '/voting', $clienteId, $durable );
+		$tl = NodeRuntime::create( SiteModes::TALLYING, $root . '/tallying', $clienteId, $durable );
 		$courier = new MaterialCourier( $root . '/courier' );
 		return new self( $ka, $vt, $tl, $courier, $bits );
 	}

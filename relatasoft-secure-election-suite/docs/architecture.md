@@ -10,7 +10,7 @@ A plataforma hospedeira é um **adapter**. O domínio e a aplicação do Painel 
 2. **Application** — SettingsService, PermissionResolver, NavigationService, DashboardHomeService, LoginBrandingService; **PersistenceGateway** (A2); **IdentityGateway** (A3); **JobGateway** (A4: keygen / RSV import / RSV export); **JourneyGateway** (A5); **ThreeNodePilot** (A6).
 3. **Contracts** — SettingsRepository, UserProvider, UserDirectory, CapabilityResolver, SessionPort, SecretKeyProvider, JobStore, KeygenJobService, RsvImportJobService, RsvExportJobService, JourneyUrlGenerator, JourneyRouteResolver, JourneyPresenter, **ModePort** / SiteModes, NavigationRegistrar, AssetProvider, Logger; **persistência A2**.
 4. **Infrastructure** — defaults / stores de teste (InMemory Persistence + Identity + Jobs + Journey).
-5. **Adapters** — **WordPress** (Adapter #1): opções, papéis, menus, assets, login, redirects, Persistence / Identity / Jobs / Journey. **Standalone** (Adapter #2): `NodeRuntime`, `EnvModeLock`, `bin/ve-node`, piloto 3 nós (`docs/piloto-adapter2-3-nos.md`).
+5. **Adapters** — **WordPress** (Adapter #1): opções, papéis, menus, assets, login, redirects, Persistence / Identity / Jobs / Journey. **Standalone** (Adapter #2): `NodeRuntime`, `EnvModeLock`, `bin/ve-node`, piloto 3 nós, persistência JSON por nó (`StandalonePersistenceFactory`).
 6. **Presentation** — ShellView, HomeView + `assets/painel`; jornada `/voto` (Adapter #1).
 
 ## Personas (papéis do sítio)

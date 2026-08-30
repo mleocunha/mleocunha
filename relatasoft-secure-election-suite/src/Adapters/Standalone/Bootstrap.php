@@ -30,9 +30,11 @@ final class Bootstrap {
 
 	/**
 	 * Full three-node pilot workspace (tests / ops rehearsal). Never one shared runtime.
+	 *
+	 * @param bool $durable Per-node JSON persistence (default true).
 	 */
-	public static function bootPilotWorkspace( string $root, string $clienteId = 'piloto', int $bits = 512 ): ThreeNodePilot {
-		return ThreeNodePilot::createWorkspace( $root, $clienteId, $bits );
+	public static function bootPilotWorkspace( string $root, string $clienteId = 'piloto', int $bits = 512, bool $durable = true ): ThreeNodePilot {
+		return ThreeNodePilot::createWorkspace( $root, $clienteId, $bits, $durable );
 	}
 
 	/**

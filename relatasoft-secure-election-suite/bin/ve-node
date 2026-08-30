@@ -89,6 +89,7 @@ if ( 'pilot' === $cmd ) {
 			'ok'         => true,
 			'adapter'    => 'standalone',
 			'gate'       => 'M6',
+			'persistence'=> 'json',
 			'result'     => $result,
 			'isolation'  => $iso,
 			'modes'      => array(
@@ -96,7 +97,7 @@ if ( 'pilot' === $cmd ) {
 				'voting'  => SiteModes::label( SiteModes::VOTING ),
 				'tallying'=> SiteModes::label( SiteModes::TALLYING ),
 			),
-			'note'       => 'Sem sincronização automática; material só via courier/.',
+			'note'       => 'Sem sincronização automática; material só via courier/; persistência JSON por nó.',
 		),
 		JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE
 	) . "\n";
@@ -117,12 +118,14 @@ if ( 'info' === $cmd ) {
 	$node = NodeRuntime::create( $mode, $data );
 	echo json_encode(
 		array(
-			'mode'       => $node->mode->getMode(),
-			'label'      => SiteModes::label( $node->mode->getMode() ),
-			'locked'     => $node->mode->isLocked(),
-			'data_dir'   => $node->dataDir,
-			'cliente_id' => $node->clienteId,
-			'adapter'    => 'standalone',
+			'mode'             => $node->mode->getMode(),
+			'label'            => SiteModes::label( $node->mode->getMode() ),
+			'locked'           => $node->mode->isLocked(),
+			'data_dir'         => $node->dataDir,
+			'cliente_id'       => $node->clienteId,
+			'adapter'          => 'standalone',
+			'persistence'      => $node->durablePersistence ? 'json' : 'memory',
+			'persistence_file' => $node->durablePersistence ? $node->persistencePath() : null,
 		),
 		JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE
 	) . "\n";

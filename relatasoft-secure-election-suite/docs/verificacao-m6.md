@@ -30,10 +30,11 @@ Gate M6: **3 nós** de um cliente **sem host legado**, material só via courier 
 
 ## Residual aceitável (pós-M6)
 
-- Persistência InMemory no piloto (não SQLite/produção)
+- Persistência **JSON por nó** (A6.1) — não SQL multi-writer
 - UI HTTP do eleitor no Adapter #2 fora de âmbito
 - Adapter #1 continua caminho de produção até migração nó a nó
 - `ThreeNodePilot` orquestra os 3 nós **no mesmo processo PHPUnit/CLI** para o ensaio; produção = 3 processos (`ve-node info` / env `RSES_MODE`)
+- Identity / Jobs InMemory no standalone até auth/async
 
 **Veredicto M6:** PASS
 
