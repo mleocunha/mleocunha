@@ -9,9 +9,16 @@ namespace RelataSoft\SecureElectionSuite\Bootstrap;
 
 use RelataSoft\SecureElectionSuite\Admin\AdminMenu;
 use RelataSoft\SecureElectionSuite\Admin\AuditLogPage;
+use RelataSoft\SecureElectionSuite\Admin\ElectoralAuthoritiesPage;
+use RelataSoft\SecureElectionSuite\Admin\UsersRegistryPage;
 use RelataSoft\SecureElectionSuite\Admin\ModeSetupPage;
 use RelataSoft\SecureElectionSuite\Admin\Notices;
 use RelataSoft\SecureElectionSuite\Admin\SettingsPage;
+use RelataSoft\SecureElectionSuite\Admin\SystemAppearancePage;
+use RelataSoft\SecureElectionSuite\Admin\SystemBecapePage;
+use RelataSoft\SecureElectionSuite\Admin\SystemContentPage;
+use RelataSoft\SecureElectionSuite\Admin\SystemModulesPage;
+use RelataSoft\SecureElectionSuite\Admin\SystemUpdatePage;
 use RelataSoft\SecureElectionSuite\Ajax\AjaxRouter;
 use RelataSoft\SecureElectionSuite\Database\Migration;
 use RelataSoft\SecureElectionSuite\I18n\LocaleResolver;
@@ -20,12 +27,13 @@ use RelataSoft\SecureElectionSuite\I18n\Translator;
 use RelataSoft\SecureElectionSuite\KeyAuthority\KeyAuthorityController;
 use RelataSoft\SecureElectionSuite\Tallying\CertificationService;
 use RelataSoft\SecureElectionSuite\Tallying\OfficialShareSubmissionController;
+use RelataSoft\SecureElectionSuite\Tallying\SignedResultsService;
 use RelataSoft\SecureElectionSuite\Tallying\TallyImportController;
 use RelataSoft\SecureElectionSuite\Admin\RedirectionsPage;
 use RelataSoft\SecureElectionSuite\Admin\ElectoralRollImportPage;
-use RelataSoft\SecureElectionSuite\Frontend\LoginCustomizer;
 use RelataSoft\SecureElectionSuite\Frontend\PasswordResetShortcode;
 use RelataSoft\SecureElectionSuite\Frontend\VoterJourney;
+use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\Bootstrap as PainelBootstrap;
 use RelataSoft\SecureElectionSuite\Voting\BallotController;
 use RelataSoft\SecureElectionSuite\Voting\ElectionController;
 
@@ -68,7 +76,15 @@ class Plugin {
 		ModeSetupPage::register();
 		SettingsPage::register();
 		AuditLogPage::register();
+		SystemUpdatePage::register();
+		SystemContentPage::register();
+		SystemAppearancePage::register();
+		SystemModulesPage::register();
+		SystemBecapePage::register();
+		ElectoralAuthoritiesPage::register();
+		UsersRegistryPage::register();
 		CertificationService::register();
+		SignedResultsService::register();
 		AjaxRouter::register();
 		KeyAuthorityController::register();
 		ElectionController::register();
@@ -77,9 +93,10 @@ class Plugin {
 		OfficialShareSubmissionController::register();
 		RedirectionsPage::register();
 		ElectoralRollImportPage::register();
-		LoginCustomizer::register();
+		// Login branding moved to Painel (WordPressLoginBranding) — LoginCustomizer retired.
 		VoterJourney::register();
 		PasswordResetShortcode::register();
+		PainelBootstrap::register();
 
 		if ( is_admin() ) {
 			Notices::register();
@@ -89,8 +106,8 @@ class Plugin {
 		add_shortcode( 'rses_voting_booth', array( $this, 'rses_render_voting_booth_shortcode' ) );
 		add_shortcode( 'rses_voter_receipt', array( $this, 'rses_render_voter_receipt_shortcode' ) );
 		add_shortcode( 'rses_election_status', array( $this, 'rses_render_election_status_shortcode' ) );
-		add_shortcode( 'rses_voter_welcome', array( VoterJourney::class, 'rses_render_welcome_shortcode' ) );
-		add_shortcode( 'rses_voter_thank_you', array( VoterJourney::class, 'rses_render_thank_you_shortcode' ) );
+		add_shortcode( 'rses_voter_welcome', array( $this, 'rses_render_voter_welcome_shortcode' ) );
+		add_shortcode( 'rses_voter_thank_you', array( $this, 'rses_render_voter_thank_you_shortcode' ) );
 
 		add_action( 'wp_enqueue_scripts', array( $this, 'rses_enqueue_frontend_assets' ) );
 		add_action( 'admin_enqueue_scripts', array( $this, 'rses_enqueue_admin_assets' ) );
@@ -257,7 +274,7 @@ class Plugin {
 	}
 
 	/**
-	 * Register, localize, and enqueue electoral-roll chunked import script.
+	 * Register, localize, and enqueue electoral-roll chunked import/export script.
 	 */
 	public static function rses_enqueue_electoral_roll_script(): void {
 		wp_register_script(
@@ -268,11 +285,16 @@ class Plugin {
 			true
 		);
 
-		$resume = \RelataSoft\SecureElectionSuite\Voting\ElectoralRollImportJob::rses_public_status(
-			\RelataSoft\SecureElectionSuite\Voting\ElectoralRollImportJob::rses_get()
-		);
+		$resume = array( 'active' => false, 'stage' => null, 'progress' => 0, 'message' => '' );
+		$export_resume = $resume;
+		if ( \RelataSoft\SecureElectionSuite\Painel\Application\Jobs\JobGateway::isBooted() ) {
+			$jobs          = \RelataSoft\SecureElectionSuite\Painel\Application\Jobs\JobGateway::get();
+			$resume        = $jobs->rsvImport->status();
+			$export_resume = $jobs->rsvExport->status();
+		}
 
 		$php_ceiling = \RelataSoft\SecureElectionSuite\Admin\ElectoralRollImportPage::rses_php_upload_ceiling();
+		$chunk_bytes = \RelataSoft\SecureElectionSuite\Painel\Domain\ElectoralRoll\RsvFormat::adaptiveChunkBytes( $php_ceiling );
 
 		wp_localize_script(
 			'rses-electoral-roll',
@@ -281,27 +303,40 @@ class Plugin {
 				'ajaxUrl'       => admin_url( 'admin-ajax.php' ),
 				'nonce'         => wp_create_nonce( \RelataSoft\SecureElectionSuite\Admin\ElectoralRollImportPage::AJAX_NONCE_ACTION ),
 				'maxBytes'      => \RelataSoft\SecureElectionSuite\Voting\ElectoralRollImportJob::MAX_UPLOAD_BYTES,
-				'chunkBytes'    => 131072,
+				'chunkBytes'    => $chunk_bytes,
 				'phpUploadMax'  => $php_ceiling,
 				'resume'        => $resume,
+				'exportResume'  => $export_resume,
+				'beepOnExport'  => true,
+				'downloadUrl'   => wp_nonce_url(
+					admin_url( 'admin-post.php?action=rses_download_electoral_roll_export' ),
+					\RelataSoft\SecureElectionSuite\Security\Nonce::RSES_ACTION_ELECTORAL_ROLL_SAMPLE,
+					'_rses_nonce'
+				),
 				'i18n'          => array(
-					'starting'        => __( 'Starting chunked import…', 'relatasoft-secure-election-suite' ),
-					'validating'      => __( 'Validating CSV…', 'relatasoft-secure-election-suite' ),
-					'error'           => __( 'Electoral roll import failed.', 'relatasoft-secure-election-suite' ),
-					'cancelled'       => __( 'Electoral roll import cancelled.', 'relatasoft-secure-election-suite' ),
-					'noFile'          => __( 'Choose a CSV file first.', 'relatasoft-secure-election-suite' ),
-					'tooLarge'        => __( 'CSV file is too large for import.', 'relatasoft-secure-election-suite' ),
-					'noJs'            => __( 'JavaScript failed to start the import. Hard-refresh this page and try again.', 'relatasoft-secure-election-suite' ),
-					'finished'        => __( 'Electoral roll import finished. Created: %1$d. Updated: %2$d. Skipped: %3$d. Errors: %4$d.', 'relatasoft-secure-election-suite' ),
-					'errorsDesc'      => __( '%d issue(s) were reported. Review the table below or download the error CSV.', 'relatasoft-secure-election-suite' ),
-					'errorsTruncated' => __( 'Additional errors were omitted from this preview; download the CSV for the stored sample.', 'relatasoft-secure-election-suite' ),
+					'starting'        => __( 'Iniciando importação em pedaços…', 'relatasoft-secure-election-suite' ),
+					'validating'      => __( 'Validando RSV…', 'relatasoft-secure-election-suite' ),
+					'error'           => __( 'Falha na importação do cadastro eleitoral.', 'relatasoft-secure-election-suite' ),
+					'cancelled'       => __( 'Importação do cadastro eleitoral cancelada.', 'relatasoft-secure-election-suite' ),
+					'noFile'          => __( 'Escolher primeiro um arquivo .rsv.', 'relatasoft-secure-election-suite' ),
+					'tooLarge'        => __( 'O arquivo RSV é grande demais para importar.', 'relatasoft-secure-election-suite' ),
+					'noJs'            => __( 'O JavaScript não conseguiu iniciar a importação. Atualizar a página e tentar novamente.', 'relatasoft-secure-election-suite' ),
+					'finished'        => __( 'Importação do cadastro eleitoral concluída. Criados: %1$d. Atualizados: %2$d. Ignorados: %3$d. Erros: %4$d.', 'relatasoft-secure-election-suite' ),
+					'errorsDesc'      => __( '%d problema(s) reportado(s). Revisar a tabela ou baixar o relatório RSV.', 'relatasoft-secure-election-suite' ),
+					'errorsTruncated' => __( 'Erros adicionais foram omitidos nesta pré-visualização; baixe o RSV para a amostra guardada.', 'relatasoft-secure-election-suite' ),
+					'exportStarting'  => __( 'Iniciando exportação .rsv…', 'relatasoft-secure-election-suite' ),
+					'exportDone'      => __( 'Exportação .rsv concluída.', 'relatasoft-secure-election-suite' ),
+					'exportError'     => __( 'Falha na exportação do cadastro eleitoral.', 'relatasoft-secure-election-suite' ),
+					'exportCancelled' => __( 'Exportação cancelada.', 'relatasoft-secure-election-suite' ),
 					'stages'          => array(
-						'receiving' => __( 'Receiving', 'relatasoft-secure-election-suite' ),
-						'ready'     => __( 'Validating', 'relatasoft-secure-election-suite' ),
-						'importing' => __( 'Importing', 'relatasoft-secure-election-suite' ),
-						'complete'  => __( 'Finished', 'relatasoft-secure-election-suite' ),
-						'failed'    => __( 'Failure', 'relatasoft-secure-election-suite' ),
-						'cancelled' => __( 'Cancelled', 'relatasoft-secure-election-suite' ),
+						'receiving' => __( 'Recebendo', 'relatasoft-secure-election-suite' ),
+						'ready'     => __( 'A validar', 'relatasoft-secure-election-suite' ),
+						'importing' => __( 'Importando', 'relatasoft-secure-election-suite' ),
+						'preparing' => __( 'Preparando', 'relatasoft-secure-election-suite' ),
+						'exporting' => __( 'Exportando', 'relatasoft-secure-election-suite' ),
+						'complete'  => __( 'Concluído', 'relatasoft-secure-election-suite' ),
+						'failed'    => __( 'Falha', 'relatasoft-secure-election-suite' ),
+						'cancelled' => __( 'Cancelado', 'relatasoft-secure-election-suite' ),
 					),
 				),
 			)
@@ -310,7 +345,7 @@ class Plugin {
 	}
 
 	/**
-	 * Render voting booth shortcode.
+	 * Render voting booth shortcode (thin adapter over JourneyPresenter / VotingViews).
 	 *
 	 * @param array<string,mixed> $atts Shortcode attributes.
 	 * @return string
@@ -344,6 +379,16 @@ class Plugin {
 
 		$rses_election_id = $rses_attr_election > 0 ? $rses_attr_election : $rses_get_election;
 		$rses_round_id    = $rses_attr_round > 0 ? $rses_attr_round : $rses_get_round;
+
+		if ( \RelataSoft\SecureElectionSuite\Painel\Application\Journey\JourneyGateway::isBooted() ) {
+			return \RelataSoft\SecureElectionSuite\Painel\Application\Journey\JourneyGateway::get()->render(
+				\RelataSoft\SecureElectionSuite\Painel\Contracts\Journey\JourneySteps::BOOTH,
+				array(
+					'election_id' => $rses_election_id,
+					'round_id'    => $rses_round_id,
+				)
+			);
+		}
 
 		ob_start();
 		\RelataSoft\SecureElectionSuite\Voting\VotingViews::rses_render_voting_booth(
@@ -395,5 +440,41 @@ class Plugin {
 		ob_start();
 		\RelataSoft\SecureElectionSuite\Voting\VotingViews::rses_render_election_status( absint( $atts['election_id'] ) );
 		return (string) ob_get_clean();
+	}
+
+	/**
+	 * Welcome shortcode — thin facade over JourneyGateway (M5).
+	 *
+	 * @param array<string,mixed> $atts Shortcode attributes.
+	 * @return string
+	 */
+	public function rses_render_voter_welcome_shortcode( array $atts = array() ): string {
+		unset( $atts );
+
+		if ( \RelataSoft\SecureElectionSuite\Painel\Application\Journey\JourneyGateway::isBooted() ) {
+			return \RelataSoft\SecureElectionSuite\Painel\Application\Journey\JourneyGateway::get()->render(
+				\RelataSoft\SecureElectionSuite\Painel\Contracts\Journey\JourneySteps::WELCOME
+			);
+		}
+
+		return VoterJourney::rses_render_welcome();
+	}
+
+	/**
+	 * Thank-you shortcode — thin facade over JourneyGateway (M5).
+	 *
+	 * @param array<string,mixed> $atts Shortcode attributes.
+	 * @return string
+	 */
+	public function rses_render_voter_thank_you_shortcode( array $atts = array() ): string {
+		unset( $atts );
+
+		if ( \RelataSoft\SecureElectionSuite\Painel\Application\Journey\JourneyGateway::isBooted() ) {
+			return \RelataSoft\SecureElectionSuite\Painel\Application\Journey\JourneyGateway::get()->render(
+				\RelataSoft\SecureElectionSuite\Painel\Contracts\Journey\JourneySteps::THANK_YOU
+			);
+		}
+
+		return VoterJourney::rses_render_thank_you();
 	}
 }

@@ -21,6 +21,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	define( 'ABSPATH', $rses_root . '/' );
 }
 
+require_once $rses_root . '/vendor/autoload.php';
 require_once $rses_root . '/includes/Crypto/CryptoException.php';
 require_once $rses_root . '/includes/Crypto/BigInt.php';
 require_once $rses_root . '/includes/Crypto/CryptoRandom.php';

@@ -9,6 +9,7 @@ namespace RelataSoft\SecureElectionSuite\Voting;
 
 use RelataSoft\SecureElectionSuite\Exports\ManifestBuilder;
 use RelataSoft\SecureElectionSuite\Exports\ZipExport;
+use RelataSoft\SecureElectionSuite\Frontend\JourneySettings;
 use RelataSoft\SecureElectionSuite\KeyAuthority\KeyRepository;
 use RelataSoft\SecureElectionSuite\Security\AuditLogger;
 
@@ -86,6 +87,8 @@ class VotingExportService {
 
 		$rses_audit = AuditLogger::rses_get_entries( 50 );
 
+		$rses_cliente = JourneySettings::rses_cliente_stamp();
+
 		$rses_manifest = ManifestBuilder::rses_build_voting_manifest(
 			$election_id,
 			$round_id,
@@ -94,6 +97,8 @@ class VotingExportService {
 				'election_title' => (string) ( $rses_election->title ?? '' ),
 				'round_title'    => (string) ( $rses_round->title ?? '' ),
 				'round_number'   => isset( $rses_round->round_number ) ? (int) $rses_round->round_number : null,
+				'cliente_id'     => $rses_cliente['cliente_id'],
+				'cliente_nome'   => $rses_cliente['cliente_nome'],
 			)
 		);
 
@@ -143,6 +148,8 @@ class VotingExportService {
 				'election-export-' . $election_id . '.json',
 				array(
 					'manifest'          => $rses_manifest,
+					'cliente_id'        => $rses_cliente['cliente_id'],
+					'cliente_nome'      => $rses_cliente['cliente_nome'],
 					'public_key'        => $rses_public_key,
 					'election'          => (array) $rses_election,
 					'round'             => (array) $rses_round,
@@ -156,7 +163,10 @@ class VotingExportService {
 
 		$rses_files = array(
 			'manifest.json'          => wp_json_encode( $rses_manifest, $rses_json_flags ),
-			'public-key.json'        => wp_json_encode( $rses_public_key, $rses_json_flags ),
+			'public-key.json'        => wp_json_encode(
+				array_merge( $rses_public_key, $rses_cliente ),
+				$rses_json_flags
+			),
 			'election.json'          => wp_json_encode( (array) $rses_election, $rses_json_flags ),
 			'round.json'             => wp_json_encode( (array) $rses_round, $rses_json_flags ),
 			'ballot.json'            => wp_json_encode( $rses_ballot, $rses_json_flags ),

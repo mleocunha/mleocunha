@@ -8,6 +8,8 @@
 namespace RelataSoft\SecureElectionSuite\Frontend;
 
 use RelataSoft\SecureElectionSuite\Admin\Brand;
+use RelataSoft\SecureElectionSuite\Painel\Application\Journey\JourneyGateway;
+use RelataSoft\SecureElectionSuite\Painel\Contracts\Journey\JourneySteps;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -35,6 +37,8 @@ class JourneySettings {
 			'booth_page_id'             => 0,
 			'thank_you_page_id'         => 0,
 			'logout_redirect_url'       => '',
+			'cliente_id'                => '',
+			'cliente_nome'              => '',
 		);
 	}
 
@@ -62,7 +66,7 @@ class JourneySettings {
 	}
 
 	/**
-	 * Login logo URL (custom attachment or default pinwheel).
+	 * Login logo URL (custom attachment or default Roda de Fogo).
 	 */
 	public static function rses_get_login_logo_url(): string {
 		$rses_id = absint( self::rses_get()['login_logo_attachment_id'] ?? 0 );
@@ -73,15 +77,23 @@ class JourneySettings {
 			}
 		}
 
-		return Brand::rses_asset_url( 'relatasoft-mark.svg' );
+		return Brand::rses_asset_url( Brand::RSES_DEFAULT_MARK );
 	}
 
 	/**
-	 * Resolve a configured page URL.
+	 * Resolve a journey step URL.
+	 *
+	 * Prefer native /voto routes when JourneyGateway is booted (A5 / M5).
+	 * Fall back to legacy page permalinks when the gateway is unavailable.
 	 *
 	 * @param string $rses_key Setting key (welcome_page_id, booth_page_id, thank_you_page_id).
 	 */
 	public static function rses_page_url( string $rses_key ): string {
+		$rses_step = JourneySteps::fromSettingKey( $rses_key );
+		if ( null !== $rses_step && JourneyGateway::isBooted() ) {
+			return JourneyGateway::get()->url( $rses_step );
+		}
+
 		$rses_settings = self::rses_get();
 		$rses_id       = absint( $rses_settings[ $rses_key ] ?? 0 );
 		if ( $rses_id < 1 ) {
@@ -99,5 +111,43 @@ class JourneySettings {
 	 */
 	public static function rses_page_id( string $rses_key ): int {
 		return absint( self::rses_get()[ $rses_key ] ?? 0 );
+	}
+
+	/**
+	 * E1 client id for this sítio (B5).
+	 */
+	public static function rses_cliente_id(): string {
+		$s = self::rses_get();
+		$id = trim( (string) ( $s['cliente_id'] ?? '' ) );
+		if ( '' !== $id ) {
+			return $id;
+		}
+		$painel = get_option( \RelataSoft\SecureElectionSuite\Painel\Domain\Settings\SettingsSchema::OPTION_KEY, array() );
+		return is_array( $painel ) ? trim( (string) ( $painel['cliente_id'] ?? '' ) ) : '';
+	}
+
+	/**
+	 * E1 client display name for this sítio (B5).
+	 */
+	public static function rses_cliente_nome(): string {
+		$s = self::rses_get();
+		$nome = trim( (string) ( $s['cliente_nome'] ?? '' ) );
+		if ( '' !== $nome ) {
+			return $nome;
+		}
+		$painel = get_option( \RelataSoft\SecureElectionSuite\Painel\Domain\Settings\SettingsSchema::OPTION_KEY, array() );
+		return is_array( $painel ) ? trim( (string) ( $painel['cliente_nome'] ?? '' ) ) : '';
+	}
+
+	/**
+	 * Stamp for export packages (public key / voting material).
+	 *
+	 * @return array{cliente_id:string,cliente_nome:string}
+	 */
+	public static function rses_cliente_stamp(): array {
+		return array(
+			'cliente_id'   => self::rses_cliente_id(),
+			'cliente_nome' => self::rses_cliente_nome(),
+		);
 	}
 }

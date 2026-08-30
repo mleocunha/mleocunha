@@ -1,98 +1,61 @@
 <?php
 /**
- * Electoral roll (cadastro eleitoral) CSV import.
+ * Electoral roll (cadastro eleitoral) .rsv import.
  *
- * Spreadsheet model matches WooCommerce-style user exports used for test rolls,
- * plus a final "password" column accepted as-is (no WP strength checks).
+ * Formato RelataSoft Separated Values: `:` campos, `;` séries, `,` só em texto livre.
+ * Domínio puro: {@see \RelataSoft\SecureElectionSuite\Painel\Domain\ElectoralRoll\RsvFormat}.
  *
  * @package RelataSoft\SecureElectionSuite\Voting
  */
 
 namespace RelataSoft\SecureElectionSuite\Voting;
 
+use RelataSoft\SecureElectionSuite\Painel\Application\Identity\IdentityGateway;
+use RelataSoft\SecureElectionSuite\Painel\Domain\ElectoralRoll\RsvFormat;
 use RelataSoft\SecureElectionSuite\Security\AuditLogger;
-use RelataSoft\SecureElectionSuite\Security\Capability;
 
 defined( 'ABSPATH' ) || exit;
 
 /**
- * Imports electors from the electoral registration CSV.
+ * Imports electors from the electoral registration .rsv file.
  */
 class ElectoralRollImportService {
 
 	/**
-	 * Final column: plaintext password (accepted without WordPress questioning).
+	 * Soft cap per upload (~500k rows).
 	 */
-	public const PASSWORD_COLUMN = 'password';
+	public const MAX_ROWS = 500000;
 
 	/**
-	 * Core + profile columns from the electoral spreadsheet (in order).
+	 * User-meta keys written for each imported row.
+	 */
+	public const META_ID_CIVIL         = '_rses_id_civil';
+	public const META_ID_ELEITORAL     = '_rses_id_eleitoral';
+	public const META_REGIAO_AMPLA     = '_rses_regiao_ampla';
+	public const META_REGIAO_ESPECIFICA = '_rses_regiao_especifica';
+	public const META_CELULAR          = '_rses_celular';
+	public const META_EMAILS           = '_rses_emails';
+	public const META_ENDERECO         = '_rses_endereco';
+	public const META_ELECTORAL_ROLL   = '_rses_electoral_roll';
+
+	/**
+	 * Expected RSV header keys (same order as RsvFormat::HEADERS).
 	 *
-	 * @var list<string>
-	 */
-	public const CORE_COLUMNS = array(
-		'user_login',
-		'user_email',
-		'display_name',
-		'role',
-		'first_name',
-		'last_name',
-	);
-
-	/**
-	 * User-meta columns stored as-is from the spreadsheet.
-	 *
-	 * @var list<string>
-	 */
-	public const META_COLUMNS = array(
-		'billing_first_name',
-		'billing_last_name',
-		'billing_company',
-		'billing_email',
-		'billing_phone',
-		'billing_country',
-		'billing_address_1',
-		'billing_address_2',
-		'billing_city',
-		'billing_state',
-		'billing_postcode',
-		'shipping_first_name',
-		'shipping_last_name',
-		'shipping_company',
-		'shipping_country',
-		'shipping_address_1',
-		'shipping_address_2',
-		'shipping_city',
-		'shipping_state',
-		'shipping_postcode',
-	);
-
-	/**
-	 * Soft cap per upload (sheet used in testing has 5000 rows).
-	 */
-	public const MAX_ROWS = 10000;
-
-	/**
-	 * Explicit CSV escape for PHP 8.4+ (historical default; must be passed).
-	 */
-	private const CSV_ESCAPE = '\\';
-
-	/**
-	 * Full expected header list: spreadsheet columns + password on the right.
+	 * Kept for Admin page compatibility until the UI is updated for .rsv.
 	 *
 	 * @return list<string>
 	 */
 	public static function rses_expected_headers(): array {
-		return array_merge( self::CORE_COLUMNS, self::META_COLUMNS, array( self::PASSWORD_COLUMN ) );
+		return RsvFormat::HEADERS;
 	}
 
 	/**
-	 * Localized download basename for the example CSV (e.g. exemplo.csv).
+	 * Localized download basename for the example RSV (e.g. exemplo.rsv).
 	 */
 	public static function rses_sample_filename(): string {
 		$locale = \RelataSoft\SecureElectionSuite\I18n\LocaleResolver::rses_resolve();
 		$stem   = self::rses_example_stem_for_locale( $locale );
-		return $stem . '.csv';
+		return $stem . '.' . RsvFormat::EXTENSION;
 	}
 
 	/**
@@ -129,93 +92,84 @@ class ElectoralRollImportService {
 	}
 
 	/**
-	 * Sample CSV: one metadata (header) line + 10 data rows.
+	 * Sample RSV content: header + 10 data rows (method name kept for Page/JS).
+	 *
+	 * Roles use PT-BR canonical labels (`eleitor`). Emails/phones use `;` series;
+	 * addresses may contain commas (never a field separator).
 	 */
 	public static function rses_sample_csv(): string {
-		$headers = self::rses_expected_headers();
+		$lines   = array( RsvFormat::headerLine() );
 		$cities  = array(
-			array( 'Brasília', 'DF', '70000000' ),
-			array( 'Maceió', 'AL', '57007919' ),
-			array( 'Manaus', 'AM', '69015838' ),
-			array( 'Salvador', 'BA', '40023757' ),
-			array( 'Fortaleza', 'CE', '60031676' ),
-			array( 'Vitória', 'ES', '29000000' ),
-			array( 'Goiânia', 'GO', '74000000' ),
-			array( 'São Luís', 'MA', '65000000' ),
-			array( 'Belo Horizonte', 'MG', '30000000' ),
-			array( 'Belém', 'PA', '66000000' ),
+			array( 'Brasília', 'DF' ),
+			array( 'Maceió', 'AL' ),
+			array( 'Manaus', 'AM' ),
+			array( 'Salvador', 'BA' ),
+			array( 'Fortaleza', 'CE' ),
+			array( 'Vitória', 'ES' ),
+			array( 'Goiânia', 'GO' ),
+			array( 'São Luís', 'MA' ),
+			array( 'Belo Horizonte', 'MG' ),
+			array( 'Belém', 'PA' ),
 		);
-
-		$out = fopen( 'php://temp', 'r+' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen
-		self::rses_fputcsv( $out, $headers );
 
 		for ( $i = 1; $i <= 10; $i++ ) {
 			$n     = sprintf( '%04d', $i );
 			$city  = $cities[ $i - 1 ];
 			$login = 'eleitor.exemplo.' . $n;
-			$email = $n . '@relatasoft.com.br';
-			$first = 'Eleitor';
-			$last  = 'Exemplo ' . $n;
-			$name  = $first . ' ' . $last;
-			$phone = '119' . str_pad( (string) ( 10000000 + $i ), 8, '0', STR_PAD_LEFT );
-			$street = 'Rua Exemplo ' . $i;
-			$comp   = ( 0 === $i % 2 ) ? 'Apto ' . $i : 'Casa ' . $i;
+			$civil = '100000000' . sprintf( '%02d', $i );
+			$eleit = '20000000000' . sprintf( '%02d', $i );
+			$nome  = 'Eleitor Exemplo ' . $n;
+			$cel   = RsvFormat::joinSeries(
+				array(
+					'+55119' . str_pad( (string) ( 10000000 + $i ), 8, '0', STR_PAD_LEFT ),
+					'+55118' . str_pad( (string) ( 20000000 + $i ), 8, '0', STR_PAD_LEFT ),
+				)
+			);
+			$email = RsvFormat::joinSeries(
+				array(
+					$n . '@relatasoft.com.br',
+					'alt.' . $n . '@exemplo.relatasoft.com.br',
+				)
+			);
+			// Vírgulas só no endereço (texto livre), nunca como separador de campo.
+			$end = sprintf(
+				'Rua Exemplo %d, %s, %s-%s, CEP %s',
+				$i,
+				( 0 === $i % 2 ) ? ( 'Apto ' . $i ) : ( 'Casa ' . $i ),
+				$city[0],
+				$city[1],
+				str_pad( (string) ( 70000000 + $i ), 8, '0', STR_PAD_LEFT )
+			);
 
-			self::rses_fputcsv(
-				$out,
+			$lines[] = RsvFormat::serializeLine(
 				array(
 					$login,
+					$civil,
+					$eleit,
+					'Zona ' . ( 10 + $i ),
+					'Seção ' . sprintf( '%04d', $i ),
+					$nome,
+					$cel,
 					$email,
-					$name,
-					'subscriber',
-					$first,
-					$last,
-					$first,
-					$last,
-					'',
-					$email,
-					$phone,
-					'BR',
-					$street,
-					$comp,
-					$city[0],
-					$city[1],
-					$city[2],
-					$first,
-					$last,
-					'',
-					'BR',
-					$street,
-					$comp,
-					$city[0],
-					$city[1],
-					$city[2],
+					$end,
+					'eleitor',
 					'senha-exemplo-' . $n,
 				)
 			);
 		}
 
-		rewind( $out );
-		$csv = stream_get_contents( $out );
-		fclose( $out ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
-
-		return is_string( $csv ) ? $csv : '';
+		return implode( "\n", $lines ) . "\n";
 	}
 
 	/**
-	 * Build a CSV report of import errors (for download).
+	 * Build a downloadable error report (RSV-style: linha:mensagem).
+	 *
+	 * Method name kept for Page compatibility; content uses `:` field sep.
 	 *
 	 * @param list<string> $errors Error messages.
 	 */
 	public static function rses_errors_csv( array $errors ): string {
-		$out = fopen( 'php://temp', 'r+' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen
-		self::rses_fputcsv(
-			$out,
-			array(
-				'line',
-				'error',
-			)
-		);
+		$lines = array( 'linha' . RsvFormat::FIELD_SEP . 'erro' );
 
 		foreach ( $errors as $message ) {
 			$message = (string) $message;
@@ -223,21 +177,18 @@ class ElectoralRollImportService {
 			if ( preg_match( '/(?:Row|Linha)\s+(\d+)/u', $message, $m ) ) {
 				$line = $m[1];
 			}
-			self::rses_fputcsv( $out, array( $line, $message ) );
+			// Rest of the line after first `:` is the free-text message (may contain `:`).
+			$lines[] = $line . RsvFormat::FIELD_SEP . $message;
 		}
 
-		rewind( $out );
-		$csv = stream_get_contents( $out );
-		fclose( $out ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
-
-		return is_string( $csv ) ? $csv : '';
+		return implode( "\n", $lines ) . "\n";
 	}
 
 	/**
-	 * Import an uploaded CSV path.
+	 * Import an uploaded RSV path in one pass (sync / admin_post fallback).
 	 *
-	 * @param string $file_path        Absolute path.
-	 * @param bool   $update_existing  Update matching login/email.
+	 * @param string $file_path       Absolute path.
+	 * @param bool   $update_existing Update matching login / civil / electoral ID.
 	 * @return array{created:int,updated:int,skipped:int,errors:list<string>}
 	 */
 	public static function rses_import_file( string $file_path, bool $update_existing = true ): array {
@@ -249,89 +200,53 @@ class ElectoralRollImportService {
 		);
 
 		if ( ! is_readable( $file_path ) ) {
-			$result['errors'][] = __( 'CSV file could not be read.', 'relatasoft-secure-election-suite' );
+			$result['errors'][] = __( 'RSV file could not be read.', 'relatasoft-secure-election-suite' );
 			return $result;
 		}
 
-		// Large rolls can exceed the default PHP max_execution_time (e.g. 300s).
+		// Large rolls can exceed the default PHP max_execution_time.
 		if ( function_exists( 'set_time_limit' ) ) {
 			// phpcs:ignore Squiz.PHP.DiscouragedFunctions.Discouraged -- intentional for bulk import
 			@set_time_limit( 0 );
 		}
 
-		$handle = fopen( $file_path, 'rb' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen
-		if ( false === $handle ) {
-			$result['errors'][] = __( 'CSV file could not be opened.', 'relatasoft-secure-election-suite' );
+		$prep = self::rses_prepare_file( $file_path );
+		if ( is_wp_error( $prep ) ) {
+			$result['errors'][] = $prep->get_error_message();
 			return $result;
 		}
 
-		$raw_header = self::rses_fgetcsv( $handle );
-		if ( ! is_array( $raw_header ) || empty( $raw_header ) ) {
-			fclose( $handle ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
-			$result['errors'][] = __( 'CSV header row is missing.', 'relatasoft-secure-election-suite' );
-			return $result;
-		}
-
-		if ( isset( $raw_header[0] ) && is_string( $raw_header[0] ) ) {
-			$raw_header[0] = preg_replace( '/^\xEF\xBB\xBF/', '', $raw_header[0] ) ?? $raw_header[0];
-		}
-
-		$map = self::rses_map_headers( $raw_header );
-		if ( is_wp_error( $map ) ) {
-			fclose( $handle ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
-			$result['errors'][] = $map->get_error_message();
-			return $result;
-		}
-
-		self::rses_begin_unquestioned_passwords();
-
+		// Password filters are applied inside each rses_process_batch() call.
+		$offset  = (int) $prep['byte_offset'];
 		$row_num = 1;
-		while ( ( $row = self::rses_fgetcsv( $handle ) ) !== false ) {
-			++$row_num;
+		$done    = false;
 
-			if ( ( $row_num - 1 ) > self::MAX_ROWS ) {
-				$result['errors'][] = sprintf(
-					/* translators: %d: max rows */
-					__( 'Import stopped: more than %d data rows.', 'relatasoft-secure-election-suite' ),
-					self::MAX_ROWS
-				);
+		while ( ! $done ) {
+			$batch = self::rses_process_batch(
+				$file_path,
+				(array) $prep['map'],
+				$offset,
+				$row_num,
+				500,
+				$update_existing,
+				self::MAX_ROWS
+			);
+			if ( is_wp_error( $batch ) ) {
+				$result['errors'][] = $batch->get_error_message();
 				break;
 			}
 
-			if ( self::rses_row_empty( $row ) ) {
-				continue;
+			$result['created'] += (int) $batch['created'];
+			$result['updated'] += (int) $batch['updated'];
+			$result['skipped'] += (int) $batch['skipped'];
+			foreach ( $batch['errors'] as $err ) {
+				$result['errors'][] = (string) $err;
 			}
 
-			$parsed = self::rses_parse_row( $row, $map, $row_num );
-			if ( is_wp_error( $parsed ) ) {
-				$result['errors'][] = $parsed->get_error_message();
-				++$result['skipped'];
-				continue;
-			}
-
-			$outcome = self::rses_upsert_user( $parsed, $update_existing );
-			if ( is_wp_error( $outcome ) ) {
-				$result['errors'][] = sprintf(
-					/* translators: 1: row number, 2: error */
-					__( 'Row %1$d: %2$s', 'relatasoft-secure-election-suite' ),
-					$row_num,
-					$outcome->get_error_message()
-				);
-				++$result['skipped'];
-				continue;
-			}
-
-			if ( 'created' === $outcome ) {
-				++$result['created'];
-			} elseif ( 'updated' === $outcome ) {
-				++$result['updated'];
-			} else {
-				++$result['skipped'];
-			}
+			$offset  = (int) $batch['byte_offset'];
+			$row_num = (int) $batch['next_row_num'];
+			$done    = ! empty( $batch['done'] );
 		}
-
-		fclose( $handle ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
-		self::rses_end_unquestioned_passwords();
 
 		self::rses_log_import_audit(
 			(int) $result['created'],
@@ -352,7 +267,7 @@ class ElectoralRollImportService {
 			'users',
 			null,
 			array(
-				'command' => 'import_electoral_roll_csv',
+				'command' => 'import_electoral_roll_rsv',
 				'created' => $created,
 				'updated' => $updated,
 				'skipped' => $skipped,
@@ -362,55 +277,73 @@ class ElectoralRollImportService {
 	}
 
 	/**
-	 * Validate headers, count data rows, and return the byte offset of the first data row.
+	 * Validate RSV headers, count non-empty data lines, return byte offset after header.
 	 *
-	 * @return array{map:array<string,int>,byte_offset:int,total_rows:int}|\WP_Error
+	 * @return array{map:array<string,int>,byte_offset:int,total_rows:int,format:string}|\WP_Error
 	 */
 	public static function rses_prepare_file( string $file_path ) {
 		if ( ! is_readable( $file_path ) ) {
-			return new \WP_Error( 'rses_csv_read', __( 'CSV file could not be read.', 'relatasoft-secure-election-suite' ) );
+			return new \WP_Error( 'rses_rsv_read', __( 'RSV file could not be read.', 'relatasoft-secure-election-suite' ) );
 		}
 
 		$handle = fopen( $file_path, 'rb' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen
 		if ( false === $handle ) {
-			return new \WP_Error( 'rses_csv_open', __( 'CSV file could not be opened.', 'relatasoft-secure-election-suite' ) );
+			return new \WP_Error( 'rses_rsv_open', __( 'RSV file could not be opened.', 'relatasoft-secure-election-suite' ) );
 		}
 
-		$raw_header = self::rses_fgetcsv( $handle );
-		if ( ! is_array( $raw_header ) || empty( $raw_header ) ) {
+		$header_line = fgets( $handle );
+		if ( false === $header_line || '' === trim( $header_line ) ) {
 			fclose( $handle ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
-			return new \WP_Error( 'rses_csv_headers', __( 'CSV header row is missing.', 'relatasoft-secure-election-suite' ) );
+			return new \WP_Error( 'rses_rsv_headers', __( 'RSV header row is missing.', 'relatasoft-secure-election-suite' ) );
 		}
 
-		if ( isset( $raw_header[0] ) && is_string( $raw_header[0] ) ) {
-			$raw_header[0] = preg_replace( '/^\xEF\xBB\xBF/', '', $raw_header[0] ) ?? $raw_header[0];
-		}
-
-		$map = self::rses_map_headers( $raw_header );
-		if ( is_wp_error( $map ) ) {
+		$header_fields = RsvFormat::parseLine( $header_line );
+		if ( null === $header_fields ) {
 			fclose( $handle ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
-			return $map;
+			return new \WP_Error(
+				'rses_rsv_headers',
+				__( 'RSV header row is invalid (wrong field count). Expected login:…:senha.', 'relatasoft-secure-election-suite' )
+			);
+		}
+
+		$map = array();
+		foreach ( RsvFormat::HEADERS as $i => $expected ) {
+			$got = strtolower( trim( (string) $header_fields[ $i ] ) );
+			if ( $got !== $expected ) {
+				fclose( $handle ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+				return new \WP_Error(
+					'rses_rsv_headers',
+					sprintf(
+						/* translators: 1: expected header key, 2: found header key */
+						__( 'RSV header mismatch at column %1$s (found “%2$s”).', 'relatasoft-secure-election-suite' ),
+						$expected,
+						$got
+					)
+				);
+			}
+			$map[ $expected ] = $i;
 		}
 
 		$byte_offset = ftell( $handle );
 		if ( false === $byte_offset ) {
 			fclose( $handle ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
-			return new \WP_Error( 'rses_csv_seek', __( 'Could not determine CSV data offset.', 'relatasoft-secure-election-suite' ) );
+			return new \WP_Error( 'rses_rsv_seek', __( 'Could not determine RSV data offset.', 'relatasoft-secure-election-suite' ) );
 		}
 
 		$total_rows = 0;
-		while ( ( $row = self::rses_fgetcsv( $handle ) ) !== false ) {
-			if ( self::rses_row_empty( $row ) ) {
+		while ( ( $line = fgets( $handle ) ) !== false ) {
+			$trimmed = trim( $line );
+			if ( '' === $trimmed ) {
 				continue;
 			}
 			++$total_rows;
 			if ( $total_rows > self::MAX_ROWS ) {
 				fclose( $handle ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
 				return new \WP_Error(
-					'rses_csv_max',
+					'rses_rsv_max',
 					sprintf(
 						/* translators: 1: found rows (at least), 2: max rows */
-						__( 'Import stopped: the CSV has more than %1$d data rows (limit is %2$d). Split the spreadsheet or remove duplicate content and try again.', 'relatasoft-secure-election-suite' ),
+						__( 'Import stopped: the RSV has more than %1$d data rows (limit is %2$d). Split the file and try again.', 'relatasoft-secure-election-suite' ),
 						self::MAX_ROWS,
 						self::MAX_ROWS
 					)
@@ -421,20 +354,24 @@ class ElectoralRollImportService {
 		fclose( $handle ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
 
 		if ( $total_rows < 1 ) {
-			return new \WP_Error( 'rses_csv_empty', __( 'CSV has a header but no data rows.', 'relatasoft-secure-election-suite' ) );
+			return new \WP_Error( 'rses_rsv_empty', __( 'RSV has a header but no data rows.', 'relatasoft-secure-election-suite' ) );
 		}
 
 		return array(
 			'map'         => $map,
 			'byte_offset' => (int) $byte_offset,
 			'total_rows'  => $total_rows,
+			'format'      => 'rsv',
 		);
 	}
 
 	/**
-	 * Process up to $limit non-empty data rows from a byte offset.
+	 * Process up to $limit non-empty data lines from a byte offset (fgets + RsvFormat).
 	 *
-	 * @param array<string,int> $map Header map.
+	 * Empty lines are skipped without counting as processed. `$map` is accepted for
+	 * Job compatibility but unused (RSV columns are fixed by RsvFormat::HEADERS).
+	 *
+	 * @param array<string,int> $map Header map (ignored for RSV).
 	 * @return array{created:int,updated:int,skipped:int,errors:list<string>,processed:int,byte_offset:int,next_row_num:int,done:bool}|\WP_Error
 	 */
 	public static function rses_process_batch(
@@ -446,6 +383,8 @@ class ElectoralRollImportService {
 		bool $update_existing,
 		int $max_data_rows = self::MAX_ROWS
 	) {
+		unset( $map ); // Fixed RSV schema — Job still passes map for backward compat.
+
 		$result = array(
 			'created'      => 0,
 			'updated'      => 0,
@@ -458,17 +397,17 @@ class ElectoralRollImportService {
 		);
 
 		if ( ! is_readable( $file_path ) ) {
-			return new \WP_Error( 'rses_csv_read', __( 'CSV file could not be read.', 'relatasoft-secure-election-suite' ) );
+			return new \WP_Error( 'rses_rsv_read', __( 'RSV file could not be read.', 'relatasoft-secure-election-suite' ) );
 		}
 
 		$handle = fopen( $file_path, 'rb' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen
 		if ( false === $handle ) {
-			return new \WP_Error( 'rses_csv_open', __( 'CSV file could not be opened.', 'relatasoft-secure-election-suite' ) );
+			return new \WP_Error( 'rses_rsv_open', __( 'RSV file could not be opened.', 'relatasoft-secure-election-suite' ) );
 		}
 
 		if ( $byte_offset > 0 && 0 !== fseek( $handle, $byte_offset ) ) {
 			fclose( $handle ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
-			return new \WP_Error( 'rses_csv_seek', __( 'Could not seek in CSV file.', 'relatasoft-secure-election-suite' ) );
+			return new \WP_Error( 'rses_rsv_seek', __( 'Could not seek in RSV file.', 'relatasoft-secure-election-suite' ) );
 		}
 
 		$limit     = max( 1, $limit );
@@ -477,9 +416,9 @@ class ElectoralRollImportService {
 		self::rses_begin_unquestioned_passwords();
 
 		while ( $result['processed'] < $limit && $reads < $max_reads ) {
-			$row = self::rses_fgetcsv( $handle );
+			$line = fgets( $handle );
 			++$reads;
-			if ( false === $row ) {
+			if ( false === $line ) {
 				$result['done'] = true;
 				break;
 			}
@@ -501,13 +440,14 @@ class ElectoralRollImportService {
 				break;
 			}
 
-			if ( self::rses_row_empty( $row ) ) {
+			if ( '' === trim( $line ) ) {
+				// Empty line: advance offset/row counter but do not count as processed.
 				continue;
 			}
 
 			++$result['processed'];
 
-			$parsed = self::rses_parse_row( $row, $map, $result['next_row_num'] );
+			$parsed = self::rses_parse_rsv_line( $line, $result['next_row_num'] );
 			if ( is_wp_error( $parsed ) ) {
 				$result['errors'][] = $parsed->get_error_message();
 				++$result['skipped'];
@@ -542,158 +482,144 @@ class ElectoralRollImportService {
 	}
 
 	/**
-	 * Map spreadsheet headers. Requires password as the rightmost column.
+	 * Parse one RSV data line into upsert payload.
 	 *
-	 * @param list<string|null> $headers Header cells.
-	 * @return array<string,int>|\WP_Error
+	 * @return array<string,string>|\WP_Error
 	 */
-	public static function rses_map_headers( array $headers ): array|\WP_Error {
-		$normalized = array();
-		foreach ( $headers as $i => $cell ) {
-			$normalized[ $i ] = self::rses_normalize_header( (string) $cell );
-		}
-
-		$last = count( $normalized ) - 1;
-		while ( $last >= 0 && '' === $normalized[ $last ] ) {
-			--$last;
-		}
-		if ( $last < 0 ) {
-			return new \WP_Error( 'rses_csv_headers', __( 'CSV header row is empty.', 'relatasoft-secure-election-suite' ) );
-		}
-
-		if ( self::PASSWORD_COLUMN !== $normalized[ $last ] ) {
+	private static function rses_parse_rsv_line( string $line, int $row_num ): array|\WP_Error {
+		$fields = RsvFormat::parseLine( $line );
+		if ( null === $fields ) {
 			return new \WP_Error(
-				'rses_csv_password',
+				'rses_rsv_fields',
 				sprintf(
-					/* translators: %s: password column name */
-					__( 'Add a final column named “%s” to the right of the electoral spreadsheet. Imported passwords are accepted as-is (no WordPress strength checks).', 'relatasoft-secure-election-suite' ),
-					self::PASSWORD_COLUMN
+					/* translators: %d: row */
+					__( 'Row %d: invalid RSV field count (expected login:…:senha).', 'relatasoft-secure-election-suite' ),
+					$row_num
 				)
 			);
 		}
 
-		$allowed = array_fill_keys(
-			array_merge( self::CORE_COLUMNS, self::META_COLUMNS, array( self::PASSWORD_COLUMN ) ),
-			true
-		);
+		$assoc = RsvFormat::associate( $fields );
 
-		$map = array();
-		foreach ( $normalized as $index => $header ) {
-			if ( '' === $header ) {
-				continue;
-			}
-			if ( ! isset( $allowed[ $header ] ) ) {
-				return new \WP_Error(
-					'rses_csv_unknown',
-					sprintf(
-						/* translators: %s: column header */
-						__( 'Unknown CSV column for electoral roll: %s', 'relatasoft-secure-election-suite' ),
-						$header
-					)
-				);
-			}
-			if ( isset( $map[ $header ] ) ) {
-				return new \WP_Error(
-					'rses_csv_dup',
-					sprintf(
-						/* translators: %s: column header */
-						__( 'Duplicate CSV column: %s', 'relatasoft-secure-election-suite' ),
-						$header
-					)
-				);
-			}
-			$map[ $header ] = $index;
-		}
-
-		foreach ( array( 'user_login', 'user_email', self::PASSWORD_COLUMN ) as $required ) {
-			if ( ! isset( $map[ $required ] ) ) {
-				return new \WP_Error(
-					'rses_csv_required',
-					__( 'Electoral roll CSV must include user_login, user_email, and password (as the last column).', 'relatasoft-secure-election-suite' )
-				);
-			}
-		}
-
-		if ( $map[ self::PASSWORD_COLUMN ] !== $last ) {
+		$login = sanitize_user( self::rses_normalize_cell( $assoc['login'] ), true );
+		if ( '' === $login ) {
 			return new \WP_Error(
-				'rses_csv_password_order',
-				__( 'The password column must be the last column on the right.', 'relatasoft-secure-election-suite' )
+				'rses_login',
+				sprintf(
+					/* translators: %d: row */
+					__( 'Row %d: login is required.', 'relatasoft-secure-election-suite' ),
+					$row_num
+				)
 			);
 		}
 
-		return $map;
-	}
-
-	/**
-	 * @param list<string|null> $row Row.
-	 * @param array<string,int> $map Map.
-	 * @param int               $row_num Line number.
-	 * @return array<string,string>|\WP_Error
-	 */
-	private static function rses_parse_row( array $row, array $map, int $row_num ): array|\WP_Error {
-		$get = static function ( string $field ) use ( $row, $map ): string {
-			if ( ! isset( $map[ $field ] ) ) {
-				return '';
-			}
-			$i = $map[ $field ];
-			return isset( $row[ $i ] ) ? self::rses_normalize_csv_cell( (string) $row[ $i ] ) : '';
-		};
-
-		$login    = sanitize_user( $get( 'user_login' ), true );
-		$email    = sanitize_email( $get( 'user_email' ) );
-		// Passwords are accepted as-is except for spreadsheet whitespace/BOM noise.
-		$password = $get( self::PASSWORD_COLUMN );
-
-		if ( '' === $login ) {
-			return new \WP_Error( 'rses_login', sprintf( /* translators: %d: row */ __( 'Row %d: user_login is required.', 'relatasoft-secure-election-suite' ), $row_num ) );
-		}
-		if ( '' === $email || ! is_email( $email ) ) {
-			return new \WP_Error( 'rses_email', sprintf( /* translators: %d: row */ __( 'Row %d: a valid user_email is required.', 'relatasoft-secure-election-suite' ), $row_num ) );
-		}
-		if ( '' === $password ) {
-			return new \WP_Error( 'rses_password', sprintf( /* translators: %d: row */ __( 'Row %d: password is required.', 'relatasoft-secure-election-suite' ), $row_num ) );
+		$email_series = self::rses_normalize_cell( $assoc['email'] );
+		$emails       = RsvFormat::splitSeries( $email_series );
+		$primary      = $emails[0] ?? '';
+		$primary      = sanitize_email( $primary );
+		if ( '' === $primary || ! is_email( $primary ) ) {
+			return new \WP_Error(
+				'rses_email',
+				sprintf(
+					/* translators: %d: row */
+					__( 'Row %d: a valid primary email is required (first item in the email series).', 'relatasoft-secure-election-suite' ),
+					$row_num
+				)
+			);
 		}
 
-		$display = $get( 'display_name' );
-		if ( '' === $display ) {
-			$display = $login;
+		// Passwords accepted as-is except outer spreadsheet whitespace/BOM noise.
+		// Empty senha is allowed on UPDATE (keep existing hash); CREATE still requires it.
+		$password = self::rses_normalize_cell( $assoc['senha'] );
+
+		$papel = self::rses_normalize_cell( $assoc['papel'] );
+		$role  = RsvFormat::mapRole( $papel );
+		if ( null === $role ) {
+			return new \WP_Error(
+				'rses_papel',
+				sprintf(
+					/* translators: 1: row number, 2: role label */
+					__( 'Row %1$d: unknown role (papel) “%2$s”.', 'relatasoft-secure-election-suite' ),
+					$row_num,
+					$papel
+				)
+			);
 		}
 
-		$data = array(
-			'user_login'   => $login,
-			'user_email'   => $email,
-			'display_name' => sanitize_text_field( $display ),
-			'first_name'   => sanitize_text_field( $get( 'first_name' ) ),
-			'last_name'    => sanitize_text_field( $get( 'last_name' ) ),
-			'role'         => self::rses_map_role( $get( 'role' ) ),
-			'password'     => $password,
+		$nome = sanitize_text_field( self::rses_normalize_cell( $assoc['nomecompleto'] ) );
+		if ( '' === $nome ) {
+			$nome = $login;
+		}
+		[ $first_name, $last_name ] = self::rses_split_nome( $nome );
+
+		$celular_series = self::rses_normalize_cell( $assoc['celular'] );
+
+		return array(
+			'user_login'        => $login,
+			'user_email'        => $primary,
+			'display_name'      => $nome,
+			'first_name'        => $first_name,
+			'last_name'         => $last_name,
+			'role'              => $role,
+			'password'          => $password,
+			'id_civil'          => sanitize_text_field( self::rses_normalize_cell( $assoc['numerodeidentificacaocivil'] ) ),
+			'id_eleitoral'      => sanitize_text_field( self::rses_normalize_cell( $assoc['numerodeidentificacaoeleitoral'] ) ),
+			'regiao_ampla'      => sanitize_text_field( self::rses_normalize_cell( $assoc['regiaoeleitoralampla'] ) ),
+			'regiao_especifica' => sanitize_text_field( self::rses_normalize_cell( $assoc['regiaoeleitoralespecifica'] ) ),
+			'celular'           => $celular_series,
+			'emails'            => $email_series,
+			'endereco'          => sanitize_text_field( self::rses_normalize_cell( $assoc['endereco'] ) ),
 		);
-
-		foreach ( self::META_COLUMNS as $meta_key ) {
-			$data[ $meta_key ] = sanitize_text_field( $get( $meta_key ) );
-		}
-
-		return $data;
 	}
 
 	/**
-	 * Map spreadsheet roles onto WP roles for the electoral roll.
+	 * Heuristic first/last name from nomecompleto (first token / remainder).
 	 *
-	 * Test sheets often use WooCommerce "customer" → elector (subscriber).
+	 * @return array{0:string,1:string}
 	 */
-	public static function rses_map_role( string $role ): string {
-		$role = sanitize_key( $role );
-		if ( '' === $role || 'customer' === $role || 'elector' === $role || 'eleitor' === $role ) {
-			return Capability::RSES_VOTER_ROLE;
+	private static function rses_split_nome( string $nome ): array {
+		$nome = trim( $nome );
+		if ( '' === $nome ) {
+			return array( '', '' );
 		}
-		if ( in_array( $role, array( Capability::RSES_VOTER_ROLE, Capability::RSES_OFFICIAL_ROLE ), true ) ) {
-			return $role;
+		$parts = preg_split( '/\s+/u', $nome, 2 );
+		if ( ! is_array( $parts ) || ! isset( $parts[0] ) ) {
+			return array( $nome, '' );
 		}
-		// Never elevate to administrator via electoral roll CSV.
-		if ( Capability::RSES_ADMIN_ROLE === $role ) {
-			return Capability::RSES_VOTER_ROLE;
+		return array(
+			sanitize_text_field( $parts[0] ),
+			sanitize_text_field( $parts[1] ?? '' ),
+		);
+	}
+
+	/**
+	 * Resolve existing user: login → civil ID meta → electoral ID meta.
+	 *
+	 * @param array<string,string> $data Parsed row.
+	 * @return array<string,mixed>|null UserDirectory row.
+	 */
+	private static function rses_find_existing_user( array $data ): ?array {
+		$dir      = IdentityGateway::get()->users;
+		$by_login = $dir->findByLogin( $data['user_login'] );
+		if ( null !== $by_login ) {
+			return $by_login;
 		}
-		return Capability::RSES_VOTER_ROLE;
+
+		if ( '' !== $data['id_civil'] ) {
+			$uid = $dir->findIdByMeta( self::META_ID_CIVIL, $data['id_civil'] );
+			if ( $uid > 0 ) {
+				return $dir->findById( $uid );
+			}
+		}
+
+		if ( '' !== $data['id_eleitoral'] ) {
+			$uid = $dir->findIdByMeta( self::META_ID_ELEITORAL, $data['id_eleitoral'] );
+			if ( $uid > 0 ) {
+				return $dir->findById( $uid );
+			}
+		}
+
+		return null;
 	}
 
 	/**
@@ -701,18 +627,20 @@ class ElectoralRollImportService {
 	 * @return string|\WP_Error created|updated|skipped
 	 */
 	private static function rses_upsert_user( array $data, bool $update_existing ): string|\WP_Error {
-		$existing = get_user_by( 'login', $data['user_login'] );
-		if ( ! $existing ) {
-			$by_email = get_user_by( 'email', $data['user_email'] );
-			if ( $by_email instanceof \WP_User ) {
-				// Same email, different login: never silently rewrite another
-				// account's password — Votador would then fail with "invalid credentials".
+		$dir      = IdentityGateway::get()->users;
+		$existing = self::rses_find_existing_user( $data );
+
+		// Email collision with a *different* login/account must not silently rewrite passwords.
+		$by_email = $dir->findByEmail( $data['user_email'] );
+		if ( null !== $by_email ) {
+			$same = null !== $existing && (int) $by_email['id'] === (int) $existing['id'];
+			if ( ! $same ) {
 				return new \WP_Error(
 					'rses_email_collision',
 					sprintf(
-						/* translators: 1: existing login, 2: CSV login, 3: email */
-						__( 'Email %3$s already belongs to user “%1$s”, but this row uses user_login “%2$s”. Fix the CSV (unique emails) or rename the existing account.', 'relatasoft-secure-election-suite' ),
-						$by_email->user_login,
+						/* translators: 1: existing login, 2: RSV login, 3: email */
+						__( 'Email %3$s already belongs to user “%1$s”, but this row uses login “%2$s”. Fix the RSV (unique emails) or rename the existing account.', 'relatasoft-secure-election-suite' ),
+						$by_email['login'],
 						$data['user_login'],
 						$data['user_email']
 					)
@@ -720,65 +648,77 @@ class ElectoralRollImportService {
 			}
 		}
 
-		if ( $existing instanceof \WP_User ) {
+		if ( null !== $existing ) {
 			if ( ! $update_existing ) {
 				return 'skipped';
 			}
 
-			$user_id = (int) $existing->ID;
-			wp_set_password( $data['password'], $user_id );
-
-			$updated = wp_update_user(
-				array(
-					'ID'           => $user_id,
-					'user_email'   => $data['user_email'],
-					'display_name' => $data['display_name'],
-					'first_name'   => $data['first_name'],
-					'last_name'    => $data['last_name'],
-				)
-			);
-			if ( is_wp_error( $updated ) ) {
-				return $updated;
+			$user_id = (int) $existing['id'];
+			// Empty senha on UPDATE → keep existing password (hashes are not recoverable).
+			if ( '' !== $data['password'] ) {
+				$dir->setPassword( $user_id, $data['password'] );
 			}
 
-			$existing->set_role( $data['role'] );
+			$updated = $dir->update(
+				$user_id,
+				array(
+					'email'       => $data['user_email'],
+					'displayName' => $data['display_name'],
+					'firstName'   => $data['first_name'],
+					'lastName'    => $data['last_name'],
+					'role'        => $data['role'],
+				)
+			);
+			if ( ! $updated['ok'] ) {
+				return new \WP_Error( 'rses_update_user', $updated['error'] );
+			}
+
 			self::rses_write_meta( $user_id, $data );
 			return 'updated';
 		}
 
-		$user_id = wp_insert_user(
+		if ( '' === $data['password'] ) {
+			return new \WP_Error(
+				'rses_password',
+				__( 'Password (senha) is required when creating a new user.', 'relatasoft-secure-election-suite' )
+			);
+		}
+
+		$created = $dir->create(
 			array(
-				'user_login'   => $data['user_login'],
-				'user_email'   => $data['user_email'],
-				'user_pass'    => $data['password'],
-				'display_name' => $data['display_name'],
-				'first_name'   => $data['first_name'],
-				'last_name'    => $data['last_name'],
-				'role'         => $data['role'],
+				'login'       => $data['user_login'],
+				'email'       => $data['user_email'],
+				'password'    => $data['password'],
+				'displayName' => $data['display_name'],
+				'firstName'   => $data['first_name'],
+				'lastName'    => $data['last_name'],
+				'role'        => $data['role'],
 			)
 		);
 
-		if ( is_wp_error( $user_id ) ) {
-			return $user_id;
+		if ( ! $created['ok'] ) {
+			return new \WP_Error( 'rses_create_user', $created['error'] );
 		}
 
-		self::rses_write_meta( (int) $user_id, $data );
+		self::rses_write_meta( (int) $created['id'], $data );
 		return 'created';
 	}
 
 	/**
-	 * Persist billing/shipping meta from the spreadsheet.
+	 * Persist electoral-roll meta keys.
 	 *
 	 * @param array<string,string> $data Row data.
 	 */
 	private static function rses_write_meta( int $user_id, array $data ): void {
-		foreach ( self::META_COLUMNS as $meta_key ) {
-			if ( ! array_key_exists( $meta_key, $data ) ) {
-				continue;
-			}
-			update_user_meta( $user_id, $meta_key, $data[ $meta_key ] );
-		}
-		update_user_meta( $user_id, '_rses_electoral_roll', '1' );
+		$dir = IdentityGateway::get()->users;
+		$dir->setMeta( $user_id, self::META_ID_CIVIL, $data['id_civil'] );
+		$dir->setMeta( $user_id, self::META_ID_ELEITORAL, $data['id_eleitoral'] );
+		$dir->setMeta( $user_id, self::META_REGIAO_AMPLA, $data['regiao_ampla'] );
+		$dir->setMeta( $user_id, self::META_REGIAO_ESPECIFICA, $data['regiao_especifica'] );
+		$dir->setMeta( $user_id, self::META_CELULAR, $data['celular'] );
+		$dir->setMeta( $user_id, self::META_EMAILS, $data['emails'] );
+		$dir->setMeta( $user_id, self::META_ENDERECO, $data['endereco'] );
+		$dir->setMeta( $user_id, self::META_ELECTORAL_ROLL, '1' );
 	}
 
 	/**
@@ -819,56 +759,11 @@ class ElectoralRollImportService {
 	}
 
 	/**
-	 * @param list<string|null> $row Row.
+	 * Trim BOM / NBSP / outer whitespace without altering intentional inner password chars.
 	 */
-	private static function rses_row_empty( array $row ): bool {
-		foreach ( $row as $cell ) {
-			if ( null !== $cell && '' !== trim( (string) $cell ) ) {
-				return false;
-			}
-		}
-		return true;
-	}
-
-	/**
-	 * Normalize header labels to spreadsheet keys.
-	 */
-	private static function rses_normalize_header( string $header ): string {
-		$header = self::rses_normalize_csv_cell( $header );
-		$header = str_replace( array( '"' ), '', $header );
-		$header = strtolower( $header );
-		$header = str_replace( array( ' ', '-' ), '_', $header );
-		return $header;
-	}
-
-	/**
-	 * Trim spreadsheet noise (BOM, NBSP, outer whitespace) without altering
-	 * intentional inner password characters.
-	 */
-	public static function rses_normalize_csv_cell( string $value ): string {
+	public static function rses_normalize_cell( string $value ): string {
 		$value = preg_replace( '/^\xEF\xBB\xBF/', '', $value ) ?? $value;
 		$value = str_replace( "\xC2\xA0", ' ', $value ); // UTF-8 NBSP → space
 		return trim( $value );
-	}
-
-	/**
-	 * fgetcsv with explicit escape (required on PHP 8.4+).
-	 *
-	 * @param resource $handle File handle.
-	 * @return array<int, string|null>|false
-	 */
-	private static function rses_fgetcsv( $handle ) {
-		return fgetcsv( $handle, 0, ',', '"', self::CSV_ESCAPE );
-	}
-
-	/**
-	 * fputcsv with explicit escape (required on PHP 8.4+).
-	 *
-	 * @param resource             $handle File handle.
-	 * @param array<int, mixed>    $fields Fields.
-	 * @return int|false
-	 */
-	private static function rses_fputcsv( $handle, array $fields ) {
-		return fputcsv( $handle, $fields, ',', '"', self::CSV_ESCAPE );
 	}
 }

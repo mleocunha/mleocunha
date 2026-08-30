@@ -10,6 +10,7 @@ namespace RelataSoft\SecureElectionSuite\KeyAuthority;
 use RelataSoft\SecureElectionSuite\Bootstrap\ModeLock;
 use RelataSoft\SecureElectionSuite\Crypto\BigInt;
 use RelataSoft\SecureElectionSuite\Crypto\CryptoException;
+use RelataSoft\SecureElectionSuite\Painel\Application\Jobs\JobGateway;
 use RelataSoft\SecureElectionSuite\Security\AuditLogger;
 use RelataSoft\SecureElectionSuite\Security\Capability;
 use RelataSoft\SecureElectionSuite\Security\Nonce;
@@ -36,7 +37,11 @@ class KeyAuthorityController {
 		add_action( 'wp_ajax_rses_keygen_status', array( self::class, 'rses_ajax_keygen_status' ) );
 		add_action( 'wp_ajax_rses_keygen_cancel', array( self::class, 'rses_ajax_keygen_cancel' ) );
 
-		add_action( 'admin_init', array( KeyGenerationJob::class, 'rses_purge_if_expired' ) );
+		add_action( 'admin_init', static function (): void {
+			if ( JobGateway::isBooted() ) {
+				JobGateway::get()->keygen->purgeExpired();
+			}
+		} );
 	}
 
 	/**
@@ -59,13 +64,14 @@ class KeyAuthorityController {
 			wp_send_json_error( array( 'message' => __( 'GMP extension required.', 'relatasoft-secure-election-suite' ) ), 500 );
 		}
 
-		KeyGenerationJob::rses_purge_if_expired();
+		$keygen = JobGateway::get()->keygen;
+		$keygen->purgeExpired();
 
-		if ( KeyGenerationJob::rses_has_active() ) {
+		if ( $keygen->hasActive() ) {
 			wp_send_json_error(
 				array(
 					'message' => __( 'A key generation job is already running. Cancel it first or wait for completion.', 'relatasoft-secure-election-suite' ),
-					'status'  => KeyGenerationJob::rses_public_status( KeyGenerationJob::rses_get() ),
+					'status'  => $keygen->status(),
 				),
 				409
 			);
@@ -97,10 +103,7 @@ class KeyAuthorityController {
 			}
 		}
 
-		// Clear terminal leftover job.
-		KeyGenerationJob::rses_delete();
-
-		$rses_job = KeyGenerationJob::rses_create(
+		$rses_status = $keygen->start(
 			array(
 				'bits'          => $rses_bits,
 				'label'         => $rses_label ?: __( 'ElGamal Key', 'relatasoft-secure-election-suite' ),
@@ -118,13 +121,11 @@ class KeyAuthorityController {
 			'keygen_job',
 			null,
 			array(
-				'job_id' => $rses_job['job_id'],
+				'job_id' => $rses_status['job_id'] ?? '',
 				'bits'   => $rses_bits,
 			)
 		);
 
-		// Run first chunk immediately.
-		$rses_status = KeyGenerationRunner::rses_tick();
 		wp_send_json_success( $rses_status );
 	}
 
@@ -133,8 +134,7 @@ class KeyAuthorityController {
 	 */
 	public static function rses_ajax_keygen_tick(): void {
 		self::rses_ajax_guard();
-		$rses_status = KeyGenerationRunner::rses_tick();
-		wp_send_json_success( $rses_status );
+		wp_send_json_success( JobGateway::get()->keygen->tick() );
 	}
 
 	/**
@@ -142,7 +142,7 @@ class KeyAuthorityController {
 	 */
 	public static function rses_ajax_keygen_status(): void {
 		self::rses_ajax_guard();
-		wp_send_json_success( KeyGenerationJob::rses_public_status( KeyGenerationJob::rses_get() ) );
+		wp_send_json_success( JobGateway::get()->keygen->status() );
 	}
 
 	/**
@@ -150,9 +150,9 @@ class KeyAuthorityController {
 	 */
 	public static function rses_ajax_keygen_cancel(): void {
 		self::rses_ajax_guard();
-		KeyGenerationJob::rses_cancel();
+		$status = JobGateway::get()->keygen->cancel();
 		AuditLogger::rses_log( 'keygen_cancel', 'keygen_job', null, array() );
-		wp_send_json_success( KeyGenerationJob::rses_public_status( KeyGenerationJob::rses_get() ) );
+		wp_send_json_success( $status );
 	}
 
 	/**

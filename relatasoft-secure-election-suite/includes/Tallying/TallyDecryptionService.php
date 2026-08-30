@@ -52,6 +52,16 @@ class TallyDecryptionService {
 			);
 		}
 
+		if ( SignedResultsService::rses_has_persisted( $import_id ) ) {
+			return array(
+				'success' => false,
+				'message' => __(
+					'A digitally signed package already exists for this import. Delete the signed certification (type the locale confirm word) before decrypting and re-signing again.',
+					'relatasoft-secure-election-suite'
+				),
+			);
+		}
+
 		$rses_manifest  = TallyImportRepository::rses_get_manifest( $rses_import );
 		$rses_public    = $rses_manifest['public_key'] ?? array();
 		$rses_tallies   = $rses_manifest['encrypted_tallies'] ?? array();
@@ -142,8 +152,6 @@ class TallyDecryptionService {
 				);
 			}
 
-			unset( $rses_x );
-
 			$rses_result_data = array(
 				'decrypted_results' => $rses_decrypted,
 				'import_id'         => $import_id,
@@ -151,11 +159,41 @@ class TallyDecryptionService {
 				'submissions'       => count( $rses_submissions ),
 			);
 
-			set_transient( 'rses_decryption_result_' . $import_id, $rses_result_data, HOUR_IN_SECONDS );
+			// Sign while private key is still in memory (before unset).
+			$rses_signed = SignedResultsService::rses_sign_decryption(
+				$import_id,
+				$rses_manifest,
+				$rses_result_data,
+				$rses_p,
+				$rses_q,
+				$rses_g,
+				$rses_x,
+				$rses_y
+			);
+
+			unset( $rses_x );
+
+			$rses_result_data['signed']                 = true;
+			$rses_result_data['signed_package']         = $rses_signed['package'];
+			$rses_result_data['public_key_fingerprint'] = $rses_signed['package']['public_key_fingerprint'] ?? '';
+
+			set_transient( 'rses_decryption_result_' . $import_id, $rses_result_data, WEEK_IN_SECONDS );
+
+			AuditLogger::rses_log(
+				'results_signed',
+				'tally_import',
+				$import_id,
+				array(
+					'fingerprint'    => $rses_result_data['public_key_fingerprint'],
+					'results_sha256' => $rses_signed['package']['documents']['results_sha256'] ?? '',
+					'pdf_sha256'     => $rses_signed['package']['documents']['pdf_sha256'] ?? '',
+					'scheme'         => $rses_signed['package']['scheme'] ?? '',
+				)
+			);
 
 			return array(
 				'success' => true,
-				'message' => __( 'Tally decrypted successfully.', 'relatasoft-secure-election-suite' ),
+				'message' => __( 'Tally decrypted and digitally signed with the election private key.', 'relatasoft-secure-election-suite' ),
 				'results' => $rses_result_data,
 			);
 		} catch ( CryptoException $rses_e ) {

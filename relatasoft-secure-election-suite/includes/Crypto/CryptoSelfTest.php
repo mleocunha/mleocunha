@@ -26,6 +26,7 @@ class CryptoSelfTest {
 			self::testEncryptDecrypt(),
 			self::testHomomorphicAggregation(),
 			self::testShamir(),
+			self::testSchnorrSignature(),
 			self::testFullMiniElection(),
 		);
 	}
@@ -275,6 +276,77 @@ class CryptoSelfTest {
 		} catch ( CryptoException $rses_e ) {
 			return array(
 				'name'    => __( 'Shamir Secret Sharing', 'relatasoft-secure-election-suite' ),
+				'passed'  => false,
+				'message' => $rses_e->getMessage(),
+			);
+		}
+	}
+
+	/**
+	 * Test Schnorr sign/verify with an ElGamal key pair.
+	 *
+	 * @return array{name:string,passed:bool,message:string}
+	 */
+	public static function testSchnorrSignature(): array {
+		try {
+			$rses_keypair = ElGamal::generateKeyPair( 512 );
+			$rses_pub     = $rses_keypair->getPublicGmp();
+			$rses_x       = $rses_keypair->getPrivateGmp();
+			$rses_msg     = hash( 'sha256', 'rses-schnorr-self-test' );
+
+			$rses_sig = SchnorrSignature::sign(
+				$rses_msg,
+				$rses_pub['p'],
+				$rses_pub['q'],
+				$rses_pub['g'],
+				$rses_x,
+				$rses_pub['y']
+			);
+
+			$rses_ok = SchnorrSignature::verify(
+				$rses_msg,
+				$rses_sig,
+				$rses_pub['p'],
+				$rses_pub['q'],
+				$rses_pub['g'],
+				$rses_pub['y']
+			);
+
+			if ( ! $rses_ok ) {
+				return array(
+					'name'    => __( 'Schnorr Signature', 'relatasoft-secure-election-suite' ),
+					'passed'  => false,
+					'message' => __( 'Valid signature failed verification.', 'relatasoft-secure-election-suite' ),
+				);
+			}
+
+			$rses_bad = SchnorrSignature::verify(
+				hash( 'sha256', 'tampered' ),
+				$rses_sig,
+				$rses_pub['p'],
+				$rses_pub['q'],
+				$rses_pub['g'],
+				$rses_pub['y']
+			);
+
+			if ( $rses_bad ) {
+				return array(
+					'name'    => __( 'Schnorr Signature', 'relatasoft-secure-election-suite' ),
+					'passed'  => false,
+					'message' => __( 'Tampered message incorrectly verified as valid.', 'relatasoft-secure-election-suite' ),
+				);
+			}
+
+			unset( $rses_x );
+
+			return array(
+				'name'    => __( 'Schnorr Signature', 'relatasoft-secure-election-suite' ),
+				'passed'  => true,
+				'message' => __( 'Schnorr sign/verify over ElGamal subgroup validated.', 'relatasoft-secure-election-suite' ),
+			);
+		} catch ( CryptoException $rses_e ) {
+			return array(
+				'name'    => __( 'Schnorr Signature', 'relatasoft-secure-election-suite' ),
 				'passed'  => false,
 				'message' => $rses_e->getMessage(),
 			);

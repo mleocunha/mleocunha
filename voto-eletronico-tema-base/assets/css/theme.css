@@ -1,0 +1,370 @@
+/**
+ * Voto Eletrônico - Tema Base
+ * RelataSoft electoral canvas (dark geometric shell, gold accent).
+ */
+
+@import url("https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700&display=swap");
+
+:root {
+	--vetb-ink: #f7f4ea;
+	--vetb-muted: rgba(247, 244, 234, 0.72);
+	--vetb-gold: #ffb800;
+	--vetb-gold-deep: #f58220;
+	--vetb-navy: #0b1230;
+	--vetb-shell: #070a14;
+	--vetb-panel: #12182b;
+	--vetb-line: rgba(255, 184, 0, 0.22);
+	--vetb-radius: 14px;
+	--vetb-font: "Open Sans", "Segoe UI", sans-serif;
+	--vetb-display: "Open Sans", "Segoe UI", sans-serif;
+	--vetb-content-max: 46rem;
+}
+
+*,
+*::before,
+*::after {
+	box-sizing: border-box;
+}
+
+html.vetb-html,
+body.vetb-theme {
+	margin: 0;
+	min-height: 100%;
+	background: var(--vetb-shell);
+	color: var(--vetb-ink);
+	font-family: var(--vetb-font);
+	font-size: 1.05rem;
+	line-height: 1.55;
+	-webkit-font-smoothing: antialiased;
+}
+
+body.vetb-theme {
+	background:
+		radial-gradient(ellipse 70% 90% at 100% 0%, rgba(245, 166, 35, 0.12), transparent 55%),
+		radial-gradient(ellipse 50% 70% at 0% 100%, rgba(245, 130, 32, 0.08), transparent 50%),
+		linear-gradient(135deg, #070a14 0%, #12182b 48%, #0b1230 100%);
+	background-attachment: fixed;
+}
+
+body.vetb-theme::before {
+	content: "";
+	position: fixed;
+	inset: 0;
+	pointer-events: none;
+	opacity: 0.28;
+	z-index: 0;
+	background-image:
+		linear-gradient(30deg, transparent 40%, rgba(255, 184, 0, 0.07) 41%, transparent 42%),
+		linear-gradient(-30deg, transparent 45%, rgba(255, 255, 255, 0.035) 46%, transparent 47%);
+	background-size: 56px 56px;
+}
+
+.vetb-skip-link {
+	position: absolute;
+	left: -999px;
+	top: 0;
+	z-index: 100;
+	padding: 0.65rem 1rem;
+	background: var(--vetb-gold);
+	color: #111;
+	font-weight: 700;
+	text-decoration: none;
+}
+
+.vetb-skip-link:focus {
+	left: 1rem;
+	top: 1rem;
+}
+
+.vetb-shell {
+	position: relative;
+	z-index: 1;
+	min-height: 100vh;
+	display: flex;
+	flex-direction: column;
+}
+
+.vetb-topbar {
+	padding: 1.25rem 1.35rem 0.35rem;
+}
+
+.vetb-topbar__inner {
+	max-width: 72rem;
+	margin: 0 auto;
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.75rem 1.25rem;
+}
+
+.vetb-topbar__label {
+	margin: 0;
+	font-size: 0.78rem;
+	font-weight: 700;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: var(--vetb-gold);
+}
+
+.vetb-brand-lockup {
+	display: block;
+	max-width: 100%;
+}
+
+.vetb-brand-lockup__img {
+	display: block;
+	height: 52px;
+	width: auto;
+	max-width: min(100%, 340px);
+	object-fit: contain;
+	object-position: left center;
+}
+
+.vetb-brand-lockup--header .vetb-brand-lockup__img {
+	height: 48px;
+}
+
+.vetb-pinwheel {
+	display: block;
+	width: 44px;
+	height: 44px;
+	object-fit: contain;
+}
+
+.vetb-pinwheel--header {
+	width: 40px;
+	height: 40px;
+}
+
+.vetb-pinwheel--waiting {
+	width: 72px;
+	height: 72px;
+	margin: 0 auto 1rem;
+}
+
+.vetb-pinwheel--formal {
+	width: 56px;
+	height: 56px;
+	margin: 0 auto;
+}
+
+.vetb-brand-vertical {
+	display: flex;
+	justify-content: center;
+	margin: 0 0 1.35rem;
+}
+
+.vetb-brand-vertical__img {
+	display: block;
+	width: auto;
+	height: auto;
+	max-width: min(100%, 220px);
+	max-height: 160px;
+	object-fit: contain;
+	object-position: center top;
+}
+
+.vetb-brand-vertical--thank-you .vetb-brand-vertical__img {
+	max-width: min(100%, 200px);
+	max-height: 148px;
+}
+
+.vetb-formal-brand {
+	display: flex;
+	justify-content: center;
+	margin: 0.25rem 0 1.25rem;
+}
+
+.vetb-pinwheel--spin {
+	animation: vetb-spin 2.8s linear infinite;
+	transform-origin: 50% 50%;
+}
+
+@keyframes vetb-spin {
+	from {
+		transform: rotate(0deg);
+	}
+	to {
+		transform: rotate(360deg);
+	}
+}
+
+.vetb-main {
+	flex: 1 0 auto;
+	padding: 1rem 1.25rem 2.5rem;
+}
+
+.vetb-canvas {
+	max-width: var(--vetb-content-max);
+	margin: 0 auto;
+}
+
+.vetb-canvas--thank_you .vetb-formal-brand {
+	margin-bottom: 1.5rem;
+}
+
+.vetb-article {
+	margin: 0;
+	padding: 0;
+	border: 0;
+	background: transparent;
+	box-shadow: none;
+}
+
+.vetb-article__header {
+	margin: 0 0 1rem;
+}
+
+.vetb-article__title {
+	margin: 0;
+	font-family: var(--vetb-display);
+	font-size: clamp(1.45rem, 3vw, 1.9rem);
+	font-weight: 700;
+	line-height: 1.2;
+	color: #fff;
+}
+
+.vetb-article__content {
+	color: var(--vetb-ink);
+}
+
+.vetb-article__content > *:first-child {
+	margin-top: 0;
+}
+
+.vetb-article__content a {
+	color: var(--vetb-gold);
+}
+
+.vetb-article__content a:hover,
+.vetb-article__content a:focus {
+	color: #ffd24d;
+}
+
+/* Soft panel behind RSES shortcodes when they don't self-contain atmosphere */
+.vetb-context-welcome .vetb-article__content,
+.vetb-context-thank_you .vetb-article__content,
+.vetb-context-election .vetb-article__content {
+	padding: 0.25rem 0 0;
+}
+
+/* Let RSES journey/booth cards sit on the dark shell */
+.vetb-theme .rses-journey,
+.vetb-theme .rses-booth {
+	margin-top: 0.35rem;
+	margin-bottom: 0.35rem;
+	box-shadow: 0 18px 48px rgba(0, 0, 0, 0.28);
+}
+
+.vetb-waiting {
+	text-align: center;
+	padding: 2.5rem 1.25rem;
+	border: 1px solid var(--vetb-line);
+	border-radius: calc(var(--vetb-radius) + 2px);
+	background:
+		radial-gradient(120% 80% at 50% 0%, rgba(255, 184, 0, 0.12), transparent 55%),
+		rgba(18, 24, 43, 0.92);
+}
+
+.vetb-waiting__message {
+	margin: 0;
+	color: var(--vetb-muted);
+	font-size: 1.05rem;
+}
+
+.vetb-empty {
+	max-width: 32rem;
+	margin: 2rem auto;
+}
+
+.vetb-empty__actions {
+	margin: 1.25rem 0 0;
+	text-align: center;
+}
+
+.vetb-btn {
+	display: inline-block;
+	padding: 0.65rem 1.35rem;
+	border-radius: 999px;
+	font-weight: 700;
+	text-decoration: none;
+	color: #111 !important;
+	background: linear-gradient(180deg, var(--vetb-gold), var(--vetb-gold-deep));
+	box-shadow: 0 6px 18px rgba(245, 166, 35, 0.32);
+}
+
+.vetb-btn:hover,
+.vetb-btn:focus {
+	filter: brightness(1.05);
+}
+
+.vetb-foot {
+	padding: 0.75rem 1.25rem 1.5rem;
+}
+
+.vetb-foot__inner {
+	max-width: 72rem;
+	margin: 0 auto;
+	text-align: center;
+}
+
+.vetb-foot__note {
+	margin: 0;
+	font-size: 0.8rem;
+	color: rgba(247, 244, 234, 0.45);
+}
+
+/* Hide residual WP chrome if a plugin injects it */
+body.vetb-theme .site-header,
+body.vetb-theme .site-footer,
+body.vetb-theme .widget-area,
+body.vetb-theme .sidebar,
+body.vetb-theme #wpadminbar + .vetb-shell {
+	/* no-op placeholder kept for clarity */
+}
+
+body.vetb-theme #wpadminbar {
+	opacity: 0.92;
+}
+
+@media (max-width: 600px) {
+	.vetb-brand-lockup--header .vetb-brand-lockup__img {
+		height: 40px;
+	}
+
+	.vetb-topbar__label {
+		width: 100%;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.vetb-pinwheel--spin {
+		animation: none;
+	}
+}
+
+/* Official / printable documents: light ink, vertical brand prominence */
+@media print {
+	body.vetb-theme {
+		background: #fff !important;
+		color: #111 !important;
+	}
+
+	body.vetb-theme::before,
+	.vetb-topbar,
+	.vetb-foot,
+	.vetb-skip-link {
+		display: none !important;
+	}
+
+	.vetb-brand-vertical__img {
+		max-width: 180px;
+		filter: none;
+	}
+
+	.vetb-article__content a {
+		color: #111;
+		text-decoration: underline;
+	}
+}

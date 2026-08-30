@@ -8,6 +8,7 @@
 namespace RelataSoft\SecureElectionSuite\Voting;
 
 use RelataSoft\SecureElectionSuite\KeyAuthority\KeyRepository;
+use RelataSoft\SecureElectionSuite\Painel\Application\Identity\IdentityGateway;
 use RelataSoft\SecureElectionSuite\Security\Capability;
 use RelataSoft\SecureElectionSuite\Security\Nonce;
 use RelataSoft\SecureElectionSuite\Frontend\VoterJourney;
@@ -324,30 +325,63 @@ class VotingViews {
 		<p><a class="rses-back-link" href="<?php echo esc_url( admin_url( 'admin.php?page=rses-elections' ) ); ?>">&larr; <?php esc_html_e( 'Back to elections', 'relatasoft-secure-election-suite' ); ?></a></p>
 
 		<?php if ( $rses_round ) : ?>
+			<?php
+			$rses_booth_url = add_query_arg(
+				array(
+					'election_id' => $election_id,
+					'round_id'    => $rses_round_id,
+				),
+				\RelataSoft\SecureElectionSuite\Frontend\JourneySettings::rses_page_url( 'booth_page_id' )
+			);
+			$rses_welcome_url = \RelataSoft\SecureElectionSuite\Frontend\JourneySettings::rses_page_url( 'welcome_page_id' );
+			?>
 			<section class="rses-panel rses-panel-card">
 				<header class="rses-panel-header">
-					<p class="rses-panel-kicker"><?php esc_html_e( 'Publish', 'relatasoft-secure-election-suite' ); ?></p>
-					<h2 class="rses-panel-title"><?php esc_html_e( 'Voting booth shortcode', 'relatasoft-secure-election-suite' ); ?></h2>
+					<p class="rses-panel-kicker"><?php esc_html_e( 'Publicar', 'relatasoft-secure-election-suite' ); ?></p>
+					<h2 class="rses-panel-title"><?php esc_html_e( 'Cabina de votação', 'relatasoft-secure-election-suite' ); ?></h2>
 					<p class="rses-panel-desc">
 						<?php
 						printf(
 							/* translators: %s: public key id */
-							esc_html__( 'Public key ID: %s — paste the booth shortcode on a WordPress page once voting is open.', 'relatasoft-secure-election-suite' ),
+							esc_html__( 'ID da chave pública: %s — partilhe a URL nativa da cabina quando a votação estiver aberta.', 'relatasoft-secure-election-suite' ),
 							esc_html( (string) ( $rses_round->key_id ?: '—' ) )
 						);
 						?>
 					</p>
 				</header>
 				<div class="rses-panel-body">
-					<div class="rses-shortcode-box">
-						<code class="rses-shortcode-text"><?php echo esc_html( $rses_booth_sc ); ?></code>
-						<button type="button" class="button rses-btn-secondary rses-copy-shortcode" data-rses-copy="<?php echo esc_attr( $rses_booth_sc ); ?>">
-							<?php esc_html_e( 'Copy', 'relatasoft-secure-election-suite' ); ?>
-						</button>
-					</div>
+					<?php if ( '' !== $rses_booth_url ) : ?>
+						<p class="rses-field-label"><?php esc_html_e( 'URL nativa (preferida)', 'relatasoft-secure-election-suite' ); ?></p>
+						<div class="rses-shortcode-box">
+							<code class="rses-shortcode-text"><?php echo esc_html( $rses_booth_url ); ?></code>
+							<button type="button" class="button rses-btn-secondary rses-copy-shortcode" data-rses-copy="<?php echo esc_attr( $rses_booth_url ); ?>">
+								<?php esc_html_e( 'Copiar URL', 'relatasoft-secure-election-suite' ); ?>
+							</button>
+						</div>
+					<?php endif; ?>
+					<?php if ( '' !== $rses_welcome_url ) : ?>
+						<p class="description">
+							<?php
+							printf(
+								/* translators: %s: welcome URL */
+								esc_html__( 'Boas-vindas do eleitor: %s', 'relatasoft-secure-election-suite' ),
+								esc_html( $rses_welcome_url )
+							);
+							?>
+						</p>
+					<?php endif; ?>
+					<details class="rses-legacy-shortcode">
+						<summary><?php esc_html_e( 'Adaptador legado (shortcode em página do sítio)', 'relatasoft-secure-election-suite' ); ?></summary>
+						<div class="rses-shortcode-box">
+							<code class="rses-shortcode-text"><?php echo esc_html( $rses_booth_sc ); ?></code>
+							<button type="button" class="button rses-btn-secondary rses-copy-shortcode" data-rses-copy="<?php echo esc_attr( $rses_booth_sc ); ?>">
+								<?php esc_html_e( 'Copiar', 'relatasoft-secure-election-suite' ); ?>
+							</button>
+						</div>
+					</details>
 					<p class="rses-inline-actions">
 						<a class="button rses-btn-secondary" href="<?php echo esc_url( admin_url( 'admin.php?page=rses-shortcodes&election_id=' . $election_id . '&round_id=' . $rses_round_id ) ); ?>">
-							<?php esc_html_e( 'Open Shortcode Generator', 'relatasoft-secure-election-suite' ); ?>
+							<?php esc_html_e( 'Abrir URLs e shortcodes', 'relatasoft-secure-election-suite' ); ?>
 						</a>
 					</p>
 				</div>
@@ -381,6 +415,49 @@ class VotingViews {
 				</div>
 			</div>
 		</section>
+
+		<?php if ( $rses_round ) : ?>
+		<section class="rses-panel rses-panel-card">
+			<header class="rses-panel-header">
+				<p class="rses-panel-kicker"><?php esc_html_e( 'Áudio', 'relatasoft-secure-election-suite' ); ?></p>
+				<h2 class="rses-panel-title"><?php esc_html_e( 'Áudio de fim de rodada', 'relatasoft-secure-election-suite' ); ?></h2>
+				<p class="rses-panel-desc"><?php esc_html_e( 'Reproduzido automaticamente na página de agradecimento quando o eleitor conclui esta rodada (mp3/wav/ogg).', 'relatasoft-secure-election-suite' ); ?></p>
+			</header>
+			<?php
+			$rses_audio_id  = ElectionController::rses_get_round_end_audio_id( $rses_round_id );
+			$rses_audio_url = ElectionController::rses_get_round_end_audio_url( $rses_round_id );
+			?>
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="rses-form">
+				<?php Nonce::rses_field( Nonce::RSES_ACTION_ELECTION_SAVE ); ?>
+				<input type="hidden" name="action" value="rses_save_round_audio" />
+				<input type="hidden" name="election_id" value="<?php echo esc_attr( (string) $election_id ); ?>" />
+				<input type="hidden" name="round_id" value="<?php echo esc_attr( (string) $rses_round_id ); ?>" />
+				<input type="hidden" name="rses_round_end_audio_id" id="rses_round_end_audio_id" value="<?php echo esc_attr( (string) $rses_audio_id ); ?>" />
+				<div class="rses-option-media-controls">
+					<span id="rses-round-audio-preview" class="rses-option-media-preview" <?php echo $rses_audio_url ? '' : 'hidden'; ?>>
+						<?php if ( $rses_audio_url ) : ?>
+							<audio controls preload="metadata" src="<?php echo esc_url( $rses_audio_url ); ?>"></audio>
+						<?php endif; ?>
+					</span>
+					<button
+						type="button"
+						class="button rses-btn-secondary"
+						id="rses-round-audio-pick"
+						data-rses-title="<?php echo esc_attr__( 'Selecionar áudio de fim de rodada', 'relatasoft-secure-election-suite' ); ?>"
+						data-rses-button="<?php echo esc_attr__( 'Usar este áudio', 'relatasoft-secure-election-suite' ); ?>"
+					>
+						<?php esc_html_e( 'Escolher áudio (mp3/wav/ogg)', 'relatasoft-secure-election-suite' ); ?>
+					</button>
+					<button type="button" class="button rses-btn-secondary" id="rses-round-audio-clear" <?php echo $rses_audio_id ? '' : 'hidden'; ?>>
+						<?php esc_html_e( 'Remover áudio', 'relatasoft-secure-election-suite' ); ?>
+					</button>
+				</div>
+				<p class="rses-form-actions">
+					<?php submit_button( __( 'Guardar áudio', 'relatasoft-secure-election-suite' ), 'secondary rses-btn-secondary', 'submit', false ); ?>
+				</p>
+			</form>
+		</section>
+		<?php endif; ?>
 
 		<section class="rses-panel rses-panel-card">
 			<header class="rses-panel-header">
@@ -490,7 +567,7 @@ class VotingViews {
 	}
 
 	/**
-	 * Render shortcode generator for publishing voting booths on pages/posts.
+	 * Render native journey URLs and optional shortcode adapters.
 	 */
 	public static function rses_render_shortcodes_page(): void {
 		Capability::rses_require_admin();
@@ -498,18 +575,21 @@ class VotingViews {
 		$rses_elections = ElectionRepository::rses_list();
 		$rses_focus_eid = isset( $_GET['election_id'] ) ? absint( $_GET['election_id'] ) : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 		$rses_focus_rid = isset( $_GET['round_id'] ) ? absint( $_GET['round_id'] ) : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		$rses_welcome   = \RelataSoft\SecureElectionSuite\Frontend\JourneySettings::rses_page_url( 'welcome_page_id' );
+		$rses_booth     = \RelataSoft\SecureElectionSuite\Frontend\JourneySettings::rses_page_url( 'booth_page_id' );
+		$rses_thanks    = \RelataSoft\SecureElectionSuite\Frontend\JourneySettings::rses_page_url( 'thank_you_page_id' );
 		?>
 		<div class="wrap rses-wrap rses-screen" <?php echo Translator::rses_html_attrs(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
 			<header class="rses-hero">
 				<?php Brand::rses_render_hero_brand(); ?>
 
-				<p class="rses-hero-kicker"><?php esc_html_e( 'Voting Platform', 'relatasoft-secure-election-suite' ); ?></p>
-				<h1 class="rses-hero-title"><?php esc_html_e( 'Shortcode Generator', 'relatasoft-secure-election-suite' ); ?></h1>
+				<p class="rses-hero-kicker"><?php esc_html_e( 'Plataforma de votação', 'relatasoft-secure-election-suite' ); ?></p>
+				<h1 class="rses-hero-title"><?php esc_html_e( 'URLs da jornada e shortcodes', 'relatasoft-secure-election-suite' ); ?></h1>
 				<p class="rses-hero-lead"><?php
 					echo esc_html(
 						sprintf(
 							/* translators: %s: elector role label (plural) */
-							__( 'Copy a shortcode and paste it into any WordPress page or post. Only %s may cast a ballot.', 'relatasoft-secure-election-suite' ),
+							__( 'Partilhe as rotas nativas /voto com os eleitores. Só %s podem votar.', 'relatasoft-secure-election-suite' ),
 							RoleLabels::rses_elector_plural()
 						)
 					);
@@ -517,53 +597,68 @@ class VotingViews {
 			</header>
 
 			<div class="rses-panel rses-panel-info">
-				<p><?php esc_html_e( 'Create and open an election, copy the booth shortcode, publish a page, then share the URL with voters.', 'relatasoft-secure-election-suite' ); ?></p>
+				<p><?php esc_html_e( 'Itinerário preferido: login → /voto/ → cabina com election_id e round_id → /voto/obrigado/.', 'relatasoft-secure-election-suite' ); ?></p>
 				<ol>
-					<li><?php esc_html_e( 'Create and open an election under Elections.', 'relatasoft-secure-election-suite' ); ?></li>
-					<li><?php esc_html_e( 'Copy the voting booth shortcode for that round.', 'relatasoft-secure-election-suite' ); ?></li>
-					<li><?php esc_html_e( 'Create a page (e.g. “Vote”) and paste the shortcode.', 'relatasoft-secure-election-suite' ); ?></li>
-					<li><?php esc_html_e( 'Publish the page and share the URL with voters.', 'relatasoft-secure-election-suite' ); ?></li>
+					<li><?php esc_html_e( 'Criar e abrir uma eleição em Eleições.', 'relatasoft-secure-election-suite' ); ?></li>
+					<li><?php esc_html_e( 'Copiar a URL nativa da cabina para essa rodada.', 'relatasoft-secure-election-suite' ); ?></li>
+					<li><?php esc_html_e( 'Partilhar a URL (ou a de boas-vindas) com os eleitores — sem criar página no sítio.', 'relatasoft-secure-election-suite' ); ?></li>
+					<li><?php esc_html_e( 'Shortcodes em páginas do sítio são adaptadores opcionais, não o caminho principal.', 'relatasoft-secure-election-suite' ); ?></li>
 				</ol>
 			</div>
 
 			<section class="rses-panel rses-panel-card">
 				<header class="rses-panel-header">
-					<p class="rses-panel-kicker"><?php esc_html_e( 'Reference', 'relatasoft-secure-election-suite' ); ?></p>
-					<h2 class="rses-panel-title"><?php esc_html_e( 'Available shortcodes', 'relatasoft-secure-election-suite' ); ?></h2>
-					<p class="rses-panel-desc"><?php esc_html_e( 'Each shortcode accepts election_id / round_id attributes as shown below.', 'relatasoft-secure-election-suite' ); ?></p>
+					<p class="rses-panel-kicker"><?php esc_html_e( 'Nativo', 'relatasoft-secure-election-suite' ); ?></p>
+					<h2 class="rses-panel-title"><?php esc_html_e( 'Rotas /voto', 'relatasoft-secure-election-suite' ); ?></h2>
+					<p class="rses-panel-desc"><?php esc_html_e( 'Estas URLs não dependem de páginas ou shortcodes do sítio.', 'relatasoft-secure-election-suite' ); ?></p>
+				</header>
+				<div class="rses-panel-body">
+					<?php
+					self::rses_render_shortcode_row( __( 'Boas-vindas', 'relatasoft-secure-election-suite' ), $rses_welcome ?: '/voto/' );
+					self::rses_render_shortcode_row( __( 'Cabina (base)', 'relatasoft-secure-election-suite' ), $rses_booth ?: '/voto/cabina/' );
+					self::rses_render_shortcode_row( __( 'Obrigado', 'relatasoft-secure-election-suite' ), $rses_thanks ?: '/voto/obrigado/' );
+					?>
+				</div>
+			</section>
+
+			<section class="rses-panel rses-panel-card">
+				<header class="rses-panel-header">
+					<p class="rses-panel-kicker"><?php esc_html_e( 'Referência', 'relatasoft-secure-election-suite' ); ?></p>
+					<h2 class="rses-panel-title"><?php esc_html_e( 'Shortcodes (adaptadores finos)', 'relatasoft-secure-election-suite' ); ?></h2>
+					<p class="rses-panel-desc"><?php esc_html_e( 'Opcionais: cada shortcode aceita election_id / round_id e delega ao JourneyGateway.', 'relatasoft-secure-election-suite' ); ?></p>
 				</header>
 				<div class="rses-table-wrap">
 					<table class="rses-table">
 						<thead>
 							<tr>
 								<th><?php esc_html_e( 'Shortcode', 'relatasoft-secure-election-suite' ); ?></th>
-								<th><?php esc_html_e( 'Purpose', 'relatasoft-secure-election-suite' ); ?></th>
+								<th><?php esc_html_e( 'Finalidade', 'relatasoft-secure-election-suite' ); ?></th>
 							</tr>
 						</thead>
 						<tbody>
 							<tr>
 								<td><code>[rses_voting_booth]</code></td>
-								<td><?php esc_html_e( 'Full encrypted ballot for logged-in voters. Requires election_id and round_id.', 'relatasoft-secure-election-suite' ); ?></td>
+								<td><?php esc_html_e( 'Cabina encriptada (requer election_id e round_id).', 'relatasoft-secure-election-suite' ); ?></td>
 							</tr>
 							<tr>
 								<td><code>[rses_voter_receipt]</code></td>
-								<td><?php esc_html_e( 'Shows the voter’s receipt hash after casting (no plaintext choices).', 'relatasoft-secure-election-suite' ); ?></td>
+								<td><?php esc_html_e( 'Mostra o recibo do voto (sem escolhas em claro).', 'relatasoft-secure-election-suite' ); ?></td>
 							</tr>
 							<tr>
 								<td><code>[rses_election_status]</code></td>
-								<td><?php esc_html_e( 'Displays election title and status (draft / open / closed).', 'relatasoft-secure-election-suite' ); ?></td>
+								<td><?php esc_html_e( 'Título e estado da eleição (rascunho / aberta / fechada).', 'relatasoft-secure-election-suite' ); ?></td>
 							</tr>
 							<tr>
 								<td><code>[rses_voter_welcome]</code></td>
-								<td><?php esc_html_e( 'Elector welcome and open-election links.', 'relatasoft-secure-election-suite' ); ?></td>
+								<td><?php esc_html_e( 'Boas-vindas e ligações a eleições abertas.', 'relatasoft-secure-election-suite' ); ?></td>
 							</tr>
 							<tr>
 								<td><code>[rses_voter_thank_you]</code></td>
-								<td><?php esc_html_e( 'Thank-you page with vote receipt hash.', 'relatasoft-secure-election-suite' ); ?></td>
+								<td><?php esc_html_e( 'Página de agradecimento com recibo.', 'relatasoft-secure-election-suite' ); ?></td>
 							</tr>
 							<tr>
 								<td><code>[enviar_redefinicao_senha]</code></td>
-								<td><?php esc_html_e( 'Sends a password-reset email to the currently logged-in user (plain text). Place on the welcome page for the Votador PoC password-change flow.', 'relatasoft-secure-election-suite' ); ?></td>
+								<td><?php esc_html_e( 'Envia e-mail de redefinição de senha ao utilizador autenticado.', 'relatasoft-secure-election-suite' ); ?></td>
 							</tr>
 						</tbody>
 					</table>
@@ -572,17 +667,17 @@ class VotingViews {
 
 			<section class="rses-panel rses-panel-card">
 				<header class="rses-panel-header">
-					<p class="rses-panel-kicker"><?php esc_html_e( 'Generate', 'relatasoft-secure-election-suite' ); ?></p>
-					<h2 class="rses-panel-title"><?php esc_html_e( 'Shortcodes by election', 'relatasoft-secure-election-suite' ); ?></h2>
-					<p class="rses-panel-desc"><?php esc_html_e( 'Ready-to-copy shortcodes for every round.', 'relatasoft-secure-election-suite' ); ?></p>
+					<p class="rses-panel-kicker"><?php esc_html_e( 'Gerar', 'relatasoft-secure-election-suite' ); ?></p>
+					<h2 class="rses-panel-title"><?php esc_html_e( 'URLs e shortcodes por eleição', 'relatasoft-secure-election-suite' ); ?></h2>
+					<p class="rses-panel-desc"><?php esc_html_e( 'URL nativa da cabina primeiro; shortcode só como fallback.', 'relatasoft-secure-election-suite' ); ?></p>
 				</header>
 
 				<div class="rses-panel-body">
 					<?php if ( empty( $rses_elections ) ) : ?>
 						<p class="rses-empty">
-							<?php esc_html_e( 'No elections yet.', 'relatasoft-secure-election-suite' ); ?>
+							<?php esc_html_e( 'Ainda sem eleições.', 'relatasoft-secure-election-suite' ); ?>
 							<a href="<?php echo esc_url( admin_url( 'admin.php?page=rses-elections' ) ); ?>">
-								<?php esc_html_e( 'Create an election first.', 'relatasoft-secure-election-suite' ); ?>
+								<?php esc_html_e( 'Criar uma eleição primeiro.', 'relatasoft-secure-election-suite' ); ?>
 							</a>
 						</p>
 					<?php else : ?>
@@ -604,9 +699,18 @@ class VotingViews {
 										<?php
 										$rses_eid      = (int) $rses_election->id;
 										$rses_rid      = (int) $rses_round->id;
-										$rses_booth    = sprintf( '[rses_voting_booth election_id="%d" round_id="%d"]', $rses_eid, $rses_rid );
+										$rses_booth_sc = sprintf( '[rses_voting_booth election_id="%d" round_id="%d"]', $rses_eid, $rses_rid );
 										$rses_receipt  = sprintf( '[rses_voter_receipt election_id="%d" round_id="%d"]', $rses_eid, $rses_rid );
 										$rses_status   = sprintf( '[rses_election_status election_id="%d"]', $rses_eid );
+										$rses_booth_u  = '' !== $rses_booth
+											? add_query_arg(
+												array(
+													'election_id' => $rses_eid,
+													'round_id'    => $rses_rid,
+												),
+												$rses_booth
+											)
+											: sprintf( '/voto/cabina/?election_id=%d&round_id=%d', $rses_eid, $rses_rid );
 										$rses_is_focus = ( $rses_focus_eid === $rses_eid && ( 0 === $rses_focus_rid || $rses_focus_rid === $rses_rid ) );
 										?>
 										<div class="rses-shortcode-round<?php echo $rses_is_focus ? ' rses-shortcode-focus' : ''; ?>">
@@ -620,25 +724,26 @@ class VotingViews {
 
 											<?php
 											self::rses_render_shortcode_row(
-												__( 'Voting booth (place on a public page)', 'relatasoft-secure-election-suite' ),
-												$rses_booth
+												__( 'URL nativa da cabina (preferida)', 'relatasoft-secure-election-suite' ),
+												$rses_booth_u
 											);
 											self::rses_render_shortcode_row(
-												__( 'Voter receipt', 'relatasoft-secure-election-suite' ),
+												__( 'Shortcode da cabina (opcional)', 'relatasoft-secure-election-suite' ),
+												$rses_booth_sc
+											);
+											self::rses_render_shortcode_row(
+												__( 'Recibo do eleitor', 'relatasoft-secure-election-suite' ),
 												$rses_receipt
 											);
 											self::rses_render_shortcode_row(
-												__( 'Election status', 'relatasoft-secure-election-suite' ),
+												__( 'Estado da eleição', 'relatasoft-secure-election-suite' ),
 												$rses_status
 											);
 											?>
 
 											<p class="rses-shortcode-actions">
 												<a class="button rses-btn-secondary" href="<?php echo esc_url( admin_url( 'admin.php?page=rses-elections&rses_edit=' . $rses_eid . '&round=' . $rses_rid ) ); ?>">
-													<?php esc_html_e( 'Edit election', 'relatasoft-secure-election-suite' ); ?>
-												</a>
-												<a class="button rses-btn-secondary" href="<?php echo esc_url( admin_url( 'post-new.php?post_type=page' ) ); ?>" target="_blank" rel="noopener noreferrer">
-													<?php esc_html_e( 'Create new page', 'relatasoft-secure-election-suite' ); ?>
+													<?php esc_html_e( 'Editar eleição', 'relatasoft-secure-election-suite' ); ?>
 												</a>
 											</p>
 										</div>
@@ -743,7 +848,8 @@ class VotingViews {
 	 * @param int $round_id    Round ID.
 	 */
 	public static function rses_render_voting_booth( int $election_id, int $round_id ): void {
-		if ( ! is_user_logged_in() ) {
+		$session = IdentityGateway::get()->session;
+		if ( ! $session->isAuthenticated() ) {
 			$rses_login = VoterJourney::rses_login_url();
 			echo '<div class="rses-booth" ' . Translator::rses_html_attrs() . '><div class="rses-message rses-message-warning rses-login-required">';
 			echo esc_html__( 'Please log in to vote.', 'relatasoft-secure-election-suite' );
@@ -765,15 +871,7 @@ class VotingViews {
 			return;
 		}
 
-		$rses_votes = EncryptedVoteRepository::rses_get_by_round( $round_id );
-		$rses_voted = false;
-		foreach ( $rses_votes as $rses_v ) {
-			if ( (int) $rses_v->voter_user_id === get_current_user_id() ) {
-				$rses_voted = true;
-				break;
-			}
-		}
-		if ( $rses_voted ) {
+		if ( EncryptedVoteRepository::rses_has_voted_round( $session->currentUserId(), $round_id ) ) {
 			self::rses_render_voter_receipt( $election_id, $round_id );
 			return;
 		}
@@ -799,12 +897,13 @@ class VotingViews {
 	 * @param int $round_id    Round ID.
 	 */
 	public static function rses_render_voter_receipt( int $election_id, int $round_id ): void {
-		if ( ! is_user_logged_in() ) {
+		$session = IdentityGateway::get()->session;
+		if ( ! $session->isAuthenticated() ) {
 			echo '<div class="rses-booth" ' . Translator::rses_html_attrs() . '><div class="rses-message rses-message-warning">' . esc_html__( 'Please log in to view your receipt.', 'relatasoft-secure-election-suite' ) . '</div></div>';
 			return;
 		}
 
-		$rses_hash = EncryptedVoteRepository::rses_get_receipt_hash( get_current_user_id(), $round_id );
+		$rses_hash = EncryptedVoteRepository::rses_get_receipt_hash( $session->currentUserId(), $round_id );
 
 		if ( ! $rses_hash ) {
 			echo '<div class="rses-booth" ' . Translator::rses_html_attrs() . '><div class="rses-message rses-message-info">' . esc_html__( 'No vote receipt found.', 'relatasoft-secure-election-suite' ) . '</div></div>';

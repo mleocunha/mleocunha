@@ -1,15 +1,15 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="RelataSoft">
   <defs>
-    <linearGradient id="rsesMarkGold" x1="0%" y1="0%" x2="100%" y2="100%">
+    <linearGradient id="rsesRodaFogo" x1="18%" y1="12%" x2="88%" y2="92%">
       <stop offset="0%" stop-color="#FFE56A"/>
-      <stop offset="48%" stop-color="#FFB800"/>
+      <stop offset="45%" stop-color="#FFB800"/>
       <stop offset="100%" stop-color="#F58220"/>
     </linearGradient>
   </defs>
-  <!-- 6-fold RelataSoft pinwheel -->
-  <g fill="url(#rsesMarkGold)" transform="translate(64 64)">
+  <!-- Roda de Fogo — 6 lâminas em espiral -->
+  <g fill="url(#rsesRodaFogo)" transform="translate(64 64)">
     <g id="rses-blade">
-      <path d="M0-52 C14-52 26-44 30-30 C18-28 8-18 4-6 C-2-18 -2-36 0-52 Z"/>
+      <path d="M2-8 C8-28 18-44 4-54 C22-52 36-40 38-22 C28-24 14-18 2-8 Z"/>
     </g>
     <use href="#rses-blade" transform="rotate(60)"/>
     <use href="#rses-blade" transform="rotate(120)"/>

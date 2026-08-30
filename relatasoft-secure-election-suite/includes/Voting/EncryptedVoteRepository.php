@@ -7,13 +7,13 @@
 
 namespace RelataSoft\SecureElectionSuite\Voting;
 
-use RelataSoft\SecureElectionSuite\Database\Repository;
 use RelataSoft\SecureElectionSuite\Exports\HashService;
+use RelataSoft\SecureElectionSuite\Painel\Application\Persistence\PersistenceGateway;
 
 defined( 'ABSPATH' ) || exit;
 
 /**
- * Encrypted vote storage.
+ * Encrypted vote storage (delegates to A2 persistence ports).
  */
 class EncryptedVoteRepository {
 
@@ -41,11 +41,7 @@ class EncryptedVoteRepository {
 
 		$rses_row['audit_hash'] = HashService::rses_hash_json( $rses_row );
 
-		return Repository::rses_insert(
-			'rses_encrypted_votes',
-			$rses_row,
-			array( '%d', '%d', '%d', '%d', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s' )
-		);
+		return PersistenceGateway::get()->votes->store( $rses_row );
 	}
 
 	/**
@@ -57,11 +53,7 @@ class EncryptedVoteRepository {
 	 * @return bool
 	 */
 	public static function rses_has_voted( int $voter_user_id, int $round_id, int $question_id ): bool {
-		return Repository::rses_count(
-			'rses_encrypted_votes',
-			'voter_user_id = %d AND round_id = %d AND question_id = %d',
-			array( $voter_user_id, $round_id, $question_id )
-		) > 0;
+		return PersistenceGateway::get()->votes->hasVoted( $voter_user_id, $round_id, $question_id );
 	}
 
 	/**
@@ -72,28 +64,27 @@ class EncryptedVoteRepository {
 	 * @return bool
 	 */
 	public static function rses_has_voted_round( int $voter_user_id, int $round_id ): bool {
-		return Repository::rses_count(
-			'rses_encrypted_votes',
-			'voter_user_id = %d AND round_id = %d',
-			array( $voter_user_id, $round_id )
-		) > 0;
+		return PersistenceGateway::get()->votes->hasVotedRound( $voter_user_id, $round_id );
 	}
 
 	/**
 	 * Get votes for round.
 	 *
-	 * Warning: SELECT * loads ciphertext + optional encrypted_payload_json for every
-	 * row. Prefer {@see rses_for_each_export_row()} for large exports.
+	 * Warning: loads full rows. Prefer {@see rses_for_each_export_row()} for large exports.
 	 *
 	 * @param int $round_id Round ID.
 	 * @return array<int,object>
 	 */
 	public static function rses_get_by_round( int $round_id ): array {
-		return Repository::rses_get_rows(
-			'rses_encrypted_votes',
-			'round_id = %d',
-			array( $round_id )
+		$out = array();
+		PersistenceGateway::get()->votes->forEachExportRow(
+			$round_id,
+			static function ( array $row ) use ( &$out ): void {
+				$out[] = (object) $row;
+			},
+			500
 		);
+		return $out;
 	}
 
 	/**
@@ -102,64 +93,24 @@ class EncryptedVoteRepository {
 	 * @param int $round_id Round ID.
 	 */
 	public static function rses_count_distinct_voters( int $round_id ): int {
-		global $wpdb;
-
-		$rses_table = \RelataSoft\SecureElectionSuite\Database\Schema::rses_table( 'rses_encrypted_votes' );
-
-		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-		return (int) $wpdb->get_var(
-			$wpdb->prepare(
-				"SELECT COUNT(DISTINCT voter_user_id) FROM {$rses_table} WHERE round_id = %d",
-				$round_id
-			)
-		);
+		return PersistenceGateway::get()->votes->countDistinctVoters( $round_id );
 	}
 
 	/**
 	 * Stream export-shaped vote rows in id-ordered batches (no payload JSON).
 	 *
-	 * @param int                  $round_id Round ID.
+	 * @param int                   $round_id Round ID.
 	 * @param callable(object):void $callback Receives each row object.
-	 * @param int                  $batch    Batch size.
+	 * @param int                   $batch    Batch size.
 	 */
 	public static function rses_for_each_export_row( int $round_id, callable $callback, int $batch = 100 ): void {
-		global $wpdb;
-
-		$rses_table = \RelataSoft\SecureElectionSuite\Database\Schema::rses_table( 'rses_encrypted_votes' );
-		$rses_batch = max( 1, min( 500, $batch ) );
-		$rses_last  = 0;
-
-		while ( true ) {
-			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-			$rses_rows = $wpdb->get_results(
-				$wpdb->prepare(
-					"SELECT id, question_id, option_id, ciphertext_alpha, ciphertext_beta, vote_hash, cast_at
-					FROM {$rses_table}
-					WHERE round_id = %d AND id > %d
-					ORDER BY id ASC
-					LIMIT %d",
-					$round_id,
-					$rses_last,
-					$rses_batch
-				)
-			);
-
-			if ( empty( $rses_rows ) ) {
-				break;
-			}
-
-			foreach ( $rses_rows as $rses_row ) {
-				$callback( $rses_row );
-				$rses_last = (int) $rses_row->id;
-			}
-
-			if ( count( $rses_rows ) < $rses_batch ) {
-				break;
-			}
-
-			// Free the batch before the next query under low memory_limit hosts.
-			unset( $rses_rows );
-		}
+		PersistenceGateway::get()->votes->forEachExportRow(
+			$round_id,
+			static function ( array $row ) use ( $callback ): void {
+				$callback( (object) $row );
+			},
+			$batch
+		);
 	}
 
 	/**
@@ -214,32 +165,11 @@ class EncryptedVoteRepository {
 	/**
 	 * Get voter receipt hash for a round.
 	 *
-	 * Matches VoteEncryptionService cast receipt: sha256( concat of per-ciphertext
-	 * vote_hash values in cast/insert order ). A single vote_hash row is not the
-	 * elector-facing receipt when the ballot has multiple questions/options.
-	 *
 	 * @param int $voter_user_id Voter ID.
 	 * @param int $round_id      Round ID.
 	 * @return string|null
 	 */
 	public static function rses_get_receipt_hash( int $voter_user_id, int $round_id ): ?string {
-		global $wpdb;
-
-		$rses_table = \RelataSoft\SecureElectionSuite\Database\Schema::rses_table( 'rses_encrypted_votes' );
-
-		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-		$rses_hashes = $wpdb->get_col(
-			$wpdb->prepare(
-				"SELECT vote_hash FROM {$rses_table} WHERE voter_user_id = %d AND round_id = %d ORDER BY id ASC",
-				$voter_user_id,
-				$round_id
-			)
-		);
-
-		if ( empty( $rses_hashes ) ) {
-			return null;
-		}
-
-		return HashService::rses_sha256( implode( '', $rses_hashes ) );
+		return PersistenceGateway::get()->votes->receiptHash( $voter_user_id, $round_id );
 	}
 }

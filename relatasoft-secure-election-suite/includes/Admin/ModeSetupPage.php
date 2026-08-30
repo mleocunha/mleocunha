@@ -1,6 +1,6 @@
 <?php
 /**
- * Mode setup admin page.
+ * Mode setup admin page — escolha e tranca do papel do sítio (C1 / E3).
  *
  * @package RelataSoft\SecureElectionSuite\Admin
  */
@@ -18,12 +18,17 @@ use RelataSoft\SecureElectionSuite\Admin\Brand;
 defined( 'ABSPATH' ) || exit;
 
 /**
- * Mode selection and destructive reset page.
+ * Página de escolha / troca de modo do sítio (C1 / E3).
+ *
+ * Fluxo:
+ * 1. Sítio novo → radios com os 3 modos de {@see ModeLock::rses_get_valid_modes()}.
+ * 2. Após escolha → modo trancado; UI mostra rótulo e bloqueia nova selecção.
+ * 3. Troca → só via reset destrutivo (apaga dados deste sítio; sem sync com os outros).
  */
 class ModeSetupPage {
 
 	/**
-	 * Register handlers.
+	 * Registar handlers admin-post (definir modo e reset destrutivo).
 	 */
 	public static function register(): void {
 		add_action( 'admin_post_rses_set_mode', array( self::class, 'rses_handle_set_mode' ) );
@@ -31,7 +36,7 @@ class ModeSetupPage {
 	}
 
 	/**
-	 * Render mode setup page.
+	 * Renderizar o ecrã «Modo do sítio» (copy PT-BR alinhada a E3).
 	 */
 	public static function rses_render(): void {
 		Capability::rses_require_admin();
@@ -42,38 +47,40 @@ class ModeSetupPage {
 		<div class="wrap rses-wrap rses-screen" <?php echo Translator::rses_html_attrs(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
 			<header class="rses-hero rses-hero--brand">
 				<?php Brand::rses_render_hero_brand(); ?>
-				<p class="rses-hero-kicker"><?php esc_html_e( 'Setup', 'relatasoft-secure-election-suite' ); ?></p>
-				<h1 class="rses-hero-title"><?php esc_html_e( 'Mode Setup', 'relatasoft-secure-election-suite' ); ?></h1>
-				<p class="rses-hero-lead"><?php esc_html_e( 'Select exactly one mode for this WordPress installation. Once selected, the mode is locked.', 'relatasoft-secure-election-suite' ); ?></p>
+				<p class="rses-hero-kicker"><?php esc_html_e( 'Instalação', 'relatasoft-secure-election-suite' ); ?></p>
+				<h1 class="rses-hero-title"><?php esc_html_e( 'Modo do sítio', 'relatasoft-secure-election-suite' ); ?></h1>
+				<p class="rses-hero-lead"><?php esc_html_e( 'Escolher exactamente um modo para este sítio. Depois de escolhido, o modo fica trancado (E3: 1 sítio = 1 papel).', 'relatasoft-secure-election-suite' ); ?></p>
 			</header>
 
 			<div class="rses-panel rses-panel-warning">
-				<p><?php esc_html_e( 'Select exactly one mode for this WordPress installation. Once selected, the mode is locked. Switching requires a destructive reset that removes all election data.', 'relatasoft-secure-election-suite' ); ?></p>
+				<p><?php esc_html_e( 'Um sítio só pode ser autoridade de chaves, votação ou apuração. Trocar de modo exige um reset destrutivo que apaga todos os dados eleitorais deste sítio. Não há sincronização automática com os outros sítios.', 'relatasoft-secure-election-suite' ); ?></p>
 			</div>
 
 			<?php if ( $rses_locked && $rses_mode ) : ?>
+				<?php /* Já trancado: só estado + caminho de reset destrutivo. */ ?>
 				<p>
-					<strong><?php esc_html_e( 'Current Mode:', 'relatasoft-secure-election-suite' ); ?></strong>
+					<strong><?php esc_html_e( 'Modo actual:', 'relatasoft-secure-election-suite' ); ?></strong>
 					<?php echo esc_html( ModeLock::rses_get_mode_label( $rses_mode ) ); ?>
-					<strong><?php esc_html_e( '(Locked)', 'relatasoft-secure-election-suite' ); ?></strong>
+					<strong><?php esc_html_e( '(trancado)', 'relatasoft-secure-election-suite' ); ?></strong>
 				</p>
 
-				<h2><?php esc_html_e( 'Destructive Reset', 'relatasoft-secure-election-suite' ); ?></h2>
-				<p><?php esc_html_e( 'To change modes, you must perform a destructive reset. This removes all keys, shares, elections, votes, tally imports, certifications, and audit logs.', 'relatasoft-secure-election-suite' ); ?></p>
-				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" onsubmit="return confirm('<?php echo esc_js( __( 'This will permanently delete ALL election data. Are you sure?', 'relatasoft-secure-election-suite' ) ); ?>');">
+				<h2><?php esc_html_e( 'Reset destrutivo', 'relatasoft-secure-election-suite' ); ?></h2>
+				<p><?php esc_html_e( 'Para mudar de modo, é necessário um reset destrutivo. Isto remove chaves, parcelas, eleições, votos, imports de apuração, certificações e registos de auditoria neste sítio.', 'relatasoft-secure-election-suite' ); ?></p>
+				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" onsubmit="return confirm('<?php echo esc_js( __( 'Isto apaga permanentemente TODOS os dados eleitorais deste sítio. Continuar?', 'relatasoft-secure-election-suite' ) ); ?>');">
 					<?php Nonce::rses_field( Nonce::RSES_ACTION_DESTRUCTIVE_RESET ); ?>
 					<input type="hidden" name="action" value="rses_destructive_reset" />
 					<input type="hidden" name="rses_confirm_reset" value="1" />
-					<?php submit_button( __( 'Destructive Reset', 'relatasoft-secure-election-suite' ), 'delete' ); ?>
+					<?php submit_button( __( 'Reset destrutivo', 'relatasoft-secure-election-suite' ), 'delete' ); ?>
 				</form>
 			<?php else : ?>
+				<?php /* Sem modo: listar os três papéis canónicos (SiteModes via ModeLock). */ ?>
 				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
 					<?php Nonce::rses_field( Nonce::RSES_ACTION_MODE_SET ); ?>
 					<input type="hidden" name="action" value="rses_set_mode" />
 
 					<table class="form-table">
 						<tr>
-							<th scope="row"><?php esc_html_e( 'Select Mode', 'relatasoft-secure-election-suite' ); ?></th>
+							<th scope="row"><?php esc_html_e( 'Seleccionar modo', 'relatasoft-secure-election-suite' ); ?></th>
 							<td>
 								<?php foreach ( ModeLock::rses_get_valid_modes() as $rses_slug => $rses_label ) : ?>
 									<label>
@@ -85,7 +92,7 @@ class ModeSetupPage {
 						</tr>
 					</table>
 
-					<?php submit_button( __( 'Lock Mode', 'relatasoft-secure-election-suite' ) ); ?>
+					<?php submit_button( __( 'Trancar modo', 'relatasoft-secure-election-suite' ) ); ?>
 				</form>
 			<?php endif; ?>
 		</div>
@@ -93,7 +100,8 @@ class ModeSetupPage {
 	}
 
 	/**
-	 * Handle mode set.
+	 * POST: validar nonce, sanitizar slug, trancar modo e redireccionar
+	 * para o ecrã “casa” do papel escolhido (chaves / eleições / import).
 	 */
 	public static function rses_handle_set_mode(): void {
 		Capability::rses_require_admin();
@@ -109,6 +117,7 @@ class ModeSetupPage {
 			wp_die( esc_html__( 'Failed to set mode.', 'relatasoft-secure-election-suite' ) );
 		}
 
+		// Landing por papel — evita mandar o operador para um ecrã do modo errado.
 		$rses_landing = array(
 			ModeLock::RSES_MODE_KEY_AUTHORITY => 'rses-key-authority',
 			ModeLock::RSES_MODE_VOTING        => 'rses-elections',
@@ -126,7 +135,8 @@ class ModeSetupPage {
 	}
 
 	/**
-	 * Handle destructive reset.
+	 * POST: confirmar e executar reset destrutivo; voltar a Mode Setup
+	 * com o sítio destrancado para nova escolha de papel.
 	 */
 	public static function rses_handle_destructive_reset(): void {
 		Capability::rses_require_admin();

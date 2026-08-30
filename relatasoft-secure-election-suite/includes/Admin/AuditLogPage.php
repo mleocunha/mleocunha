@@ -31,10 +31,11 @@ class AuditLogPage {
 	 * Render audit log page.
 	 */
 	public static function rses_render(): void {
-		Capability::rses_require_admin();
+		Capability::rses_require_audit_view();
 
 		$rses_entries = AuditLogger::rses_get_entries( 200 );
 		$rses_chain   = AuditLogger::rses_verify_chain();
+		$rses_is_admin = Capability::rses_can_manage_election();
 		?>
 		<div class="wrap rses-wrap rses-screen" <?php echo Translator::rses_html_attrs(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
 			<header class="rses-hero rses-hero--brand">
@@ -64,6 +65,7 @@ class AuditLogPage {
 							<li><?php echo esc_html( $rses_error ); ?></li>
 						<?php endforeach; ?>
 					</ul>
+					<?php if ( $rses_is_admin ) : ?>
 					<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
 						<?php Nonce::rses_field( 'rses_repair_audit_chain' ); ?>
 						<input type="hidden" name="action" value="rses_repair_audit_chain" />
@@ -72,6 +74,7 @@ class AuditLogPage {
 						</p>
 						<?php submit_button( __( 'Repair Hash Chain', 'relatasoft-secure-election-suite' ), 'secondary' ); ?>
 					</form>
+					<?php endif; ?>
 				<?php endif; ?>
 			</div>
 

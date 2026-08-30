@@ -1,16 +1,20 @@
 <?php
 /**
- * Share payload encryption using WordPress salts.
+ * Share payload encryption via SecretKeyProvider (A3).
  *
  * @package RelataSoft\SecureElectionSuite\KeyAuthority
  */
 
 namespace RelataSoft\SecureElectionSuite\KeyAuthority;
 
+use RelataSoft\SecureElectionSuite\Painel\Application\Identity\IdentityGateway;
+
 defined( 'ABSPATH' ) || exit;
 
 /**
  * Basic storage encryption abstraction (not HSM-grade).
+ *
+ * Key material comes only from {@see IdentityGateway} secrets — never host salts in this class.
  */
 class ShareEncryptionService {
 
@@ -68,15 +72,11 @@ class ShareEncryptionService {
 	}
 
 	/**
-	 * Derive encryption key from WordPress salts.
+	 * Derive encryption key via A3 SecretKeyProvider.
 	 *
 	 * @return string
 	 */
 	private static function rses_derive_key(): string {
-		$rses_material = ( defined( 'AUTH_KEY' ) ? AUTH_KEY : '' )
-			. ( defined( 'SECURE_AUTH_KEY' ) ? SECURE_AUTH_KEY : '' )
-			. ( defined( 'LOGGED_IN_KEY' ) ? LOGGED_IN_KEY : '' );
-
-		return hash( 'sha256', $rses_material . 'rses_share_encryption', true );
+		return IdentityGateway::get()->secrets->shareStorageKey();
 	}
 }

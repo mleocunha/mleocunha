@@ -4,7 +4,7 @@
  * Logic stays in PHP/JS cast handlers — this file is presentation only.
  */
 
-@import url("https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600;700&family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700&display=swap");
 
 .rses-booth {
 	--rses-primary: #0c7c9c;
@@ -17,8 +17,8 @@
 	--rses-soft-2: #f7fbfc;
 	--rses-radius: 10px;
 	--rses-gutter: 1rem;
-	--rses-font: "Source Sans 3", "Segoe UI", sans-serif;
-	--rses-display: "Source Serif 4", Georgia, serif;
+	--rses-font: "Open Sans", "Segoe UI", sans-serif;
+	--rses-display: "Open Sans", "Segoe UI", sans-serif;
 
 	box-sizing: border-box;
 	max-width: 42rem;

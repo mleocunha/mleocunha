@@ -2,10 +2,17 @@
 /**
  * Chunked electoral-roll import job (per administrator).
  *
+ * Uploads and imports .rsv (RelataSoft Separated Values) cadastro eleitoral files.
+ *
  * @package RelataSoft\SecureElectionSuite\Voting
  */
 
 namespace RelataSoft\SecureElectionSuite\Voting;
+
+use RelataSoft\SecureElectionSuite\Painel\Application\Identity\IdentityGateway;
+use RelataSoft\SecureElectionSuite\Painel\Application\Jobs\JobGateway;
+use RelataSoft\SecureElectionSuite\Painel\Contracts\Jobs\JobSlots;
+use RelataSoft\SecureElectionSuite\Painel\Domain\ElectoralRoll\RsvFormat;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -21,17 +28,40 @@ class ElectoralRollImportJob {
 	public const STAGE_FAILED    = 'failed';
 	public const STAGE_CANCELLED = 'cancelled';
 
-	public const BATCH_ROWS       = 35;
-	public const MAX_ERRORS_KEEP  = 150;
-	public const TTL_SECONDS      = 6 * HOUR_IN_SECONDS;
-	public const MAX_UPLOAD_BYTES = 67108864; // 64 MiB.
+	public const BATCH_ROWS      = 50;
+	public const MAX_ERRORS_KEEP = 150;
+	public const TTL_SECONDS     = 6 * HOUR_IN_SECONDS;
+
+	/**
+	 * Max upload size: 4 GiB (matches RsvFormat::maxUploadBytes(); class const must be compile-time).
+	 */
+	public const MAX_UPLOAD_BYTES = 4294967296; // 4 * 1024 * 1024 * 1024
 
 	/**
 	 * Option key for the current user.
+	 *
+	 * @deprecated Prefer {@see rses_slot()} + JobStore; option mapping lives in WordPressJobStore.
 	 */
 	public static function rses_option_key( ?int $user_id = null ): string {
-		$uid = $user_id ?? get_current_user_id();
+		$uid = $user_id ?? self::rses_owner_id();
 		return 'rses_electoral_roll_job_' . (int) $uid;
+	}
+
+	/**
+	 * JobStore slot for this owner.
+	 */
+	public static function rses_slot( ?int $user_id = null ): string {
+		return JobSlots::rsvImport( $user_id ?? self::rses_owner_id() );
+	}
+
+	private static function rses_owner_id( ?int $user_id = null ): int {
+		if ( null !== $user_id ) {
+			return (int) $user_id;
+		}
+		if ( IdentityGateway::isBooted() ) {
+			return IdentityGateway::get()->session->currentUserId();
+		}
+		return (int) get_current_user_id();
 	}
 
 	/**
@@ -39,7 +69,7 @@ class ElectoralRollImportJob {
 	 */
 	public static function rses_get( ?int $user_id = null ): ?array {
 		self::rses_purge_if_expired( $user_id );
-		$job = get_option( self::rses_option_key( $user_id ), null );
+		$job = JobGateway::get()->store->get( self::rses_slot( $user_id ) );
 		return is_array( $job ) ? $job : null;
 	}
 
@@ -48,29 +78,31 @@ class ElectoralRollImportJob {
 	 */
 	public static function rses_save( array $job, ?int $user_id = null ): void {
 		$job['updated_at'] = time();
-		update_option( self::rses_option_key( $user_id ), $job, false );
+		JobGateway::get()->store->put( self::rses_slot( $user_id ), $job );
 	}
 
 	public static function rses_delete( ?int $user_id = null ): void {
-		$job = get_option( self::rses_option_key( $user_id ), null );
+		$slot = self::rses_slot( $user_id );
+		$job  = JobGateway::get()->store->get( $slot );
 		if ( is_array( $job ) ) {
 			self::rses_unlink_file( $job );
 		}
-		delete_option( self::rses_option_key( $user_id ) );
+		JobGateway::get()->store->delete( $slot );
 	}
 
 	/**
 	 * @return bool True if purged.
 	 */
 	public static function rses_purge_if_expired( ?int $user_id = null ): bool {
-		$job = get_option( self::rses_option_key( $user_id ), null );
+		$slot = self::rses_slot( $user_id );
+		$job  = JobGateway::get()->store->get( $slot );
 		if ( ! is_array( $job ) ) {
 			return false;
 		}
 		$updated = (int) ( $job['updated_at'] ?? $job['created_at'] ?? 0 );
 		if ( $updated > 0 && ( time() - $updated ) > self::TTL_SECONDS ) {
 			self::rses_unlink_file( $job );
-			delete_option( self::rses_option_key( $user_id ) );
+			JobGateway::get()->store->delete( $slot );
 			return true;
 		}
 		return false;
@@ -92,7 +124,7 @@ class ElectoralRollImportJob {
 	}
 
 	/**
-	 * Persistent directory for CSV uploads (must survive across AJAX requests).
+	 * Persistent directory for RSV uploads (must survive across AJAX requests).
 	 *
 	 * System temp via wp_tempnam() is not safe here: many hosts clear /tmp between
 	 * requests, which makes validation fail immediately after a successful upload.
@@ -126,7 +158,7 @@ class ElectoralRollImportJob {
 	}
 
 	/**
-	 * Create an empty CSV file in the persistent import directory.
+	 * Create an empty RSV file in the persistent import directory.
 	 *
 	 * @return string|\WP_Error Absolute path.
 	 */
@@ -137,7 +169,7 @@ class ElectoralRollImportJob {
 		}
 
 		$token = wp_generate_password( 20, false, false );
-		$path  = trailingslashit( $dir ) . 'import-' . get_current_user_id() . '-' . $token . '.csv';
+		$path  = trailingslashit( $dir ) . 'import-' . get_current_user_id() . '-' . $token . '.' . RsvFormat::EXTENSION;
 
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen
 		$handle = fopen( $path, 'wb' );
@@ -152,12 +184,11 @@ class ElectoralRollImportJob {
 	/**
 	 * Ensure on-disk size matches the client-declared upload size.
 	 *
-	 * Parallel imports / retried chunks can append the CSV twice; a ~5000-row
-	 * sheet then looks like >10000 rows during validation. Truncate back to the
+	 * Parallel imports / retried chunks can append the RSV twice; truncate back to the
 	 * declared byte length when that happens.
 	 *
 	 * @param array<string,mixed> $job  Job.
-	 * @param string              $path Absolute CSV path.
+	 * @param string              $path Absolute RSV path.
 	 * @param int                 $size Current filesize.
 	 * @return array<string,mixed>|\WP_Error Updated job.
 	 */
@@ -175,7 +206,7 @@ class ElectoralRollImportJob {
 				'rses_upload_short',
 				sprintf(
 					/* translators: 1: bytes on disk, 2: declared bytes */
-					__( 'CSV upload is incomplete on the server (%1$s of %2$s). Please start the import again.', 'relatasoft-secure-election-suite' ),
+					__( 'RSV upload is incomplete on the server (%1$s of %2$s). Please start the import again.', 'relatasoft-secure-election-suite' ),
 					size_format( $size ),
 					size_format( $declared )
 				)
@@ -189,7 +220,7 @@ class ElectoralRollImportJob {
 			if ( false === $fh ) {
 				return new \WP_Error(
 					'rses_upload_dup',
-					__( 'CSV upload was larger than declared (possible duplicate append). Please start the import again.', 'relatasoft-secure-election-suite' )
+					__( 'RSV upload was larger than declared (possible duplicate append). Please start the import again.', 'relatasoft-secure-election-suite' )
 				);
 			}
 			$ok = ftruncate( $fh, $declared );
@@ -199,11 +230,11 @@ class ElectoralRollImportJob {
 			if ( ! $ok || false === $new_size || $new_size !== $declared ) {
 				return new \WP_Error(
 					'rses_upload_dup',
-					__( 'CSV upload was larger than declared (possible duplicate append). Please start the import again.', 'relatasoft-secure-election-suite' )
+					__( 'RSV upload was larger than declared (possible duplicate append). Please start the import again.', 'relatasoft-secure-election-suite' )
 				);
 			}
 			$job['bytes_received'] = $declared;
-			$job['message']        = __( 'Removed duplicated upload bytes; validating CSV…', 'relatasoft-secure-election-suite' );
+			$job['message']        = __( 'Removed duplicated upload bytes; validating RSV…', 'relatasoft-secure-election-suite' );
 		}
 
 		return $job;
@@ -244,13 +275,14 @@ class ElectoralRollImportJob {
 	 * @return array<string,mixed>|\WP_Error
 	 */
 	public static function rses_create_receiving( string $original_name, int $total_chunks, int $total_bytes, bool $update_existing ) {
-		if ( $total_bytes < 1 || $total_bytes > self::MAX_UPLOAD_BYTES ) {
+		$max = self::MAX_UPLOAD_BYTES;
+		if ( $total_bytes < 1 || $total_bytes > $max ) {
 			return new \WP_Error(
 				'rses_file_size',
 				sprintf(
 					/* translators: %s: max size label */
-					__( 'CSV file must be between 1 byte and %s.', 'relatasoft-secure-election-suite' ),
-					size_format( self::MAX_UPLOAD_BYTES )
+					__( 'RSV file must be between 1 byte and %s.', 'relatasoft-secure-election-suite' ),
+					size_format( $max )
 				)
 			);
 		}
@@ -286,7 +318,7 @@ class ElectoralRollImportJob {
 			'skipped'         => 0,
 			'errors'          => array(),
 			'error_count'     => 0,
-			'message'         => __( 'Receiving CSV upload…', 'relatasoft-secure-election-suite' ),
+			'message'         => __( 'Receiving RSV upload…', 'relatasoft-secure-election-suite' ),
 			'created_at'      => time(),
 			'updated_at'      => time(),
 		);
@@ -296,7 +328,7 @@ class ElectoralRollImportJob {
 	}
 
 	/**
-	 * Ingest a complete uploaded CSV and move straight to importing.
+	 * Ingest a complete uploaded RSV and move straight to importing.
 	 *
 	 * @param string $tmp_path        Uploaded temp path.
 	 * @param string $original_name   Original filename.
@@ -309,13 +341,14 @@ class ElectoralRollImportJob {
 		}
 
 		$size = filesize( $tmp_path );
-		if ( false === $size || $size < 1 || $size > self::MAX_UPLOAD_BYTES ) {
+		$max  = self::MAX_UPLOAD_BYTES;
+		if ( false === $size || $size < 1 || $size > $max ) {
 			return new \WP_Error(
 				'rses_file_size',
 				sprintf(
 					/* translators: %s: max size label */
-					__( 'CSV file must be between 1 byte and %s.', 'relatasoft-secure-election-suite' ),
-					size_format( self::MAX_UPLOAD_BYTES )
+					__( 'RSV file must be between 1 byte and %s.', 'relatasoft-secure-election-suite' ),
+					size_format( $max )
 				)
 			);
 		}
@@ -350,7 +383,7 @@ class ElectoralRollImportJob {
 
 		$job['chunks_received'] = 1;
 		$job['bytes_received']  = (int) $size;
-		$job['message']         = __( 'Validating CSV…', 'relatasoft-secure-election-suite' );
+		$job['message']         = __( 'Validating RSV…', 'relatasoft-secure-election-suite' );
 		self::rses_save( $job );
 
 		return self::rses_begin_import();
@@ -370,8 +403,7 @@ class ElectoralRollImportJob {
 		}
 
 		$expected = (int) ( $job['chunks_received'] ?? 0 );
-		// Idempotent: a retried chunk that was already accepted must not be appended again
-		// (that duplicates the CSV and trips the max-row check on ~5000-row sheets).
+		// Idempotent: a retried chunk that was already accepted must not be appended again.
 		if ( $chunk_index < $expected ) {
 			return $job;
 		}
@@ -399,7 +431,7 @@ class ElectoralRollImportJob {
 
 		$new_total = (int) $job['bytes_received'] + (int) $chunk_size;
 		if ( $new_total > self::MAX_UPLOAD_BYTES ) {
-			return new \WP_Error( 'rses_file_size', __( 'CSV upload exceeded the maximum allowed size.', 'relatasoft-secure-election-suite' ) );
+			return new \WP_Error( 'rses_file_size', __( 'RSV upload exceeded the maximum allowed size.', 'relatasoft-secure-election-suite' ) );
 		}
 
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen
@@ -433,7 +465,7 @@ class ElectoralRollImportJob {
 	}
 
 	/**
-	 * Validate CSV after upload and prepare for import ticks.
+	 * Validate RSV after upload and prepare for import ticks.
 	 *
 	 * @return array<string,mixed>|\WP_Error
 	 */
@@ -444,14 +476,14 @@ class ElectoralRollImportJob {
 		}
 
 		if ( (int) ( $job['chunks_received'] ?? 0 ) < (int) ( $job['total_chunks'] ?? 1 ) ) {
-			return new \WP_Error( 'rses_upload_incomplete', __( 'CSV upload is incomplete.', 'relatasoft-secure-election-suite' ) );
+			return new \WP_Error( 'rses_upload_incomplete', __( 'RSV upload is incomplete.', 'relatasoft-secure-election-suite' ) );
 		}
 
 		$path = (string) ( $job['file_path'] ?? '' );
 		if ( '' === $path || ! is_readable( $path ) ) {
 			$err = new \WP_Error(
 				'rses_file_missing',
-				__( 'The uploaded CSV is no longer available on the server. Please start the import again.', 'relatasoft-secure-election-suite' )
+				__( 'The uploaded RSV is no longer available on the server. Please start the import again.', 'relatasoft-secure-election-suite' )
 			);
 			$job['stage']   = self::STAGE_FAILED;
 			$job['message'] = $err->get_error_message();
@@ -464,7 +496,7 @@ class ElectoralRollImportJob {
 		if ( false === $size || $size < 1 ) {
 			$err = new \WP_Error(
 				'rses_file_empty',
-				__( 'The uploaded CSV is empty on the server. Please start the import again.', 'relatasoft-secure-election-suite' )
+				__( 'The uploaded RSV is empty on the server. Please start the import again.', 'relatasoft-secure-election-suite' )
 			);
 			$job['stage']   = self::STAGE_FAILED;
 			$job['message'] = $err->get_error_message();
@@ -485,7 +517,7 @@ class ElectoralRollImportJob {
 		$job = $normalized;
 
 		$job['stage']   = self::STAGE_READY;
-		$job['message'] = __( 'Validating CSV…', 'relatasoft-secure-election-suite' );
+		$job['message'] = __( 'Validating RSV…', 'relatasoft-secure-election-suite' );
 		self::rses_save( $job );
 
 		$prep = ElectoralRollImportService::rses_prepare_file( $path );
@@ -499,11 +531,12 @@ class ElectoralRollImportJob {
 
 		$job['stage']          = self::STAGE_IMPORTING;
 		$job['map']            = $prep['map'];
+		$job['format']         = (string) ( $prep['format'] ?? 'rsv' );
 		$job['byte_offset']    = $prep['byte_offset'];
 		$job['next_row_num']   = 1;
 		$job['total_rows']     = $prep['total_rows'];
 		$job['processed_rows'] = 0;
-		$job['message']        = __( 'Importing electoral roll…', 'relatasoft-secure-election-suite' );
+		$job['message']        = __( 'Importing electoral roll (.rsv)…', 'relatasoft-secure-election-suite' );
 		self::rses_save( $job );
 		return $job;
 	}
@@ -554,12 +587,12 @@ class ElectoralRollImportJob {
 			return $batch;
 		}
 
-		$job['byte_offset']     = (int) $batch['byte_offset'];
-		$job['next_row_num']    = (int) $batch['next_row_num'];
-		$job['processed_rows']  = (int) $job['processed_rows'] + (int) $batch['processed'];
-		$job['created']         = (int) $job['created'] + (int) $batch['created'];
-		$job['updated']         = (int) $job['updated'] + (int) $batch['updated'];
-		$job['skipped']         = (int) $job['skipped'] + (int) $batch['skipped'];
+		$job['byte_offset']    = (int) $batch['byte_offset'];
+		$job['next_row_num']   = (int) $batch['next_row_num'];
+		$job['processed_rows'] = (int) $job['processed_rows'] + (int) $batch['processed'];
+		$job['created']        = (int) $job['created'] + (int) $batch['created'];
+		$job['updated']        = (int) $job['updated'] + (int) $batch['updated'];
+		$job['skipped']        = (int) $job['skipped'] + (int) $batch['skipped'];
 
 		foreach ( $batch['errors'] as $err ) {
 			self::rses_push_error( $job, (string) $err );
@@ -567,7 +600,7 @@ class ElectoralRollImportJob {
 
 		if ( ! empty( $batch['done'] ) ) {
 			$job['stage']   = self::STAGE_COMPLETE;
-			$job['message'] = __( 'Electoral roll import finished.', 'relatasoft-secure-election-suite' );
+			$job['message'] = __( 'Electoral roll RSV import finished.', 'relatasoft-secure-election-suite' );
 			ElectoralRollImportService::rses_log_import_audit(
 				(int) $job['created'],
 				(int) $job['updated'],
@@ -577,7 +610,7 @@ class ElectoralRollImportJob {
 			self::rses_unlink_file( $job );
 			$job['file_path'] = '';
 		} else {
-			$total = max( 1, (int) $job['total_rows'] );
+			$total          = max( 1, (int) $job['total_rows'] );
 			$job['message'] = sprintf(
 				/* translators: 1: processed rows, 2: total rows */
 				__( 'Imported %1$d of %2$d rows…', 'relatasoft-secure-election-suite' ),
@@ -612,6 +645,82 @@ class ElectoralRollImportJob {
 	}
 
 	/**
+	 * Upload progress 0–100 from chunks (or bytes when available).
+	 *
+	 * @param array<string,mixed> $job Job.
+	 */
+	private static function rses_upload_progress( array $job ): int {
+		$total_chunks = max( 1, (int) ( $job['total_chunks'] ?? 1 ) );
+		$chunks       = (int) ( $job['chunks_received'] ?? 0 );
+		$by_chunks    = (int) floor( ( $chunks / $total_chunks ) * 100 );
+
+		$total_bytes = (int) ( $job['total_bytes'] ?? 0 );
+		if ( $total_bytes > 0 ) {
+			$received = (int) ( $job['bytes_received'] ?? 0 );
+			$by_bytes = (int) floor( ( min( $received, $total_bytes ) / $total_bytes ) * 100 );
+			return max( 0, min( 100, max( $by_chunks, $by_bytes ) ) );
+		}
+
+		return max( 0, min( 100, $by_chunks ) );
+	}
+
+	/**
+	 * Import progress 0–100 from processed data rows.
+	 *
+	 * @param array<string,mixed> $job Job.
+	 */
+	private static function rses_import_progress( array $job ): int {
+		$stage = (string) ( $job['stage'] ?? '' );
+		if ( self::STAGE_COMPLETE === $stage ) {
+			return 100;
+		}
+		$total = (int) ( $job['total_rows'] ?? 0 );
+		if ( $total < 1 ) {
+			return 0;
+		}
+		$done = min( $total, (int) ( $job['processed_rows'] ?? 0 ) );
+		return max( 0, min( 100, (int) floor( ( $done / $total ) * 100 ) ) );
+	}
+
+	/**
+	 * Overall progress: upload weighted 0–40, import weighted 40–100 (backward compat).
+	 *
+	 * @param array<string,mixed> $job Job.
+	 */
+	private static function rses_overall_progress( array $job, int $upload_progress, int $import_progress ): int {
+		$stage = (string) ( $job['stage'] ?? '' );
+
+		if ( self::STAGE_COMPLETE === $stage ) {
+			return 100;
+		}
+
+		if ( self::STAGE_RECEIVING === $stage ) {
+			return max( 0, min( 40, (int) floor( $upload_progress * 0.4 ) ) );
+		}
+
+		if ( self::STAGE_READY === $stage ) {
+			// Upload done; validation in progress — park at end of upload band.
+			return 40;
+		}
+
+		if ( self::STAGE_IMPORTING === $stage ) {
+			return 40 + max( 0, min( 60, (int) floor( $import_progress * 0.6 ) ) );
+		}
+
+		if ( self::STAGE_FAILED === $stage || self::STAGE_CANCELLED === $stage ) {
+			if ( $import_progress > 0 || (int) ( $job['processed_rows'] ?? 0 ) > 0 ) {
+				return 40 + max( 0, min( 60, (int) floor( $import_progress * 0.6 ) ) );
+			}
+			if ( $upload_progress > 0 || (int) ( $job['chunks_received'] ?? 0 ) > 0 ) {
+				return max( 0, min( 40, (int) floor( $upload_progress * 0.4 ) ) );
+			}
+			return 0;
+		}
+
+		return 0;
+	}
+
+	/**
 	 * Public status payload for the admin UI.
 	 *
 	 * @param array<string,mixed>|null $job Job.
@@ -620,66 +729,58 @@ class ElectoralRollImportJob {
 	public static function rses_public_status( ?array $job ): array {
 		if ( ! $job ) {
 			return array(
-				'active'          => false,
-				'stage'           => '',
-				'stage_label'     => '',
-				'progress'        => 0,
-				'message'         => '',
-				'created'         => 0,
-				'updated'         => 0,
-				'skipped'         => 0,
-				'error_count'     => 0,
-				'processed_rows'  => 0,
-				'total_rows'      => 0,
-				'errors'          => array(),
-				'chunks_received' => 0,
-				'total_chunks'    => 0,
+				'active'           => false,
+				'stage'            => '',
+				'stage_label'      => '',
+				'progress'         => 0,
+				'upload_progress'  => 0,
+				'import_progress'  => 0,
+				'message'          => '',
+				'created'          => 0,
+				'updated'          => 0,
+				'skipped'          => 0,
+				'error_count'      => 0,
+				'processed_rows'   => 0,
+				'total_rows'       => 0,
+				'errors'           => array(),
+				'chunks_received'  => 0,
+				'total_chunks'     => 0,
 			);
 		}
 
-		$stage = (string) ( $job['stage'] ?? '' );
-		$progress = 0;
+		$stage            = (string) ( $job['stage'] ?? '' );
+		$upload_progress  = self::rses_upload_progress( $job );
+		$import_progress  = self::rses_import_progress( $job );
 
-		if ( self::STAGE_RECEIVING === $stage ) {
-			$total = max( 1, (int) ( $job['total_chunks'] ?? 1 ) );
-			$progress = (int) floor( ( (int) ( $job['chunks_received'] ?? 0 ) / $total ) * 20 );
-		} elseif ( self::STAGE_READY === $stage ) {
-			$progress = 22;
-		} elseif ( self::STAGE_IMPORTING === $stage ) {
-			$total = max( 1, (int) ( $job['total_rows'] ?? 1 ) );
-			$done  = min( $total, (int) ( $job['processed_rows'] ?? 0 ) );
-			$progress = 20 + (int) floor( ( $done / $total ) * 80 );
-		} elseif ( self::STAGE_COMPLETE === $stage ) {
-			$progress = 100;
+		// Once past receiving, treat upload as complete for the dedicated meter.
+		if ( in_array( $stage, array( self::STAGE_READY, self::STAGE_IMPORTING, self::STAGE_COMPLETE ), true ) ) {
+			$upload_progress = 100;
 		} elseif ( self::STAGE_FAILED === $stage || self::STAGE_CANCELLED === $stage ) {
-			$total = max( 1, (int) ( $job['total_rows'] ?? 1 ) );
-			$done  = min( $total, (int) ( $job['processed_rows'] ?? 0 ) );
-			if ( $done > 0 ) {
-				$progress = 20 + (int) floor( ( $done / $total ) * 80 );
-			} elseif ( (int) ( $job['chunks_received'] ?? 0 ) > 0 ) {
-				// Failed during/after validation — keep the validating marker, not 0%.
-				$progress = 22;
-			} else {
-				$progress = 0;
+			if ( (int) ( $job['total_rows'] ?? 0 ) > 0 || (int) ( $job['processed_rows'] ?? 0 ) > 0 ) {
+				$upload_progress = 100;
 			}
 		}
 
+		$progress = self::rses_overall_progress( $job, $upload_progress, $import_progress );
+
 		return array(
-			'active'          => in_array( $stage, array( self::STAGE_RECEIVING, self::STAGE_READY, self::STAGE_IMPORTING ), true ),
-			'stage'           => $stage,
-			'stage_label'     => self::rses_stage_label( $stage ),
-			'progress'        => max( 0, min( 100, $progress ) ),
-			'message'         => (string) ( $job['message'] ?? '' ),
-			'created'         => (int) ( $job['created'] ?? 0 ),
-			'updated'         => (int) ( $job['updated'] ?? 0 ),
-			'skipped'         => (int) ( $job['skipped'] ?? 0 ),
-			'error_count'     => (int) ( $job['error_count'] ?? 0 ),
-			'processed_rows'  => (int) ( $job['processed_rows'] ?? 0 ),
-			'total_rows'      => (int) ( $job['total_rows'] ?? 0 ),
-			'errors'          => array_values( (array) ( $job['errors'] ?? array() ) ),
-			'chunks_received' => (int) ( $job['chunks_received'] ?? 0 ),
-			'total_chunks'    => (int) ( $job['total_chunks'] ?? 0 ),
-			'original_name'   => (string) ( $job['original_name'] ?? '' ),
+			'active'           => in_array( $stage, array( self::STAGE_RECEIVING, self::STAGE_READY, self::STAGE_IMPORTING ), true ),
+			'stage'            => $stage,
+			'stage_label'      => self::rses_stage_label( $stage ),
+			'progress'         => max( 0, min( 100, $progress ) ),
+			'upload_progress'  => max( 0, min( 100, $upload_progress ) ),
+			'import_progress'  => max( 0, min( 100, $import_progress ) ),
+			'message'          => (string) ( $job['message'] ?? '' ),
+			'created'          => (int) ( $job['created'] ?? 0 ),
+			'updated'          => (int) ( $job['updated'] ?? 0 ),
+			'skipped'          => (int) ( $job['skipped'] ?? 0 ),
+			'error_count'      => (int) ( $job['error_count'] ?? 0 ),
+			'processed_rows'   => (int) ( $job['processed_rows'] ?? 0 ),
+			'total_rows'       => (int) ( $job['total_rows'] ?? 0 ),
+			'errors'           => array_values( (array) ( $job['errors'] ?? array() ) ),
+			'chunks_received'  => (int) ( $job['chunks_received'] ?? 0 ),
+			'total_chunks'     => (int) ( $job['total_chunks'] ?? 0 ),
+			'original_name'    => (string) ( $job['original_name'] ?? '' ),
 		);
 	}
 

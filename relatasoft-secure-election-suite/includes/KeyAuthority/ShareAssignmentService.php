@@ -12,8 +12,8 @@ use RelataSoft\SecureElectionSuite\Crypto\CryptoException;
 use RelataSoft\SecureElectionSuite\Crypto\ElGamalKeyPair;
 use RelataSoft\SecureElectionSuite\Crypto\PrimeGenerator;
 use RelataSoft\SecureElectionSuite\Crypto\ShamirSecretSharing;
-use RelataSoft\SecureElectionSuite\Database\Repository;
 use RelataSoft\SecureElectionSuite\Exports\HashService;
+use RelataSoft\SecureElectionSuite\Painel\Application\Persistence\PersistenceGateway;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -90,23 +90,14 @@ class ShareAssignmentService {
 
 			$rses_row['audit_hash'] = HashService::rses_hash_json( $rses_row );
 
-			$rses_share_ids[] = Repository::rses_insert(
-				'rses_shares',
-				$rses_row,
-				array( '%d', '%d', '%d', '%d', '%s', '%d', '%d', '%s', '%s', '%s', '%s' )
-			);
+			$rses_share_ids[] = PersistenceGateway::get()->shares->create( $rses_row );
 		}
 
-		Repository::rses_update(
-			'rses_keys',
-			array(
-				'field_prime' => BigInt::toDecimalString( $rses_field_prime ),
-				'threshold_t' => $threshold,
-				'total_n'     => $total,
-			),
-			array( 'id' => $key_id ),
-			array( '%s', '%d', '%d' ),
-			array( '%d' )
+		PersistenceGateway::get()->keys->updateThresholdMeta(
+			$key_id,
+			BigInt::toDecimalString( $rses_field_prime ),
+			$threshold,
+			$total
 		);
 
 		return $rses_share_ids;

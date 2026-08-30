@@ -22,9 +22,9 @@ class Brand {
 	public const RSES_DEFAULT_LOCKUP = 'relatasoft-logo-lockup-dark.png';
 
 	/**
-	 * Compact pinwheel mark (login fallback / solo decoration).
+	 * Compact Roda de Fogo mark (login fallback / solo decoration).
 	 */
-	public const RSES_DEFAULT_MARK = 'relatasoft-mark.svg';
+	public const RSES_DEFAULT_MARK = 'relatasoft-mark.png';
 
 	/**
 	 * URL to a brand asset.

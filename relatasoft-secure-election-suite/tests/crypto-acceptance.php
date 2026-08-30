@@ -8,6 +8,17 @@
 define( 'ABSPATH', true );
 define( 'RSES_VERSION', '1.0.0' );
 
+if ( ! function_exists( '__' ) ) {
+	/**
+	 * Minimal gettext stub for CLI acceptance (Domain crypto itself does not use it).
+	 */
+	function __( string $text, string $domain = 'default' ): string {
+		return $text;
+	}
+}
+
+require_once dirname( __DIR__ ) . '/vendor/autoload.php';
+
 require_once dirname( __DIR__ ) . '/includes/Crypto/CryptoException.php';
 require_once dirname( __DIR__ ) . '/includes/Crypto/BigInt.php';
 require_once dirname( __DIR__ ) . '/includes/Crypto/CryptoRandom.php';
@@ -18,13 +29,8 @@ require_once dirname( __DIR__ ) . '/includes/Crypto/ElGamal.php';
 require_once dirname( __DIR__ ) . '/includes/Crypto/CryptoEncoding.php';
 require_once dirname( __DIR__ ) . '/includes/Crypto/HomomorphicTally.php';
 require_once dirname( __DIR__ ) . '/includes/Crypto/ShamirSecretSharing.php';
+require_once dirname( __DIR__ ) . '/includes/Crypto/SchnorrSignature.php';
 require_once dirname( __DIR__ ) . '/includes/Crypto/CryptoSelfTest.php';
-
-if ( ! function_exists( '__' ) ) {
-	function __( string $text, string $domain = 'default' ): string {
-		return $text;
-	}
-}
 
 use RelataSoft\SecureElectionSuite\Crypto\CryptoSelfTest;
 

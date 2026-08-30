@@ -1,0 +1,69 @@
+#!/usr/bin/env php
+<?php
+declare(strict_types=1);
+
+/**
+ * Smoke C2 / R4 — matriz da política de máscara 404 sem HTTP.
+ *
+ * Corre em CI (PHP 8.3) e localmente sem sítio vivo. Valida que
+ * {@see UrlMaskConfig::publicAccessDecision} devolve exactamente o veredicto
+ * esperado para cada path crítico de ops.
+ *
+ * Códigos de saída:
+ * - 0 — todos os casos passam (JSON de resumo em stdout)
+ * - 1 — pelo menos um caso falhou (detalhe em stderr)
+ *
+ * Nota: isto não substitui `curl` pós-deploy num HOST real; cobre a política
+ * de domínio partilhada entre PHP e o smoke de regressão.
+ */
+
+$root = dirname( __DIR__ );
+require $root . '/vendor/autoload.php';
+
+use RelataSoft\SecureElectionSuite\Painel\Domain\Platform\UrlMaskConfig;
+
+/**
+ * Cada caso: [path, gatewayAdminPronto, stubLoginPronto, veredictoEsperado].
+ *
+ * Com stubs prontos (true, true):
+ * - login/admin clássicos → not_found
+ * - ecrãs retirados sob /painel → not_found
+ * - entrada /painel/admin.php e loaders de assets → allow
+ * - id.php (login mascarado) → allow
+ */
+$cases = array(
+	array( '/wp-login.php', true, true, 'not_found' ),
+	array( '/wp-admin/admin.php', true, true, 'not_found' ),
+	array( '/wp-admin/admin-ajax.php', true, true, 'not_found' ),
+	array( '/painel/admin.php', true, true, 'allow' ),
+	array( '/painel/plugins.php', true, true, 'not_found' ),
+	array( '/painel/themes.php', true, true, 'not_found' ),
+	array( '/wp-admin/load-styles.php', true, true, 'allow' ),
+	array( '/id.php', true, true, 'allow' ),
+);
+
+$failed = 0;
+foreach ( $cases as [$path, $gw, $login, $want] ) {
+	$got = UrlMaskConfig::publicAccessDecision( $path, $gw, $login );
+	if ( $got !== $want ) {
+		fwrite( STDERR, "FAIL {$path}: got {$got}, want {$want}\n" );
+		++$failed;
+	}
+}
+
+if ( $failed > 0 ) {
+	fwrite( STDERR, "C2 smoke: {$failed} failure(s)\n" );
+	exit( 1 );
+}
+
+// Resumo estável para logs de CI / ops (JSON, Unicode preservado).
+echo json_encode(
+	array(
+		'ok'    => true,
+		'gate'  => 'C2',
+		'cases' => count( $cases ),
+		'note'  => 'Policy matrix OK. Manual curl on a live sítio still recommended after deploy.',
+	),
+	JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE
+) . "\n";
+exit( 0 );

@@ -7,6 +7,8 @@
 
 namespace RelataSoft\SecureElectionSuite\Bootstrap;
 
+use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\Platform\PlatformUrlMask;
+
 defined( 'ABSPATH' ) || exit;
 
 /**
@@ -18,6 +20,9 @@ class Deactivator {
 	 * Deactivate the plugin.
 	 */
 	public static function deactivate(): void {
+		PlatformUrlMask::removeLoginStub();
+		PlatformUrlMask::removeAdminAlias();
+		PlatformUrlMask::clearHtaccessRules();
 		flush_rewrite_rules();
 	}
 }

@@ -7,8 +7,12 @@
 
 namespace RelataSoft\SecureElectionSuite\Bootstrap;
 
+use RelataSoft\SecureElectionSuite\Database\Migration;
 use RelataSoft\SecureElectionSuite\Frontend\JourneySettings;
-use RelataSoft\SecureElectionSuite\Frontend\VoterJourney;
+use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\Journey\WordPressJourneyFrontController;
+use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\Platform\PlatformUrlMask;
+use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\User\AuditorRoleRegistrar;
+use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\User\GestorRoleRegistrar;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -42,11 +46,32 @@ class Activator {
 			}
 		}
 
-		if ( ModeLock::rses_is_mode( ModeLock::RSES_MODE_VOTING ) ) {
-			VoterJourney::rses_provision_pages();
+		// Native /voto routes are the default itinerary (M5). Host pages remain
+		// opt-in via Redirections → “Provisionar páginas do itinerário”.
+
+		GestorRoleRegistrar::ensureRole();
+		AuditorRoleRegistrar::ensureRole();
+
+		try {
+			PlatformUrlMask::writeLoginStub();
+			PlatformUrlMask::writeAdminGateway();
+			PlatformUrlMask::writeHtaccessRules();
+			PlatformUrlMask::writeNginxSnippet();
+			PlatformUrlMask::installMuPlugin();
+			PlatformUrlMask::registerRewrites();
+		} catch ( \Throwable $e ) {
+			// Gateway is best-effort; never fail activation because of URL mask FS writes.
+			if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+				// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+				error_log( 'RSES activation URL mask: ' . $e->getMessage() );
+			}
 		}
 
+		WordPressJourneyFrontController::registerRewrites();
 		flush_rewrite_rules();
+		if ( defined( 'RSES_VERSION' ) ) {
+			update_option( 'rses_journey_routes_version', (string) RSES_VERSION, false );
+		}
 	}
 
 	/**
@@ -57,13 +82,15 @@ class Activator {
 	private static function rses_validate_dependencies(): void {
 		$rses_errors = array();
 
-		if ( version_compare( PHP_VERSION, '8.1', '<' ) ) {
-			$rses_errors[] = __( 'PHP 8.1 or higher is required.', 'relatasoft-secure-election-suite' );
+		if ( version_compare( PHP_VERSION, '8.2', '<' ) ) {
+			$rses_errors[] = __( 'PHP 8.2 or higher is required.', 'relatasoft-secure-election-suite' );
 		}
 
 		if ( ! extension_loaded( 'gmp' ) ) {
-			$rses_errors[] = __( 'The GMP extension is required for cryptographic operations.', 'relatasoft-secure-election-suite' );
+			// Soft dependency: allow activation; crypto screens show the admin notice.
 			update_option( 'rses_gmp_missing_notice', '1' );
+		} else {
+			delete_option( 'rses_gmp_missing_notice' );
 		}
 
 		if ( ! extension_loaded( 'json' ) ) {

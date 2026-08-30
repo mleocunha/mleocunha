@@ -96,7 +96,7 @@
 
 	function rsesOpenOptionMediaFrame($row) {
 		if (typeof wp === 'undefined' || !wp.media) {
-			window.alert('WordPress media library is unavailable on this screen.');
+			window.alert('Biblioteca de mídia indisponível nesta tela.');
 			return;
 		}
 
@@ -265,6 +265,47 @@
 						})
 					);
 				}
+			});
+		}
+
+		var $roundAudioPick = $('#rses-round-audio-pick');
+		if ($roundAudioPick.length && typeof wp !== 'undefined' && wp.media) {
+			var $audioInput = $('#rses_round_end_audio_id');
+			var $audioPreview = $('#rses-round-audio-preview');
+			var $audioClear = $('#rses-round-audio-clear');
+
+			$roundAudioPick.on('click', function (e) {
+				e.preventDefault();
+				var frame = wp.media({
+					title: $roundAudioPick.data('rses-title') || 'Select audio',
+					button: { text: $roundAudioPick.data('rses-button') || 'Use this audio' },
+					multiple: false,
+					library: { type: 'audio' }
+				});
+				frame.on('select', function () {
+					var attachment = frame.state().get('selection').first().toJSON();
+					$audioInput.val(String(attachment.id));
+					$audioPreview
+						.removeAttr('hidden')
+						.show()
+						.empty()
+						.append(
+							$('<audio>', {
+								controls: true,
+								preload: 'metadata',
+								src: attachment.url
+							})
+						);
+					$audioClear.removeAttr('hidden').show();
+				});
+				frame.open();
+			});
+
+			$audioClear.on('click', function (e) {
+				e.preventDefault();
+				$audioInput.val('0');
+				$audioPreview.attr('hidden', true).hide().empty();
+				$audioClear.attr('hidden', true).hide();
 			});
 		}
 	});

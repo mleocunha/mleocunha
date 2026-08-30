@@ -7,9 +7,8 @@
 
 namespace RelataSoft\SecureElectionSuite\Tallying;
 
-use RelataSoft\SecureElectionSuite\Database\Repository;
-use RelataSoft\SecureElectionSuite\Database\Schema;
 use RelataSoft\SecureElectionSuite\Exports\HashService;
+use RelataSoft\SecureElectionSuite\Painel\Application\Persistence\PersistenceGateway;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -46,11 +45,7 @@ class TallyImportRepository {
 
 		$rses_row['audit_hash'] = HashService::rses_hash_json( $rses_row );
 
-		return Repository::rses_insert(
-			'rses_tally_imports',
-			$rses_row,
-			array( '%s', '%s', '%s', '%s', '%s', '%d', '%s', '%s', '%d', '%s', '%s', '%s' )
-		);
+		return PersistenceGateway::get()->tallyImports->create( $rses_row );
 	}
 
 	/**
@@ -60,7 +55,8 @@ class TallyImportRepository {
 	 * @return object|null
 	 */
 	public static function rses_get( int $import_id ): ?object {
-		return Repository::rses_get_by_id( 'rses_tally_imports', $import_id );
+		$row = PersistenceGateway::get()->tallyImports->find( $import_id );
+		return null === $row ? null : (object) $row;
 	}
 
 	/**
@@ -69,21 +65,10 @@ class TallyImportRepository {
 	 * @return array<int,object>
 	 */
 	public static function rses_list(): array {
-		global $wpdb;
-
-		$rses_table = Schema::rses_table( 'rses_tally_imports' );
-
-		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-		$rses_rows = $wpdb->get_results(
-			"SELECT id, source_site_url, election_external_id, round_external_id,
-				election_title, round_title, ballot_count,
-				import_hash, imported_by, imported_at, status, audit_hash,
-				LENGTH(import_manifest_json) AS manifest_bytes
-			FROM {$rses_table}
-			ORDER BY id DESC"
+		return array_map(
+			static fn( array $row ) => (object) $row,
+			PersistenceGateway::get()->tallyImports->listSummaries()
 		);
-
-		return is_array( $rses_rows ) ? $rses_rows : array();
 	}
 
 	/**
@@ -169,29 +154,72 @@ class TallyImportRepository {
 	}
 
 	/**
+	 * Short fingerprint of a public key (stable across sites; labels may collide).
+	 *
+	 * @param array<string,mixed> $public_key Public key fields.
+	 */
+	public static function rses_public_key_fingerprint( array $public_key ): string {
+		$rses_y = (string) ( $public_key['y'] ?? '' );
+		if ( '' === $rses_y ) {
+			return '';
+		}
+		return substr( hash( 'sha256', $rses_y ), 0, 12 );
+	}
+
+	/**
+	 * Locale-specific word an administrator must type to delete an import.
+	 */
+	public static function rses_delete_confirm_word(): string {
+		return \RelataSoft\SecureElectionSuite\Security\ConfirmWord::rses_word();
+	}
+
+	/**
+	 * Whether typed text matches the required confirmation word.
+	 *
+	 * @param string $typed User input.
+	 */
+	public static function rses_confirm_word_matches( string $typed ): bool {
+		return \RelataSoft\SecureElectionSuite\Security\ConfirmWord::rses_matches( $typed );
+	}
+
+	/**
+	 * Permanently delete an imported election and related tally data.
+	 *
+	 * Removes share submissions, certifications, signed/decryption caches, and the import row.
+	 *
+	 * @param int $import_id Import ID.
+	 * @return bool
+	 */
+	public static function rses_delete( int $import_id ): bool {
+		if ( $import_id < 1 ) {
+			return false;
+		}
+
+		$rses_import = self::rses_get( $import_id );
+		if ( ! $rses_import ) {
+			return false;
+		}
+
+		OfficialShareSubmissionController::rses_clear_submissions_for_import( $import_id );
+		PersistenceGateway::get()->certifications->deleteByImport( $import_id );
+
+		delete_transient( 'rses_certification_' . $import_id );
+		delete_transient( 'rses_decryption_result_' . $import_id );
+		delete_transient( 'rses_tally_import_flash_' . $import_id );
+		SignedResultsService::rses_clear( $import_id );
+
+		return PersistenceGateway::get()->tallyImports->delete( $import_id );
+	}
+
+	/**
 	 * Backfill election/round titles for older imports (safe-sized manifests only).
 	 *
 	 * @return int Rows updated.
 	 */
 	public static function rses_backfill_summaries(): int {
-		global $wpdb;
-
-		$rses_table = Schema::rses_table( 'rses_tally_imports' );
-
-		// Column may not exist until migration runs.
-		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-		$rses_has = $wpdb->get_results( "SHOW COLUMNS FROM {$rses_table} LIKE 'election_title'" );
-		if ( empty( $rses_has ) ) {
-			return 0;
-		}
-
-		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-		$rses_ids = $wpdb->get_col(
-			"SELECT id FROM {$rses_table}
-			WHERE (election_title IS NULL OR election_title = '')
-			AND LENGTH(import_manifest_json) <= " . (int) self::RSES_MAX_SAFE_MANIFEST_BYTES . '
-			ORDER BY id DESC
-			LIMIT 50'
+		$rses_ids = PersistenceGateway::get()->tallyImports->listIdsNeedingSummary(
+			50,
+			self::RSES_MAX_SAFE_MANIFEST_BYTES
 		);
 
 		if ( empty( $rses_ids ) ) {
@@ -209,16 +237,13 @@ class TallyImportRepository {
 			if ( '' === $rses_summary['election_title'] && '' === $rses_summary['round_title'] ) {
 				continue;
 			}
-			$rses_ok = Repository::rses_update(
-				'rses_tally_imports',
+			$rses_ok = PersistenceGateway::get()->tallyImports->updateSummary(
+				(int) $rses_id,
 				array(
 					'election_title' => $rses_summary['election_title'] ?: null,
 					'round_title'    => $rses_summary['round_title'] ?: null,
 					'ballot_count'   => $rses_summary['ballot_count'],
-				),
-				array( 'id' => (int) $rses_id ),
-				array( '%s', '%s', '%d' ),
-				array( '%d' )
+				)
 			);
 			if ( $rses_ok ) {
 				++$rses_updated;
@@ -231,16 +256,13 @@ class TallyImportRepository {
 	/**
 	 * Replace oversized manifests with a tiny stub so admin pages stop white-screening.
 	 *
-	 * Uses SQL LENGTH only — never reads the huge JSON into PHP.
+	 * Adapter implements SIZE check — never reads the huge JSON into PHP on Adapter #1.
 	 *
 	 * @param int $max_bytes Max safe stored manifest size.
 	 * @return int Rows updated.
 	 */
 	public static function rses_purge_oversized_manifests( int $max_bytes = self::RSES_MAX_SAFE_MANIFEST_BYTES ): int {
-		global $wpdb;
-
-		$rses_table = Schema::rses_table( 'rses_tally_imports' );
-		$rses_stub  = wp_json_encode(
+		$rses_stub = wp_json_encode(
 			array(
 				'purged'            => true,
 				'reason'            => 'import_manifest_json exceeded safe size for this PHP memory_limit; re-import with RelataSoft Secure Election Suite 1.0.27.4+',
@@ -250,18 +272,10 @@ class TallyImportRepository {
 			JSON_UNESCAPED_SLASHES
 		);
 
-		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-		$rses_result = $wpdb->query(
-			$wpdb->prepare(
-				"UPDATE {$rses_table}
-				SET import_manifest_json = %s, status = 'rejected'
-				WHERE LENGTH(import_manifest_json) > %d",
-				$rses_stub,
-				$max_bytes
-			)
+		return PersistenceGateway::get()->tallyImports->purgeOversizedManifests(
+			is_string( $rses_stub ) ? $rses_stub : '{}',
+			$max_bytes
 		);
-
-		return false === $rses_result ? 0 : (int) $rses_result;
 	}
 
 	/**
@@ -272,13 +286,7 @@ class TallyImportRepository {
 	 * @return bool
 	 */
 	public static function rses_update_status( int $import_id, string $status ): bool {
-		return Repository::rses_update(
-			'rses_tally_imports',
-			array( 'status' => $status ),
-			array( 'id' => $import_id ),
-			array( '%s' ),
-			array( '%d' )
-		);
+		return PersistenceGateway::get()->tallyImports->updateStatus( $import_id, $status );
 	}
 
 	/**
