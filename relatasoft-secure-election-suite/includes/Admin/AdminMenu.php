@@ -212,8 +212,8 @@ class AdminMenu {
 
 			add_submenu_page(
 				'rses-dashboard',
-				__( 'Shortcodes', 'relatasoft-secure-election-suite' ),
-				__( 'Shortcodes', 'relatasoft-secure-election-suite' ),
+				__( 'URLs da jornada', 'relatasoft-secure-election-suite' ),
+				__( 'URLs da jornada', 'relatasoft-secure-election-suite' ),
 				$rses_admin_cap,
 				'rses-shortcodes',
 				array( VotingViews::class, 'rses_render_shortcodes_page' )

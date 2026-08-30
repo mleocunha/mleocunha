@@ -106,8 +106,8 @@ class Plugin {
 		add_shortcode( 'rses_voting_booth', array( $this, 'rses_render_voting_booth_shortcode' ) );
 		add_shortcode( 'rses_voter_receipt', array( $this, 'rses_render_voter_receipt_shortcode' ) );
 		add_shortcode( 'rses_election_status', array( $this, 'rses_render_election_status_shortcode' ) );
-		add_shortcode( 'rses_voter_welcome', array( VoterJourney::class, 'rses_render_welcome_shortcode' ) );
-		add_shortcode( 'rses_voter_thank_you', array( VoterJourney::class, 'rses_render_thank_you_shortcode' ) );
+		add_shortcode( 'rses_voter_welcome', array( $this, 'rses_render_voter_welcome_shortcode' ) );
+		add_shortcode( 'rses_voter_thank_you', array( $this, 'rses_render_voter_thank_you_shortcode' ) );
 
 		add_action( 'wp_enqueue_scripts', array( $this, 'rses_enqueue_frontend_assets' ) );
 		add_action( 'admin_enqueue_scripts', array( $this, 'rses_enqueue_admin_assets' ) );
@@ -440,5 +440,41 @@ class Plugin {
 		ob_start();
 		\RelataSoft\SecureElectionSuite\Voting\VotingViews::rses_render_election_status( absint( $atts['election_id'] ) );
 		return (string) ob_get_clean();
+	}
+
+	/**
+	 * Welcome shortcode — thin facade over JourneyGateway (M5).
+	 *
+	 * @param array<string,mixed> $atts Shortcode attributes.
+	 * @return string
+	 */
+	public function rses_render_voter_welcome_shortcode( array $atts = array() ): string {
+		unset( $atts );
+
+		if ( \RelataSoft\SecureElectionSuite\Painel\Application\Journey\JourneyGateway::isBooted() ) {
+			return \RelataSoft\SecureElectionSuite\Painel\Application\Journey\JourneyGateway::get()->render(
+				\RelataSoft\SecureElectionSuite\Painel\Contracts\Journey\JourneySteps::WELCOME
+			);
+		}
+
+		return VoterJourney::rses_render_welcome();
+	}
+
+	/**
+	 * Thank-you shortcode — thin facade over JourneyGateway (M5).
+	 *
+	 * @param array<string,mixed> $atts Shortcode attributes.
+	 * @return string
+	 */
+	public function rses_render_voter_thank_you_shortcode( array $atts = array() ): string {
+		unset( $atts );
+
+		if ( \RelataSoft\SecureElectionSuite\Painel\Application\Journey\JourneyGateway::isBooted() ) {
+			return \RelataSoft\SecureElectionSuite\Painel\Application\Journey\JourneyGateway::get()->render(
+				\RelataSoft\SecureElectionSuite\Painel\Contracts\Journey\JourneySteps::THANK_YOU
+			);
+		}
+
+		return VoterJourney::rses_render_thank_you();
 	}
 }

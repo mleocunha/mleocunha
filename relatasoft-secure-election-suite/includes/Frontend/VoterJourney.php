@@ -277,14 +277,11 @@ class VoterJourney {
 	}
 
 	/**
-	 * Render welcome shortcode (thin adapter over JourneyPresenter).
+	 * Render welcome step content (used by JourneyPresenter; shortcodes are thin facades).
 	 *
-	 * @param array<string,mixed> $atts Attributes.
 	 * @return string
 	 */
-	public static function rses_render_welcome_shortcode( array $atts = array() ): string {
-		unset( $atts );
-
+	public static function rses_render_welcome(): string {
 		if ( ! is_user_logged_in() ) {
 			$rses_login = self::rses_login_url();
 			ob_start();
@@ -379,23 +376,27 @@ class VoterJourney {
 	}
 
 	/**
-	 * Render thank-you shortcode.
+	 * Render thank-you step content (used by JourneyPresenter; shortcodes are thin facades).
 	 *
-	 * @param array<string,mixed> $atts Attributes.
+	 * @param array<string,mixed> $context Optional election/round/receipt overrides.
 	 * @return string
 	 */
-	public static function rses_render_thank_you_shortcode( array $atts = array() ): string {
-		unset( $atts );
-
-		$rses_receipt = isset( $_GET['rses_receipt'] ) // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-			? sanitize_text_field( wp_unslash( $_GET['rses_receipt'] ) )
-			: '';
-		$rses_election_id = isset( $_GET['election_id'] ) // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-			? absint( $_GET['election_id'] )
-			: 0;
-		$rses_round_id    = isset( $_GET['round_id'] ) // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-			? absint( $_GET['round_id'] )
-			: 0;
+	public static function rses_render_thank_you( array $context = array() ): string {
+		$rses_receipt = isset( $context['rses_receipt'] )
+			? sanitize_text_field( (string) $context['rses_receipt'] )
+			: ( isset( $_GET['rses_receipt'] ) // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+				? sanitize_text_field( wp_unslash( $_GET['rses_receipt'] ) )
+				: '' );
+		$rses_election_id = isset( $context['election_id'] )
+			? absint( $context['election_id'] )
+			: ( isset( $_GET['election_id'] ) // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+				? absint( $_GET['election_id'] )
+				: 0 );
+		$rses_round_id    = isset( $context['round_id'] )
+			? absint( $context['round_id'] )
+			: ( isset( $_GET['round_id'] ) // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+				? absint( $_GET['round_id'] )
+				: 0 );
 		$rses_welcome     = JourneySettings::rses_page_url( 'welcome_page_id' );
 		$rses_audio_url   = $rses_round_id > 0
 			? \RelataSoft\SecureElectionSuite\Voting\ElectionController::rses_get_round_end_audio_url( $rses_round_id )
@@ -405,7 +406,7 @@ class VoterJourney {
 		?>
 		<div
 			class="rses-journey rses-journey--thanks"
-			data-rses-journey="thank-you"
+			data-rses-journey="thank_you"
 			data-rses-election-id="<?php echo esc_attr( (string) $rses_election_id ); ?>"
 			data-rses-round-id="<?php echo esc_attr( (string) $rses_round_id ); ?>"
 			<?php echo Translator::rses_html_attrs(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>

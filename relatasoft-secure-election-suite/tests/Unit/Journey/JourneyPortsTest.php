@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 /**
- * A5 journey ports — InMemory (no shortcode / page boot).
+ * A5 / M5 journey ports — InMemory (no shortcode / page boot).
  *
  * @package RelataSoft\SecureElectionSuite\Tests\Unit\Journey
  */
@@ -68,6 +68,7 @@ final class JourneyPortsTest extends TestCase {
 
 		$this->assertSame( JourneySteps::WELCOME, JourneySteps::fromSettingKey( 'welcome_page_id' ) );
 		$this->assertSame( 'booth_page_id', JourneySteps::settingKeyFor( JourneySteps::BOOTH ) );
+		$this->assertSame( 'thank_you_page_id', JourneySteps::settingKeyFor( JourneySteps::THANK_YOU ) );
 	}
 
 	public function test_itinerary_without_host_pages(): void {
@@ -88,6 +89,40 @@ final class JourneyPortsTest extends TestCase {
 
 		$this->assertStringContainsString( 'data-rses-journey="welcome"', $this->gw->render( JourneySteps::WELCOME ) );
 		$this->assertStringContainsString( 'data-rses-journey="thank_you"', $this->gw->render( JourneySteps::THANK_YOU ) );
+	}
+
+	public function test_canonical_paths_cover_all_steps(): void {
+		foreach ( JourneySteps::all() as $step ) {
+			$path = JourneySteps::pathFor( $step );
+			$this->assertSame( $step, $this->gw->resolve( '/' . $path . '/' ) );
+			$this->assertStringStartsWith( 'voto', $path );
+		}
+	}
+
+	public function test_receipt_query_survives_url_roundtrip(): void {
+		$url = $this->gw->url(
+			JourneySteps::THANK_YOU,
+			array(
+				'rses_receipt' => 'recibo-hex',
+				'election_id'  => 7,
+				'round_id'     => 11,
+			)
+		);
+		$this->assertStringContainsString( 'rses_receipt=recibo-hex', $url );
+		$this->assertStringContainsString( 'election_id=7', $url );
+		$this->assertStringContainsString( 'round_id=11', $url );
+		$this->assertSame( JourneySteps::THANK_YOU, $this->gw->resolve( parse_url( $url, PHP_URL_PATH ) ?: '' ) );
+	}
+
+	public function test_presenter_rejects_unknown_step(): void {
+		$this->expectException( \InvalidArgumentException::class );
+		$this->gw->render( 'not-a-step' );
+	}
+
+	public function test_is_booted_and_reset(): void {
+		$this->assertTrue( JourneyGateway::isBooted() );
+		JourneyGateway::reset();
+		$this->assertFalse( JourneyGateway::isBooted() );
 	}
 
 	public function test_gateway_requires_boot(): void {

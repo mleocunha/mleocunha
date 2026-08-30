@@ -82,7 +82,7 @@ final class NavigationService {
 				array(
 					array( 'public-keys', 'Chaves Públicas', 'rses-public-keys', 10, AccessPolicy::PERM_ELECTIONS_MANAGE ),
 					array( 'elections', 'Eleições', 'rses-elections', 20, AccessPolicy::PERM_ELECTIONS_MANAGE ),
-					array( 'shortcodes', 'Shortcodes', 'rses-shortcodes', 30, AccessPolicy::PERM_ELECTIONS_MANAGE ),
+					array( 'shortcodes', 'URLs da jornada', 'rses-shortcodes', 30, AccessPolicy::PERM_ELECTIONS_MANAGE ),
 					array( 'redirections', 'Redirecionamentos', 'rses-redirections', 40, AccessPolicy::PERM_ELECTIONS_MANAGE ),
 					array( 'electoral-roll', 'Cadastro Eleitoral', 'rses-electoral-roll', 50, AccessPolicy::PERM_ELECTIONS_MANAGE ),
 					array( 'import-authorities', 'Importar Autoridades Eleitorais', 'rses-electoral-authorities', 55, AccessPolicy::PERM_ELECTIONS_MANAGE ),

@@ -24,8 +24,8 @@ final class WordPressJourneyPresenter implements JourneyPresenter {
 		}
 
 		return match ( $step ) {
-			JourneySteps::WELCOME   => VoterJourney::rses_render_welcome_shortcode(),
-			JourneySteps::THANK_YOU => VoterJourney::rses_render_thank_you_shortcode(),
+			JourneySteps::WELCOME   => VoterJourney::rses_render_welcome(),
+			JourneySteps::THANK_YOU => VoterJourney::rses_render_thank_you( $context ),
 			JourneySteps::BOOTH     => $this->renderBooth( $context ),
 			default                 => '',
 		};
