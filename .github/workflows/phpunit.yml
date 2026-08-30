@@ -53,6 +53,7 @@ jobs:
       - name: PHPUnit (sem sítio / sem WordPress)
         run: composer test
 
+      # C2 / R4: regressão da matriz publicAccessDecision sem HTTP (só PHP 8.3).
       - name: Máscara URL smoke (C2 / R4)
         if: matrix.php == '8.3'
         run: php bin/ve-url-mask-smoke

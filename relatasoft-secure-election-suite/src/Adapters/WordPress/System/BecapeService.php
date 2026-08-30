@@ -6,17 +6,34 @@ namespace RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\System;
 use ZipArchive;
 
 /**
- * Becape (full platform files + database) and restore.
+ * Becape completo do sítio (ficheiros + base de dados) e restauração (C3).
+ *
+ * “Becape” = cópia de segurança operacional da instalação (não confundir com
+ * courier de material criptográfico entre os 3 sítios).
+ *
+ * Guards puros (sem boot WP) no topo da classe — testáveis em PHPUnit:
+ * {@see isValidManifest}, {@see isSafeBecapeBasename}, {@see isCorePluginBasename}.
  */
 final class BecapeService {
 
+	/** Nome do JSON de manifesto dentro do ZIP de becape. */
 	public const MANIFEST_NAME = 've-becape-manifest.json';
+
+	/**
+	 * Identificador de formato do manifesto.
+	 *
+	 * Restauração recusa ZIPs cujo `format` não seja exactamente este valor
+	 * (evita aplicar dumps de versões/formatos desconhecidos).
+	 */
 	public const MANIFEST_FORMAT = 've-becape-v1';
 
 	/**
-	 * Pure check: manifest shape for restore (C3 / unit-testable).
+	 * Validar a forma mínima do manifesto antes de restaurar (C3).
 	 *
-	 * @param array<string,mixed> $manifest
+	 * Exige `format === ve-becape-v1` e `created_utc` string (timestamp ISO).
+	 * Função pura: sem I/O nem WordPress — usada em unit tests e em restore.
+	 *
+	 * @param array<string,mixed> $manifest Conteúdo já descodificado do JSON.
 	 */
 	public static function isValidManifest( array $manifest ): bool {
 		return ( $manifest['format'] ?? '' ) === self::MANIFEST_FORMAT
@@ -25,9 +42,14 @@ final class BecapeService {
 	}
 
 	/**
-	 * Safe download/delete basename under the becape storage dir.
+	 * Aceitar só nomes de ficheiro canónicos sob o directório de becape.
+	 *
+	 * Protege download/delete contra path traversal (`../`), null bytes e
+	 * nomes inventados (`evil.zip`). O padrão é:
+	 * `becape-voto-eletronico-YYYYMMDD-HHMMSS.zip`.
 	 */
 	public static function isSafeBecapeBasename( string $name ): bool {
+		// basename após remover separadores perigosos — nunca confiar no input cru.
 		$name = basename( str_replace( array( '\\', "\0" ), '', $name ) );
 		if ( '' === $name || str_contains( $name, '..' ) ) {
 			return false;
@@ -36,20 +58,29 @@ final class BecapeService {
 	}
 
 	/**
-	 * Whether a plugin basename is the suite core (must not be deleted via Módulos).
+	 * O basename do plugin é o núcleo desta suíte?
+	 *
+	 * Usado por Módulos do Sistema para impedir `delete_plugins` do próprio
+	 * `relatasoft-secure-election-suite/` (auto-remoção do Painel).
 	 */
 	public static function isCorePluginBasename( string $plugin_file ): bool {
 		$file = str_replace( '\\', '/', $plugin_file );
 		return str_starts_with( $file, 'relatasoft-secure-election-suite/' );
 	}
 
+	/**
+	 * Directório de armazenamento dos ZIPs de becape (fora da web).
+	 *
+	 * Cria `uploads/ve-becape/` se necessário e escreve `.htaccess` Deny
+	 * para Apache não servir os ficheiros por URL directa.
+	 */
 	public static function storageDir(): string {
 		$upload = wp_upload_dir();
 		$dir    = trailingslashit( $upload['basedir'] ) . 've-becape';
 		if ( ! is_dir( $dir ) ) {
 			wp_mkdir_p( $dir );
 		}
-		// Deny web access.
+		// Negar acesso HTTP directo aos ZIPs (Apache); Nginx deve espelhar em ops.
 		$ht = $dir . '/.htaccess';
 		if ( ! file_exists( $ht ) ) {
 			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
@@ -176,6 +207,7 @@ final class BecapeService {
 			return array( 'ok' => false, 'error' => 'Becape incompleto (manifesto, base ou arquivos ausentes).' );
 		}
 
+		// Guard C3: só restaurar se o manifesto tiver formato e created_utc válidos.
 		$manifest = json_decode( (string) file_get_contents( $manifest_path ), true );
 		if ( ! is_array( $manifest ) || ! self::isValidManifest( $manifest ) ) {
 			self::rrmdir( $tmp );

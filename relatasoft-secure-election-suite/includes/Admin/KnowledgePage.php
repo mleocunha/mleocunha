@@ -16,13 +16,21 @@ use RelataSoft\SecureElectionSuite\Security\Capability;
 defined( 'ABSPATH' ) || exit;
 
 /**
- * Renders filtered markdown docs under docs/conhecimento/.
+ * Conhecimento — documentação markdown filtrada por persona (C3 / B*).
+ *
+ * Catálogo de stems sob `docs/conhecimento/`. O Administrador Eleitoral vê
+ * todos os docs (incl. ops de becape/módulos); outras personas vêem um
+ * subconjunto alinhado ao papel.
  */
 class KnowledgePage {
 
 	public const SLUG = 'rses-knowledge';
 
 	/**
+	 * Catálogo completo: stem do ficheiro → título na navegação.
+	 *
+	 * `ops-becape-modulos` documenta guards C3 (restauração, núcleo, Autoteste).
+	 *
 	 * @return array<string,string> file stem => title
 	 */
 	public static function rses_catalog(): array {
@@ -39,7 +47,10 @@ class KnowledgePage {
 	}
 
 	/**
-	 * Docs visible for the current persona.
+	 * Stems visíveis para a persona actual.
+	 *
+	 * Administrador recebe `array_keys(catalog)` — inclui ops C3 automaticamente
+	 * quando novos docs entram no catálogo.
 	 *
 	 * @return list<string> file stems
 	 */

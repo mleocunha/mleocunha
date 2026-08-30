@@ -168,10 +168,17 @@ class SystemModulesPage {
 		exit;
 	}
 
+	/**
+	 * Remover um módulo (plugin) instalado — com guard C3 contra apagar o núcleo.
+	 *
+	 * Se o basename for `relatasoft-secure-election-suite/…`, redirecciona com
+	 * aviso e não chama `delete_plugins` (evita auto-remoção do Painel).
+	 */
 	public static function handle_delete(): void {
 		Capability::rses_require_admin();
 		Nonce::rses_verify_or_die( 've_module_delete' );
 		$file = isset( $_POST['plugin'] ) ? wp_unslash( (string) $_POST['plugin'] ) : '';
+		// Guard C3: núcleo da suíte nunca é removível via este ecrã.
 		if ( \RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\System\BecapeService::isCorePluginBasename( $file ) ) {
 			wp_safe_redirect( admin_url( 'admin.php?page=rses-system-modules&ve_notice=' . rawurlencode( 'Não é possível remover o núcleo da suíte.' ) ) );
 			exit;

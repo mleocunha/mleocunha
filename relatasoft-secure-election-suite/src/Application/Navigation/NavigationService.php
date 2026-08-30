@@ -128,6 +128,8 @@ final class NavigationService {
 			}
 		}
 
+		// C3 — Autoteste criptográfico no menu do Painel (qualquer modo; só quem gere settings).
+		// Diagnóstico local de GMP/ElGamal/Shamir antes de confiar dados reais de eleição.
 		$this->registry->register(
 			new MenuItem(
 				id: 'crypto-self-test',

@@ -339,7 +339,11 @@ class AdminMenu {
 	}
 
 	/**
-	 * Render crypto self-test page.
+	 * Renderizar o Autoteste criptográfico (C3) — cópia PT-BR.
+	 *
+	 * Corre {@see CryptoSelfTest::runAll()} só quando `rses_ran=1` (após POST).
+	 * Resultados são efémeros (não persistidos); o operador deve reexecutar
+	 * após mudanças de PHP/servidor.
 	 */
 	public static function rses_render_crypto_self_test(): void {
 		Capability::rses_require_admin();
