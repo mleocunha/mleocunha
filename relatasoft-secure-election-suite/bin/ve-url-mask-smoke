@@ -1,0 +1,50 @@
+#!/usr/bin/env php
+<?php
+declare(strict_types=1);
+
+/**
+ * C2 / R4 smoke — URL mask 404 policy without HTTP (CI-safe).
+ *
+ * Exit 0 when the publicAccessDecision matrix matches ops expectations.
+ */
+
+$root = dirname( __DIR__ );
+require $root . '/vendor/autoload.php';
+
+use RelataSoft\SecureElectionSuite\Painel\Domain\Platform\UrlMaskConfig;
+
+$cases = array(
+	array( '/wp-login.php', true, true, 'not_found' ),
+	array( '/wp-admin/admin.php', true, true, 'not_found' ),
+	array( '/wp-admin/admin-ajax.php', true, true, 'not_found' ),
+	array( '/painel/admin.php', true, true, 'allow' ),
+	array( '/painel/plugins.php', true, true, 'not_found' ),
+	array( '/painel/themes.php', true, true, 'not_found' ),
+	array( '/wp-admin/load-styles.php', true, true, 'allow' ),
+	array( '/id.php', true, true, 'allow' ),
+);
+
+$failed = 0;
+foreach ( $cases as [$path, $gw, $login, $want] ) {
+	$got = UrlMaskConfig::publicAccessDecision( $path, $gw, $login );
+	if ( $got !== $want ) {
+		fwrite( STDERR, "FAIL {$path}: got {$got}, want {$want}\n" );
+		++$failed;
+	}
+}
+
+if ( $failed > 0 ) {
+	fwrite( STDERR, "C2 smoke: {$failed} failure(s)\n" );
+	exit( 1 );
+}
+
+echo json_encode(
+	array(
+		'ok'    => true,
+		'gate'  => 'C2',
+		'cases' => count( $cases ),
+		'note'  => 'Policy matrix OK. Manual curl on a live sítio still recommended after deploy.',
+	),
+	JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE
+) . "\n";
+exit( 0 );

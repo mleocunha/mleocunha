@@ -172,7 +172,7 @@ class SystemModulesPage {
 		Capability::rses_require_admin();
 		Nonce::rses_verify_or_die( 've_module_delete' );
 		$file = isset( $_POST['plugin'] ) ? wp_unslash( (string) $_POST['plugin'] ) : '';
-		if ( 0 === strpos( $file, 'relatasoft-secure-election-suite/' ) ) {
+		if ( \RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\System\BecapeService::isCorePluginBasename( $file ) ) {
 			wp_safe_redirect( admin_url( 'admin.php?page=rses-system-modules&ve_notice=' . rawurlencode( 'Não é possível remover o núcleo da suíte.' ) ) );
 			exit;
 		}

@@ -27,13 +27,14 @@ class KnowledgePage {
 	 */
 	public static function rses_catalog(): array {
 		return array(
-			'administrador'   => __( 'Administrador Eleitoral', 'relatasoft-secure-election-suite' ),
-			'autoridade'      => __( 'Autoridade Eleitoral', 'relatasoft-secure-election-suite' ),
-			'eleitor'         => __( 'Eleitor', 'relatasoft-secure-election-suite' ),
-			'auditor'         => __( 'Auditor', 'relatasoft-secure-election-suite' ),
-			'gestor'          => __( 'Gestor pelo Cliente', 'relatasoft-secure-election-suite' ),
-			'cadastro-rsv'    => __( 'Cadastro Eleitoral (.rsv)', 'relatasoft-secure-election-suite' ),
-			'implantacao-3wp' => __( 'Implantação E3 (3 sítios)', 'relatasoft-secure-election-suite' ),
+			'administrador'      => __( 'Administrador Eleitoral', 'relatasoft-secure-election-suite' ),
+			'autoridade'         => __( 'Autoridade Eleitoral', 'relatasoft-secure-election-suite' ),
+			'eleitor'            => __( 'Eleitor', 'relatasoft-secure-election-suite' ),
+			'auditor'            => __( 'Auditor', 'relatasoft-secure-election-suite' ),
+			'gestor'             => __( 'Gestor pelo Cliente', 'relatasoft-secure-election-suite' ),
+			'cadastro-rsv'       => __( 'Cadastro Eleitoral (.rsv)', 'relatasoft-secure-election-suite' ),
+			'implantacao-3wp'    => __( 'Implantação E3 (3 sítios)', 'relatasoft-secure-election-suite' ),
+			'ops-becape-modulos' => __( 'Ops: becape e módulos (C3)', 'relatasoft-secure-election-suite' ),
 		);
 	}
 

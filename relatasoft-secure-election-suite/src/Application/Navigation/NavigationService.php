@@ -130,6 +130,17 @@ final class NavigationService {
 
 		$this->registry->register(
 			new MenuItem(
+				id: 'crypto-self-test',
+				title: 'Autoteste Criptográfico',
+				slug: 'rses-crypto-self-test',
+				parentId: 'home',
+				priority: 95,
+				visibleForPermissions: array( AccessPolicy::PERM_SETTINGS_MANAGE ),
+				mode: 'any',
+			)
+		);
+		$this->registry->register(
+			new MenuItem(
 				id: 'settings',
 				title: 'Configurações',
 				slug: 'rses-settings',

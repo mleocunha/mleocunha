@@ -184,6 +184,30 @@ final class UrlMaskConfig {
 	 * Without this, browsers never send wordpress_* auth cookies on /painel/*,
 	 * so auth_redirect() sends operators back to login even after a valid session.
 	 */
+	/**
+	 * Public request access once URL mask stubs are ready (R4 / C2 policy).
+	 *
+	 * Mirrors {@see PlatformUrlMask} deny rules without needing a sítio boot.
+	 *
+	 * @return 'allow'|'not_found'
+	 */
+	public static function publicAccessDecision( string $path, bool $adminGatewayReady, bool $loginStubReady ): string {
+		if ( self::isWpLoginPath( $path ) && $loginStubReady ) {
+			return 'not_found';
+		}
+		if ( $adminGatewayReady && self::isRetiredClassicAdminScreen( $path ) ) {
+			return 'not_found';
+		}
+		if ( self::isWpAdminPath( $path )
+			&& $adminGatewayReady
+			&& ! self::isStaticAdminAssetPath( $path )
+			&& ! self::isWpAdminAssetLoader( $path )
+		) {
+			return 'not_found';
+		}
+		return 'allow';
+	}
+
 	public static function adminCookiePath( string $admin_path, string $site_cookie_path = '/' ): string {
 		$admin_path = self::normalizeAdminPath( $admin_path );
 		if ( '' === $site_cookie_path ) {

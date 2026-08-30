@@ -53,6 +53,10 @@ jobs:
       - name: PHPUnit (sem sítio / sem WordPress)
         run: composer test
 
+      - name: Máscara URL smoke (C2 / R4)
+        if: matrix.php == '8.3'
+        run: php bin/ve-url-mask-smoke
+
       - name: Piloto Adapter #2 smoke (M6)
         if: matrix.php == '8.3'
         run: php bin/ve-node pilot --root="${RUNNER_TEMP}/ve-piloto-ci" --votes=2

@@ -8,38 +8,32 @@
 namespace RelataSoft\SecureElectionSuite\Bootstrap;
 
 use RelataSoft\SecureElectionSuite\Database\Repository;
+use RelataSoft\SecureElectionSuite\Painel\Contracts\Mode\SiteModes;
 use RelataSoft\SecureElectionSuite\Security\AuditLogger;
 use RelataSoft\SecureElectionSuite\Security\Capability;
 
 defined( 'ABSPATH' ) || exit;
 
 /**
- * Manages mutually exclusive plugin modes.
+ * Manages mutually exclusive plugin modes (1 sítio = 1 modo; E3 / C1).
  */
 class ModeLock {
 
-	public const RSES_MODE_KEY_AUTHORITY = 'key_authority';
-	public const RSES_MODE_VOTING        = 'voting';
-	public const RSES_MODE_TALLYING      = 'tallying';
+	public const RSES_MODE_KEY_AUTHORITY = SiteModes::KEY_AUTHORITY;
+	public const RSES_MODE_VOTING        = SiteModes::VOTING;
+	public const RSES_MODE_TALLYING      = SiteModes::TALLYING;
 
 	/**
-	 * Valid modes.
-	 *
-	 * @var array<string,string>
-	 */
-	private static array $rses_valid_modes = array(
-		self::RSES_MODE_KEY_AUTHORITY => 'Key Authority / ElGamal Key Manager',
-		self::RSES_MODE_VOTING        => 'Voting Platform',
-		self::RSES_MODE_TALLYING      => 'Tallying and Certification Platform',
-	);
-
-	/**
-	 * Get valid modes.
+	 * Get valid modes (slug => label PT-BR).
 	 *
 	 * @return array<string,string>
 	 */
 	public static function rses_get_valid_modes(): array {
-		return self::$rses_valid_modes;
+		$out = array();
+		foreach ( SiteModes::all() as $slug ) {
+			$out[ $slug ] = SiteModes::label( $slug );
+		}
+		return $out;
 	}
 
 	/**
@@ -77,7 +71,7 @@ class ModeLock {
 	 */
 	public static function rses_has_mode(): bool {
 		$mode = self::rses_get_mode();
-		return ! empty( $mode ) && isset( self::$rses_valid_modes[ $mode ] );
+		return '' !== $mode && SiteModes::isValid( $mode );
 	}
 
 	/**
@@ -95,7 +89,7 @@ class ModeLock {
 			return false;
 		}
 
-		if ( ! isset( self::$rses_valid_modes[ $mode ] ) ) {
+		if ( ! SiteModes::isValid( $mode ) ) {
 			return false;
 		}
 
@@ -164,12 +158,6 @@ class ModeLock {
 	 * @return string
 	 */
 	public static function rses_get_mode_label( string $mode ): string {
-		$labels = array(
-			self::RSES_MODE_KEY_AUTHORITY => __( 'Key Authority / ElGamal Key Manager', 'relatasoft-secure-election-suite' ),
-			self::RSES_MODE_VOTING        => __( 'Voting Platform', 'relatasoft-secure-election-suite' ),
-			self::RSES_MODE_TALLYING      => __( 'Tallying and Certification Platform', 'relatasoft-secure-election-suite' ),
-		);
-
-		return $labels[ $mode ] ?? $mode;
+		return SiteModes::isValid( $mode ) ? SiteModes::label( $mode ) : $mode;
 	}
 }

@@ -11,6 +11,37 @@ use ZipArchive;
 final class BecapeService {
 
 	public const MANIFEST_NAME = 've-becape-manifest.json';
+	public const MANIFEST_FORMAT = 've-becape-v1';
+
+	/**
+	 * Pure check: manifest shape for restore (C3 / unit-testable).
+	 *
+	 * @param array<string,mixed> $manifest
+	 */
+	public static function isValidManifest( array $manifest ): bool {
+		return ( $manifest['format'] ?? '' ) === self::MANIFEST_FORMAT
+			&& isset( $manifest['created_utc'] )
+			&& is_string( $manifest['created_utc'] );
+	}
+
+	/**
+	 * Safe download/delete basename under the becape storage dir.
+	 */
+	public static function isSafeBecapeBasename( string $name ): bool {
+		$name = basename( str_replace( array( '\\', "\0" ), '', $name ) );
+		if ( '' === $name || str_contains( $name, '..' ) ) {
+			return false;
+		}
+		return (bool) preg_match( '/^becape-voto-eletronico-[0-9]{8}-[0-9]{6}\.zip$/', $name );
+	}
+
+	/**
+	 * Whether a plugin basename is the suite core (must not be deleted via Módulos).
+	 */
+	public static function isCorePluginBasename( string $plugin_file ): bool {
+		$file = str_replace( '\\', '/', $plugin_file );
+		return str_starts_with( $file, 'relatasoft-secure-election-suite/' );
+	}
 
 	public static function storageDir(): string {
 		$upload = wp_upload_dir();
@@ -59,7 +90,7 @@ final class BecapeService {
 		}
 
 		$manifest = array(
-			'format'         => 've-becape-v1',
+			'format'         => self::MANIFEST_FORMAT,
 			'created_utc'    => gmdate( 'c' ),
 			'product'        => 'Voto Eletrônico by RelataSoft',
 			'plugin_version' => defined( 'RSES_VERSION' ) ? RSES_VERSION : '',
@@ -146,7 +177,7 @@ final class BecapeService {
 		}
 
 		$manifest = json_decode( (string) file_get_contents( $manifest_path ), true );
-		if ( ! is_array( $manifest ) || ( $manifest['format'] ?? '' ) !== 've-becape-v1' ) {
+		if ( ! is_array( $manifest ) || ! self::isValidManifest( $manifest ) ) {
 			self::rrmdir( $tmp );
 			return array( 'ok' => false, 'error' => 'Formato de becape não reconhecido.' );
 		}

@@ -364,27 +364,27 @@ class AdminMenu {
 		<div class="wrap rses-wrap rses-screen" <?php echo Translator::rses_html_attrs(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
 			<header class="rses-hero rses-hero--brand">
 				<?php Brand::rses_render_hero_brand(); ?>
-				<p class="rses-hero-kicker"><?php esc_html_e( 'Diagnostics', 'relatasoft-secure-election-suite' ); ?></p>
-				<h1 class="rses-hero-title"><?php esc_html_e( 'Crypto Self Test', 'relatasoft-secure-election-suite' ); ?></h1>
-				<p class="rses-hero-lead"><?php esc_html_e( 'Verify ElGamal, homomorphic tallying, and Shamir Secret Sharing on this server before you trust it with live election data.', 'relatasoft-secure-election-suite' ); ?></p>
+				<p class="rses-hero-kicker"><?php esc_html_e( 'Diagnóstico', 'relatasoft-secure-election-suite' ); ?></p>
+				<h1 class="rses-hero-title"><?php esc_html_e( 'Autoteste criptográfico', 'relatasoft-secure-election-suite' ); ?></h1>
+				<p class="rses-hero-lead"><?php esc_html_e( 'Verificar ElGamal, apuração homomórfica e Shamir Secret Sharing neste servidor antes de confiar dados de eleição reais.', 'relatasoft-secure-election-suite' ); ?></p>
 			</header>
 
 			<section class="rses-panel rses-panel-info">
-				<p><?php esc_html_e( 'These checks exercise key generation, encrypt/decrypt, homomorphic aggregation, Shamir share split/reconstruct, and a mini end-to-end election simulation. They do not replace an independent cryptographic audit.', 'relatasoft-secure-election-suite' ); ?></p>
+				<p><?php esc_html_e( 'Estes testes exercitam geração de chave, cifra/decifra, agregação homomórfica, divisão/reconstrução Shamir e uma mini-eleição ponta a ponta. Não substituem uma auditoria criptográfica independente.', 'relatasoft-secure-election-suite' ); ?></p>
 			</section>
 
 			<section class="rses-panel rses-panel-card rses-self-test-run">
 				<header class="rses-panel-header">
-					<p class="rses-panel-kicker"><?php esc_html_e( 'Run', 'relatasoft-secure-election-suite' ); ?></p>
-					<h2 class="rses-panel-title"><?php esc_html_e( 'Execute self-tests', 'relatasoft-secure-election-suite' ); ?></h2>
-					<p class="rses-panel-desc"><?php esc_html_e( 'Results are computed on this request and are not stored. Re-run anytime after PHP or server changes.', 'relatasoft-secure-election-suite' ); ?></p>
+					<p class="rses-panel-kicker"><?php esc_html_e( 'Executar', 'relatasoft-secure-election-suite' ); ?></p>
+					<h2 class="rses-panel-title"><?php esc_html_e( 'Executar autotestes', 'relatasoft-secure-election-suite' ); ?></h2>
+					<p class="rses-panel-desc"><?php esc_html_e( 'Os resultados são calculados neste pedido e não são guardados. Voltar a executar após mudanças de PHP ou do servidor.', 'relatasoft-secure-election-suite' ); ?></p>
 				</header>
 
 				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="rses-form">
 					<?php Nonce::rses_field( Nonce::RSES_ACTION_CRYPTO_SELF_TEST ); ?>
 					<input type="hidden" name="action" value="rses_run_crypto_self_test" />
 					<p class="rses-form-actions">
-						<?php submit_button( __( 'Run Self Tests', 'relatasoft-secure-election-suite' ), 'primary rses-btn-primary', 'submit', false ); ?>
+						<?php submit_button( __( 'Executar autotestes', 'relatasoft-secure-election-suite' ), 'primary rses-btn-primary', 'submit', false ); ?>
 					</p>
 				</form>
 			</section>
@@ -397,7 +397,7 @@ class AdminMenu {
 							echo esc_html(
 								sprintf(
 									/* translators: %d: number of tests that passed */
-									__( 'All %d cryptographic self-tests passed on this server.', 'relatasoft-secure-election-suite' ),
+									__( 'Todos os %d autotestes criptográficos passaram neste servidor.', 'relatasoft-secure-election-suite' ),
 									$rses_pass_count
 								)
 							);
@@ -411,7 +411,7 @@ class AdminMenu {
 							echo esc_html(
 								sprintf(
 									/* translators: 1: passed count, 2: failed count */
-									__( '%1$d passed, %2$d failed. Review the failures below before using this installation for voting.', 'relatasoft-secure-election-suite' ),
+									__( '%1$d passaram, %2$d falharam. Rever as falhas abaixo antes de usar esta instalação para votação.', 'relatasoft-secure-election-suite' ),
 									$rses_pass_count,
 									$rses_fail_count
 								)
@@ -423,27 +423,27 @@ class AdminMenu {
 
 				<section class="rses-panel rses-panel-card rses-self-test-results-panel">
 					<header class="rses-panel-header">
-						<p class="rses-panel-kicker"><?php esc_html_e( 'Results', 'relatasoft-secure-election-suite' ); ?></p>
-						<h2 class="rses-panel-title"><?php esc_html_e( 'Self-test report', 'relatasoft-secure-election-suite' ); ?></h2>
+						<p class="rses-panel-kicker"><?php esc_html_e( 'Resultados', 'relatasoft-secure-election-suite' ); ?></p>
+						<h2 class="rses-panel-title"><?php esc_html_e( 'Relatório do autoteste', 'relatasoft-secure-election-suite' ); ?></h2>
 					</header>
 
 					<div class="rses-self-test-summary">
 						<span class="rses-self-test-stat rses-self-test-stat--pass">
 							<span class="rses-self-test-stat-value"><?php echo esc_html( (string) $rses_pass_count ); ?></span>
-							<span class="rses-self-test-stat-label"><?php esc_html_e( 'Passed', 'relatasoft-secure-election-suite' ); ?></span>
+							<span class="rses-self-test-stat-label"><?php esc_html_e( 'Passou', 'relatasoft-secure-election-suite' ); ?></span>
 						</span>
 						<span class="rses-self-test-stat rses-self-test-stat--fail">
 							<span class="rses-self-test-stat-value"><?php echo esc_html( (string) $rses_fail_count ); ?></span>
-							<span class="rses-self-test-stat-label"><?php esc_html_e( 'Failed', 'relatasoft-secure-election-suite' ); ?></span>
+							<span class="rses-self-test-stat-label"><?php esc_html_e( 'Falhou', 'relatasoft-secure-election-suite' ); ?></span>
 						</span>
 					</div>
 
 					<table class="rses-self-test-results">
 						<thead>
 							<tr>
-								<th scope="col"><?php esc_html_e( 'Test', 'relatasoft-secure-election-suite' ); ?></th>
-								<th scope="col"><?php esc_html_e( 'Result', 'relatasoft-secure-election-suite' ); ?></th>
-								<th scope="col"><?php esc_html_e( 'Message', 'relatasoft-secure-election-suite' ); ?></th>
+								<th scope="col"><?php esc_html_e( 'Teste', 'relatasoft-secure-election-suite' ); ?></th>
+								<th scope="col"><?php esc_html_e( 'Resultado', 'relatasoft-secure-election-suite' ); ?></th>
+								<th scope="col"><?php esc_html_e( 'Mensagem', 'relatasoft-secure-election-suite' ); ?></th>
 							</tr>
 						</thead>
 						<tbody>
