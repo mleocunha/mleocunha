@@ -7,13 +7,20 @@
 
 namespace RelataSoft\SecureElectionSuite\KeyAuthority;
 
+use RelataSoft\SecureElectionSuite\Painel\Application\Identity\IdentityGateway;
+use RelataSoft\SecureElectionSuite\Painel\Application\Jobs\JobGateway;
+use RelataSoft\SecureElectionSuite\Painel\Contracts\Jobs\JobSlots;
+
 defined( 'ABSPATH' ) || exit;
 
 /**
  * Single-site key generation job (one at a time).
+ *
+ * Persistence via A4 {@see JobStore} (`JobSlots::KEYGEN`).
  */
 class KeyGenerationJob {
 
+	/** @deprecated Use JobSlots::KEYGEN / WordPressJobStore mapping. */
 	public const RSES_OPTION_KEY     = 'rses_keygen_job';
 	public const RSES_CHUNK_SECONDS  = 25.0;
 	public const RSES_TTL_SECONDS    = 86400; // 24 hours.
@@ -48,7 +55,7 @@ class KeyGenerationJob {
 	public static function rses_get(): ?array {
 		self::rses_purge_if_expired();
 
-		$rses_job = get_option( self::RSES_OPTION_KEY, null );
+		$rses_job = JobGateway::get()->store->get( JobSlots::KEYGEN );
 		return is_array( $rses_job ) ? $rses_job : null;
 	}
 
@@ -72,14 +79,14 @@ class KeyGenerationJob {
 	 */
 	public static function rses_save( array $job ): void {
 		$job['updated_at'] = time();
-		update_option( self::RSES_OPTION_KEY, $job, false );
+		JobGateway::get()->store->put( JobSlots::KEYGEN, $job );
 	}
 
 	/**
 	 * Delete job.
 	 */
 	public static function rses_delete(): void {
-		delete_option( self::RSES_OPTION_KEY );
+		JobGateway::get()->store->delete( JobSlots::KEYGEN );
 	}
 
 	/**
@@ -88,7 +95,7 @@ class KeyGenerationJob {
 	 * @return bool True if purged.
 	 */
 	public static function rses_purge_if_expired(): bool {
-		$rses_job = get_option( self::RSES_OPTION_KEY, null );
+		$rses_job = JobGateway::get()->store->get( JobSlots::KEYGEN );
 		if ( ! is_array( $rses_job ) ) {
 			return false;
 		}
@@ -96,7 +103,7 @@ class KeyGenerationJob {
 		$rses_updated = (int) ( $rses_job['updated_at'] ?? $rses_job['created_at'] ?? 0 );
 		if ( $rses_updated > 0 && ( time() - $rses_updated ) > self::RSES_TTL_SECONDS ) {
 			self::rses_clear_secrets( $rses_job );
-			delete_option( self::RSES_OPTION_KEY );
+			JobGateway::get()->store->delete( JobSlots::KEYGEN );
 			return true;
 		}
 
@@ -130,7 +137,9 @@ class KeyGenerationJob {
 			'generator_attempt'  => 0,
 			'created_at'       => time(),
 			'updated_at'       => time(),
-			'created_by'       => get_current_user_id(),
+			'created_by'       => IdentityGateway::isBooted()
+				? IdentityGateway::get()->session->currentUserId()
+				: get_current_user_id(),
 			'public_p'         => null,
 			'public_q'         => null,
 			'public_g'         => null,

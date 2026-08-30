@@ -7,10 +7,10 @@ A plataforma hospedeira é um **adapter**. O domínio e a aplicação do Painel 
 ## Camadas
 
 1. **Domain** — Persona, AccessPolicy, MenuItem, NavigationRegistry, SettingsSchema; **Crypto** portável (`src/Domain/Crypto`: ElGamal, Shamir, Schnorr, CanonicalHash, …); formatos (`.rsv`, AuthoritiesPackage). Sem boot do sítio — PHPUnit em `tests/Unit`. Adapter #1 mantém facades em `includes/Crypto` / `Exports\HashService`.
-2. **Application** — SettingsService, PermissionResolver, NavigationService, DashboardHomeService, LoginBrandingService; **PersistenceGateway** (A2); **IdentityGateway** (A3: users / capabilities / session / secrets).
-3. **Contracts** — SettingsRepository, UserProvider, UserDirectory, CapabilityResolver, SessionPort, SecretKeyProvider, NavigationRegistrar, AssetProvider, Logger; **persistência A2** (`Keys`, `Elections`, `Votes`, `Tallies`, `Audit`).
-4. **Infrastructure** — defaults / stores de teste (InMemory Persistence + Identity).
-5. **Adapters** — opções, papéis, menus, assets, login, redirects; **WordPress Persistence** + **WordPress Identity** (incl. SecretKeyProvider que pode derivar de secrets do host *só dentro do adapter*).
+2. **Application** — SettingsService, PermissionResolver, NavigationService, DashboardHomeService, LoginBrandingService; **PersistenceGateway** (A2); **IdentityGateway** (A3); **JobGateway** (A4: keygen / RSV import / RSV export).
+3. **Contracts** — SettingsRepository, UserProvider, UserDirectory, CapabilityResolver, SessionPort, SecretKeyProvider, JobStore, KeygenJobService, RsvImportJobService, RsvExportJobService, NavigationRegistrar, AssetProvider, Logger; **persistência A2**.
+4. **Infrastructure** — defaults / stores de teste (InMemory Persistence + Identity + Jobs).
+5. **Adapters** — opções, papéis, menus, assets, login, redirects; **WordPress Persistence / Identity / Jobs** (`get_option` de jobs só em `WordPressJobStore`; AJAX é cliente fino).
 6. **Presentation** — ShellView, HomeView + `assets/painel`
 
 ## Personas (papéis do sítio)

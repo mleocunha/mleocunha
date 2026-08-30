@@ -11,6 +11,7 @@ use RelataSoft\SecureElectionSuite\Bootstrap\ModeLock;
 use RelataSoft\SecureElectionSuite\Bootstrap\Plugin;
 use RelataSoft\SecureElectionSuite\I18n\RoleLabels;
 use RelataSoft\SecureElectionSuite\I18n\Translator;
+use RelataSoft\SecureElectionSuite\Painel\Application\Jobs\JobGateway;
 use RelataSoft\SecureElectionSuite\Painel\Domain\ElectoralRoll\RsvFormat;
 use RelataSoft\SecureElectionSuite\Security\Capability;
 use RelataSoft\SecureElectionSuite\Security\Nonce;
@@ -56,8 +57,10 @@ class ElectoralRollImportPage {
 		add_action(
 			'admin_init',
 			static function (): void {
-				ElectoralRollImportJob::rses_purge_if_expired();
-				ElectoralRollExportJob::rses_purge_if_expired();
+				if ( JobGateway::isBooted() ) {
+					JobGateway::get()->rsvImport->purgeExpired();
+					JobGateway::get()->rsvExport->purgeExpired();
+				}
 			}
 		);
 	}
@@ -177,12 +180,12 @@ class ElectoralRollImportPage {
 		$bytes    = isset( $_POST['total_bytes'] ) ? absint( $_POST['total_bytes'] ) : 0;
 		$update   = ! empty( $_POST['update_existing'] );
 
-		$job = ElectoralRollImportJob::rses_create_receiving( $original, $chunks, $bytes, $update );
-		if ( is_wp_error( $job ) ) {
-			wp_send_json_error( array( 'message' => $job->get_error_message() ) );
+		$status = JobGateway::get()->rsvImport->createReceiving( $original, $chunks, $bytes, $update );
+		if ( is_wp_error( $status ) ) {
+			wp_send_json_error( array( 'message' => $status->get_error_message() ) );
 		}
 
-		wp_send_json_success( ElectoralRollImportJob::rses_public_status( $job ) );
+		wp_send_json_success( $status );
 	}
 
 	/**
@@ -208,12 +211,12 @@ class ElectoralRollImportPage {
 			wp_send_json_error( array( 'message' => __( 'Invalid upload chunk.', 'relatasoft-secure-election-suite' ) ) );
 		}
 
-		$job = ElectoralRollImportJob::rses_append_chunk( $tmp, $index );
-		if ( is_wp_error( $job ) ) {
-			wp_send_json_error( array( 'message' => $job->get_error_message() ) );
+		$status = JobGateway::get()->rsvImport->appendChunk( $tmp, $index );
+		if ( is_wp_error( $status ) ) {
+			wp_send_json_error( array( 'message' => $status->get_error_message() ) );
 		}
 
-		wp_send_json_success( ElectoralRollImportJob::rses_public_status( $job ) );
+		wp_send_json_success( $status );
 	}
 
 	/**
@@ -237,18 +240,18 @@ class ElectoralRollImportPage {
 			: 'cadastro.csv';
 		$update   = ! empty( $_POST['update_existing'] );
 
-		$job = ElectoralRollImportJob::rses_ingest_full_upload( $tmp, $original, $update );
-		if ( is_wp_error( $job ) ) {
-			$current = ElectoralRollImportJob::rses_get();
+		$import = JobGateway::get()->rsvImport;
+		$status = $import->ingestFullUpload( $tmp, $original, $update );
+		if ( is_wp_error( $status ) ) {
 			wp_send_json_error(
 				array(
-					'message' => $job->get_error_message(),
-					'status'  => ElectoralRollImportJob::rses_public_status( $current ),
+					'message' => $status->get_error_message(),
+					'status'  => $import->status(),
 				)
 			);
 		}
 
-		wp_send_json_success( ElectoralRollImportJob::rses_public_status( $job ) );
+		wp_send_json_success( $status );
 	}
 
 	/**
@@ -257,18 +260,18 @@ class ElectoralRollImportPage {
 	public static function rses_ajax_begin(): void {
 		self::rses_ajax_guard();
 
-		$job = ElectoralRollImportJob::rses_begin_import();
-		if ( is_wp_error( $job ) ) {
-			$current = ElectoralRollImportJob::rses_get();
+		$import = JobGateway::get()->rsvImport;
+		$status = $import->begin();
+		if ( is_wp_error( $status ) ) {
 			wp_send_json_error(
 				array(
-					'message' => $job->get_error_message(),
-					'status'  => ElectoralRollImportJob::rses_public_status( $current ),
+					'message' => $status->get_error_message(),
+					'status'  => $import->status(),
 				)
 			);
 		}
 
-		wp_send_json_success( ElectoralRollImportJob::rses_public_status( $job ) );
+		wp_send_json_success( $status );
 	}
 
 	/**
@@ -277,21 +280,20 @@ class ElectoralRollImportPage {
 	public static function rses_ajax_tick(): void {
 		self::rses_ajax_guard();
 
-		$job = ElectoralRollImportJob::rses_tick();
-		if ( is_wp_error( $job ) ) {
-			$current = ElectoralRollImportJob::rses_get();
-			$status  = ElectoralRollImportJob::rses_public_status( $current );
-			self::rses_store_errors_from_status( $status );
+		$import = JobGateway::get()->rsvImport;
+		$status = $import->tick();
+		if ( is_wp_error( $status ) ) {
+			$current = $import->status();
+			self::rses_store_errors_from_status( $current );
 			wp_send_json_error(
 				array(
-					'message' => $job->get_error_message(),
-					'status'  => $status,
+					'message' => $status->get_error_message(),
+					'status'  => $current,
 				)
 			);
 		}
 
-		$status = ElectoralRollImportJob::rses_public_status( $job );
-		if ( in_array( $status['stage'], array( ElectoralRollImportJob::STAGE_COMPLETE, ElectoralRollImportJob::STAGE_FAILED ), true ) ) {
+		if ( in_array( $status['stage'] ?? '', array( ElectoralRollImportJob::STAGE_COMPLETE, ElectoralRollImportJob::STAGE_FAILED ), true ) ) {
 			self::rses_store_errors_from_status( $status );
 		}
 
@@ -303,7 +305,7 @@ class ElectoralRollImportPage {
 	 */
 	public static function rses_ajax_status(): void {
 		self::rses_ajax_guard();
-		wp_send_json_success( ElectoralRollImportJob::rses_public_status( ElectoralRollImportJob::rses_get() ) );
+		wp_send_json_success( JobGateway::get()->rsvImport->status() );
 	}
 
 	/**
@@ -311,8 +313,7 @@ class ElectoralRollImportPage {
 	 */
 	public static function rses_ajax_cancel(): void {
 		self::rses_ajax_guard();
-		$job = ElectoralRollImportJob::rses_cancel();
-		wp_send_json_success( ElectoralRollImportJob::rses_public_status( $job ) );
+		wp_send_json_success( JobGateway::get()->rsvImport->cancel() );
 	}
 
 	/**
@@ -320,13 +321,13 @@ class ElectoralRollImportPage {
 	 */
 	public static function rses_ajax_export_init(): void {
 		self::rses_ajax_guard();
-		$role  = isset( $_POST['wp_role'] ) ? sanitize_key( wp_unslash( (string) $_POST['wp_role'] ) ) : '';
-		$lines = isset( $_POST['max_lines'] ) ? absint( $_POST['max_lines'] ) : 1000;
-		$job   = ElectoralRollExportJob::rses_create( $role, $lines );
-		if ( is_wp_error( $job ) ) {
-			wp_send_json_error( array( 'message' => $job->get_error_message() ) );
+		$role   = isset( $_POST['wp_role'] ) ? sanitize_key( wp_unslash( (string) $_POST['wp_role'] ) ) : '';
+		$lines  = isset( $_POST['max_lines'] ) ? absint( $_POST['max_lines'] ) : 1000;
+		$status = JobGateway::get()->rsvExport->start( $role, $lines );
+		if ( is_wp_error( $status ) ) {
+			wp_send_json_error( array( 'message' => $status->get_error_message() ) );
 		}
-		wp_send_json_success( ElectoralRollExportJob::rses_public_status( $job ) );
+		wp_send_json_success( $status );
 	}
 
 	/**
@@ -334,16 +335,17 @@ class ElectoralRollImportPage {
 	 */
 	public static function rses_ajax_export_tick(): void {
 		self::rses_ajax_guard();
-		$job = ElectoralRollExportJob::rses_tick();
-		if ( is_wp_error( $job ) ) {
+		$export = JobGateway::get()->rsvExport;
+		$status = $export->tick();
+		if ( is_wp_error( $status ) ) {
 			wp_send_json_error(
 				array(
-					'message' => $job->get_error_message(),
-					'status'  => ElectoralRollExportJob::rses_public_status( ElectoralRollExportJob::rses_get() ),
+					'message' => $status->get_error_message(),
+					'status'  => $export->status(),
 				)
 			);
 		}
-		wp_send_json_success( ElectoralRollExportJob::rses_public_status( $job ) );
+		wp_send_json_success( $status );
 	}
 
 	/**
@@ -351,7 +353,7 @@ class ElectoralRollImportPage {
 	 */
 	public static function rses_ajax_export_status(): void {
 		self::rses_ajax_guard();
-		wp_send_json_success( ElectoralRollExportJob::rses_public_status( ElectoralRollExportJob::rses_get() ) );
+		wp_send_json_success( JobGateway::get()->rsvExport->status() );
 	}
 
 	/**
@@ -359,8 +361,7 @@ class ElectoralRollImportPage {
 	 */
 	public static function rses_ajax_export_cancel(): void {
 		self::rses_ajax_guard();
-		$job = ElectoralRollExportJob::rses_cancel();
-		wp_send_json_success( ElectoralRollExportJob::rses_public_status( $job ) );
+		wp_send_json_success( JobGateway::get()->rsvExport->cancel() );
 	}
 
 	/**
@@ -390,7 +391,9 @@ class ElectoralRollImportPage {
 		Nonce::rses_verify_or_die( Nonce::RSES_ACTION_ELECTORAL_ROLL_SAMPLE );
 
 		$job  = ElectoralRollExportJob::rses_get();
-		$path = ElectoralRollExportJob::rses_download_path( $job );
+		$path = JobGateway::isBooted()
+			? JobGateway::get()->rsvExport->downloadPath()
+			: ElectoralRollExportJob::rses_download_path( $job );
 		if ( null === $path || ! $job ) {
 			wp_die( esc_html__( 'Nenhuma exportação .rsv pronta para download.', 'relatasoft-secure-election-suite' ) );
 		}
@@ -434,8 +437,8 @@ class ElectoralRollImportPage {
 			$errors = is_array( $raw ) ? $raw : array();
 		}
 
-		$active_job  = ElectoralRollImportJob::rses_public_status( ElectoralRollImportJob::rses_get() );
-		$export_job  = ElectoralRollExportJob::rses_public_status( ElectoralRollExportJob::rses_get() );
+		$active_job  = JobGateway::get()->rsvImport->status();
+		$export_job  = JobGateway::get()->rsvExport->status();
 		$max_label   = number_format_i18n( ElectoralRollImportService::MAX_ROWS );
 		$max_size    = size_format( ElectoralRollImportJob::MAX_UPLOAD_BYTES );
 		$php_ceiling = self::rses_php_upload_ceiling();

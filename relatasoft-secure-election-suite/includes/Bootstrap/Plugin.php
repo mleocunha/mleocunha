@@ -285,12 +285,13 @@ class Plugin {
 			true
 		);
 
-		$resume = \RelataSoft\SecureElectionSuite\Voting\ElectoralRollImportJob::rses_public_status(
-			\RelataSoft\SecureElectionSuite\Voting\ElectoralRollImportJob::rses_get()
-		);
-		$export_resume = \RelataSoft\SecureElectionSuite\Voting\ElectoralRollExportJob::rses_public_status(
-			\RelataSoft\SecureElectionSuite\Voting\ElectoralRollExportJob::rses_get()
-		);
+		$resume = array( 'active' => false, 'stage' => null, 'progress' => 0, 'message' => '' );
+		$export_resume = $resume;
+		if ( \RelataSoft\SecureElectionSuite\Painel\Application\Jobs\JobGateway::isBooted() ) {
+			$jobs          = \RelataSoft\SecureElectionSuite\Painel\Application\Jobs\JobGateway::get();
+			$resume        = $jobs->rsvImport->status();
+			$export_resume = $jobs->rsvExport->status();
+		}
 
 		$php_ceiling = \RelataSoft\SecureElectionSuite\Admin\ElectoralRollImportPage::rses_php_upload_ceiling();
 		$chunk_bytes = \RelataSoft\SecureElectionSuite\Painel\Domain\ElectoralRoll\RsvFormat::adaptiveChunkBytes( $php_ceiling );

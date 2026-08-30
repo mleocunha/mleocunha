@@ -9,6 +9,9 @@
 
 namespace RelataSoft\SecureElectionSuite\Voting;
 
+use RelataSoft\SecureElectionSuite\Painel\Application\Identity\IdentityGateway;
+use RelataSoft\SecureElectionSuite\Painel\Application\Jobs\JobGateway;
+use RelataSoft\SecureElectionSuite\Painel\Contracts\Jobs\JobSlots;
 use RelataSoft\SecureElectionSuite\Painel\Domain\ElectoralRoll\RsvFormat;
 
 defined( 'ABSPATH' ) || exit;
@@ -28,11 +31,28 @@ class ElectoralRollExportJob {
 	public const TTL_SECONDS = 6 * HOUR_IN_SECONDS;
 
 	/**
-	 * Option key for the current user.
+	 * Option key for the current user (legacy; prefer {@see rses_slot()}).
 	 */
 	public static function rses_option_key( ?int $user_id = null ): string {
-		$uid = $user_id ?? get_current_user_id();
+		$uid = $user_id ?? self::rses_owner_id();
 		return 'rses_electoral_roll_export_job_' . (int) $uid;
+	}
+
+	/**
+	 * JobStore slot for this owner.
+	 */
+	public static function rses_slot( ?int $user_id = null ): string {
+		return JobSlots::rsvExport( $user_id ?? self::rses_owner_id() );
+	}
+
+	private static function rses_owner_id( ?int $user_id = null ): int {
+		if ( null !== $user_id ) {
+			return (int) $user_id;
+		}
+		if ( IdentityGateway::isBooted() ) {
+			return IdentityGateway::get()->session->currentUserId();
+		}
+		return (int) get_current_user_id();
 	}
 
 	/**
@@ -40,7 +60,7 @@ class ElectoralRollExportJob {
 	 */
 	public static function rses_get( ?int $user_id = null ): ?array {
 		self::rses_purge_if_expired( $user_id );
-		$job = get_option( self::rses_option_key( $user_id ), null );
+		$job = JobGateway::get()->store->get( self::rses_slot( $user_id ) );
 		return is_array( $job ) ? $job : null;
 	}
 
@@ -49,29 +69,31 @@ class ElectoralRollExportJob {
 	 */
 	public static function rses_save( array $job, ?int $user_id = null ): void {
 		$job['updated_at'] = time();
-		update_option( self::rses_option_key( $user_id ), $job, false );
+		JobGateway::get()->store->put( self::rses_slot( $user_id ), $job );
 	}
 
 	public static function rses_delete( ?int $user_id = null ): void {
-		$job = get_option( self::rses_option_key( $user_id ), null );
+		$slot = self::rses_slot( $user_id );
+		$job  = JobGateway::get()->store->get( $slot );
 		if ( is_array( $job ) ) {
 			self::rses_unlink_file( $job );
 		}
-		delete_option( self::rses_option_key( $user_id ) );
+		JobGateway::get()->store->delete( $slot );
 	}
 
 	/**
 	 * @return bool True if purged.
 	 */
 	public static function rses_purge_if_expired( ?int $user_id = null ): bool {
-		$job = get_option( self::rses_option_key( $user_id ), null );
+		$slot = self::rses_slot( $user_id );
+		$job  = JobGateway::get()->store->get( $slot );
 		if ( ! is_array( $job ) ) {
 			return false;
 		}
 		$updated = (int) ( $job['updated_at'] ?? $job['created_at'] ?? 0 );
 		if ( $updated > 0 && ( time() - $updated ) > self::TTL_SECONDS ) {
 			self::rses_unlink_file( $job );
-			delete_option( self::rses_option_key( $user_id ) );
+			JobGateway::get()->store->delete( $slot );
 			return true;
 		}
 		return false;

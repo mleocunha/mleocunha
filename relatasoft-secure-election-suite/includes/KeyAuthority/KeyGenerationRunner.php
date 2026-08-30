@@ -139,8 +139,9 @@ class KeyGenerationRunner {
 	 * @return bool
 	 */
 	private static function rses_is_cancelled( string $job_id ): bool {
-		// Read option directly to avoid purge side-effects mid-tick.
-		$rses_stored = get_option( KeyGenerationJob::RSES_OPTION_KEY, null );
+		// Read store directly to avoid purge side-effects mid-tick.
+		$rses_stored = \RelataSoft\SecureElectionSuite\Painel\Application\Jobs\JobGateway::get()
+			->store->get( \RelataSoft\SecureElectionSuite\Painel\Contracts\Jobs\JobSlots::KEYGEN );
 		if ( ! is_array( $rses_stored ) ) {
 			return true;
 		}

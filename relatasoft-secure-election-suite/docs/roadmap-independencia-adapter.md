@@ -304,11 +304,12 @@ exige:
 | A1 | **Feito (gate M1)** — crypto/formatos em `src/Domain/Crypto` + `RsvFormat`/`AuthoritiesPackage`; PHPUnit sem boot do sítio; facades Adapter #1 em `includes/Crypto` |
 | A2 | **Feito (gate M2)** — ports em `src/Contracts/{Keys,Elections,Votes,Tallies,Audit}`; InMemory + Adapter #1 em `src/Adapters/WordPress/Persistence`; `PersistenceGateway`; repositórios/serviços legados sem `$wpdb`/`Repository` directo nas operações de domínio |
 | A3 | **Feito (gate M3)** — ports UserDirectory / CapabilityResolver / SessionPort / SecretKeyProvider; `IdentityGateway`; RSV, autoridades e cast via ports; `ShareEncryptionService` sem sais do host (só no adapter) |
-| A4–A6 | Não iniciados como programa formal |
+| A4 | **Feito (gate M4)** — `JobStore` + `KeygenJobService` / `RsvImportJobService` / `RsvExportJobService` + `JobGateway`; estado de jobs sem `get_option` no domínio; AJAX vira adaptador fino |
+| A5–A6 | Não iniciados como programa formal |
 | B1–B6 | Parcialmente entregues no Adapter #1 |
 | C1–C3 | Operacionais; manter |
 
-**Próximo passo no caminho crítico:** iniciar **A4** (jobs: keygen / import-export RSV como API de domínio).
+**Próximo passo no caminho crítico:** iniciar **A5** (rotas/UI próprias; jornada sem shortcode obrigatório).
 
 ---
 
