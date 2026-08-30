@@ -8,6 +8,8 @@
 namespace RelataSoft\SecureElectionSuite\Frontend;
 
 use RelataSoft\SecureElectionSuite\Admin\Brand;
+use RelataSoft\SecureElectionSuite\Painel\Application\Journey\JourneyGateway;
+use RelataSoft\SecureElectionSuite\Painel\Contracts\Journey\JourneySteps;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -79,11 +81,19 @@ class JourneySettings {
 	}
 
 	/**
-	 * Resolve a configured page URL.
+	 * Resolve a journey step URL.
+	 *
+	 * Prefer native /voto routes when JourneyGateway is booted (A5 / M5).
+	 * Fall back to legacy page permalinks when the gateway is unavailable.
 	 *
 	 * @param string $rses_key Setting key (welcome_page_id, booth_page_id, thank_you_page_id).
 	 */
 	public static function rses_page_url( string $rses_key ): string {
+		$rses_step = JourneySteps::fromSettingKey( $rses_key );
+		if ( null !== $rses_step && JourneyGateway::isBooted() ) {
+			return JourneyGateway::get()->url( $rses_step );
+		}
+
 		$rses_settings = self::rses_get();
 		$rses_id       = absint( $rses_settings[ $rses_key ] ?? 0 );
 		if ( $rses_id < 1 ) {

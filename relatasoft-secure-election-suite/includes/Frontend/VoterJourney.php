@@ -1,6 +1,6 @@
 <?php
 /**
- * Elector journey: pages, redirects, and shortcodes.
+ * Elector journey: native /voto routes, redirects, and thin shortcode adapters.
  *
  * @package RelataSoft\SecureElectionSuite\Frontend
  */
@@ -277,7 +277,7 @@ class VoterJourney {
 	}
 
 	/**
-	 * Render welcome shortcode.
+	 * Render welcome shortcode (thin adapter over JourneyPresenter).
 	 *
 	 * @param array<string,mixed> $atts Attributes.
 	 * @return string
@@ -329,9 +329,9 @@ class VoterJourney {
 						<li><?php esc_html_e( 'Each elector may vote only once per election round.', 'relatasoft-secure-election-suite' ); ?></li>
 					</ol>
 				</div>
-				<?php if ( ! $rses_booth ) : ?>
+				<?php if ( '' === $rses_booth ) : ?>
 					<div class="rses-journey-notice">
-						<?php esc_html_e( 'The voting booth page has not been configured yet. An administrator must assign it under Election Suite → Redirections.', 'relatasoft-secure-election-suite' ); ?>
+						<?php esc_html_e( 'A cabina de votação ainda não está disponível. Confirme as rotas em Redirecionamentos ou contacte o administrador do sítio.', 'relatasoft-secure-election-suite' ); ?>
 					</div>
 				<?php elseif ( empty( $rses_open ) ) : ?>
 					<div class="rses-journey-notice" data-rses-open-count="0">

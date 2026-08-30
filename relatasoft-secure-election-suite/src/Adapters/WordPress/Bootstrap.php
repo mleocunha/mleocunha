@@ -12,6 +12,7 @@ use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\Branding\SiteIconBr
 use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\Branding\WordPressLoginBranding;
 use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\Identity\WordPressIdentityBootstrap;
 use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\Jobs\WordPressJobBootstrap;
+use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\Journey\WordPressJourneyBootstrap;
 use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\Logging\WordPressLogger;
 use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\Navigation\WordPressMenuChrome;
 use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\Persistence\WordPressPersistenceBootstrap;
@@ -40,6 +41,7 @@ final class Bootstrap {
 		WordPressPersistenceBootstrap::boot();
 		$identity = WordPressIdentityBootstrap::boot();
 		WordPressJobBootstrap::boot();
+		WordPressJourneyBootstrap::boot();
 
 		$logger       = new WordPressLogger();
 		$settingsRepo = new WordPressSettingsRepository();

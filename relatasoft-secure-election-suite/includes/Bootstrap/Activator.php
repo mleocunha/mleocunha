@@ -10,6 +10,7 @@ namespace RelataSoft\SecureElectionSuite\Bootstrap;
 use RelataSoft\SecureElectionSuite\Database\Migration;
 use RelataSoft\SecureElectionSuite\Frontend\JourneySettings;
 use RelataSoft\SecureElectionSuite\Frontend\VoterJourney;
+use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\Journey\WordPressJourneyFrontController;
 use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\Platform\PlatformUrlMask;
 use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\User\AuditorRoleRegistrar;
 use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\User\GestorRoleRegistrar;
@@ -68,7 +69,11 @@ class Activator {
 			}
 		}
 
+		WordPressJourneyFrontController::registerRewrites();
 		flush_rewrite_rules();
+		if ( defined( 'RSES_VERSION' ) ) {
+			update_option( 'rses_journey_routes_version', (string) RSES_VERSION, false );
+		}
 	}
 
 	/**

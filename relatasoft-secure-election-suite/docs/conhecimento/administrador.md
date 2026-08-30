@@ -6,7 +6,8 @@ O Administrador Eleitoral gerencia o sítio no modo bloqueado (chaves, votação
 
 - Bloquear o **modo de operação** do sítio
 - Gerenciar o **Cadastro Eleitoral** (contas e, em votação, import/export `.rsv`)
-- Configurar eleições, shortcodes e exportações
+- Configurar eleições, rotas da jornada (`/voto`) e exportações
+- Shortcodes de jornada são adaptadores opcionais; o itinerário nativo não exige páginas do sítio
 - Consultar o **Registro de Auditoria** e a documentação em **Conhecimento**
 
 ## Fluxo típico (modo votação)

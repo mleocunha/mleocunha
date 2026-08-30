@@ -345,7 +345,7 @@ class Plugin {
 	}
 
 	/**
-	 * Render voting booth shortcode.
+	 * Render voting booth shortcode (thin adapter over JourneyPresenter / VotingViews).
 	 *
 	 * @param array<string,mixed> $atts Shortcode attributes.
 	 * @return string
@@ -379,6 +379,16 @@ class Plugin {
 
 		$rses_election_id = $rses_attr_election > 0 ? $rses_attr_election : $rses_get_election;
 		$rses_round_id    = $rses_attr_round > 0 ? $rses_attr_round : $rses_get_round;
+
+		if ( \RelataSoft\SecureElectionSuite\Painel\Application\Journey\JourneyGateway::isBooted() ) {
+			return \RelataSoft\SecureElectionSuite\Painel\Application\Journey\JourneyGateway::get()->render(
+				\RelataSoft\SecureElectionSuite\Painel\Contracts\Journey\JourneySteps::BOOTH,
+				array(
+					'election_id' => $rses_election_id,
+					'round_id'    => $rses_round_id,
+				)
+			);
+		}
 
 		ob_start();
 		\RelataSoft\SecureElectionSuite\Voting\VotingViews::rses_render_voting_booth(

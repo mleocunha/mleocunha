@@ -89,29 +89,50 @@ class RedirectionsPage {
 					</table>
 
 					<h2 class="rses-panel-title"><?php esc_html_e( 'Elector journey', 'relatasoft-secure-election-suite' ); ?></h2>
-					<p class="description"><?php esc_html_e( 'After sign-in, electors land on the welcome page. One click opens the voting booth. After casting a vote they are sent to the thank-you page.', 'relatasoft-secure-election-suite' ); ?></p>
+					<p class="description"><?php esc_html_e( 'After sign-in, electors land on welcome. One click opens the booth. After casting a vote they are sent to thank-you. Native routes do not require host pages or shortcodes.', 'relatasoft-secure-election-suite' ); ?></p>
 
+					<?php
+					$rses_native = array(
+						'welcome'   => JourneySettings::rses_page_url( 'welcome_page_id' ),
+						'booth'     => JourneySettings::rses_page_url( 'booth_page_id' ),
+						'thank_you' => JourneySettings::rses_page_url( 'thank_you_page_id' ),
+					);
+					?>
 					<table class="form-table">
 						<tr>
-							<th scope="row"><label for="rses_welcome_page_id"><?php esc_html_e( 'Welcome page', 'relatasoft-secure-election-suite' ); ?></label></th>
-							<td><?php self::rses_render_page_select( 'rses_welcome_page_id', (int) $rses_settings['welcome_page_id'], $rses_pages ); ?></td>
-						</tr>
-						<tr>
-							<th scope="row"><label for="rses_booth_page_id"><?php esc_html_e( 'Voting booth page', 'relatasoft-secure-election-suite' ); ?></label></th>
+							<th scope="row"><?php esc_html_e( 'Rotas nativas', 'relatasoft-secure-election-suite' ); ?></th>
 							<td>
-								<?php self::rses_render_page_select( 'rses_booth_page_id', (int) $rses_settings['booth_page_id'], $rses_pages ); ?>
-								<p class="description"><?php esc_html_e( 'Page that contains the [rses_voting_booth] shortcode (cabina de votação).', 'relatasoft-secure-election-suite' ); ?></p>
+								<ul class="rses-native-journey-urls" style="margin:0;">
+									<li><code><?php echo esc_html( $rses_native['welcome'] ?: '/voto/' ); ?></code> — <?php esc_html_e( 'boas-vindas', 'relatasoft-secure-election-suite' ); ?></li>
+									<li><code><?php echo esc_html( $rses_native['booth'] ?: '/voto/cabina/' ); ?></code> — <?php esc_html_e( 'cabina', 'relatasoft-secure-election-suite' ); ?></li>
+									<li><code><?php echo esc_html( $rses_native['thank_you'] ?: '/voto/obrigado/' ); ?></code> — <?php esc_html_e( 'obrigado', 'relatasoft-secure-election-suite' ); ?></li>
+								</ul>
+								<p class="description"><?php esc_html_e( 'Itinerário principal do eleitor (A5). Login, redirects e recibo usam estas URLs.', 'relatasoft-secure-election-suite' ); ?></p>
 							</td>
 						</tr>
 						<tr>
-							<th scope="row"><label for="rses_thank_you_page_id"><?php esc_html_e( 'Thank-you page', 'relatasoft-secure-election-suite' ); ?></label></th>
+							<th scope="row"><label for="rses_welcome_page_id"><?php esc_html_e( 'Welcome page (legacy)', 'relatasoft-secure-election-suite' ); ?></label></th>
+							<td>
+								<?php self::rses_render_page_select( 'rses_welcome_page_id', (int) $rses_settings['welcome_page_id'], $rses_pages ); ?>
+								<p class="description"><?php esc_html_e( 'Optional host page with [rses_voter_welcome]. Redirects use the native /voto route.', 'relatasoft-secure-election-suite' ); ?></p>
+							</td>
+						</tr>
+						<tr>
+							<th scope="row"><label for="rses_booth_page_id"><?php esc_html_e( 'Voting booth page (legacy)', 'relatasoft-secure-election-suite' ); ?></label></th>
+							<td>
+								<?php self::rses_render_page_select( 'rses_booth_page_id', (int) $rses_settings['booth_page_id'], $rses_pages ); ?>
+								<p class="description"><?php esc_html_e( 'Optional page with [rses_voting_booth] as a thin adapter. Prefer /voto/cabina/.', 'relatasoft-secure-election-suite' ); ?></p>
+							</td>
+						</tr>
+						<tr>
+							<th scope="row"><label for="rses_thank_you_page_id"><?php esc_html_e( 'Thank-you page (legacy)', 'relatasoft-secure-election-suite' ); ?></label></th>
 							<td>
 								<?php self::rses_render_page_select( 'rses_thank_you_page_id', (int) $rses_settings['thank_you_page_id'], $rses_pages ); ?>
 								<p class="description"><?php
 									echo esc_html(
 										sprintf(
 											/* translators: %s: electoral authority role label (plural) */
-											__( 'Editable by administrators, authors, and %s like any content page.', 'relatasoft-secure-election-suite' ),
+											__( 'Optional [rses_voter_thank_you] adapter. Prefer /voto/obrigado/. Still editable by administrators, authors, and %s.', 'relatasoft-secure-election-suite' ),
 											RoleLabels::rses_editor_plural()
 										)
 									);
@@ -122,7 +143,7 @@ class RedirectionsPage {
 							<th scope="row"><label for="rses_logout_redirect_url"><?php esc_html_e( 'Logout redirect URL', 'relatasoft-secure-election-suite' ); ?></label></th>
 							<td>
 								<input type="url" class="large-text" name="rses_logout_redirect_url" id="rses_logout_redirect_url" value="<?php echo esc_attr( (string) ( $rses_settings['logout_redirect_url'] ?? '' ) ); ?>" placeholder="<?php echo esc_attr( JourneySettings::rses_page_url( 'welcome_page_id' ) ?: home_url( '/' ) ); ?>" />
-								<p class="description"><?php esc_html_e( 'Optional. Leave empty to return electors to the welcome page.', 'relatasoft-secure-election-suite' ); ?></p>
+								<p class="description"><?php esc_html_e( 'Optional. Leave empty to return electors to the welcome route.', 'relatasoft-secure-election-suite' ); ?></p>
 							</td>
 						</tr>
 					</table>
@@ -135,7 +156,7 @@ class RedirectionsPage {
 
 			<section class="rses-panel rses-panel-card">
 				<h2 class="rses-panel-title"><?php esc_html_e( 'Create journey pages', 'relatasoft-secure-election-suite' ); ?></h2>
-				<p><?php esc_html_e( 'Creates (or reuses) welcome, voting booth, and thank-you pages with default shortcode content. You can edit them in Pages afterward. For the password-change PoC, also add [enviar_redefinicao_senha] to the welcome page.', 'relatasoft-secure-election-suite' ); ?></p>
+				<p><?php esc_html_e( 'Optional legacy: creates host pages with shortcode adapters. Prefer the native /voto routes above. For the password-change PoC, add [enviar_redefinicao_senha] where needed.', 'relatasoft-secure-election-suite' ); ?></p>
 				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
 					<?php Nonce::rses_field( Nonce::RSES_ACTION_JOURNEY_PROVISION ); ?>
 					<input type="hidden" name="action" value="rses_provision_journey_pages" />
