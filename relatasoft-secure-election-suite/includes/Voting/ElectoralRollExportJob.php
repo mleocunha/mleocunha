@@ -31,7 +31,9 @@ class ElectoralRollExportJob {
 	public const TTL_SECONDS = 6 * HOUR_IN_SECONDS;
 
 	/**
-	 * Option key for the current user (legacy; prefer {@see rses_slot()}).
+	 * Option key for the current user.
+	 *
+	 * @deprecated Prefer {@see rses_slot()} + JobStore; option mapping lives in WordPressJobStore.
 	 */
 	public static function rses_option_key( ?int $user_id = null ): string {
 		$uid = $user_id ?? self::rses_owner_id();

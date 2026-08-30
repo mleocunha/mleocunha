@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 /**
- * A4 job ports — InMemory (no sítio / admin-ajax).
+ * A4 / M4 job ports — InMemory (no sítio / admin-ajax).
  *
  * @package RelataSoft\SecureElectionSuite\Tests\Unit\Jobs
  */
@@ -10,7 +10,9 @@ declare(strict_types=1);
 namespace RelataSoft\SecureElectionSuite\Tests\Unit\Jobs;
 
 use PHPUnit\Framework\TestCase;
+use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\Jobs\WordPressJobStore;
 use RelataSoft\SecureElectionSuite\Painel\Application\Jobs\JobGateway;
+use RelataSoft\SecureElectionSuite\Painel\Contracts\Jobs\JobResult;
 use RelataSoft\SecureElectionSuite\Painel\Contracts\Jobs\JobSlots;
 use RelataSoft\SecureElectionSuite\Painel\Infrastructure\Jobs\InMemoryJobStore;
 use RelataSoft\SecureElectionSuite\Painel\Infrastructure\Jobs\InMemoryKeygenJobService;
@@ -48,6 +50,12 @@ final class JobPortsTest extends TestCase {
 		$this->assertSame( 'rsv_export:7', JobSlots::rsvExport( 7 ) );
 	}
 
+	public function test_wordpress_option_key_mapping_is_pure(): void {
+		$this->assertSame( 'rses_keygen_job', WordPressJobStore::optionKeyForSlot( JobSlots::KEYGEN ) );
+		$this->assertSame( 'rses_electoral_roll_job_3', WordPressJobStore::optionKeyForSlot( JobSlots::rsvImport( 3 ) ) );
+		$this->assertSame( 'rses_electoral_roll_export_job_9', WordPressJobStore::optionKeyForSlot( JobSlots::rsvExport( 9 ) ) );
+	}
+
 	public function test_keygen_start_tick_complete_and_cancel(): void {
 		$status = $this->gw->keygen->start( array( 'bits' => 512, 'label' => 't' ) );
 		$this->assertTrue( $status['active'] );
@@ -65,23 +73,53 @@ final class JobPortsTest extends TestCase {
 		$this->assertFalse( $cancelled['active'] );
 	}
 
-	public function test_rsv_import_pipeline(): void {
+	public function test_rsv_import_pipeline_cancel_and_ingest(): void {
 		$s = $this->gw->rsvImport->createReceiving( 'cadastro.rsv', 2, 100, false );
 		$this->assertSame( 'receiving', $s['stage'] );
+		$this->assertFalse( JobResult::isFailure( $s ) );
 		$this->gw->rsvImport->appendChunk( '/tmp/a', 0 );
 		$s = $this->gw->rsvImport->appendChunk( '/tmp/b', 1 );
 		$this->assertSame( 'ready', $s['stage'] );
 		$this->gw->rsvImport->begin();
 		$s = $this->gw->rsvImport->tick();
 		$this->assertSame( 'complete', $s['stage'] );
+		$this->assertFalse( $this->gw->rsvImport->hasActive() );
+
+		$idle = $this->gw->rsvImport->status();
+		$this->assertFalse( $idle['active'] );
+
+		$ingested = $this->gw->rsvImport->ingestFullUpload( '/tmp/full', 'full.rsv', true );
+		$this->assertSame( 'receiving', $ingested['stage'] );
+		$cancelled = $this->gw->rsvImport->cancel();
+		$this->assertSame( 'cancelled', $cancelled['stage'] );
+		$this->assertFalse( $this->gw->rsvImport->hasActive() );
+
+		$fail = $this->gw->rsvImport->appendChunk( '/tmp/x', 0 );
+		$this->assertTrue( JobResult::isFailure( $fail ) );
 	}
 
-	public function test_rsv_export_pipeline_and_download(): void {
+	public function test_rsv_export_pipeline_download_and_cancel(): void {
 		$s = $this->gw->rsvExport->start( 'subscriber', 100 );
 		$this->assertTrue( $s['active'] );
+		$this->assertTrue( $this->gw->rsvExport->hasActive() );
 		$s = $this->gw->rsvExport->tick();
 		$this->assertSame( 'complete', $s['stage'] );
 		$this->assertNotNull( $this->gw->rsvExport->downloadPath() );
+		$this->assertSame( 'cadastro-teste.rsv', $this->gw->rsvExport->downloadFilename() );
+		$this->assertFalse( $this->gw->rsvExport->hasActive() );
+
+		$this->gw->rsvExport->start( 'editor', 10 );
+		$cancelled = $this->gw->rsvExport->cancel();
+		$this->assertSame( 'cancelled', $cancelled['stage'] );
+		$this->assertNull( $this->gw->rsvExport->downloadPath() );
+	}
+
+	public function test_job_result_helpers(): void {
+		$fail = JobResult::fail( 'x', 'boom' );
+		$this->assertTrue( JobResult::isFailure( $fail ) );
+		$this->assertSame( 'boom', JobResult::message( $fail ) );
+		$this->assertSame( 'x', JobResult::code( $fail ) );
+		$this->assertFalse( JobResult::isFailure( array( 'stage' => 'complete', 'active' => false ) ) );
 	}
 
 	public function test_gateway_requires_boot(): void {

@@ -27,7 +27,7 @@ final class WordPressJobStore implements JobStore {
 	/**
 	 * Keep legacy option key names for in-flight / resume compatibility.
 	 */
-	private function optionKey(string $slot): string {
+	public static function optionKeyForSlot(string $slot): string {
 		if ( JobSlots::KEYGEN === $slot ) {
 			return 'rses_keygen_job';
 		}
@@ -38,5 +38,9 @@ final class WordPressJobStore implements JobStore {
 			return 'rses_electoral_roll_export_job_' . substr( $slot, strlen( 'rsv_export:' ) );
 		}
 		return 'rses_job_' . sanitize_key( str_replace( ':', '_', $slot ) );
+	}
+
+	private function optionKey(string $slot): string {
+		return self::optionKeyForSlot( $slot );
 	}
 }

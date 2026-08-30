@@ -38,7 +38,9 @@ class ElectoralRollImportJob {
 	public const MAX_UPLOAD_BYTES = 4294967296; // 4 * 1024 * 1024 * 1024
 
 	/**
-	 * Option key for the current user (legacy; prefer {@see rses_slot()}).
+	 * Option key for the current user.
+	 *
+	 * @deprecated Prefer {@see rses_slot()} + JobStore; option mapping lives in WordPressJobStore.
 	 */
 	public static function rses_option_key( ?int $user_id = null ): string {
 		$uid = $user_id ?? self::rses_owner_id();

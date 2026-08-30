@@ -12,10 +12,10 @@ use RelataSoft\SecureElectionSuite\Bootstrap\Plugin;
 use RelataSoft\SecureElectionSuite\I18n\RoleLabels;
 use RelataSoft\SecureElectionSuite\I18n\Translator;
 use RelataSoft\SecureElectionSuite\Painel\Application\Jobs\JobGateway;
+use RelataSoft\SecureElectionSuite\Painel\Contracts\Jobs\JobResult;
 use RelataSoft\SecureElectionSuite\Painel\Domain\ElectoralRoll\RsvFormat;
 use RelataSoft\SecureElectionSuite\Security\Capability;
 use RelataSoft\SecureElectionSuite\Security\Nonce;
-use RelataSoft\SecureElectionSuite\Voting\ElectoralRollExportJob;
 use RelataSoft\SecureElectionSuite\Voting\ElectoralRollExportService;
 use RelataSoft\SecureElectionSuite\Voting\ElectoralRollImportJob;
 use RelataSoft\SecureElectionSuite\Voting\ElectoralRollImportService;
@@ -181,8 +181,8 @@ class ElectoralRollImportPage {
 		$update   = ! empty( $_POST['update_existing'] );
 
 		$status = JobGateway::get()->rsvImport->createReceiving( $original, $chunks, $bytes, $update );
-		if ( is_wp_error( $status ) ) {
-			wp_send_json_error( array( 'message' => $status->get_error_message() ) );
+		if ( JobResult::isFailure( $status ) ) {
+			wp_send_json_error( array( 'message' => JobResult::message( $status ) ) );
 		}
 
 		wp_send_json_success( $status );
@@ -212,8 +212,8 @@ class ElectoralRollImportPage {
 		}
 
 		$status = JobGateway::get()->rsvImport->appendChunk( $tmp, $index );
-		if ( is_wp_error( $status ) ) {
-			wp_send_json_error( array( 'message' => $status->get_error_message() ) );
+		if ( JobResult::isFailure( $status ) ) {
+			wp_send_json_error( array( 'message' => JobResult::message( $status ) ) );
 		}
 
 		wp_send_json_success( $status );
@@ -242,10 +242,10 @@ class ElectoralRollImportPage {
 
 		$import = JobGateway::get()->rsvImport;
 		$status = $import->ingestFullUpload( $tmp, $original, $update );
-		if ( is_wp_error( $status ) ) {
+		if ( JobResult::isFailure( $status ) ) {
 			wp_send_json_error(
 				array(
-					'message' => $status->get_error_message(),
+					'message' => JobResult::message( $status ),
 					'status'  => $import->status(),
 				)
 			);
@@ -262,10 +262,10 @@ class ElectoralRollImportPage {
 
 		$import = JobGateway::get()->rsvImport;
 		$status = $import->begin();
-		if ( is_wp_error( $status ) ) {
+		if ( JobResult::isFailure( $status ) ) {
 			wp_send_json_error(
 				array(
-					'message' => $status->get_error_message(),
+					'message' => JobResult::message( $status ),
 					'status'  => $import->status(),
 				)
 			);
@@ -282,18 +282,18 @@ class ElectoralRollImportPage {
 
 		$import = JobGateway::get()->rsvImport;
 		$status = $import->tick();
-		if ( is_wp_error( $status ) ) {
+		if ( JobResult::isFailure( $status ) ) {
 			$current = $import->status();
 			self::rses_store_errors_from_status( $current );
 			wp_send_json_error(
 				array(
-					'message' => $status->get_error_message(),
+					'message' => JobResult::message( $status ),
 					'status'  => $current,
 				)
 			);
 		}
 
-		if ( in_array( $status['stage'] ?? '', array( ElectoralRollImportJob::STAGE_COMPLETE, ElectoralRollImportJob::STAGE_FAILED ), true ) ) {
+		if ( in_array( $status['stage'] ?? '', array( 'complete', 'failed' ), true ) ) {
 			self::rses_store_errors_from_status( $status );
 		}
 
@@ -324,8 +324,8 @@ class ElectoralRollImportPage {
 		$role   = isset( $_POST['wp_role'] ) ? sanitize_key( wp_unslash( (string) $_POST['wp_role'] ) ) : '';
 		$lines  = isset( $_POST['max_lines'] ) ? absint( $_POST['max_lines'] ) : 1000;
 		$status = JobGateway::get()->rsvExport->start( $role, $lines );
-		if ( is_wp_error( $status ) ) {
-			wp_send_json_error( array( 'message' => $status->get_error_message() ) );
+		if ( JobResult::isFailure( $status ) ) {
+			wp_send_json_error( array( 'message' => JobResult::message( $status ) ) );
 		}
 		wp_send_json_success( $status );
 	}
@@ -337,10 +337,10 @@ class ElectoralRollImportPage {
 		self::rses_ajax_guard();
 		$export = JobGateway::get()->rsvExport;
 		$status = $export->tick();
-		if ( is_wp_error( $status ) ) {
+		if ( JobResult::isFailure( $status ) ) {
 			wp_send_json_error(
 				array(
-					'message' => $status->get_error_message(),
+					'message' => JobResult::message( $status ),
 					'status'  => $export->status(),
 				)
 			);
@@ -390,15 +390,13 @@ class ElectoralRollImportPage {
 		ModeLock::rses_require_mode( ModeLock::RSES_MODE_VOTING );
 		Nonce::rses_verify_or_die( Nonce::RSES_ACTION_ELECTORAL_ROLL_SAMPLE );
 
-		$job  = ElectoralRollExportJob::rses_get();
-		$path = JobGateway::isBooted()
-			? JobGateway::get()->rsvExport->downloadPath()
-			: ElectoralRollExportJob::rses_download_path( $job );
-		if ( null === $path || ! $job ) {
+		$export = JobGateway::get()->rsvExport;
+		$path   = $export->downloadPath();
+		if ( null === $path ) {
 			wp_die( esc_html__( 'Nenhuma exportação .rsv pronta para download.', 'relatasoft-secure-election-suite' ) );
 		}
 
-		$filename = sanitize_file_name( (string) ( $job['original_name'] ?? 'cadastro.rsv' ) );
+		$filename = sanitize_file_name( $export->downloadFilename() );
 		$size     = filesize( $path );
 
 		nocache_headers();

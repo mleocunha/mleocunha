@@ -304,7 +304,7 @@ exige:
 | A1 | **Feito (gate M1)** — crypto/formatos em `src/Domain/Crypto` + `RsvFormat`/`AuthoritiesPackage`; PHPUnit sem boot do sítio; **CI GitHub Actions** (`.github/workflows/phpunit.yml`); facades Adapter #1 em `includes/Crypto` |
 | A2 | **Feito (gate M2)** — ports em `src/Contracts/{Keys,Elections,Votes,Tallies,Audit}` + `SignedResultsStore`; InMemory + Adapter #1; `PersistenceGateway`; facades legadas sem `$wpdb`/`get_option` nas operações de domínio (manutenção de imports e signed results via ports); CI cobre `PersistencePortsTest` |
 | A3 | **Feito (gate M3)** — ports UserDirectory (`countByRole`) / CapabilityResolver / SessionPort / SecretKeyProvider; `IdentityGateway`; RSV, autoridades, cadastro de usuários e cast via ports; papéis em `UserRegistryRoles` (Domain); `ShareEncryptionService` sem sais do host; CI cobre `IdentityPortsTest` |
-| A4 | **Feito (gate M4)** — `JobStore` + `KeygenJobService` / `RsvImportJobService` / `RsvExportJobService` + `JobGateway`; estado de jobs sem `get_option` no domínio; AJAX vira adaptador fino |
+| A4 | **Feito (gate M4)** — `JobStore` + job services + `JobGateway` + `JobResult`; estado só no adapter (`WordPressJobStore`); AJAX/download clientes finos; CI cobre `JobPortsTest` |
 | A5 | **Feito (gate M5)** — rotas nativas `/voto`, `/voto/cabina`, `/voto/obrigado`; `JourneyUrlGenerator` / `JourneyRouteResolver` / `JourneyPresenter` + `JourneyGateway`; shortcodes e páginas do host viram adaptadores finos opcionais |
 | A6 | **Feito (gate M6)** — Adapter #2 `Standalone` (`NodeRuntime`, `ModePort`/`EnvModeLock`, `ThreeNodePilot`, `bin/ve-node`); 3 nós isolados + courier manual; crypto real sem host; doc `piloto-adapter2-3-nos.md` |
 | B1–B6 | Parcialmente entregues no Adapter #1 |

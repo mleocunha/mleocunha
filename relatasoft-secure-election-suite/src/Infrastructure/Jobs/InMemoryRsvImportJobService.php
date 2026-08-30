@@ -18,7 +18,7 @@ final class InMemoryRsvImportJobService implements RsvImportJobService {
 		return JobSlots::rsvImport($this->ownerId);
 	}
 
-	public function createReceiving(string $originalName, int $totalChunks, int $totalBytes, bool $updateExisting) {
+	public function createReceiving(string $originalName, int $totalChunks, int $totalBytes, bool $updateExisting): array {
 		$job = array(
 			'stage'           => 'receiving',
 			'original_name'   => $originalName,
@@ -35,10 +35,13 @@ final class InMemoryRsvImportJobService implements RsvImportJobService {
 		return $this->status();
 	}
 
-	public function appendChunk(string $chunkPath, int $chunkIndex) {
+	public function appendChunk(string $chunkPath, int $chunkIndex): array {
 		$job = $this->store->get($this->slot());
 		if (null === $job) {
-			return array('ok' => false, 'error' => 'no job');
+			return \RelataSoft\SecureElectionSuite\Painel\Contracts\Jobs\JobResult::fail('no_job', 'no job');
+		}
+		if ('receiving' !== ($job['stage'] ?? '')) {
+			return \RelataSoft\SecureElectionSuite\Painel\Contracts\Jobs\JobResult::fail('bad_stage', 'job not receiving');
 		}
 		$job['received_chunks'] = (int) ($job['received_chunks'] ?? 0) + 1;
 		$job['updated_at'] = time();
@@ -50,11 +53,11 @@ final class InMemoryRsvImportJobService implements RsvImportJobService {
 		return $this->status();
 	}
 
-	public function ingestFullUpload(string $tmpPath, string $originalName, bool $updateExisting) {
+	public function ingestFullUpload(string $tmpPath, string $originalName, bool $updateExisting): array {
 		return $this->createReceiving($originalName, 1, 10, $updateExisting);
 	}
 
-	public function begin() {
+	public function begin(): array {
 		$job = $this->store->get($this->slot()) ?? array();
 		$job['stage'] = 'importing';
 		$job['progress'] = 10;
