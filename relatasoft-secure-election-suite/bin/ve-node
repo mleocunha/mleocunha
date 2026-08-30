@@ -1,0 +1,133 @@
+#!/usr/bin/env php
+<?php
+declare(strict_types=1);
+
+/**
+ * Adapter #2 CLI — isolated site node or three-node pilot (A6 / M6).
+ *
+ * Usage:
+ *   php bin/ve-node pilot --root=/tmp/ve-piloto [--cliente=piloto] [--bits=512] [--votes=2]
+ *   php bin/ve-node info --mode=voting --data=/var/ve/voting
+ *
+ * Environment (single-node process):
+ *   RSES_MODE|VE_MODE = key_authority|voting|tallying
+ */
+
+$root = dirname( __DIR__ );
+$autoload = $root . '/vendor/autoload.php';
+if ( ! is_readable( $autoload ) ) {
+	fwrite( STDERR, "Missing vendor/autoload.php — run composer install.\n" );
+	exit( 1 );
+}
+require $autoload;
+
+use RelataSoft\SecureElectionSuite\Painel\Adapters\Standalone\Bootstrap;
+use RelataSoft\SecureElectionSuite\Painel\Adapters\Standalone\EnvModeLock;
+use RelataSoft\SecureElectionSuite\Painel\Adapters\Standalone\NodeRuntime;
+use RelataSoft\SecureElectionSuite\Painel\Contracts\Mode\SiteModes;
+
+$argv = $_SERVER['argv'] ?? array();
+$cmd  = $argv[1] ?? 'help';
+
+/** @return array<string,string|bool> */
+function ve_node_args( array $argv ): array {
+	$out = array();
+	foreach ( array_slice( $argv, 2 ) as $arg ) {
+		if ( str_starts_with( $arg, '--' ) ) {
+			$eq = strpos( $arg, '=' );
+			if ( false === $eq ) {
+				$out[ substr( $arg, 2 ) ] = true;
+			} else {
+				$out[ substr( $arg, 2, $eq - 2 ) ] = substr( $arg, $eq + 1 );
+			}
+		}
+	}
+	return $out;
+}
+
+$args = ve_node_args( $argv );
+
+if ( 'help' === $cmd || '--help' === $cmd || '-h' === $cmd ) {
+	echo <<<TXT
+ve-node — Adapter #2 (standalone) do Voto Eletrônico / Painel
+
+Comandos:
+  pilot   Executar piloto E3: 3 nós isolados + courier manual (sem sync)
+  info    Mostrar modo e data-dir de um nó
+
+Exemplos:
+  php bin/ve-node pilot --root=/tmp/ve-piloto --votes=2
+  RSES_MODE=voting php bin/ve-node info --data=/var/ve/voting
+
+Modos: key_authority | voting | tallying
+
+TXT;
+	exit( 0 );
+}
+
+if ( 'pilot' === $cmd ) {
+	if ( ! extension_loaded( 'gmp' ) ) {
+		fwrite( STDERR, "Extensão GMP obrigatória para o piloto crypto.\n" );
+		exit( 1 );
+	}
+	$rootDir = (string) ( $args['root'] ?? ( sys_get_temp_dir() . '/ve-piloto-' . getmypid() ) );
+	$cliente = (string) ( $args['cliente'] ?? 'piloto' );
+	$bits    = (int) ( $args['bits'] ?? 512 );
+	$votes   = (int) ( $args['votes'] ?? 2 );
+	if ( $bits < 512 ) {
+		fwrite( STDERR, "bits mínimo: 512\n" );
+		exit( 1 );
+	}
+
+	echo "Piloto Adapter #2 — cliente={$cliente} root={$rootDir}\n";
+	$pilot  = Bootstrap::bootPilotWorkspace( $rootDir, $cliente, $bits );
+	$result = $pilot->run( $votes );
+	$iso    = $pilot->isolationSnapshot();
+
+	echo json_encode(
+		array(
+			'ok'         => true,
+			'adapter'    => 'standalone',
+			'gate'       => 'M6',
+			'result'     => $result,
+			'isolation'  => $iso,
+			'modes'      => array(
+				'ka'      => SiteModes::label( SiteModes::KEY_AUTHORITY ),
+				'voting'  => SiteModes::label( SiteModes::VOTING ),
+				'tallying'=> SiteModes::label( SiteModes::TALLYING ),
+			),
+			'note'       => 'Sem sincronização automática; material só via courier/.',
+		),
+		JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE
+	) . "\n";
+	exit( 0 );
+}
+
+if ( 'info' === $cmd ) {
+	$data = (string) ( $args['data'] ?? '' );
+	$mode = (string) ( $args['mode'] ?? '' );
+	if ( '' === $mode ) {
+		$env = EnvModeLock::fromEnvironment();
+		$mode = $env->hasMode() ? $env->getMode() : '';
+	}
+	if ( '' === $mode || '' === $data ) {
+		fwrite( STDERR, "Uso: ve-node info --mode=voting --data=/caminho\n" );
+		exit( 1 );
+	}
+	$node = NodeRuntime::create( $mode, $data );
+	echo json_encode(
+		array(
+			'mode'       => $node->mode->getMode(),
+			'label'      => SiteModes::label( $node->mode->getMode() ),
+			'locked'     => $node->mode->isLocked(),
+			'data_dir'   => $node->dataDir,
+			'cliente_id' => $node->clienteId,
+			'adapter'    => 'standalone',
+		),
+		JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE
+	) . "\n";
+	exit( 0 );
+}
+
+fwrite( STDERR, "Comando desconhecido: {$cmd}\n" );
+exit( 1 );

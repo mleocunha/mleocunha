@@ -31,3 +31,7 @@ flowchart TB
 ```
 
 Nunca compartilhar a chave privada completa entre sítios de votação.
+
+## Piloto sem host legado (A6)
+
+O Adapter #2 (`Standalone`) reproduz esta topologia com três processos/pastas e um **courier** de ficheiros — ver `docs/piloto-adapter2-3-nos.md` e `php bin/ve-node pilot`.
