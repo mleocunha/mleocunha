@@ -122,7 +122,7 @@ Valor de negócio contínuo no Adapter #1 e higiene operacional, **sem** esperar
 | Marco | Critério de aceitação (go) | No-go |
 |-------|----------------------------|-------|
 | **M0** — Linguagem | UI/docs sem nome do host; operadores usam `/id.php` + `/painel` | Copy ainda expõe o host |
-| **M1** — Núcleo | Crypto/formatos em CI sem sítio | Testes só com boot do plugin |
+| **M1** — Núcleo | Crypto/formatos em CI sem sítio (`.github/workflows/phpunit.yml`) | Testes só com boot do plugin / sem pipeline |
 | **M2** — Persistência | Trocar impl. de DB sem tocar crypto | Repos ainda acoplados a APIs do host |
 | **M3** — Identidade | Provisionar papéis via portas | Caps/users ainda hardcoded ao host |
 | **M4** — Jobs | Import/keygen via contratos | Domínio depende de `admin-ajax` |
@@ -301,7 +301,7 @@ exige:
 | Nó | Estado aproximado |
 |----|-------------------|
 | A0 | Em curso / avançado (glossário sítio; máscara documentada) |
-| A1 | **Feito (gate M1)** — crypto/formatos em `src/Domain/Crypto` + `RsvFormat`/`AuthoritiesPackage`; PHPUnit sem boot do sítio; facades Adapter #1 em `includes/Crypto` |
+| A1 | **Feito (gate M1)** — crypto/formatos em `src/Domain/Crypto` + `RsvFormat`/`AuthoritiesPackage`; PHPUnit sem boot do sítio; **CI GitHub Actions** (`.github/workflows/phpunit.yml`); facades Adapter #1 em `includes/Crypto` |
 | A2 | **Feito (gate M2)** — ports em `src/Contracts/{Keys,Elections,Votes,Tallies,Audit}`; InMemory + Adapter #1 em `src/Adapters/WordPress/Persistence`; `PersistenceGateway`; repositórios/serviços legados sem `$wpdb`/`Repository` directo nas operações de domínio |
 | A3 | **Feito (gate M3)** — ports UserDirectory / CapabilityResolver / SessionPort / SecretKeyProvider; `IdentityGateway`; RSV, autoridades e cast via ports; `ShareEncryptionService` sem sais do host (só no adapter) |
 | A4 | **Feito (gate M4)** — `JobStore` + `KeygenJobService` / `RsvImportJobService` / `RsvExportJobService` + `JobGateway`; estado de jobs sem `get_option` no domínio; AJAX vira adaptador fino |

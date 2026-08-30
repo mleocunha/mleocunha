@@ -30,4 +30,5 @@ O home e a navegação mudam com `key_authority` | `voting` | `tallying`. No Ada
 
 Substituir o adapter do sítio hospedeiro por outro adapter sem reescrever Domain/Application/tests de domínio. Gate **M6**: piloto de 3 nós sem host legado e sem sync — ver `docs/piloto-adapter2-3-nos.md`.
 
-Cronograma (PMBOK, caminho crítico): `docs/roadmap-independencia-adapter.md`.
+Cronograma (PMBOK, caminho crítico): `docs/roadmap-independencia-adapter.md`.  
+CI (gate M1): `.github/workflows/phpunit.yml` — PHPUnit + GMP sem boot do sítio.
