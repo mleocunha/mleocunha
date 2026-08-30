@@ -27,6 +27,7 @@ use RelataSoft\SecureElectionSuite\Painel\Infrastructure\Persistence\Keys\InMemo
 use RelataSoft\SecureElectionSuite\Painel\Infrastructure\Persistence\Tallies\InMemoryCertificationRepository;
 use RelataSoft\SecureElectionSuite\Painel\Infrastructure\Persistence\Tallies\InMemoryEncryptedTallyRepository;
 use RelataSoft\SecureElectionSuite\Painel\Infrastructure\Persistence\Tallies\InMemoryOfficialShareSubmissionRepository;
+use RelataSoft\SecureElectionSuite\Painel\Infrastructure\Persistence\Tallies\InMemorySignedResultsStore;
 use RelataSoft\SecureElectionSuite\Painel\Infrastructure\Persistence\Tallies\InMemoryTallyImportRepository;
 use RelataSoft\SecureElectionSuite\Painel\Infrastructure\Persistence\Votes\InMemoryEncryptedVoteRepository;
 
@@ -87,6 +88,7 @@ final class NodeRuntime {
 			new InMemoryOfficialShareSubmissionRepository(),
 			new InMemoryCertificationRepository(),
 			new InMemoryAuditLogRepository(),
+			new InMemorySignedResultsStore(),
 		);
 
 		$identity = new IdentityGateway(

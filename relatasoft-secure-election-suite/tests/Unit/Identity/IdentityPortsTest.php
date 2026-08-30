@@ -127,6 +127,63 @@ final class IdentityPortsTest extends TestCase {
 		$this->assertSame( $key, $this->gw->secrets->shareStorageKey() );
 	}
 
+	public function test_directory_update_password_role_and_count(): void {
+		$created = $this->gw->users->create(
+			array(
+				'login'    => 'upd',
+				'email'    => 'upd@ex.com',
+				'password' => 'initial1',
+				'role'     => 'subscriber',
+			)
+		);
+		$id = $created['id'];
+		$this->assertTrue( $this->gw->users->update( $id, array( 'displayName' => 'Atualizado', 'email' => 'n@ex.com' ) )['ok'] );
+		$this->assertSame( 'Atualizado', $this->gw->users->findById( $id )['displayName'] ?? null );
+		$this->gw->users->setPassword( $id, 'nova-senha' );
+		$this->gw->users->setPasswordHash( $id, 'hash:abc' );
+		$this->assertSame( 'hash:abc', $this->gw->users->findById( $id )['passwordHash'] ?? null );
+		$this->gw->users->setRole( $id, 'editor' );
+		$this->assertSame( array( 'editor' ), $this->gw->users->findById( $id )['roles'] ?? null );
+		$this->assertSame( 1, $this->gw->users->countByRole( 'editor' ) );
+		$this->assertSame( 0, $this->gw->users->countByRole( 'subscriber' ) );
+	}
+
+	public function test_capability_election_and_export_flags(): void {
+		$admin = $this->gw->users->create(
+			array(
+				'login'    => 'adm2',
+				'email'    => 'adm2@ex.com',
+				'password' => 'x',
+				'role'     => 'administrator',
+			)
+		);
+		$voter = $this->gw->users->create(
+			array(
+				'login'    => 'vot2',
+				'email'    => 'vot2@ex.com',
+				'password' => 'x',
+				'role'     => 'subscriber',
+			)
+		);
+		$official = $this->gw->users->create(
+			array(
+				'login'    => 'off2',
+				'email'    => 'off2@ex.com',
+				'password' => 'x',
+				'role'     => 'editor',
+			)
+		);
+		$this->assertTrue( $this->gw->capabilities->canManageElection( $admin['id'] ) );
+		$this->assertTrue( $this->gw->capabilities->canVote( $voter['id'] ) );
+		$this->assertTrue( $this->gw->capabilities->canViewAudit( $admin['id'] ) );
+		$this->assertTrue( $this->gw->capabilities->isElectionOfficial( $official['id'] ) );
+		$this->assertTrue( $this->gw->capabilities->canExportOwnShare( $official['id'] ) );
+		$this->assertFalse( $this->gw->capabilities->canExportAllShares( $voter['id'] ) );
+		$this->assertTrue( $this->gw->capabilities->isCandidate( $voter['id'] ) );
+		$this->caps->setAllowFullPrivateExport( true );
+		$this->assertTrue( $this->gw->capabilities->canExportAllShares( $admin['id'] ) );
+	}
+
 	public function test_gateway_requires_boot(): void {
 		IdentityGateway::reset();
 		$this->expectException( \RuntimeException::class );

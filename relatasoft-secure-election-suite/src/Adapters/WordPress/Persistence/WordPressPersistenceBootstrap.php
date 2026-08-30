@@ -10,6 +10,7 @@ use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\Persistence\Keys\Wo
 use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\Persistence\Tallies\WordPressCertificationRepository;
 use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\Persistence\Tallies\WordPressEncryptedTallyRepository;
 use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\Persistence\Tallies\WordPressOfficialShareSubmissionRepository;
+use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\Persistence\Tallies\WordPressSignedResultsStore;
 use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\Persistence\Tallies\WordPressTallyImportRepository;
 use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\Persistence\Votes\WordPressEncryptedVoteRepository;
 use RelataSoft\SecureElectionSuite\Painel\Application\Persistence\PersistenceGateway;
@@ -31,6 +32,7 @@ final class WordPressPersistenceBootstrap {
 				new WordPressOfficialShareSubmissionRepository(),
 				new WordPressCertificationRepository(),
 				new WordPressAuditLogRepository(),
+				new WordPressSignedResultsStore(),
 			)
 		);
 	}

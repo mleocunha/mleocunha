@@ -51,9 +51,7 @@ class ElectoralRollExportService {
 		if ( ! isset( self::rses_exportable_roles()[ $wp_role ] ) ) {
 			return 0;
 		}
-		$counts = count_users();
-		$avail  = is_array( $counts['avail_roles'] ?? null ) ? $counts['avail_roles'] : array();
-		return (int) ( $avail[ $wp_role ] ?? 0 );
+		return IdentityGateway::get()->users->countByRole( $wp_role );
 	}
 
 	/**

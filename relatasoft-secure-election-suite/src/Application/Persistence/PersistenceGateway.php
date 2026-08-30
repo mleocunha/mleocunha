@@ -10,6 +10,7 @@ use RelataSoft\SecureElectionSuite\Painel\Contracts\Keys\ShareRepository;
 use RelataSoft\SecureElectionSuite\Painel\Contracts\Tallies\CertificationRepository;
 use RelataSoft\SecureElectionSuite\Painel\Contracts\Tallies\EncryptedTallyRepository;
 use RelataSoft\SecureElectionSuite\Painel\Contracts\Tallies\OfficialShareSubmissionRepository;
+use RelataSoft\SecureElectionSuite\Painel\Contracts\Tallies\SignedResultsStore;
 use RelataSoft\SecureElectionSuite\Painel\Contracts\Tallies\TallyImportRepository;
 use RelataSoft\SecureElectionSuite\Painel\Contracts\Votes\EncryptedVoteRepository;
 
@@ -32,6 +33,7 @@ final class PersistenceGateway {
 		public readonly OfficialShareSubmissionRepository $shareSubmissions,
 		public readonly CertificationRepository $certifications,
 		public readonly AuditLogRepository $auditLog,
+		public readonly SignedResultsStore $signedResults,
 	) {}
 
 	public static function boot( self $gateway ): self {

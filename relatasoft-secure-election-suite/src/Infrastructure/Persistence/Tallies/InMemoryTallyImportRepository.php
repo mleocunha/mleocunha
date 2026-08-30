@@ -55,4 +55,38 @@ final class InMemoryTallyImportRepository implements TallyImportRepository {
 		unset($this->rows[$importId]);
 		return true;
 	}
+
+	public function listIdsNeedingSummary(int $limit, int $maxManifestBytes): array {
+		$ids = array();
+		$rows = $this->allRows();
+		usort($rows, static fn($a, $b) => ((int) $b['id']) <=> ((int) $a['id']));
+		foreach ($rows as $row) {
+			$title = (string) ($row['election_title'] ?? '');
+			$manifest = (string) ($row['import_manifest_json'] ?? '');
+			if ('' !== $title) {
+				continue;
+			}
+			if (strlen($manifest) > $maxManifestBytes) {
+				continue;
+			}
+			$ids[] = (int) $row['id'];
+			if (count($ids) >= $limit) {
+				break;
+			}
+		}
+		return $ids;
+	}
+
+	public function purgeOversizedManifests(string $stubJson, int $maxBytes): int {
+		$n = 0;
+		foreach ($this->rows as $id => $row) {
+			$manifest = (string) ($row['import_manifest_json'] ?? '');
+			if (strlen($manifest) > $maxBytes) {
+				$this->rows[$id]['import_manifest_json'] = $stubJson;
+				$this->rows[$id]['status'] = 'rejected';
+				++$n;
+			}
+		}
+		return $n;
+	}
 }

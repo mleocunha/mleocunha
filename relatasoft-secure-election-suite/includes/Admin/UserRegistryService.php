@@ -5,19 +5,19 @@ namespace RelataSoft\SecureElectionSuite\Admin;
 
 use RelataSoft\SecureElectionSuite\Bootstrap\ModeLock;
 use RelataSoft\SecureElectionSuite\I18n\RoleLabels;
-use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\User\WordPressCapabilityResolver;
+use RelataSoft\SecureElectionSuite\Painel\Application\Identity\IdentityGateway;
 use RelataSoft\SecureElectionSuite\Painel\Domain\Access\UserRegistryRoles;
 use RelataSoft\SecureElectionSuite\Security\Capability;
 
 defined( 'ABSPATH' ) || exit;
 
 /**
- * Mode-scoped user roles for the Painel registry.
+ * Mode-scoped user roles for the Painel registry (via IdentityGateway ports).
  */
 final class UserRegistryService {
 
 	/**
-	 * WP role slugs visible/creatable for the active (or given) mode.
+	 * Role slugs visible/creatable for the active (or given) mode.
 	 *
 	 * @return list<string>
 	 */
@@ -33,64 +33,55 @@ final class UserRegistryService {
 	 */
 	public static function role_labels(): array {
 		return array(
-			Capability::RSES_ADMIN_ROLE                  => __( 'Administrador Eleitoral', 'relatasoft-secure-election-suite' ),
-			WordPressCapabilityResolver::GESTOR_ROLE     => __( 'Gestor pelo Cliente', 'relatasoft-secure-election-suite' ),
-			Capability::RSES_OFFICIAL_ROLE               => RoleLabels::rses_editor_singular(),
-			WordPressCapabilityResolver::AUDITOR_ROLE    => __( 'Auditor', 'relatasoft-secure-election-suite' ),
-			Capability::RSES_VOTER_ROLE                  => RoleLabels::rses_elector_singular(),
+			UserRegistryRoles::ROLE_ADMIN    => __( 'Administrador Eleitoral', 'relatasoft-secure-election-suite' ),
+			UserRegistryRoles::ROLE_GESTOR   => __( 'Gestor pelo Cliente', 'relatasoft-secure-election-suite' ),
+			UserRegistryRoles::ROLE_OFFICIAL => RoleLabels::rses_editor_singular(),
+			UserRegistryRoles::ROLE_AUDITOR  => __( 'Auditor', 'relatasoft-secure-election-suite' ),
+			UserRegistryRoles::ROLE_VOTER    => RoleLabels::rses_elector_singular(),
 		);
 	}
 
 	/**
-	 * Grouped users for the registry UI.
+	 * Grouped users for the registry UI (UserDirectory rows — never host objects).
 	 *
-	 * @return array<string, list<\WP_User>>
+	 * @return array<string, list<array<string,mixed>>>
 	 */
 	public static function grouped_users( ?string $mode = null ): array {
 		$roles  = self::roles_for_mode( $mode );
 		$labels = self::role_labels();
+		$users  = IdentityGateway::get()->users;
 		$out    = array();
 		foreach ( $roles as $role ) {
 			if ( ! isset( $labels[ $role ] ) ) {
 				continue;
 			}
-			$users = get_users(
-				array(
-					'role'    => $role,
-					'orderby' => 'display_name',
-					'order'   => 'ASC',
-					'number'  => 500,
-				)
-			);
-			$out[ $role ] = is_array( $users ) ? $users : array();
+			$out[ $role ] = $users->listByRole( $role, 0, 500 );
 		}
 		return $out;
 	}
 
 	/**
 	 * Roles that may be assigned when creating a user in this mode.
-	 * Admins/gestor are listed but create defaults to autoridade / eleitor.
 	 *
 	 * @return list<string>
 	 */
 	public static function creatable_roles( ?string $mode = null ): array {
-		$mode = $mode ?? ModeLock::rses_get_mode();
+		$mode  = $mode ?? ModeLock::rses_get_mode();
 		$roles = array(
-			Capability::RSES_OFFICIAL_ROLE,
-			WordPressCapabilityResolver::AUDITOR_ROLE,
+			UserRegistryRoles::ROLE_OFFICIAL,
+			UserRegistryRoles::ROLE_AUDITOR,
 		);
 		if ( ModeLock::RSES_MODE_VOTING === $mode ) {
-			$roles[] = Capability::RSES_VOTER_ROLE;
+			$roles[] = UserRegistryRoles::ROLE_VOTER;
 		}
-		// Gestor/admin may also provision another electoral administrator.
 		if ( Capability::rses_user_has_admin_role() ) {
-			array_unshift( $roles, Capability::RSES_ADMIN_ROLE );
+			array_unshift( $roles, UserRegistryRoles::ROLE_ADMIN );
 		}
 		return array_values( array_unique( $roles ) );
 	}
 
 	/**
-	 * Create a WP user with a mode-allowed role.
+	 * Create a user with a mode-allowed role via UserDirectory.
 	 *
 	 * @return int|\WP_Error
 	 */
@@ -107,15 +98,18 @@ final class UserRegistryService {
 		if ( strlen( $password ) < 8 ) {
 			return new \WP_Error( 'rses_pass', __( 'A senha deve ter pelo menos 8 caracteres.', 'relatasoft-secure-election-suite' ) );
 		}
-		$user_id = wp_insert_user(
+		$created = IdentityGateway::get()->users->create(
 			array(
-				'user_login'   => $login,
-				'user_email'   => $email,
-				'user_pass'    => $password,
-				'display_name' => sanitize_text_field( $display_name !== '' ? $display_name : $login ),
-				'role'         => $role,
+				'login'       => $login,
+				'email'       => $email,
+				'password'    => $password,
+				'displayName' => sanitize_text_field( $display_name !== '' ? $display_name : $login ),
+				'role'        => $role,
 			)
 		);
-		return $user_id;
+		if ( empty( $created['ok'] ) ) {
+			return new \WP_Error( 'rses_create', (string) ( $created['error'] ?? __( 'Falha ao cadastrar.', 'relatasoft-secure-election-suite' ) ) );
+		}
+		return (int) $created['id'];
 	}
 }

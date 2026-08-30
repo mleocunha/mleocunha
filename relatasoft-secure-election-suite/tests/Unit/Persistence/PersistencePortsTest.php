@@ -18,6 +18,7 @@ use RelataSoft\SecureElectionSuite\Painel\Infrastructure\Persistence\Keys\InMemo
 use RelataSoft\SecureElectionSuite\Painel\Infrastructure\Persistence\Tallies\InMemoryCertificationRepository;
 use RelataSoft\SecureElectionSuite\Painel\Infrastructure\Persistence\Tallies\InMemoryEncryptedTallyRepository;
 use RelataSoft\SecureElectionSuite\Painel\Infrastructure\Persistence\Tallies\InMemoryOfficialShareSubmissionRepository;
+use RelataSoft\SecureElectionSuite\Painel\Infrastructure\Persistence\Tallies\InMemorySignedResultsStore;
 use RelataSoft\SecureElectionSuite\Painel\Infrastructure\Persistence\Tallies\InMemoryTallyImportRepository;
 use RelataSoft\SecureElectionSuite\Painel\Infrastructure\Persistence\Votes\InMemoryEncryptedVoteRepository;
 
@@ -38,6 +39,7 @@ final class PersistencePortsTest extends TestCase {
 				new InMemoryOfficialShareSubmissionRepository(),
 				new InMemoryCertificationRepository(),
 				new InMemoryAuditLogRepository(),
+				new InMemorySignedResultsStore(),
 			)
 		);
 	}
@@ -242,6 +244,96 @@ final class PersistencePortsTest extends TestCase {
 		$this->assertSame( 1, $this->gw->shareSubmissions->deleteByImport( $importId ) );
 		$this->assertSame( 1, $this->gw->certifications->deleteByImport( $importId ) );
 		$this->assertTrue( $this->gw->tallyImports->delete( $importId ) );
+	}
+
+	public function test_list_methods_and_tally_maintenance_ports(): void {
+		$keyId = $this->gw->keys->create(
+			array(
+				'key_label'  => 'k2',
+				'public_p'   => '11',
+				'public_q'   => '5',
+				'public_g'   => '2',
+				'public_y'   => '3',
+				'key_size'   => 512,
+				'is_deleted' => 0,
+			)
+		);
+		$this->assertCount( 1, $this->gw->keys->listActive() );
+
+		$eid = $this->gw->elections->createElection(
+			array(
+				'title'         => 'E2',
+				'voting_method' => 'approval',
+				'status'        => 'draft',
+			)
+		);
+		$this->assertCount( 1, $this->gw->elections->listElections() );
+		$this->assertTrue( $this->gw->elections->updateElectionStatus( $eid, 'open' ) );
+		$rid = $this->gw->elections->createRound(
+			array(
+				'election_id'  => $eid,
+				'round_number' => 1,
+				'title'        => 'R1',
+			)
+		);
+		$this->assertCount( 1, $this->gw->elections->listRounds( $eid ) );
+
+		$importId = $this->gw->tallyImports->create(
+			array(
+				'import_manifest_json' => '{"election":{"title":"X"},"round":{"title":"Y"}}',
+				'import_hash'          => 'h2',
+				'status'               => 'pending',
+				'election_title'       => '',
+			)
+		);
+		$need = $this->gw->tallyImports->listIdsNeedingSummary( 10, 100000 );
+		$this->assertContains( $importId, $need );
+		$this->assertTrue(
+			$this->gw->tallyImports->updateSummary(
+				$importId,
+				array(
+					'election_title' => 'X',
+					'round_title'    => 'Y',
+					'ballot_count'   => 1,
+				)
+			)
+		);
+
+		$big = $this->gw->tallyImports->create(
+			array(
+				'import_manifest_json' => str_repeat( 'x', 50 ),
+				'import_hash'          => 'h3',
+				'status'               => 'pending',
+			)
+		);
+		$purged = $this->gw->tallyImports->purgeOversizedManifests( '{"purged":true}', 10 );
+		$this->assertGreaterThanOrEqual( 1, $purged );
+		$this->assertSame( 'rejected', $this->gw->tallyImports->find( $big )['status'] ?? null );
+
+		$this->gw->shareSubmissions->create(
+			array(
+				'tally_import_id'         => $importId,
+				'share_index'             => 1,
+				'share_payload_encrypted' => 'x',
+			)
+		);
+		$this->assertCount( 1, $this->gw->shareSubmissions->listByImport( $importId ) );
+		$this->gw->auditLog->append(
+			array(
+				'action'        => 'm2.audit',
+				'object_type'   => 'test',
+				'current_hash'  => 'm2hash',
+				'previous_hash' => null,
+			)
+		);
+		$this->assertNotEmpty( $this->gw->auditLog->listRecent( 5 ) );
+
+		$this->gw->signedResults->put( $importId, array( 'package' => array( 'v' => 1 ) ) );
+		$this->assertSame( 1, $this->gw->signedResults->get( $importId )['package']['v'] ?? null );
+		$this->gw->signedResults->delete( $importId );
+		$this->assertNull( $this->gw->signedResults->get( $importId ) );
+
+		unset( $keyId, $rid );
 	}
 
 	public function test_gateway_requires_boot(): void {

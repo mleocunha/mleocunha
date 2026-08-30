@@ -126,9 +126,9 @@ class UsersRegistryPage {
 							<tbody>
 								<?php foreach ( $users as $user ) : ?>
 									<tr>
-										<td><?php echo esc_html( $user->display_name ); ?></td>
-										<td><code><?php echo esc_html( $user->user_login ); ?></code></td>
-										<td><?php echo esc_html( $user->user_email ); ?></td>
+										<td><?php echo esc_html( (string) ( $user['displayName'] ?? '' ) ); ?></td>
+										<td><code><?php echo esc_html( (string) ( $user['login'] ?? '' ) ); ?></code></td>
+										<td><?php echo esc_html( (string) ( $user['email'] ?? '' ) ); ?></td>
 									</tr>
 								<?php endforeach; ?>
 							</tbody>

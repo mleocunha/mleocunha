@@ -22,4 +22,18 @@ interface TallyImportRepository {
 	public function updateSummary(int $importId, array $summary): bool;
 
 	public function delete(int $importId): bool;
+
+	/**
+	 * IDs needing election/round title backfill (safe-sized manifests only).
+	 *
+	 * @return list<int>
+	 */
+	public function listIdsNeedingSummary(int $limit, int $maxManifestBytes): array;
+
+	/**
+	 * Replace oversized manifests with a stub JSON and mark rejected.
+	 *
+	 * @return int Rows updated.
+	 */
+	public function purgeOversizedManifests(string $stubJson, int $maxBytes): int;
 }

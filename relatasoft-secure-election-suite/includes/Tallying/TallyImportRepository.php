@@ -7,7 +7,6 @@
 
 namespace RelataSoft\SecureElectionSuite\Tallying;
 
-use RelataSoft\SecureElectionSuite\Database\Schema;
 use RelataSoft\SecureElectionSuite\Exports\HashService;
 use RelataSoft\SecureElectionSuite\Painel\Application\Persistence\PersistenceGateway;
 
@@ -218,24 +217,9 @@ class TallyImportRepository {
 	 * @return int Rows updated.
 	 */
 	public static function rses_backfill_summaries(): int {
-		global $wpdb;
-
-		$rses_table = Schema::rses_table( 'rses_tally_imports' );
-
-		// Column may not exist until migration runs.
-		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-		$rses_has = $wpdb->get_results( "SHOW COLUMNS FROM {$rses_table} LIKE 'election_title'" );
-		if ( empty( $rses_has ) ) {
-			return 0;
-		}
-
-		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-		$rses_ids = $wpdb->get_col(
-			"SELECT id FROM {$rses_table}
-			WHERE (election_title IS NULL OR election_title = '')
-			AND LENGTH(import_manifest_json) <= " . (int) self::RSES_MAX_SAFE_MANIFEST_BYTES . '
-			ORDER BY id DESC
-			LIMIT 50'
+		$rses_ids = PersistenceGateway::get()->tallyImports->listIdsNeedingSummary(
+			50,
+			self::RSES_MAX_SAFE_MANIFEST_BYTES
 		);
 
 		if ( empty( $rses_ids ) ) {
@@ -272,16 +256,13 @@ class TallyImportRepository {
 	/**
 	 * Replace oversized manifests with a tiny stub so admin pages stop white-screening.
 	 *
-	 * Uses SQL LENGTH only — never reads the huge JSON into PHP.
+	 * Adapter implements SIZE check — never reads the huge JSON into PHP on Adapter #1.
 	 *
 	 * @param int $max_bytes Max safe stored manifest size.
 	 * @return int Rows updated.
 	 */
 	public static function rses_purge_oversized_manifests( int $max_bytes = self::RSES_MAX_SAFE_MANIFEST_BYTES ): int {
-		global $wpdb;
-
-		$rses_table = Schema::rses_table( 'rses_tally_imports' );
-		$rses_stub  = wp_json_encode(
+		$rses_stub = wp_json_encode(
 			array(
 				'purged'            => true,
 				'reason'            => 'import_manifest_json exceeded safe size for this PHP memory_limit; re-import with RelataSoft Secure Election Suite 1.0.27.4+',
@@ -291,18 +272,10 @@ class TallyImportRepository {
 			JSON_UNESCAPED_SLASHES
 		);
 
-		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-		$rses_result = $wpdb->query(
-			$wpdb->prepare(
-				"UPDATE {$rses_table}
-				SET import_manifest_json = %s, status = 'rejected'
-				WHERE LENGTH(import_manifest_json) > %d",
-				$rses_stub,
-				$max_bytes
-			)
+		return PersistenceGateway::get()->tallyImports->purgeOversizedManifests(
+			is_string( $rses_stub ) ? $rses_stub : '{}',
+			$max_bytes
 		);
-
-		return false === $rses_result ? 0 : (int) $rses_result;
 	}
 
 	/**

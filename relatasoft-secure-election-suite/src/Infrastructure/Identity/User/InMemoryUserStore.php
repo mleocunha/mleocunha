@@ -86,6 +86,10 @@ final class InMemoryUserStore implements UserProvider, UserDirectory {
 		return array_values($out);
 	}
 
+	public function countByRole(string $role): int {
+		return count($this->listByRole($role));
+	}
+
 	public function create(array $data): array {
 		$login = (string) ($data['login'] ?? '');
 		$email = (string) ($data['email'] ?? '');

@@ -13,6 +13,8 @@ use RelataSoft\SecureElectionSuite\Crypto\SchnorrSignature;
 use RelataSoft\SecureElectionSuite\Exports\CertificationPdf;
 use RelataSoft\SecureElectionSuite\Exports\HashService;
 use RelataSoft\SecureElectionSuite\Exports\JsonExport;
+use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\Persistence\Tallies\WordPressSignedResultsStore;
+use RelataSoft\SecureElectionSuite\Painel\Application\Persistence\PersistenceGateway;
 use RelataSoft\SecureElectionSuite\Security\Capability;
 use RelataSoft\SecureElectionSuite\Security\ConfirmWord;
 use RelataSoft\SecureElectionSuite\Security\Nonce;
@@ -43,12 +45,12 @@ class SignedResultsService {
 	}
 
 	/**
-	 * Option key for persisted signed package metadata.
+	 * Option key for persisted signed package metadata (Adapter #1 compatibility).
 	 *
 	 * @param int $import_id Import ID.
 	 */
 	public static function rses_persist_option_key( int $import_id ): string {
-		return 'rses_signed_persist_' . $import_id;
+		return WordPressSignedResultsStore::optionKey( $import_id );
 	}
 
 	/**
@@ -398,7 +400,7 @@ class SignedResultsService {
 		if ( $import_id < 1 ) {
 			return false;
 		}
-		$rses_meta = get_option( self::rses_persist_option_key( $import_id ), null );
+		$rses_meta = PersistenceGateway::get()->signedResults->get( $import_id );
 		if ( is_array( $rses_meta ) && ! empty( $rses_meta['package'] ) && is_array( $rses_meta['package'] ) ) {
 			return true;
 		}
@@ -432,15 +434,14 @@ class SignedResultsService {
 			);
 		}
 
-		update_option(
-			self::rses_persist_option_key( $import_id ),
+		PersistenceGateway::get()->signedResults->put(
+			$import_id,
 			array(
 				'package'           => $package,
 				'pdf_attachment_id' => $rses_pdf_id,
 				'json_attachment_id'=> $rses_json_id,
 				'persisted_at'      => gmdate( 'c' ),
-			),
-			false
+			)
 		);
 
 		return array(
@@ -498,7 +499,7 @@ class SignedResultsService {
 	 * @return array{pdf_attachment_id:int,json_attachment_id:int}
 	 */
 	public static function rses_get_attachment_ids( int $import_id ): array {
-		$rses_meta = get_option( self::rses_persist_option_key( $import_id ), null );
+		$rses_meta = PersistenceGateway::get()->signedResults->get( $import_id );
 		if ( ! is_array( $rses_meta ) ) {
 			return array(
 				'pdf_attachment_id'  => 0,
@@ -518,7 +519,7 @@ class SignedResultsService {
 	 * @return array<string,mixed>|null
 	 */
 	public static function rses_get_package( int $import_id ): ?array {
-		$rses_meta = get_option( self::rses_persist_option_key( $import_id ), null );
+		$rses_meta = PersistenceGateway::get()->signedResults->get( $import_id );
 		if ( is_array( $rses_meta ) && ! empty( $rses_meta['package'] ) && is_array( $rses_meta['package'] ) ) {
 			return $rses_meta['package'];
 		}
@@ -547,7 +548,7 @@ class SignedResultsService {
 	 * @return string|null
 	 */
 	public static function rses_get_pdf( int $import_id ): ?string {
-		$rses_meta = get_option( self::rses_persist_option_key( $import_id ), null );
+		$rses_meta = PersistenceGateway::get()->signedResults->get( $import_id );
 		$rses_pdf_id = is_array( $rses_meta ) ? (int) ( $rses_meta['pdf_attachment_id'] ?? 0 ) : 0;
 		if ( $rses_pdf_id > 0 ) {
 			$rses_path = get_attached_file( $rses_pdf_id );
@@ -576,7 +577,7 @@ class SignedResultsService {
 		delete_transient( self::rses_package_transient_key( $import_id ) );
 		delete_transient( self::rses_pdf_transient_key( $import_id ) );
 
-		$rses_meta = get_option( self::rses_persist_option_key( $import_id ), null );
+		$rses_meta = PersistenceGateway::get()->signedResults->get( $import_id );
 		if ( is_array( $rses_meta ) ) {
 			foreach ( array( 'pdf_attachment_id', 'json_attachment_id' ) as $rses_key ) {
 				$rses_aid = (int) ( $rses_meta[ $rses_key ] ?? 0 );
@@ -585,7 +586,7 @@ class SignedResultsService {
 				}
 			}
 		}
-		delete_option( self::rses_persist_option_key( $import_id ) );
+		PersistenceGateway::get()->signedResults->delete( $import_id );
 	}
 
 	/**

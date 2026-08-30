@@ -36,6 +36,9 @@ interface UserDirectory {
 	 */
 	public function listByRole(string $role, int $offset = 0, int $limit = 0): array;
 
+	/** Count directory users with a given role slug. */
+	public function countByRole(string $role): int;
+
 	/**
 	 * @param array<string,mixed> $data login,email,password,displayName?,firstName?,lastName?,role?
 	 * @return array{ok:true,id:int}|array{ok:false,error:string}

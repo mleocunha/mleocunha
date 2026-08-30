@@ -44,7 +44,9 @@ class ElectoralAuthoritiesPage {
 	}
 
 	private static function render_export(): void {
-		$users = get_users( array( 'role' => Capability::RSES_OFFICIAL_ROLE ) );
+		$users = \RelataSoft\SecureElectionSuite\Painel\Application\Identity\IdentityGateway::get()->users->listByRole(
+			Capability::RSES_OFFICIAL_ROLE
+		);
 		$notice = isset( $_GET['ve_notice'] ) ? sanitize_text_field( wp_unslash( (string) $_GET['ve_notice'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 		?>
 		<div class="wrap rses-wrap rses-screen" <?php echo Translator::rses_html_attrs(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
@@ -102,9 +104,9 @@ class ElectoralAuthoritiesPage {
 				<?php else : ?>
 					<ul class="rses-plain-list">
 						<?php foreach ( $users as $user ) : ?>
-							<li><strong><?php echo esc_html( $user->display_name ); ?></strong>
-								— <code><?php echo esc_html( $user->user_login ); ?></code>
-								— <?php echo esc_html( $user->user_email ); ?></li>
+							<li><strong><?php echo esc_html( (string) ( $user['displayName'] ?? '' ) ); ?></strong>
+								— <code><?php echo esc_html( (string) ( $user['login'] ?? '' ) ); ?></code>
+								— <?php echo esc_html( (string) ( $user['email'] ?? '' ) ); ?></li>
 						<?php endforeach; ?>
 					</ul>
 					<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">

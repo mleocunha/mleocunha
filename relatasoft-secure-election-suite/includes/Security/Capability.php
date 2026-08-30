@@ -8,8 +8,8 @@
 namespace RelataSoft\SecureElectionSuite\Security;
 
 use RelataSoft\SecureElectionSuite\I18n\RoleLabels;
-use RelataSoft\SecureElectionSuite\Painel\Adapters\WordPress\User\WordPressCapabilityResolver;
 use RelataSoft\SecureElectionSuite\Painel\Application\Identity\IdentityGateway;
+use RelataSoft\SecureElectionSuite\Painel\Domain\Access\UserRegistryRoles;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -18,9 +18,9 @@ defined( 'ABSPATH' ) || exit;
  */
 class Capability {
 
-	public const RSES_VOTER_ROLE    = WordPressCapabilityResolver::VOTER_ROLE;
-	public const RSES_ADMIN_ROLE    = WordPressCapabilityResolver::ADMIN_ROLE;
-	public const RSES_OFFICIAL_ROLE = WordPressCapabilityResolver::OFFICIAL_ROLE;
+	public const RSES_VOTER_ROLE    = UserRegistryRoles::ROLE_VOTER;
+	public const RSES_ADMIN_ROLE    = UserRegistryRoles::ROLE_ADMIN;
+	public const RSES_OFFICIAL_ROLE = UserRegistryRoles::ROLE_OFFICIAL;
 
 	/**
 	 * Whether a user has the Administrator role (or gestor / manage_options).

@@ -7,14 +7,15 @@ use RelataSoft\SecureElectionSuite\Painel\Contracts\User\CapabilityResolver;
 use RelataSoft\SecureElectionSuite\Painel\Contracts\User\UserDirectory;
 use RelataSoft\SecureElectionSuite\Painel\Contracts\User\UserProvider;
 use RelataSoft\SecureElectionSuite\Painel\Domain\Access\Persona;
+use RelataSoft\SecureElectionSuite\Painel\Domain\Access\UserRegistryRoles;
 
 final class InMemoryCapabilityResolver implements CapabilityResolver {
 
-	public const VOTER_ROLE    = 'subscriber';
-	public const ADMIN_ROLE    = 'administrator';
-	public const OFFICIAL_ROLE = 'editor';
-	public const GESTOR_ROLE   = 've_gestor';
-	public const AUDITOR_ROLE  = 've_auditor';
+	public const VOTER_ROLE    = UserRegistryRoles::ROLE_VOTER;
+	public const ADMIN_ROLE    = UserRegistryRoles::ROLE_ADMIN;
+	public const OFFICIAL_ROLE = UserRegistryRoles::ROLE_OFFICIAL;
+	public const GESTOR_ROLE   = UserRegistryRoles::ROLE_GESTOR;
+	public const AUDITOR_ROLE  = UserRegistryRoles::ROLE_AUDITOR;
 
 	private bool $allowFullPrivateExport = false;
 

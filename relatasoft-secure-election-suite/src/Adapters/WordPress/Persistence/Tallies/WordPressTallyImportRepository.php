@@ -64,4 +64,55 @@ final class WordPressTallyImportRepository implements TallyImportRepository {
 	public function delete(int $importId): bool {
 		return Repository::rses_delete_by_id( 'rses_tally_imports', $importId );
 	}
+
+	public function listIdsNeedingSummary( int $limit, int $maxManifestBytes ): array {
+		global $wpdb;
+
+		$table = Schema::rses_table( 'rses_tally_imports' );
+		// Column may not exist until migration runs.
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$has = $wpdb->get_results( "SHOW COLUMNS FROM {$table} LIKE 'election_title'" );
+		if ( empty( $has ) ) {
+			return array();
+		}
+
+		$limit = max( 1, $limit );
+		$maxManifestBytes = max( 0, $maxManifestBytes );
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$ids = $wpdb->get_col(
+			$wpdb->prepare(
+				"SELECT id FROM {$table}
+				WHERE (election_title IS NULL OR election_title = '')
+				AND LENGTH(import_manifest_json) <= %d
+				ORDER BY id DESC
+				LIMIT %d",
+				$maxManifestBytes,
+				$limit
+			)
+		);
+
+		if ( ! is_array( $ids ) ) {
+			return array();
+		}
+		return array_map( 'intval', $ids );
+	}
+
+	public function purgeOversizedManifests( string $stubJson, int $maxBytes ): int {
+		global $wpdb;
+
+		$table = Schema::rses_table( 'rses_tally_imports' );
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$result = $wpdb->query(
+			$wpdb->prepare(
+				"UPDATE {$table}
+				SET import_manifest_json = %s, status = 'rejected'
+				WHERE LENGTH(import_manifest_json) > %d",
+				$stubJson,
+				$maxBytes
+			)
+		);
+
+		return false === $result ? 0 : (int) $result;
+	}
 }

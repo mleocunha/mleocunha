@@ -302,8 +302,8 @@ exige:
 |----|-------------------|
 | A0 | Em curso / avançado (glossário sítio; máscara documentada) |
 | A1 | **Feito (gate M1)** — crypto/formatos em `src/Domain/Crypto` + `RsvFormat`/`AuthoritiesPackage`; PHPUnit sem boot do sítio; **CI GitHub Actions** (`.github/workflows/phpunit.yml`); facades Adapter #1 em `includes/Crypto` |
-| A2 | **Feito (gate M2)** — ports em `src/Contracts/{Keys,Elections,Votes,Tallies,Audit}`; InMemory + Adapter #1 em `src/Adapters/WordPress/Persistence`; `PersistenceGateway`; repositórios/serviços legados sem `$wpdb`/`Repository` directo nas operações de domínio |
-| A3 | **Feito (gate M3)** — ports UserDirectory / CapabilityResolver / SessionPort / SecretKeyProvider; `IdentityGateway`; RSV, autoridades e cast via ports; `ShareEncryptionService` sem sais do host (só no adapter) |
+| A2 | **Feito (gate M2)** — ports em `src/Contracts/{Keys,Elections,Votes,Tallies,Audit}` + `SignedResultsStore`; InMemory + Adapter #1; `PersistenceGateway`; facades legadas sem `$wpdb`/`get_option` nas operações de domínio (manutenção de imports e signed results via ports); CI cobre `PersistencePortsTest` |
+| A3 | **Feito (gate M3)** — ports UserDirectory (`countByRole`) / CapabilityResolver / SessionPort / SecretKeyProvider; `IdentityGateway`; RSV, autoridades, cadastro de usuários e cast via ports; papéis em `UserRegistryRoles` (Domain); `ShareEncryptionService` sem sais do host; CI cobre `IdentityPortsTest` |
 | A4 | **Feito (gate M4)** — `JobStore` + `KeygenJobService` / `RsvImportJobService` / `RsvExportJobService` + `JobGateway`; estado de jobs sem `get_option` no domínio; AJAX vira adaptador fino |
 | A5 | **Feito (gate M5)** — rotas nativas `/voto`, `/voto/cabina`, `/voto/obrigado`; `JourneyUrlGenerator` / `JourneyRouteResolver` / `JourneyPresenter` + `JourneyGateway`; shortcodes e páginas do host viram adaptadores finos opcionais |
 | A6 | **Feito (gate M6)** — Adapter #2 `Standalone` (`NodeRuntime`, `ModePort`/`EnvModeLock`, `ThreeNodePilot`, `bin/ve-node`); 3 nós isolados + courier manual; crypto real sem host; doc `piloto-adapter2-3-nos.md` |

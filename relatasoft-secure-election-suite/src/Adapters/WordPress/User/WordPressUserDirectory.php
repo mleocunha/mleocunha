@@ -61,6 +61,18 @@ final class WordPressUserDirectory implements UserDirectory {
 		return $out;
 	}
 
+	public function countByRole(string $role): int {
+		$users = get_users(
+			array(
+				'role'        => $role,
+				'fields'      => 'ID',
+				'number'      => -1,
+				'count_total' => false,
+			)
+		);
+		return is_array( $users ) ? count( $users ) : 0;
+	}
+
 	public function create(array $data): array {
 		$payload = array(
 			'user_login'   => (string) ( $data['login'] ?? '' ),
