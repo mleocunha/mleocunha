@@ -42,9 +42,9 @@ class CertificationAuditPage {
 		<div class="wrap rses-wrap rses-screen" <?php echo Translator::rses_html_attrs(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
 			<header class="rses-hero">
 				<?php Brand::rses_render_hero_brand(); ?>
-				<p class="rses-hero-kicker"><?php esc_html_e( 'Audit', 'relatasoft-secure-election-suite' ); ?></p>
-				<h1 class="rses-hero-title"><?php esc_html_e( 'Audit Certification', 'relatasoft-secure-election-suite' ); ?></h1>
-				<p class="rses-hero-lead"><?php esc_html_e( 'Verify a signed-results.json (and optionally the matching PDF) against the embedded election public key. No private key or sítio trust is required.', 'relatasoft-secure-election-suite' ); ?></p>
+				<p class="rses-hero-kicker"><?php esc_html_e( 'Auditoria', 'relatasoft-secure-election-suite' ); ?></p>
+				<h1 class="rses-hero-title"><?php esc_html_e( 'Auditar certificação', 'relatasoft-secure-election-suite' ); ?></h1>
+				<p class="rses-hero-lead"><?php esc_html_e( 'Verificar um signed-results.json (e opcionalmente o PDF correspondente) contra a chave pública embutida. Não é necessária chave privada nem confiança no sítio.', 'relatasoft-secure-election-suite' ); ?></p>
 			</header>
 
 			<?php if ( is_array( $rses_flash ) ) : ?>
@@ -53,8 +53,8 @@ class CertificationAuditPage {
 						<strong>
 							<?php
 							echo ! empty( $rses_flash['valid'] )
-								? esc_html__( 'Signature VALID — results match the election public key.', 'relatasoft-secure-election-suite' )
-								: esc_html__( 'Signature INVALID or package inconsistent.', 'relatasoft-secure-election-suite' );
+								? esc_html__( 'Assinatura VÁLIDA — os resultados correspondem à chave pública da eleição.', 'relatasoft-secure-election-suite' )
+								: esc_html__( 'Assinatura INVÁLIDA ou pacote inconsistente.', 'relatasoft-secure-election-suite' );
 							?>
 						</strong>
 					</p>
@@ -67,7 +67,7 @@ class CertificationAuditPage {
 					<?php endif; ?>
 					<?php if ( ! empty( $rses_flash['details'] ) && is_array( $rses_flash['details'] ) ) : ?>
 						<details>
-							<summary><?php esc_html_e( 'Verification details', 'relatasoft-secure-election-suite' ); ?></summary>
+							<summary><?php esc_html_e( 'Detalhes da verificação', 'relatasoft-secure-election-suite' ); ?></summary>
 							<pre class="rses-decrypted-results"><?php echo esc_html( wp_json_encode( $rses_flash['details'], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES ) ); ?></pre>
 						</details>
 					<?php endif; ?>
@@ -76,8 +76,8 @@ class CertificationAuditPage {
 
 			<section class="rses-panel rses-panel-card">
 				<header class="rses-panel-header">
-					<p class="rses-panel-kicker"><?php esc_html_e( 'Verify', 'relatasoft-secure-election-suite' ); ?></p>
-					<h2 class="rses-panel-title"><?php esc_html_e( 'Signed package', 'relatasoft-secure-election-suite' ); ?></h2>
+					<p class="rses-panel-kicker"><?php esc_html_e( 'Verificar', 'relatasoft-secure-election-suite' ); ?></p>
+					<h2 class="rses-panel-title"><?php esc_html_e( 'Pacote assinado', 'relatasoft-secure-election-suite' ); ?></h2>
 					<p class="rses-panel-desc"><?php esc_html_e( 'Paste or upload the signed JSON. Optionally upload the PDF to check pdf_sha256 and the PDF-binding Schnorr signature.', 'relatasoft-secure-election-suite' ); ?></p>
 				</header>
 

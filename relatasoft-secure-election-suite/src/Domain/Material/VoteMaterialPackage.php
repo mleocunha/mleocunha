@@ -17,7 +17,8 @@ final class VoteMaterialPackage {
 	 *   public_key_checksum?:string,
 	 *   ballots:list<array<string,mixed>>,
 	 *   source_mode?:string,
-	 *   cliente_id?:string
+	 *   cliente_id?:string,
+	 *   cliente_nome?:string
 	 * } $payload
 	 * @return array<string,mixed>
 	 */
@@ -27,6 +28,7 @@ final class VoteMaterialPackage {
 			'exported_at'         => gmdate( 'c' ),
 			'source_mode'         => (string) ( $payload['source_mode'] ?? 'voting' ),
 			'cliente_id'          => (string) ( $payload['cliente_id'] ?? '' ),
+			'cliente_nome'        => (string) ( $payload['cliente_nome'] ?? '' ),
 			'election_id'         => (int) ( $payload['election_id'] ?? 0 ),
 			'round_id'            => (int) ( $payload['round_id'] ?? 0 ),
 			'public_key_checksum' => (string) ( $payload['public_key_checksum'] ?? '' ),

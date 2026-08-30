@@ -21,7 +21,8 @@ final class PublicKeyPackage {
 	 *   threshold_t?:int,
 	 *   total_n?:int,
 	 *   source_mode?:string,
-	 *   cliente_id?:string
+	 *   cliente_id?:string,
+	 *   cliente_nome?:string
 	 * } $payload
 	 * @return array<string,mixed>
 	 */
@@ -31,6 +32,7 @@ final class PublicKeyPackage {
 			'exported_at'  => gmdate( 'c' ),
 			'source_mode'  => (string) ( $payload['source_mode'] ?? 'key_authority' ),
 			'cliente_id'   => (string) ( $payload['cliente_id'] ?? '' ),
+			'cliente_nome' => (string) ( $payload['cliente_nome'] ?? '' ),
 			'key_label'    => (string) ( $payload['key_label'] ?? 'piloto' ),
 			'key_size'     => (int) ( $payload['key_size'] ?? 512 ),
 			'public_key'   => array(

@@ -55,6 +55,10 @@ class AuditorDashboardPage {
 			$elections = array();
 		}
 
+		$enrolled          = self::rses_count_subscribers();
+		$voted_open_sum    = 0;
+		$abstention_parts  = array();
+
 		foreach ( $elections as $election ) {
 			$status = (string) ( $election->status ?? '' );
 			if ( in_array( $status, array( 'open', 'voting' ), true ) ) {
@@ -70,19 +74,22 @@ class AuditorDashboardPage {
 				$voted   = EncryptedVoteRepository::rses_count_distinct_voters( $rid );
 				if ( in_array( $rstatus, array( 'open', 'voting' ), true ) ) {
 					++$stats['rounds_open'];
-					$stats['voters_voted'] += $voted;
+					// Open rounds only — avoid double-counting the same elector across closed rounds.
+					$voted_open_sum += $voted;
 				} elseif ( in_array( $rstatus, array( 'closed', 'tallied' ), true ) ) {
 					++$stats['rounds_closed'];
-					$stats['voters_voted'] += $voted;
-					// Abstention estimate: enrolled subscribers minus distinct voters (best-effort).
-					$enrolled = self::rses_count_subscribers();
-					$stats['abstentions_closed'] += max( 0, $enrolled - $voted );
+					// Per-round abstention sample (not summed across rounds).
+					$abstention_parts[] = max( 0, $enrolled - $voted );
 				}
 			}
 		}
 
-		$stats['voters_total']     = self::rses_count_subscribers();
+		$stats['voters_total']     = $enrolled;
+		$stats['voters_voted']     = $voted_open_sum;
 		$stats['voters_remaining'] = max( 0, $stats['voters_total'] - $stats['voters_voted'] );
+		if ( ! empty( $abstention_parts ) ) {
+			$stats['abstentions_closed'] = (int) round( array_sum( $abstention_parts ) / count( $abstention_parts ) );
+		}
 		return $stats;
 	}
 
@@ -125,9 +132,9 @@ class AuditorDashboardPage {
 				<li><span class="rses-electoral-meta-label"><?php esc_html_e( 'Rodadas abertas', 'relatasoft-secure-election-suite' ); ?></span> <strong><?php echo esc_html( (string) $s['rounds_open'] ); ?></strong></li>
 				<li><span class="rses-electoral-meta-label"><?php esc_html_e( 'Rodadas fechadas', 'relatasoft-secure-election-suite' ); ?></span> <strong><?php echo esc_html( (string) $s['rounds_closed'] ); ?></strong></li>
 				<li><span class="rses-electoral-meta-label"><?php esc_html_e( 'Eleitores no cadastro', 'relatasoft-secure-election-suite' ); ?></span> <strong><?php echo esc_html( (string) $s['voters_total'] ); ?></strong></li>
-				<li><span class="rses-electoral-meta-label"><?php esc_html_e( 'Já votaram (distintos)', 'relatasoft-secure-election-suite' ); ?></span> <strong><?php echo esc_html( (string) $s['voters_voted'] ); ?></strong></li>
+				<li><span class="rses-electoral-meta-label"><?php esc_html_e( 'Já votaram (rodadas abertas)', 'relatasoft-secure-election-suite' ); ?></span> <strong><?php echo esc_html( (string) $s['voters_voted'] ); ?></strong></li>
 				<li><span class="rses-electoral-meta-label"><?php esc_html_e( 'Restantes (estimativa)', 'relatasoft-secure-election-suite' ); ?></span> <strong><?php echo esc_html( (string) $s['voters_remaining'] ); ?></strong></li>
-				<li><span class="rses-electoral-meta-label"><?php esc_html_e( 'Abstenções (rodadas fechadas)', 'relatasoft-secure-election-suite' ); ?></span> <strong><?php echo esc_html( (string) $s['abstentions_closed'] ); ?></strong></li>
+				<li><span class="rses-electoral-meta-label"><?php esc_html_e( 'Abstenções médias (rodadas fechadas)', 'relatasoft-secure-election-suite' ); ?></span> <strong><?php echo esc_html( (string) $s['abstentions_closed'] ); ?></strong></li>
 			</ul>
 		</section>
 		<?php

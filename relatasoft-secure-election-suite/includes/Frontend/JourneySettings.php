@@ -112,4 +112,42 @@ class JourneySettings {
 	public static function rses_page_id( string $rses_key ): int {
 		return absint( self::rses_get()[ $rses_key ] ?? 0 );
 	}
+
+	/**
+	 * E1 client id for this sítio (B5).
+	 */
+	public static function rses_cliente_id(): string {
+		$s = self::rses_get();
+		$id = trim( (string) ( $s['cliente_id'] ?? '' ) );
+		if ( '' !== $id ) {
+			return $id;
+		}
+		$painel = get_option( \RelataSoft\SecureElectionSuite\Painel\Domain\Settings\SettingsSchema::OPTION_KEY, array() );
+		return is_array( $painel ) ? trim( (string) ( $painel['cliente_id'] ?? '' ) ) : '';
+	}
+
+	/**
+	 * E1 client display name for this sítio (B5).
+	 */
+	public static function rses_cliente_nome(): string {
+		$s = self::rses_get();
+		$nome = trim( (string) ( $s['cliente_nome'] ?? '' ) );
+		if ( '' !== $nome ) {
+			return $nome;
+		}
+		$painel = get_option( \RelataSoft\SecureElectionSuite\Painel\Domain\Settings\SettingsSchema::OPTION_KEY, array() );
+		return is_array( $painel ) ? trim( (string) ( $painel['cliente_nome'] ?? '' ) ) : '';
+	}
+
+	/**
+	 * Stamp for export packages (public key / voting material).
+	 *
+	 * @return array{cliente_id:string,cliente_nome:string}
+	 */
+	public static function rses_cliente_stamp(): array {
+		return array(
+			'cliente_id'   => self::rses_cliente_id(),
+			'cliente_nome' => self::rses_cliente_nome(),
+		);
+	}
 }

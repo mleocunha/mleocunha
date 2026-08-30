@@ -32,6 +32,7 @@ class KnowledgePage {
 			'eleitor'         => __( 'Eleitor', 'relatasoft-secure-election-suite' ),
 			'auditor'         => __( 'Auditor', 'relatasoft-secure-election-suite' ),
 			'gestor'          => __( 'Gestor pelo Cliente', 'relatasoft-secure-election-suite' ),
+			'cadastro-rsv'    => __( 'Cadastro Eleitoral (.rsv)', 'relatasoft-secure-election-suite' ),
 			'implantacao-3wp' => __( 'Implantação E3 (3 sítios)', 'relatasoft-secure-election-suite' ),
 		);
 	}
@@ -44,9 +45,9 @@ class KnowledgePage {
 	public static function rses_docs_for_persona( Persona $persona ): array {
 		return match ( $persona ) {
 			Persona::AdministradorEleitoral => array_keys( self::rses_catalog() ),
-			Persona::Gestor => array( 'gestor', 'implantacao-3wp' ),
-			Persona::AutoridadeEleitoral => array( 'autoridade' ),
-			Persona::Auditor => array( 'auditor' ),
+			Persona::Gestor => array( 'gestor', 'cadastro-rsv', 'implantacao-3wp' ),
+			Persona::AutoridadeEleitoral => array( 'autoridade', 'implantacao-3wp' ),
+			Persona::Auditor => array( 'auditor', 'cadastro-rsv', 'implantacao-3wp' ),
 			Persona::Eleitor => array( 'eleitor' ),
 		};
 	}

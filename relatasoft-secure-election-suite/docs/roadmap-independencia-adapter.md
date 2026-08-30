@@ -308,10 +308,10 @@ exige:
 | A5 | **Feito (gate M5)** — rotas nativas `/voto`, `/voto/cabina`, `/voto/obrigado`; `JourneyUrlGenerator` / `JourneyRouteResolver` / `JourneyPresenter` + `JourneyGateway`; shortcodes e páginas do host são adaptadores finos **opt-in** (sem provisionamento na activação); verificação `docs/verificacao-m5.md`; CI cobre `JourneyPortsTest` |
 | A6 | **Feito (gate M6)** — Adapter #2 `Standalone` (`NodeRuntime`, `ModePort`/`EnvModeLock`, `ThreeNodePilot`, `bin/ve-node`); 3 nós isolados + courier manual; crypto real sem host; pacotes recusam `private_x`; verificação `docs/verificacao-m6.md`; CI cobre `ThreeNodePilotTest` + smoke `ve-node pilot` |
 | A6.1 | **Feito** — persistência JSON durável por nó (`StandalonePersistenceFactory` / `persistence.json`); Identity/Jobs InMemory; `docs/verificacao-a61-persistencia.md`; CI cobre `DurablePersistenceTest` |
-| B1–B6 | Parcialmente entregues no Adapter #1 |
+| B1–B6 | **Feito (fecho B\*)** — Cadastro `.rsv`, Auditor+stats, Conhecimento/E3, áudio/beep, E1 cliente nos pacotes, PT-BR nos ecrãs-chave; `docs/verificacao-b-star.md` |
 | C1–C3 | Operacionais; manter |
 
-**Caminho crítico A0→A6 concluído** (gates M1–M6). Endurecimento Adapter #2: **A6.1 persistência** feito; próximo: UI HTTP mínima no standalone, ou B* no Adapter #1.
+**Caminho crítico A0→A6 concluído** (gates M1–M6). Endurecimento Adapter #2: **A6.1 persistência** feito; **B\*** no Adapter #1 fechado. Próximo: UI HTTP mínima no standalone, ou operação C*.
 
 ---
 

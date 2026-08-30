@@ -10,6 +10,8 @@ namespace RelataSoft\SecureElectionSuite\KeyAuthority;
 use RelataSoft\SecureElectionSuite\Exports\JsonExport;
 use RelataSoft\SecureElectionSuite\Exports\ManifestBuilder;
 use RelataSoft\SecureElectionSuite\Exports\ZipExport;
+use RelataSoft\SecureElectionSuite\Frontend\JourneySettings;
+use RelataSoft\SecureElectionSuite\Painel\Domain\Material\PublicKeyPackage;
 use RelataSoft\SecureElectionSuite\Security\AuditLogger;
 use RelataSoft\SecureElectionSuite\Security\Capability;
 
@@ -32,12 +34,22 @@ class KeyExportService {
 			wp_die( esc_html__( 'Key not found.', 'relatasoft-secure-election-suite' ) );
 		}
 
-		$rses_data = array(
-			'p'           => $rses_key->public_p,
-			'q'           => $rses_key->public_q,
-			'g'           => $rses_key->public_g,
-			'y'           => $rses_key->public_y,
-			'keySizeBits' => (int) $rses_key->key_size,
+		$rses_cliente = JourneySettings::rses_cliente_stamp();
+		$rses_data    = PublicKeyPackage::build(
+			array(
+				'key_label'    => (string) ( $rses_key->key_label ?? '' ),
+				'key_size'     => (int) $rses_key->key_size,
+				'p'            => (string) $rses_key->public_p,
+				'q'            => (string) $rses_key->public_q,
+				'g'            => (string) $rses_key->public_g,
+				'y'            => (string) $rses_key->public_y,
+				'field_prime'  => (string) ( $rses_key->field_prime ?? '' ),
+				'threshold_t'  => (int) ( $rses_key->threshold_t ?? 0 ),
+				'total_n'      => (int) ( $rses_key->total_n ?? 0 ),
+				'source_mode'  => 'key_authority',
+				'cliente_id'   => $rses_cliente['cliente_id'],
+				'cliente_nome' => $rses_cliente['cliente_nome'],
+			)
 		);
 
 		AuditLogger::rses_log( 'key_export_public', 'key', $key_id );
@@ -116,12 +128,22 @@ class KeyExportService {
 
 		$rses_files = array();
 
-		$rses_public = array(
-			'p'           => $rses_key->public_p,
-			'q'           => $rses_key->public_q,
-			'g'           => $rses_key->public_g,
-			'y'           => $rses_key->public_y,
-			'keySizeBits' => (int) $rses_key->key_size,
+		$rses_cliente = JourneySettings::rses_cliente_stamp();
+		$rses_public  = PublicKeyPackage::build(
+			array(
+				'key_label'    => (string) ( $rses_key->key_label ?? '' ),
+				'key_size'     => (int) $rses_key->key_size,
+				'p'            => (string) $rses_key->public_p,
+				'q'            => (string) $rses_key->public_q,
+				'g'            => (string) $rses_key->public_g,
+				'y'            => (string) $rses_key->public_y,
+				'field_prime'  => (string) ( $rses_key->field_prime ?? '' ),
+				'threshold_t'  => (int) ( $rses_key->threshold_t ?? 0 ),
+				'total_n'      => (int) ( $rses_key->total_n ?? 0 ),
+				'source_mode'  => 'key_authority',
+				'cliente_id'   => $rses_cliente['cliente_id'],
+				'cliente_nome' => $rses_cliente['cliente_nome'],
+			)
 		);
 
 		$rses_files['public-key.json'] = wp_json_encode( $rses_public, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES );

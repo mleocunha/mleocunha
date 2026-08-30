@@ -22,13 +22,20 @@ class ManifestBuilder {
 	 * @return array<string,mixed>
 	 */
 	public static function rses_build_key_manifest( int $key_id, array $public_key ): array {
-		return array(
-			'version'       => RSES_VERSION,
-			'type'          => 'key_export',
-			'key_id'        => $key_id,
-			'exported_at'   => gmdate( 'c' ),
-			'source_site'   => get_site_url(),
-			'public_key_hash' => HashService::rses_hash_json( $public_key ),
+		$cliente = array();
+		if ( class_exists( \RelataSoft\SecureElectionSuite\Frontend\JourneySettings::class ) ) {
+			$cliente = \RelataSoft\SecureElectionSuite\Frontend\JourneySettings::rses_cliente_stamp();
+		}
+		return array_merge(
+			array(
+				'version'         => RSES_VERSION,
+				'type'            => 'key_export',
+				'key_id'          => $key_id,
+				'exported_at'     => gmdate( 'c' ),
+				'source_site'     => get_site_url(),
+				'public_key_hash' => HashService::rses_hash_json( $public_key ),
+			),
+			$cliente
 		);
 	}
 

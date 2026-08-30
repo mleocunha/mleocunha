@@ -153,6 +153,7 @@ final class ThreeNodePilot {
 				'total_n'     => $this->totalShares,
 				'source_mode' => SiteModes::KEY_AUTHORITY,
 				'cliente_id'  => $this->keyAuthority->clienteId,
+				'cliente_nome'=> $this->keyAuthority->clienteId,
 			)
 		);
 		$this->courier->writeJson( self::PUBLIC_KEY_FILE, $package );
@@ -276,6 +277,7 @@ final class ThreeNodePilot {
 				'ballots'             => $ballots,
 				'source_mode'         => SiteModes::VOTING,
 				'cliente_id'          => $this->voting->clienteId,
+				'cliente_nome'        => $this->voting->clienteId,
 			)
 		);
 		$this->courier->writeJson( self::VOTE_MATERIAL_FILE, $material );

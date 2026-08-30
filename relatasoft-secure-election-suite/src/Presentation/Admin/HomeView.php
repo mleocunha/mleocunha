@@ -6,6 +6,7 @@ namespace RelataSoft\SecureElectionSuite\Painel\Presentation\Admin;
 use RelataSoft\SecureElectionSuite\Admin\Brand;
 use RelataSoft\SecureElectionSuite\Admin\ModeSetupPage;
 use RelataSoft\SecureElectionSuite\Bootstrap\ModeLock;
+use RelataSoft\SecureElectionSuite\Frontend\JourneySettings;
 use RelataSoft\SecureElectionSuite\I18n\Translator;
 use RelataSoft\SecureElectionSuite\Painel\Core\PainelKernel;
 
@@ -38,6 +39,23 @@ final class HomeView {
 					<strong><?php esc_html_e( 'Modo ativo:', 'relatasoft-secure-election-suite' ); ?></strong>
 					<?php echo esc_html( ModeLock::rses_get_mode_label( $mode ) ); ?>
 				</p>
+				<?php
+				$cliente_id   = JourneySettings::rses_cliente_id();
+				$cliente_nome = JourneySettings::rses_cliente_nome();
+				if ( '' !== $cliente_id || '' !== $cliente_nome ) :
+					?>
+					<p>
+						<strong><?php esc_html_e( 'Cliente:', 'relatasoft-secure-election-suite' ); ?></strong>
+						<?php
+						echo esc_html(
+							trim(
+								( '' !== $cliente_nome ? $cliente_nome : '' )
+								. ( '' !== $cliente_id ? ( ( '' !== $cliente_nome ? ' · ' : '' ) . $cliente_id ) : '' )
+							)
+						);
+						?>
+					</p>
+				<?php endif; ?>
 			</div>
 
 			<div class="rses-dashboard-grid ve-painel-home-grid">
