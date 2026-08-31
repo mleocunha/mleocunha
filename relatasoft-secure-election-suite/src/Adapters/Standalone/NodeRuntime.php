@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace RelataSoft\SecureElectionSuite\Painel\Adapters\Standalone;
 
+use RelataSoft\SecureElectionSuite\Painel\Adapters\Standalone\Identity\FileJsonUserStore;
 use RelataSoft\SecureElectionSuite\Painel\Adapters\Standalone\Persistence\StandalonePersistenceFactory;
 use RelataSoft\SecureElectionSuite\Painel\Application\Identity\IdentityGateway;
 use RelataSoft\SecureElectionSuite\Painel\Application\Jobs\JobGateway;
@@ -10,6 +11,8 @@ use RelataSoft\SecureElectionSuite\Painel\Application\Journey\JourneyGateway;
 use RelataSoft\SecureElectionSuite\Painel\Application\Persistence\PersistenceGateway;
 use RelataSoft\SecureElectionSuite\Painel\Contracts\Mode\ModePort;
 use RelataSoft\SecureElectionSuite\Painel\Contracts\Mode\SiteModes;
+use RelataSoft\SecureElectionSuite\Painel\Contracts\User\UserDirectory;
+use RelataSoft\SecureElectionSuite\Painel\Contracts\User\UserProvider;
 use RelataSoft\SecureElectionSuite\Painel\Infrastructure\Identity\Security\InMemorySecretKeyProvider;
 use RelataSoft\SecureElectionSuite\Painel\Infrastructure\Identity\Session\InMemorySessionPort;
 use RelataSoft\SecureElectionSuite\Painel\Infrastructure\Identity\User\InMemoryCapabilityResolver;
@@ -35,14 +38,14 @@ use RelataSoft\SecureElectionSuite\Painel\Infrastructure\Persistence\Votes\InMem
 /**
  * One isolated site node (Adapter #2) — own gateways, own mode, no shared DB.
  *
- * Persistence defaults to durable JSON under dataDir/persistence.json (survives process restart).
- * Identity/Jobs stay InMemory until HTTP auth / async jobs need durability.
- *
- * Intentionally does not call Gateway::boot() singletons so three nodes can
- * coexist in one PHPUnit process (production = three separate processes).
+ * Persistence + identity JSON under dataDir when durable (default).
+ * Jobs remain InMemory until async HTTP jobs need a durable JobStore.
  */
 final class NodeRuntime {
 
+	/**
+	 * @param UserProvider&UserDirectory $users
+	 */
 	public function __construct(
 		public readonly string $dataDir,
 		public readonly ModePort $mode,
@@ -50,6 +53,7 @@ final class NodeRuntime {
 		public readonly IdentityGateway $identity,
 		public readonly JobGateway $jobs,
 		public readonly JourneyGateway $journey,
+		public readonly UserProvider&UserDirectory $users,
 		public readonly string $clienteId = '',
 		public readonly bool $durablePersistence = true,
 	) {}
@@ -70,12 +74,23 @@ final class NodeRuntime {
 		return rtrim( $this->dataDir, '/\\' ) . DIRECTORY_SEPARATOR . 'persistence.json';
 	}
 
+	public function identityPath(): string {
+		return rtrim( $this->dataDir, '/\\' ) . DIRECTORY_SEPARATOR . 'identity.json';
+	}
+
 	/**
 	 * Create a fresh isolated node for the given E3 mode.
 	 *
-	 * @param bool $durable When true (default), PersistenceGateway uses JSON under dataDir.
+	 * @param bool   $durable When true (default), Persistence + Identity use JSON under dataDir.
+	 * @param string $publicBase Base URL for journey links (ex.: http://10.42.0.1:8888).
 	 */
-	public static function create( string $mode, string $dataDir, string $clienteId = 'piloto', bool $durable = true ): self {
+	public static function create(
+		string $mode,
+		string $dataDir,
+		string $clienteId = 'piloto',
+		bool $durable = true,
+		string $publicBase = ''
+	): self {
 		if ( ! SiteModes::isValid( $mode ) ) {
 			throw new \InvalidArgumentException( 'Invalid mode: ' . $mode );
 		}
@@ -86,7 +101,11 @@ final class NodeRuntime {
 		$modePort = new EnvModeLock();
 		$modePort->lock( $mode );
 
-		$users    = new InMemoryUserStore();
+		/** @var UserProvider&UserDirectory $users */
+		$users = $durable
+			? FileJsonUserStore::open( rtrim( $dataDir, '/\\' ) . DIRECTORY_SEPARATOR . 'identity.json' )
+			: new InMemoryUserStore();
+
 		$jobStore = new InMemoryJobStore();
 
 		$persistence = $durable
@@ -119,8 +138,9 @@ final class NodeRuntime {
 			new InMemoryRsvExportJobService( $jobStore, 1 ),
 		);
 
+		$base = $publicBase !== '' ? rtrim( $publicBase, '/' ) : ( 'https://' . $mode . '.piloto.local' );
 		$journey = new JourneyGateway(
-			new InMemoryJourneyUrlGenerator( 'https://' . $mode . '.piloto.local' ),
+			new InMemoryJourneyUrlGenerator( $base ),
 			new InMemoryJourneyRouteResolver(),
 			new InMemoryJourneyPresenter(),
 		);
@@ -129,17 +149,18 @@ final class NodeRuntime {
 			rtrim( $dataDir, '/\\' ) . DIRECTORY_SEPARATOR . 'node.json',
 			json_encode(
 				array(
-					'mode'                  => $mode,
-					'cliente_id'            => $clienteId,
-					'adapter'               => 'standalone',
-					'persistence'           => $durable ? 'json' : 'memory',
-					'persistence_file'      => $durable ? 'persistence.json' : null,
-					'created_at'            => gmdate( 'c' ),
+					'mode'             => $mode,
+					'cliente_id'       => $clienteId,
+					'adapter'          => 'standalone',
+					'persistence'      => $durable ? 'json' : 'memory',
+					'persistence_file' => $durable ? 'persistence.json' : null,
+					'identity_file'    => $durable ? 'identity.json' : null,
+					'created_at'       => gmdate( 'c' ),
 				),
 				JSON_PRETTY_PRINT
 			) . "\n"
 		);
 
-		return new self( $dataDir, $modePort, $persistence, $identity, $jobs, $journey, $clienteId, $durable );
+		return new self( $dataDir, $modePort, $persistence, $identity, $jobs, $journey, $users, $clienteId, $durable );
 	}
 }
