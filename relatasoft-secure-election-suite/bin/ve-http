@@ -1,0 +1,86 @@
+#!/usr/bin/env php
+<?php
+declare(strict_types=1);
+
+/**
+ * Arranca o servidor HTTP embutido do Adapter #2.
+ *
+ * Default: 10.42.0.1:8888 (um processo = um modo E3).
+ *
+ *   php bin/ve-http --mode=voting --data=/tmp/ve/voting
+ *   php bin/ve-http --mode=key_authority --data=/tmp/ve/ka --host=10.42.0.1 --port=8888
+ */
+
+$root = dirname( __DIR__ );
+require $root . '/vendor/autoload.php';
+
+use RelataSoft\SecureElectionSuite\Painel\Contracts\Mode\SiteModes;
+
+/** @return array<string,string|bool> */
+function ve_http_args( array $argv ): array {
+	$out = array();
+	foreach ( array_slice( $argv, 1 ) as $arg ) {
+		if ( ! str_starts_with( $arg, '--' ) ) {
+			continue;
+		}
+		$eq = strpos( $arg, '=' );
+		if ( false === $eq ) {
+			$out[ substr( $arg, 2 ) ] = true;
+		} else {
+			$out[ substr( $arg, 2, $eq - 2 ) ] = substr( $arg, $eq + 1 );
+		}
+	}
+	return $out;
+}
+
+$args = ve_http_args( $argv ?? array() );
+$mode = (string) ( $args['mode'] ?? getenv( 'RSES_MODE' ) ?: getenv( 'VE_MODE' ) ?: '' );
+$data = (string) ( $args['data'] ?? getenv( 'VE_DATA' ) ?: getenv( 'RSES_DATA' ) ?: '' );
+$host = (string) ( $args['host'] ?? '10.42.0.1' );
+$port = (int) ( $args['port'] ?? 8888 );
+$cliente = (string) ( $args['cliente'] ?? 'piloto' );
+
+if ( ! SiteModes::isValid( $mode ) || '' === $data ) {
+	fwrite( STDERR, "Uso: php bin/ve-http --mode=voting|key_authority|tallying --data=/caminho/do/no [--host=10.42.0.1] [--port=8888]\n" );
+	exit( 1 );
+}
+
+if ( ! is_dir( $data ) && ! mkdir( $data, 0700, true ) && ! is_dir( $data ) ) {
+	fwrite( STDERR, "Não foi possível criar VE_DATA={$data}\n" );
+	exit( 1 );
+}
+
+$base = sprintf( 'http://%s:%d', $host, $port );
+putenv( 'RSES_MODE=' . $mode );
+putenv( 'VE_MODE=' . $mode );
+putenv( 'VE_DATA=' . $data );
+putenv( 'RSES_DATA=' . $data );
+putenv( 'VE_PUBLIC_BASE=' . $base );
+putenv( 'VE_CLIENTE=' . $cliente );
+
+$router = $root . '/index.php';
+$cmd    = array(
+	PHP_BINARY,
+	'-S',
+	$host . ':' . $port,
+	$router,
+);
+
+fwrite( STDOUT, "ve-http [{$mode}] → {$base}  data={$data}\n" );
+fwrite( STDOUT, "Admin bootstrap: VE_ADMIN_LOGIN/VE_ADMIN_PASS (default admin / AdminPoC1!)\n" );
+
+$descriptors = array( 0 => STDIN, 1 => STDOUT, 2 => STDERR );
+$proc = proc_open( $cmd, $descriptors, $pipes, $root, array(
+	'RSES_MODE'      => $mode,
+	'VE_MODE'        => $mode,
+	'VE_DATA'        => $data,
+	'RSES_DATA'      => $data,
+	'VE_PUBLIC_BASE' => $base,
+	'VE_CLIENTE'     => $cliente,
+) );
+if ( ! is_resource( $proc ) ) {
+	fwrite( STDERR, "Falha ao arrancar php -S\n" );
+	exit( 1 );
+}
+$code = proc_close( $proc );
+exit( $code );

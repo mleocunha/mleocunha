@@ -24,6 +24,7 @@
     "piloto": "php bin/ve-node pilot --root=/tmp/ve-piloto --votes=2"
   },
   "bin": [
-    "bin/ve-node"
+    "bin/ve-node",
+    "bin/ve-http"
   ]
 }

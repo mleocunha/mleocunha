@@ -310,8 +310,9 @@ exige:
 | A6.1 | **Feito** — persistência JSON durável por nó (`StandalonePersistenceFactory` / `persistence.json`); Identity/Jobs InMemory; `docs/verificacao-a61-persistencia.md`; CI cobre `DurablePersistenceTest` |
 | B1–B6 | **Feito (fecho B\*)** — Cadastro `.rsv`, Auditor+stats, Conhecimento/E3, áudio/beep, E1 cliente nos pacotes, PT-BR nos ecrãs-chave; `docs/verificacao-b-star.md` |
 | C1–C3 | **Feito (fecho C\*)** — ModeLock↔SiteModes; máscara 404 (`publicAccessDecision` + smoke); guards becape/módulos + Autoteste PT; `docs/verificacao-c-star.md` |
+| HTTP Adapter #2 | **Em curso** — `index.php` + `bin/ve-http` (default `10.42.0.1:8888`); identity JSON durável; login; painel mínimo 3 modos; RSV; `/voto`; courier |
 
-**Caminho crítico A0→A6 concluído** (gates M1–M6). Endurecimento Adapter #2: **A6.1 persistência** feito; **B\*** e **C\*** no Adapter #1 fechados. Próximo: UI HTTP mínima no standalone.
+**Caminho crítico A0→A6 concluído** (gates M1–M6). Endurecimento Adapter #2: **A6.1 persistência** feito; **B\*** e **C\*** no Adapter #1 fechados. **UI HTTP mínima standalone** em curso (`docs/verificacao-http-standalone.md`).
 
 ---
 
