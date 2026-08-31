@@ -6,6 +6,7 @@ namespace RelataSoft\SecureElectionSuite\Admin;
 use RelataSoft\SecureElectionSuite\Bootstrap\ModeLock;
 use RelataSoft\SecureElectionSuite\I18n\RoleLabels;
 use RelataSoft\SecureElectionSuite\Painel\Application\Identity\IdentityGateway;
+use RelataSoft\SecureElectionSuite\Painel\Domain\Access\RegistryListPager;
 use RelataSoft\SecureElectionSuite\Painel\Domain\Access\UserRegistryRoles;
 use RelataSoft\SecureElectionSuite\Security\Capability;
 
@@ -42,11 +43,18 @@ final class UserRegistryService {
 	}
 
 	/**
-	 * Grouped users for the registry UI (UserDirectory rows — never host objects).
+	 * Listagem paginada por papel (só a página pedida — sem carregar o cadastro inteiro).
 	 *
-	 * @return array<string, list<array<string,mixed>>>
+	 * @param array<string,array{page?:int,per_page?:int}> $pager_state Estado por slug de papel.
+	 * @return array<string, array{
+	 *   users: list<array<string,mixed>>,
+	 *   total: int,
+	 *   page: int,
+	 *   per_page: int,
+	 *   total_pages: int
+	 * }>
 	 */
-	public static function grouped_users( ?string $mode = null ): array {
+	public static function grouped_users_paged( ?string $mode = null, array $pager_state = array() ): array {
 		$roles  = self::roles_for_mode( $mode );
 		$labels = self::role_labels();
 		$users  = IdentityGateway::get()->users;
@@ -55,9 +63,55 @@ final class UserRegistryService {
 			if ( ! isset( $labels[ $role ] ) ) {
 				continue;
 			}
-			$out[ $role ] = $users->listByRole( $role, 0, 500 );
+			$want_pp = (int) ( $pager_state[ $role ]['per_page'] ?? RegistryListPager::DEFAULT_PER_PAGE );
+			$want_p  = (int) ( $pager_state[ $role ]['page'] ?? 1 );
+			$per     = RegistryListPager::normalizePerPage( $want_pp );
+			$total   = $users->countByRole( $role );
+			$page    = RegistryListPager::normalizePage( $want_p, $total, $per );
+			$offset  = RegistryListPager::offset( $page, $total, $per );
+			$out[ $role ] = array(
+				'users'       => $total > 0 ? $users->listByRole( $role, $offset, $per ) : array(),
+				'total'       => $total,
+				'page'        => $page,
+				'per_page'    => $per,
+				'total_pages' => RegistryListPager::totalPages( $total, $per ),
+			);
 		}
 		return $out;
+	}
+
+	/**
+	 * @deprecated Prefer {@see grouped_users_paged()} — mantido para callers legados.
+	 *
+	 * @return array<string, list<array<string,mixed>>>
+	 */
+	public static function grouped_users( ?string $mode = null ): array {
+		$paged = self::grouped_users_paged( $mode, array() );
+		$out   = array();
+		foreach ( $paged as $role => $block ) {
+			$out[ $role ] = $block['users'];
+		}
+		return $out;
+	}
+
+	/**
+	 * Ler estado de paginação a partir de $_GET (sem nonce — só navegação).
+	 *
+	 * @param list<string> $roles
+	 * @param array<string,mixed> $request Tipicamente $_GET.
+	 * @return array<string,array{page:int,per_page:int}>
+	 */
+	public static function pager_state_from_request( array $roles, array $request ): array {
+		$state = array();
+		foreach ( $roles as $role ) {
+			$pk = RegistryListPager::pageQueryKey( $role );
+			$pp = RegistryListPager::perPageQueryKey( $role );
+			$state[ $role ] = array(
+				'page'     => isset( $request[ $pk ] ) ? (int) $request[ $pk ] : 1,
+				'per_page' => isset( $request[ $pp ] ) ? (int) $request[ $pp ] : RegistryListPager::DEFAULT_PER_PAGE,
+			);
+		}
+		return $state;
 	}
 
 	/**

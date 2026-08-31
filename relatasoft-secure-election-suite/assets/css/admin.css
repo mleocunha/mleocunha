@@ -2167,6 +2167,87 @@ body.rses-rtl .rses-screen,
 	display: none !important;
 }
 
+/* Cadastro — paginação por papel (25/50/100/200). */
+.rses-electoral-roll .rses-pager {
+	margin: 0.85rem 1.15rem 1.15rem;
+	padding-top: 0.75rem;
+	border-top: 1px solid var(--rses-line, #e2e8ee);
+}
+
+.rses-electoral-roll .rses-pager-form {
+	margin: 0;
+}
+
+.rses-electoral-roll .rses-pager-row {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.75rem 1.15rem;
+}
+
+.rses-electoral-roll .rses-pager-density {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.45rem;
+	margin: 0;
+	font-size: 0.9rem;
+}
+
+.rses-electoral-roll .rses-pager-label {
+	color: var(--rses-muted, #5a6b78);
+	font-weight: 600;
+}
+
+.rses-electoral-roll .rses-pager-range {
+	margin: 0;
+	font-size: 0.9rem;
+	color: var(--rses-muted, #5a6b78);
+	font-variant-numeric: tabular-nums;
+}
+
+.rses-electoral-roll .rses-pager-nav {
+	display: inline-flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.4rem;
+	margin-left: auto;
+}
+
+.rses-electoral-roll .rses-pager-btn.disabled,
+.rses-electoral-roll a.rses-pager-btn[aria-disabled="true"] {
+	opacity: 0.45;
+	pointer-events: none;
+	cursor: default;
+}
+
+.rses-electoral-roll .rses-pager-jump {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.35rem;
+	margin: 0;
+}
+
+.rses-electoral-roll .rses-pager-jump input[type="number"] {
+	width: 4.25rem;
+	min-height: 30px;
+	text-align: center;
+	font-variant-numeric: tabular-nums;
+}
+
+.rses-electoral-roll .rses-pager-of {
+	font-size: 0.9rem;
+	color: var(--rses-muted, #5a6b78);
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+}
+
+@media (max-width: 782px) {
+	.rses-electoral-roll .rses-pager-nav {
+		margin-left: 0;
+		width: 100%;
+	}
+}
+
 /* Conhecimento — markdown body needs real card padding (h1/h2/ol are not in the generic >p/>ul inset list). */
 .rses-screen .rses-knowledge-nav {
 	margin: 0 0 1.15rem;
