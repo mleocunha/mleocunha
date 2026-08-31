@@ -6,7 +6,8 @@
   "type": "module",
   "scripts": {
     "start": "node src/server.js",
-    "vote": "node src/cli.js"
+    "vote": "node src/cli.js",
+    "test": "node scripts/test-rsv.mjs"
   },
   "engines": {
     "node": ">=18"

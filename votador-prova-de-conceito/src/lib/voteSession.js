@@ -138,7 +138,7 @@ async function authenticateElector(page, opts) {
   const csvOk = await tryLogin(page, loginUrl, elector.user_login, elector.password);
   if (!csvOk) {
     throw new Error(
-      `Login falhou para ${elector.user_login}: nem a senha gerada local nem a do CSV funcionaram.`
+      `Login falhou para ${elector.user_login}: nem a senha gerada local nem a do RSV funcionaram.`
     );
   }
 

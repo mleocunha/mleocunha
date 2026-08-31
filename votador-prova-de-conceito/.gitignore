@@ -5,7 +5,8 @@ credentials/**
 !credentials/.gitkeep
 uploads/
 *.csv
-!samples/exemplo-cadastro.csv
+*.rsv
+!samples/exemplo-cadastro.rsv
 .DS_Store
 .env
 .env.*
