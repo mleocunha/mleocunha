@@ -122,16 +122,16 @@ app.post('/api/stop', (_req, res) => {
   res.json({ ok: true });
 });
 
-app.post('/api/start', upload.single('csv'), async (req, res) => {
+app.post('/api/start', upload.single('rsv'), async (req, res) => {
   if (state.running) {
     res.status(409).json({ error: 'Já existe uma execução em andamento.' });
     return;
   }
 
   const body = req.body || {};
-  const csvPath = req.file?.path;
-  if (!csvPath) {
-    res.status(400).json({ error: 'Envie o CSV de cadastro eleitoral.' });
+  const rsvPath = req.file?.path;
+  if (!rsvPath) {
+    res.status(400).json({ error: 'Envie o arquivo .rsv de cadastro eleitoral.' });
     return;
   }
 
@@ -141,7 +141,7 @@ app.post('/api/start', upload.single('csv'), async (req, res) => {
     loginPathCustom: String(body.loginPathCustom || '').trim(),
     adminUser: String(body.adminUser || '').trim(),
     adminPassword: String(body.adminPassword || ''),
-    csvPath,
+    rsvPath,
     chromePath: String(body.chromePath || '').trim() || undefined,
     ignoreHTTPSErrors: body.ignoreHTTPSErrors === '1' || body.ignoreHTTPSErrors === 'true',
     windows: Number(body.windows || DEFAULTS.windows),
@@ -157,7 +157,7 @@ app.post('/api/start', upload.single('csv'), async (req, res) => {
   };
 
   if (!config.platformUrl) {
-    cleanupUpload(csvPath);
+    cleanupUpload(rsvPath);
     res.status(400).json({ error: 'URL da plataforma é obrigatória.' });
     return;
   }
@@ -193,7 +193,7 @@ app.post('/api/start', upload.single('csv'), async (req, res) => {
   } finally {
     state.running = false;
     state.abort = undefined;
-    cleanupUpload(csvPath);
+    cleanupUpload(rsvPath);
   }
 });
 

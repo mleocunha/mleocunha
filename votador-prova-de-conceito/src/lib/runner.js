@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { chromium } from 'playwright';
-import { loadElectorsFromCsv } from './csv.js';
+import { loadElectorsFromRsv } from './rsv.js';
 import { createRunLogger } from './logger.js';
 import { scrapeOpenElections } from './scrapeAdmin.js';
 import { resolveLoginUrl } from './urls.js';
@@ -11,7 +11,7 @@ import { discoverBatchLocale } from './discoverLocale.js';
 import { startDisplayCaffeinate } from './caffeinate.js';
 
 /** Bumped when PoC runtime behaviour changes — look for this in startup logs. */
-export const VOTADOR_BUILD = 'login-fill-1';
+export const VOTADOR_BUILD = 'rsv-cadastro-1';
 
 export const DEFAULTS = {
   windows: 5,
@@ -47,8 +47,9 @@ export async function runVotador(config, hooks = {}) {
   if (!cfg.platformUrl) {
     throw new Error('URL da plataforma é obrigatória.');
   }
-  if (!cfg.csvPath || !fs.existsSync(cfg.csvPath)) {
-    throw new Error('Arquivo CSV de eleitores não encontrado.');
+  const rollPath = cfg.rsvPath || cfg.csvPath;
+  if (!rollPath || !fs.existsSync(rollPath)) {
+    throw new Error('Arquivo RSV de cadastro eleitoral não encontrado.');
   }
   if (!cfg.adminUser || !cfg.adminPassword) {
     throw new Error('Credenciais de administrador são obrigatórias para descobrir eleições abertas.');
@@ -63,7 +64,8 @@ export async function runVotador(config, hooks = {}) {
     logger.on(hooks.onEvent);
   }
 
-  const { electors } = loadElectorsFromCsv(cfg.csvPath);
+  const { electors, skippedNonVoters, source } = loadElectorsFromRsv(rollPath);
+  cfg.rsvPath = rollPath;
   const loginUrl = resolveLoginUrl(cfg);
   const concurrency = cfg.windows * cfg.tabsPerWindow;
   const passwordChangePoc = Boolean(cfg.passwordChangePoc);
@@ -77,7 +79,9 @@ export async function runVotador(config, hooks = {}) {
   logger.info(`Iniciando Votador PoC [${VOTADOR_BUILD}]`, {
     build: VOTADOR_BUILD,
     caffeinate: caffeinate.active,
+    rsv: source,
     electors: electors.length,
+    skippedNonVoters,
     concurrency,
     windows: cfg.windows,
     tabsPerWindow: cfg.tabsPerWindow,
@@ -150,7 +154,7 @@ export async function runVotador(config, hooks = {}) {
     let batchLocale = 'en_US';
     if (passwordChangePoc) {
       if (!electors[0]?.user_email) {
-        throw new Error('PoC com troca de senha exige user_email no CSV de cada eleitor.');
+        throw new Error('PoC com troca de senha exige email no RSV de cada eleitor.');
       }
       const localeContext = await browsers[0].newContext({
         ignoreHTTPSErrors: Boolean(cfg.ignoreHTTPSErrors),

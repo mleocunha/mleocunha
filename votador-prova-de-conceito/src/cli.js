@@ -4,11 +4,11 @@ import { runVotador, DEFAULTS } from './lib/runner.js';
 
 function usage() {
   console.log(`Uso:
-  npm run vote -- --url https://plataforma.example --csv ./cadastro.csv --admin USER --admin-pass SECRET
+  npm run vote -- --url https://plataforma.example --rsv ./cadastro.rsv --admin USER --admin-pass SECRET
 
 Opções:
   --url              URL da plataforma (obrigatório)
-  --csv              CSV de cadastro eleitoral (obrigatório)
+  --rsv              Cadastro eleitoral .rsv (obrigatório; mesmo formato do Painel)
   --admin            Usuário admin WP (obrigatório)
   --admin-pass       Senha admin (obrigatório; ou env RSES_ADMIN_PASS)
   --login            /id.php | /wp-login.php | caminho custom (default /wp-login.php)
@@ -42,19 +42,20 @@ if (hasFlag('help') || hasFlag('h')) {
 }
 
 const platformUrl = arg('url');
-const csvPath = arg('csv');
+// --csv permanece como alias depreciado apontando para o mesmo ficheiro RSV.
+const rsvPath = arg('rsv', arg('csv'));
 const adminUser = arg('admin');
 const adminPassword = arg('admin-pass', process.env.RSES_ADMIN_PASS || '');
 const loginPath = arg('login', '/wp-login.php');
 
-if (!platformUrl || !csvPath || !adminUser || !adminPassword) {
+if (!platformUrl || !rsvPath || !adminUser || !adminPassword) {
   usage();
   process.exit(1);
 }
 
 const summary = await runVotador({
   platformUrl,
-  csvPath: path.resolve(csvPath),
+  rsvPath: path.resolve(rsvPath),
   adminUser,
   adminPassword,
   loginPath,

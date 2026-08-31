@@ -11,7 +11,7 @@
     <header class="hero">
       <p class="brand">Votador</p>
       <h1>Prova de Conceito</h1>
-      <p class="lead">Stress de votação com Google Chrome real (Playwright headed). Credenciais e CSV ficam só nesta máquina.</p>
+      <p class="lead">Stress de votação com Google Chrome real (Playwright headed). Credenciais e ficheiros .rsv ficam só nesta máquina.</p>
     </header>
 
     <aside class="mac-banner" id="macBanner" hidden>
@@ -60,9 +60,14 @@
       <section class="block">
         <h2>Cadastro eleitoral</h2>
         <label>
-          CSV (mesmo formato do Importador de cadastro eleitoral)
-          <input name="csv" type="file" accept=".csv,text/csv" required />
+          RSV (mesmo formato do Cadastro Eleitoral do Painel)
+          <input name="rsv" type="file" accept=".rsv,text/plain" required />
         </label>
+        <p class="hint">
+          Campos:
+          <code>login:numerodeidentificacaocivil:numerodeidentificacaoeleitoral:regiaoeleitoralampla:regiaoeleitoralespecifica:nomecompleto:celular:email:endereco:papel:senha</code>
+          — só linhas com <code>papel=eleitor</code> votam.
+        </p>
       </section>
 
       <section class="block">
