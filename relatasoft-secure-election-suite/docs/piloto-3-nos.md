@@ -4,6 +4,13 @@ Guião de piloto do **Voto Eletrônico** com três sítios isolados
 (`key_authority`, `voting`, `tallying`). Activação e operação só via pacote PHP
 (`bin/ve-http` / `index.php`).
 
+**Piloto / demonstração:** os três processos no **mesmo** anfitrião (três `VE_DATA`,
+três portas) são a configuração **correcta** para este guião.  
+**Produção eleitoral:** cada modo em servidor independente e segregado —
+preferencialmente nuvens distintas, administradores e contratos independentes,
+sob autoridade eleitoral superior preferencialmente colegiada
+(`docs/operacao-standalone.md`).
+
 ## Objectivo
 
 1. Activar três nós sem CMS.
@@ -16,21 +23,26 @@ Guião de piloto do **Voto Eletrônico** com três sítios isolados
 
 - Pacote com `composer install`
 - PHP 8.2+ com GMP
-- Três `VE_DATA` + `courier/` partilhado (`docs/operacao-standalone.md`)
+- Três `VE_DATA` + `courier/` partilhado no lab (`docs/operacao-standalone.md`)
 - Opcional: nginx TLS
 - Ficheiro `.rsv` de ensaio
 
 ## Dia 0 — activação
 
-Seguir `docs/activar-standalone.md` em cada modo:
+Seguir `docs/activar-standalone.md`. No lab (um anfitrião):
 
 ```bash
-php bin/ve-http --mode=key_authority --data=/var/lib/ve/ka --port=8881
-php bin/ve-http --mode=voting --data=/var/lib/ve/voting --port=8882
-php bin/ve-http --mode=tallying --data=/var/lib/ve/tallying --port=8883
+mkdir -p "$HOME/ve-data"/{ka,voting,tallying,courier}
+
+php bin/ve-http --mode=key_authority --data="$HOME/ve-data/ka" \
+  --host=10.42.0.1 --port=8888 &
+php bin/ve-http --mode=voting --data="$HOME/ve-data/voting" \
+  --host=10.42.0.1 --port=8889 &
+php bin/ve-http --mode=tallying --data="$HOME/ve-data/tallying" \
+  --host=10.42.0.1 --port=8890
 ```
 
-Confirmar `/login` e, no voting, `/voto`. Registar URLs na ficha do piloto.
+Confirmar as três portas, `/login` em cada uma e, no voting, `/voto`. Registar URLs na ficha do piloto.
 
 ## Dia 1 — identidade e chave
 

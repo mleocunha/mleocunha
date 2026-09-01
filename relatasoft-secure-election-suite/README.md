@@ -6,6 +6,15 @@ persistência em ficheiros por nó, e **interface HTTP** para operador e eleitor
 **Um processo = um nó = um modo E3.** Um cliente típico = **três sítios** isolados
 (três processos + três árvores de dados). Não há sincronização automática entre sítios.
 
+### Testes e demonstração vs produção
+
+| Contexto | Topologia correcta |
+|----------|-------------------|
+| **Testes / demonstração** | Os três modos no **mesmo** anfitrião (três processos, três `VE_DATA`, portas distintas; `ve-http` em background ou três terminais). Adequado a lab, PoC e ensaio operacional. |
+| **Produção** | Cada modo num **servidor independente e segregado**, preferencialmente em **nuvens distintas**, com **administradores de sistemas distintos** (preferencialmente que nem se conheçam), **contratações independentes** e, preferencialmente, **gestores de contrato independentes**, respondendo todos à **autoridade eleitoral superior** (preferencialmente **colegiada**). |
+
+Três processos no mesmo host **não** substituem o isolamento organizacional de produção.
+
 Modos (`VE_MODE` / `RSES_MODE`):
 
 | Modo | Função |
@@ -42,18 +51,25 @@ mkdir -p /var/lib/ve/{ka,voting,tallying,courier}
 
 ### 3. Arrancar a interface HTTP
 
-Script recomendado (`bin/ve-http` — default `10.42.0.1:8888`):
+Script recomendado (`bin/ve-http` — default `10.42.0.1:8888`).
+
+**Testes / demonstração** (um anfitrião, três processos — configuração correcta para lab):
 
 ```bash
-# Autoridade de chaves
-php bin/ve-http --mode=key_authority --data=/var/lib/ve/ka --host=10.42.0.1 --port=8888
+mkdir -p "$HOME/ve-data"/{ka,voting,tallying,courier}
 
-# Votação (outro terminal / máquina)
-php bin/ve-http --mode=voting --data=/var/lib/ve/voting --port=8889
-
-# Apuração
-php bin/ve-http --mode=tallying --data=/var/lib/ve/tallying --port=8890
+php bin/ve-http --mode=key_authority --data="$HOME/ve-data/ka" \
+  --host=10.42.0.1 --port=8888 &
+php bin/ve-http --mode=voting --data="$HOME/ve-data/voting" \
+  --host=10.42.0.1 --port=8889 &
+php bin/ve-http --mode=tallying --data="$HOME/ve-data/tallying" \
+  --host=10.42.0.1 --port=8890
 ```
+
+Confirmar: `ss -ltnp | grep -E '8888|8889|8890'`.  
+URLs: `http://10.42.0.1:8888/login`, `:8889/login`, `:8890/login`.
+
+**Produção:** um `ve-http` (ou serviço systemd + proxy TLS) **por servidor**, cada um com o seu `VE_DATA` e o seu modo; material entre sítios só via courier / canal auditável — ver `docs/operacao-standalone.md`.
 
 Equivalente com o servidor embutido do PHP:
 

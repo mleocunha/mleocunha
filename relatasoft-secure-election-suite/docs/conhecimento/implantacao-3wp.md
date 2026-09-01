@@ -1,9 +1,15 @@
 # Implantação E3 — um cliente, três sítios
 
-> **Standalone HTTP (caminho actual):** [`../piloto-3-nos.md`](../piloto-3-nos.md), [`../activar-standalone.md`](../activar-standalone.md).  
+> **Standalone HTTP (caminho actual):** [`../piloto-3-nos.md`](../piloto-3-nos.md), [`../activar-standalone.md`](../activar-standalone.md), [`../operacao-standalone.md`](../operacao-standalone.md).  
 > O modelo E3 abaixo permanece válido; a activação já **não** passa por CMS.
 
 Modelo essencial RelataSoft: **1 cliente = 3 sítios**, preferencialmente em **nuvens distintas**.
+
+**Lab / demonstração:** três processos no mesmo anfitrião são correctos para ensaio.  
+**Produção:** servidores independentes e segregados; administradores de sistemas distintos
+(preferencialmente que nem se conheçam); contratações e, preferencialmente, gestores de
+contrato independentes; todos respondendo à autoridade eleitoral superior,
+preferencialmente colegiada.
 
 ## Sítios
 
@@ -16,6 +22,7 @@ Modelo essencial RelataSoft: **1 cliente = 3 sítios**, preferencialmente em **n
 - **Sem sincronização automática** de usuários, opções ou mídia entre sítios
 - Contas de **Gestor pelo Cliente** podem compartilhar o mesmo login/senha *inicial* por conveniência operacional, mas são identidades **isoladas** em cada base de dados
 - Transporte de material (chaves públicas, exportações de votos, parcelas) é **manual e auditável**
+- Em produção, o isolamento é também **organizacional** (infra, pessoas e contratos), não só de processo PHP
 
 ```mermaid
 flowchart TB

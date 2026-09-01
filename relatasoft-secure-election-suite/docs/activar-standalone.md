@@ -2,6 +2,11 @@
 
 Guia de activação **do zero**: um processo PHP por nó, sem CMS hospedeiro.
 
+**Âmbito deste guia:** pôr o software a correr (lab, demonstração ou primeiro nó).  
+Três processos no mesmo anfitrião são a configuração **correcta para testes e demonstrações**.  
+Em **produção**, cada modo corre em servidor independente e segregado (ver
+`docs/operacao-standalone.md` — segregação de nuvem, de administradores e de contratos).
+
 ## Pré-requisitos
 
 1. PHP 8.2 ou superior.
@@ -51,15 +56,22 @@ Produção: definir senha forte **antes** do primeiro arranque HTTP de cada nó
 
 ### E. Arrancar
 
-```bash
-cd /opt/voto-eletronico/relatasoft-secure-election-suite   # exemplo
+**Testes / demonstração** (três processos no mesmo host — esperado e correcto):
 
-php bin/ve-http --mode=key_authority --data=/var/lib/ve/ka --host=127.0.0.1 --port=8881
-php bin/ve-http --mode=voting        --data=/var/lib/ve/voting --host=127.0.0.1 --port=8882
-php bin/ve-http --mode=tallying      --data=/var/lib/ve/tallying --host=127.0.0.1 --port=8883
+```bash
+cd /home/votoeletronico/relatasoft-secure-election-suite   # exemplo
+mkdir -p "$HOME/ve-data"/{ka,voting,tallying,courier}
+
+php bin/ve-http --mode=key_authority --data="$HOME/ve-data/ka" \
+  --host=10.42.0.1 --port=8888 &
+php bin/ve-http --mode=voting --data="$HOME/ve-data/voting" \
+  --host=10.42.0.1 --port=8889 &
+php bin/ve-http --mode=tallying --data="$HOME/ve-data/tallying" \
+  --host=10.42.0.1 --port=8890
 ```
 
 `bin/ve-http` define `VE_MODE`, `VE_DATA` e `VE_PUBLIC_BASE` e lança `php -S` com `index.php`.
+Cada invocação bloqueia o terminal se não usar `&` ou um segundo/terceiro terminal.
 
 Modo directo:
 

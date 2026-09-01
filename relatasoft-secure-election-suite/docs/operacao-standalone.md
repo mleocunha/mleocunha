@@ -3,35 +3,53 @@
 Operação contínua: **um processo PHP por modo E3**, árvore `VE_DATA` própria,
 courier por ficheiros. Sem sincronização automática de identidade ou base.
 
+## Testes / demonstração vs produção
+
+| Contexto | O que é correcto |
+|----------|------------------|
+| **Testes e demonstrações** | Três processos no **mesmo** anfitrião (`key_authority`, `voting`, `tallying`), três `VE_DATA`, portas distintas. Pode usar `&` ou três terminais. Isolamento lógico de dados e modos — suficiente para lab e PoC. |
+| **Produção** | Cada instância num **servidor independente e segregado**, preferencialmente em **nuvens distintas**. **Administradores de sistemas distintos**, preferencialmente que **nem se conheçam**; **contratações independentes**; preferencialmente **gestores de contrato independentes**. Todos respondem à **autoridade eleitoral superior**, preferencialmente **colegiada**. |
+
+Colocar os três modos no mesmo host em produção **enfraquece** o modelo E3: um único operador de infra com acesso aos três `VE_DATA` concentra risco que o desenho criptográfico e organizacional pretende dispersar.
+
 ## Modelo
 
 | Conceito | Significado |
 |----------|-------------|
 | Nó / sítio | Um `bin/ve-http` (ou `php -S index.php`) + um `VE_DATA` + um `VE_MODE` |
 | Cliente típico | Três nós: `key_authority`, `voting`, `tallying` |
-| Courier | Directorio JSON partilhado: `dirname(VE_DATA)/courier` |
+| Courier | Canal de material entre nós (lab: `dirname(VE_DATA)/courier`; produção: transferência auditável entre sítios) |
 | Parcela | Share Shamir — nunca misturar `secrets` entre sítios |
 | URLs | `/login`, `/painel`, `/voto` (estáveis para nginx / clientes) |
 
-## Layout recomendado
+## Layout — testes / demonstração (um anfitrião)
 
 ```text
-/var/lib/ve/
-  ka/           # VE_DATA + VE_MODE=key_authority
-  voting/       # VE_DATA + VE_MODE=voting
-  tallying/     # VE_DATA + VE_MODE=tallying
-  courier/      # partilhado pelos três
+$HOME/ve-data/   (ou /var/lib/ve/)
+  ka/
+  voting/
+  tallying/
+  courier/     # partilhado pelos três processos locais
 ```
-
-## Arranque
 
 ```bash
-php bin/ve-http --mode=key_authority --data=/var/lib/ve/ka --host=127.0.0.1 --port=8881
-php bin/ve-http --mode=voting --data=/var/lib/ve/voting --host=127.0.0.1 --port=8882
-php bin/ve-http --mode=tallying --data=/var/lib/ve/tallying --host=127.0.0.1 --port=8883
+mkdir -p "$HOME/ve-data"/{ka,voting,tallying,courier}
+
+php bin/ve-http --mode=key_authority --data="$HOME/ve-data/ka" \
+  --host=10.42.0.1 --port=8888 &
+php bin/ve-http --mode=voting --data="$HOME/ve-data/voting" \
+  --host=10.42.0.1 --port=8889 &
+php bin/ve-http --mode=tallying --data="$HOME/ve-data/tallying" \
+  --host=10.42.0.1 --port=8890
 ```
 
-Proxy TLS por sítio → loopback. Definir `VE_PUBLIC_BASE` se o `ve-http` não for a URL pública.
+Confirmar as três escutas: `ss -ltnp | grep -E '8888|8889|8890'`.
+
+## Layout — produção (três anfitriões)
+
+Cada servidor corre **apenas um** modo, com `VE_DATA` local e sem partilhar filesystem de secrets com os outros sítios. O courier **não** é um NFS comum aos três em produção típica: o material (chave pública, parcelas, exportações) move-se por canal controlado e auditável entre equipas/sítios.
+
+Proxy TLS por sítio. Definir `VE_PUBLIC_BASE` com a URL pública real.
 
 ## Identidade
 
