@@ -2,6 +2,10 @@
 
 Checklist após activação. Um processo = um modo E3.
 
+Três processos no mesmo anfitrião (como abaixo) são a topologia **correcta para
+testes e demonstrações**. Produção: um modo por servidor segregado —
+`docs/operacao-standalone.md`.
+
 ## Preparação
 
 ```bash
