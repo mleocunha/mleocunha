@@ -4,6 +4,8 @@ declare(strict_types=1);
 namespace RelataSoft\SecureElectionSuite\Painel\Adapters\Standalone;
 
 use RelataSoft\SecureElectionSuite\Painel\Adapters\Standalone\Identity\FileJsonUserStore;
+use RelataSoft\SecureElectionSuite\Painel\Adapters\Standalone\Jobs\JsonFileJobStore;
+use RelataSoft\SecureElectionSuite\Painel\Adapters\Standalone\Jobs\StandaloneKeygenJobService;
 use RelataSoft\SecureElectionSuite\Painel\Adapters\Standalone\Persistence\StandalonePersistenceFactory;
 use RelataSoft\SecureElectionSuite\Painel\Application\Identity\IdentityGateway;
 use RelataSoft\SecureElectionSuite\Painel\Application\Jobs\JobGateway;
@@ -38,8 +40,7 @@ use RelataSoft\SecureElectionSuite\Painel\Infrastructure\Persistence\Votes\InMem
 /**
  * One isolated site node — own gateways, own mode, no shared store across nodes.
  *
- * Persistence + identity JSON under dataDir when durable (default).
- * Jobs remain InMemory until async HTTP jobs need a durable JobStore.
+ * Persistence + identity + jobs JSON under dataDir when durable (default).
  */
 final class NodeRuntime {
 
@@ -106,7 +107,9 @@ final class NodeRuntime {
 			? FileJsonUserStore::open( rtrim( $dataDir, '/\\' ) . DIRECTORY_SEPARATOR . 'identity.json' )
 			: new InMemoryUserStore();
 
-		$jobStore = new InMemoryJobStore();
+		$jobStore = $durable
+			? new JsonFileJobStore( rtrim( $dataDir, '/\\' ) . DIRECTORY_SEPARATOR . 'jobs.json' )
+			: new InMemoryJobStore();
 
 		$persistence = $durable
 			? StandalonePersistenceFactory::create( rtrim( $dataDir, '/\\' ) . DIRECTORY_SEPARATOR . 'persistence.json' )
@@ -131,9 +134,14 @@ final class NodeRuntime {
 			new InMemorySecretKeyProvider( 'standalone-piloto-' . $mode . '-' . $clienteId ),
 		);
 
+		$courierDir = dirname( rtrim( $dataDir, '/\\' ) ) . DIRECTORY_SEPARATOR . 'courier';
+		$keygenService = $durable
+			? new StandaloneKeygenJobService( $jobStore, $persistence, $courierDir, $clienteId )
+			: new InMemoryKeygenJobService( $jobStore );
+
 		$jobs = new JobGateway(
 			$jobStore,
-			new InMemoryKeygenJobService( $jobStore ),
+			$keygenService,
 			new InMemoryRsvImportJobService( $jobStore, 1 ),
 			new InMemoryRsvExportJobService( $jobStore, 1 ),
 		);

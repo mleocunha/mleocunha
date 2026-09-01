@@ -1,0 +1,88 @@
+#!/usr/bin/env php
+<?php
+declare(strict_types=1);
+
+/**
+ * Worker de keygen em background — continua sem sessão HTTP do administrador.
+ *
+ *   php bin/ve-keygen-worker --mode=key_authority --data=/caminho/ve-data/ka
+ */
+
+$root = dirname( __DIR__ );
+require $root . '/vendor/autoload.php';
+
+use RelataSoft\SecureElectionSuite\Painel\Adapters\Standalone\NodeRuntime;
+use RelataSoft\SecureElectionSuite\Painel\Contracts\Mode\SiteModes;
+
+/** @return array<string,string|bool> */
+function ve_worker_args( array $argv ): array {
+	$out = array();
+	foreach ( array_slice( $argv, 1 ) as $arg ) {
+		if ( ! str_starts_with( $arg, '--' ) ) {
+			continue;
+		}
+		$eq = strpos( $arg, '=' );
+		if ( false === $eq ) {
+			$out[ substr( $arg, 2 ) ] = true;
+		} else {
+			$out[ substr( $arg, 2, $eq - 2 ) ] = substr( $arg, $eq + 1 );
+		}
+	}
+	return $out;
+}
+
+$args = ve_worker_args( $argv ?? array() );
+$mode = (string) ( $args['mode'] ?? getenv( 'VE_MODE' ) ?: SiteModes::KEY_AUTHORITY );
+$data = (string) ( $args['data'] ?? getenv( 'VE_DATA' ) ?: '' );
+$cliente = (string) ( $args['cliente'] ?? getenv( 'VE_CLIENTE' ) ?: 'piloto' );
+
+if ( ! SiteModes::isValid( $mode ) || '' === $data ) {
+	fwrite( STDERR, "Uso: php bin/ve-keygen-worker --mode=key_authority --data=/caminho/do/no\n" );
+	exit( 1 );
+}
+
+$node = NodeRuntime::create( $mode, $data, $cliente, true );
+$keygen = $node->jobs->keygen;
+
+if ( method_exists( $keygen, 'markWorkerPid' ) ) {
+	$keygen->markWorkerPid( getmypid() );
+}
+
+$log = rtrim( $data, '/\\' ) . '/keygen-worker.log';
+$write = static function ( string $line ) use ( $log ): void {
+	$msg = gmdate( 'c' ) . ' ' . $line . "\n";
+	@file_put_contents( $log, $msg, FILE_APPEND | LOCK_EX );
+	fwrite( STDOUT, $msg );
+};
+
+$write( 'worker start pid=' . getmypid() );
+
+$idle = 0;
+while ( $idle < 3 ) {
+	if ( ! $keygen->hasActive() ) {
+		$status = $keygen->status();
+		$write( 'idle stage=' . (string) ( $status['stage'] ?? '' ) . ' progress=' . (int) ( $status['progress'] ?? 0 ) );
+		++$idle;
+		usleep( 200000 );
+		continue;
+	}
+	$idle   = 0;
+	$status = $keygen->tick();
+	$write(
+		sprintf(
+			'tick stage=%s progress=%d attempts=%d msg=%s',
+			(string) ( $status['stage'] ?? '' ),
+			(int) ( $status['progress'] ?? 0 ),
+			(int) ( $status['attempts_done'] ?? 0 ),
+			(string) ( $status['message'] ?? '' )
+		)
+	);
+	if ( empty( $status['active'] ) ) {
+		$write( 'done stage=' . (string) ( $status['stage'] ?? '' ) );
+		exit( ! empty( $status['ok'] ) || ( $status['stage'] ?? '' ) === 'complete' ? 0 : 1 );
+	}
+	usleep( 50000 );
+}
+
+$write( 'worker exit (no active job)' );
+exit( 0 );

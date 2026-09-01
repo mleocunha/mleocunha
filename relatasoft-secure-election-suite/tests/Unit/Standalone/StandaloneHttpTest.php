@@ -21,10 +21,42 @@ final class StandaloneHttpTest extends TestCase {
 	protected function setUp(): void {
 		$this->root = sys_get_temp_dir() . '/ve-http-' . bin2hex( random_bytes( 4 ) );
 		mkdir( $this->root . '/voting', 0700, true );
+		putenv( 'VE_KEYGEN_NO_WORKER=1' );
+		$_ENV['VE_KEYGEN_NO_WORKER'] = '1';
 	}
 
 	protected function tearDown(): void {
+		putenv( 'VE_KEYGEN_NO_WORKER' );
+		unset( $_ENV['VE_KEYGEN_NO_WORKER'] );
 		$this->rrmdir( $this->root );
+	}
+
+	/**
+	 * @param array<string,string> $cookie
+	 * @return array<string,mixed>
+	 */
+	private function runKeygenToCompletion( HttpKernel $kernel, NodeRuntime $node, array $cookie, array $post ): array {
+		$start = $kernel->handle(
+			new Request( 'POST', '/painel/keygen', array(), $post, $cookie, array( 'HTTP_ACCEPT' => 'application/json' ) )
+		);
+		$this->assertSame( 200, $start->status );
+		$body = json_decode( $start->body, true );
+		$this->assertIsArray( $body );
+		$this->assertTrue( ! empty( $body['ok'] ) || ! empty( $body['active'] ), $start->body );
+		$status = array();
+		for ( $i = 0; $i < 300; $i++ ) {
+			$tick = $kernel->handle(
+				new Request( 'GET', '/painel/keygen/status', array(), array(), $cookie, array( 'HTTP_ACCEPT' => 'application/json' ) )
+			);
+			$status = json_decode( $tick->body, true );
+			$this->assertIsArray( $status );
+			if ( empty( $status['active'] ) ) {
+				break;
+			}
+		}
+		$this->assertSame( 'complete', $status['stage'] ?? null, json_encode( $status ) );
+		$this->assertNotEmpty( $node->persistence->keys->listActive() );
+		return $status;
 	}
 
 	public function test_rsv_importer_and_durable_identity(): void {
@@ -153,25 +185,20 @@ final class StandaloneHttpTest extends TestCase {
 			$ids[] = (string) (int) $o['id'];
 		}
 
-		$gen = $kernel->handle(
-			new Request(
-				'POST',
-				'/painel/keygen',
-				array(),
-				array(
-					'bits'         => '512',
-					'threshold'    => '2',
-					'shares'       => '3',
-					'key_title'    => 'Eleição teste rótulo',
-					'official_ids' => $ids,
-				),
-				$cookie,
-				array()
+		$status = $this->runKeygenToCompletion(
+			$kernel,
+			$node,
+			$cookie,
+			array(
+				'bits'         => '512',
+				'threshold'    => '2',
+				'shares'       => '3',
+				'key_title'    => 'Eleição teste rótulo',
+				'official_ids' => $ids,
 			)
 		);
-		$this->assertSame( 200, $gen->status );
-		$this->assertStringContainsString( 'parcelas atribuídas', $gen->body );
-		$this->assertStringContainsString( '512 bits', $gen->body );
+		$this->assertSame( 'complete', $status['stage'] ?? '' );
+		$this->assertSame( 512, (int) ( $status['bits'] ?? 0 ) );
 		$keys = $node->persistence->keys->listActive();
 		$this->assertNotEmpty( $keys );
 		$this->assertSame( 'Eleição teste rótulo', (string) ( $keys[0]['display_name'] ?? '' ) );
@@ -321,20 +348,16 @@ final class StandaloneHttpTest extends TestCase {
 			);
 		}
 		$ids = array_map( static fn( $o ) => (string) (int) $o['id'], $node->users->listByRole( 'editor' ) );
-		$kernel->handle(
-			new Request(
-				'POST',
-				'/painel/keygen',
-				array(),
-				array(
-					'bits'         => '512',
-					'threshold'    => '2',
-					'shares'       => '2',
-					'key_title'    => 'Para eliminar',
-					'official_ids' => $ids,
-				),
-				$cookie,
-				array()
+		$this->runKeygenToCompletion(
+			$kernel,
+			$node,
+			$cookie,
+			array(
+				'bits'         => '512',
+				'threshold'    => '2',
+				'shares'       => '2',
+				'key_title'    => 'Para eliminar',
+				'official_ids' => $ids,
 			)
 		);
 		$keys = $node->persistence->keys->listActive();
@@ -391,7 +414,7 @@ final class StandaloneHttpTest extends TestCase {
 		$this->assertSame( 'Confirme', $fr->destructiveConfirmWord() );
 	}
 
-	public function test_keygen_ndjson_progress_stream(): void {
+	public function test_keygen_background_job_survives_status_poll(): void {
 		if ( ! is_dir( $this->root . '/ka' ) ) {
 			mkdir( $this->root . '/ka', 0700, true );
 		}
@@ -425,7 +448,7 @@ final class StandaloneHttpTest extends TestCase {
 			);
 		}
 		$ids = array_map( static fn( $o ) => (string) (int) $o['id'], $node->users->listByRole( 'editor' ) );
-		$res = $kernel->handle(
+		$start = $kernel->handle(
 			new Request(
 				'POST',
 				'/painel/keygen',
@@ -435,20 +458,41 @@ final class StandaloneHttpTest extends TestCase {
 					'threshold'    => '2',
 					'shares'       => '2',
 					'official_ids' => $ids,
-					'progress'     => '1',
 				),
 				$cookie,
-				array( 'HTTP_ACCEPT' => 'application/x-ndjson' )
+				array( 'HTTP_ACCEPT' => 'application/json' )
 			)
 		);
-		$this->assertSame( 'application/x-ndjson; charset=UTF-8', $res->headers['Content-Type'] ?? '' );
-		$this->assertIsCallable( $res->streamer );
-		ob_start();
-		( $res->streamer )();
-		$out = (string) ob_get_clean();
-		$this->assertStringContainsString( '"percent":12', $out );
-		$this->assertStringContainsString( '"done":true', $out );
-		$this->assertStringContainsString( '"ok":true', $out );
+		$this->assertSame( 200, $start->status );
+		$started = json_decode( $start->body, true );
+		$this->assertTrue( ! empty( $started['active'] ) || ! empty( $started['ok'] ) );
+		$this->assertFileExists( $this->root . '/ka/jobs.json' );
+
+		// Simular logout: novo kernel/sessão não cancela o job.
+		$logout = $kernel->handle( new Request( 'GET', '/logout', array(), array(), $cookie, array() ) );
+		$this->assertSame( 302, $logout->status );
+		$this->assertTrue( $node->jobs->keygen->hasActive() || 'complete' === ( $node->jobs->keygen->status()['stage'] ?? '' ) );
+
+		$login2 = $kernel->handle(
+			new Request( 'POST', '/login', array(), array( 'login' => 'admin', 'password' => 'AdminPoC1!', 'next' => '/painel' ), array(), array() )
+		);
+		preg_match( '/' . CookieSessionPort::COOKIE . '=([^;]+)/', $login2->headers['Set-Cookie'] ?? '', $m2 );
+		$cookie2 = array( CookieSessionPort::COOKIE => $m2[1] ?? '' );
+		$page = $kernel->handle( new Request( 'GET', '/painel/keygen', array(), array(), $cookie2, array() ) );
+		$this->assertStringContainsString( 've-keygen-progress', $page->body );
+		$this->assertStringContainsString( 'background', $page->body );
+
+		for ( $i = 0; $i < 300; $i++ ) {
+			$st = $kernel->handle(
+				new Request( 'GET', '/painel/keygen/status', array(), array(), $cookie2, array( 'HTTP_ACCEPT' => 'application/json' ) )
+			);
+			$data = json_decode( $st->body, true );
+			if ( empty( $data['active'] ) ) {
+				$this->assertSame( 'complete', $data['stage'] ?? '' );
+				break;
+			}
+		}
+		$this->assertNotEmpty( $node->persistence->keys->listActive() );
 	}
 
 	public function test_voting_and_tallying_import_authorities_and_submit_share(): void {
@@ -487,19 +531,15 @@ final class StandaloneHttpTest extends TestCase {
 		}
 		$officials = $ka->users->listByRole( 'editor' );
 		$ids       = array_map( static fn( $o ) => (string) (int) $o['id'], $officials );
-		$kk->handle(
-			new Request(
-				'POST',
-				'/painel/keygen',
-				array(),
-				array(
-					'bits'         => '512',
-					'threshold'    => '2',
-					'shares'       => '3',
-					'official_ids' => $ids,
-				),
-				$cKa,
-				array()
+		$this->runKeygenToCompletion(
+			$kk,
+			$ka,
+			$cKa,
+			array(
+				'bits'         => '512',
+				'threshold'    => '2',
+				'shares'       => '3',
+				'official_ids' => $ids,
 			)
 		);
 		$this->assertFileExists( $this->root . '/courier/authorities.json' );
