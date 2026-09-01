@@ -44,11 +44,12 @@ php bin/ve-http --mode=tallying --data="$HOME/ve-data/tallying" \
 
 Confirmar as três portas, `/login` em cada uma e, no voting, `/voto`. Registar URLs na ficha do piloto.
 
-## Dia 1 — identidade e chave
+## Dia 1 — identidade, autoridades e chave
 
 1. Login admin em cada nó (contas não sincronizam).
-2. Criar operadores necessários *naquele* sítio.
-3. KA: `/painel/keygen` → courier com chave pública e parcelas.
+2. No **KA**: cadastrar autoridades eleitorais em `/painel/autoridades` (pelo menos *n* para *n* parcelas).
+3. KA: `/painel/keygen` — seleccionar exactamente *n* autoridades → gerar chave e atribuir parcelas → courier.
+4. Nos outros sítios, criar operadores necessários *naquele* sítio.
 
 ## Dia 2 — cadastro e voto
 

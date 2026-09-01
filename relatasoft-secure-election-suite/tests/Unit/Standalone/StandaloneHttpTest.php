@@ -101,10 +101,81 @@ final class StandaloneHttpTest extends TestCase {
 			new Request( 'POST', '/login', array(), array( 'login' => 'admin', 'password' => 'AdminPoC1!', 'next' => '/painel' ), array(), array() )
 		);
 		preg_match( '/' . CookieSessionPort::COOKIE . '=([^;]+)/', $post->headers['Set-Cookie'] ?? '', $m );
+		$cookie = $m[1] ?? '';
 		$home = $kernel->handle(
-			new Request( 'GET', '/painel', array(), array(), array( CookieSessionPort::COOKIE => $m[1] ?? '' ), array() )
+			new Request( 'GET', '/painel', array(), array(), array( CookieSessionPort::COOKIE => $cookie ), array() )
 		);
 		$this->assertStringContainsString( 'Key Authority', $home->body );
+		$this->assertStringContainsString( 'Autoridades', $home->body );
+
+		$keygenBlocked = $kernel->handle(
+			new Request( 'GET', '/painel/keygen', array(), array(), array( CookieSessionPort::COOKIE => $cookie ), array() )
+		);
+		$this->assertStringContainsString( '/painel/autoridades', $keygenBlocked->body );
+		$this->assertStringNotContainsString( 'Gerar chave + atribuir parcelas', $keygenBlocked->body );
+	}
+
+	public function test_ka_autoridades_then_assign_shares(): void {
+		mkdir( $this->root . '/ka', 0700, true );
+		mkdir( $this->root . '/courier', 0700, true );
+		$plugin = dirname( __DIR__, 3 );
+		$node   = NodeRuntime::create( SiteModes::KEY_AUTHORITY, $this->root . '/ka', 'teste', true );
+		$kernel = new HttpKernel( $node, $plugin, 'pt-BR' );
+		$login  = $kernel->handle(
+			new Request( 'POST', '/login', array(), array( 'login' => 'admin', 'password' => 'AdminPoC1!', 'next' => '/painel' ), array(), array() )
+		);
+		preg_match( '/' . CookieSessionPort::COOKIE . '=([^;]+)/', $login->headers['Set-Cookie'] ?? '', $m );
+		$cookie = array( CookieSessionPort::COOKIE => $m[1] ?? '' );
+
+		$ids = array();
+		foreach ( array( 'aut1', 'aut2', 'aut3' ) as $loginName ) {
+			$res = $kernel->handle(
+				new Request(
+					'POST',
+					'/painel/autoridades',
+					array(),
+					array(
+						'login'       => $loginName,
+						'email'       => $loginName . '@ex.test',
+						'displayName' => 'Aut ' . $loginName,
+						'password'    => 'SenhaAut1!',
+					),
+					$cookie,
+					array()
+				)
+			);
+			$this->assertSame( 200, $res->status );
+			$this->assertStringContainsString( 'cadastrada', $res->body );
+		}
+		$officials = $node->users->listByRole( 'editor' );
+		$this->assertCount( 3, $officials );
+		foreach ( $officials as $o ) {
+			$ids[] = (string) (int) $o['id'];
+		}
+
+		$gen = $kernel->handle(
+			new Request(
+				'POST',
+				'/painel/keygen',
+				array(),
+				array(
+					'bits'         => '512',
+					'threshold'    => '2',
+					'shares'       => '3',
+					'official_ids' => $ids,
+				),
+				$cookie,
+				array()
+			)
+		);
+		$this->assertSame( 200, $gen->status );
+		$this->assertStringContainsString( 'parcelas atribuídas', $gen->body );
+		$keys = $node->persistence->keys->listActive();
+		$this->assertNotEmpty( $keys );
+		$shares = $node->persistence->shares->listByKey( (int) $keys[0]['id'] );
+		$this->assertCount( 3, $shares );
+		$this->assertFileExists( $this->root . '/courier/public-key.json' );
+		$this->assertFileExists( $this->root . '/courier/parcela-1.json' );
 	}
 
 	private function rrmdir( string $dir ): void {

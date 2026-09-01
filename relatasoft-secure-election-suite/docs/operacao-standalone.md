@@ -67,11 +67,11 @@ identificador;nome;papel
 
 ## Fluxo de material (courier)
 
-1. KA: `/painel/keygen` → `public-key.json` e `parcela-*.json` em `courier/`.
+1. KA: cadastrar autoridades em `/painel/autoridades` → `/painel/keygen` (atribuir parcelas) → `public-key.json` e `parcela-*.json` em `courier/`.
 2. Voting: confirmar courier → votar → exportar material de voto para `courier/`.
 3. Tallying: `/painel/importar` + parcelas → `/painel/certificar`.
 
-Permissões: os três processos devem ler/escrever o mesmo `courier/`.
+Permissões: os três processos devem ler/escrever o mesmo `courier/` (lab). Em produção o canal é auditável entre sítios.
 
 ## Becape
 

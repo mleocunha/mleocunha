@@ -122,9 +122,11 @@ Documentação: [`docs/activar-standalone.md`](docs/activar-standalone.md),
 
 ## Ciclo operador (resumo)
 
-1. **KA** — `/login` → `/painel/keygen` → chave + parcelas no courier.
+1. **KA** — cadastrar autoridades em `/painel/autoridades` → `/painel/keygen` (seleccionar exactamente *n* autoridades) → chave + parcelas atribuídas + courier.
 2. **Voting** — cadastro `.rsv` em `/painel/cadastro` → `/voto` → courier (material).
 3. **Tallying** — `/painel/importar` + parcelas → `/painel/certificar`.
+
+Sem autoridades eleitorais cadastradas no nó KA, a geração/atribuição de parcelas Shamir **não** avança.
 
 Piloto criptográfico CLI (sem browser): `php bin/ve-node pilot --root=/tmp/ve-piloto`.
 

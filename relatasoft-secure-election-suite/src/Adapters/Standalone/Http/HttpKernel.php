@@ -7,6 +7,8 @@ use RelataSoft\SecureElectionSuite\Painel\Adapters\Standalone\Identity\FileJsonU
 use RelataSoft\SecureElectionSuite\Painel\Adapters\Standalone\NodeRuntime;
 use RelataSoft\SecureElectionSuite\Painel\Contracts\Journey\JourneySteps;
 use RelataSoft\SecureElectionSuite\Painel\Contracts\Mode\SiteModes;
+use RelataSoft\SecureElectionSuite\Painel\Domain\Access\UserRegistryRoles;
+use RelataSoft\SecureElectionSuite\Painel\Domain\Crypto\BigInt;
 use RelataSoft\SecureElectionSuite\Painel\Domain\Crypto\ElGamal;
 use RelataSoft\SecureElectionSuite\Painel\Domain\Crypto\HomomorphicTally;
 use RelataSoft\SecureElectionSuite\Painel\Domain\Crypto\PrimeGenerator;
@@ -82,6 +84,7 @@ final class HttpKernel {
 		return match ( true ) {
 			'/painel' === $path => $this->painelHome(),
 			'/painel/cadastro' === $path => $this->cadastro( $req ),
+			'/painel/autoridades' === $path => $this->autoridades( $req ),
 			'/painel/keygen' === $path => $this->keygen( $req ),
 			'/painel/courier' === $path => $this->courier( $req ),
 			'/painel/eleicoes' === $path => $this->eleicoes(),
@@ -120,6 +123,7 @@ final class HttpKernel {
 			$items[] = array( 'href' => '/painel/courier', 'label' => 'Courier' );
 		}
 		if ( SiteModes::KEY_AUTHORITY === $mode ) {
+			$items[] = array( 'href' => '/painel/autoridades', 'label' => 'Autoridades' );
 			$items[] = array( 'href' => '/painel/keygen', 'label' => $this->i18n->t( 'Key Authority' ) );
 			$items[] = array( 'href' => '/painel/courier', 'label' => 'Courier' );
 		}
@@ -202,7 +206,8 @@ final class HttpKernel {
 			$cards .= $this->card( 'Jornada /voto', 'Boas-vindas, cabina e obrigado.', '/voto' );
 			$cards .= $this->card( 'Courier', 'Importar chave pública / exportar material de voto.', '/painel/courier' );
 		} elseif ( SiteModes::KEY_AUTHORITY === $mode ) {
-			$cards .= $this->card( $this->i18n->t( 'Key Authority' ), 'Gerar chave e parcelas Shamir.', '/painel/keygen' );
+			$cards .= $this->card( 'Autoridades eleitorais', 'Cadastrar autoridades antes de atribuir parcelas Shamir.', '/painel/autoridades' );
+			$cards .= $this->card( $this->i18n->t( 'Key Authority' ), 'Gerar chave e atribuir parcelas às autoridades.', '/painel/keygen' );
 			$cards .= $this->card( 'Courier', 'Exportar chave pública e parcelas.', '/painel/courier' );
 		} else {
 			$cards .= $this->card( $this->i18n->t( 'Tally Import' ), 'Importar material de voto + parcelas.', '/painel/importar' );
@@ -273,74 +278,235 @@ final class HttpKernel {
 		return $this->page( 'Cadastro', $body );
 	}
 
-	private function keygen( Request $req ): Response {
+	private function autoridades( Request $req ): Response {
 		$this->node->requireMode( SiteModes::KEY_AUTHORITY );
 		$msg = '';
+		$users = $this->node->users;
+		if ( ! $users instanceof FileJsonUserStore ) {
+			throw new \RuntimeException( 'Autoridades require FileJsonUserStore.' );
+		}
+
+		if ( 'POST' === $req->method ) {
+			$login = trim( $req->input( 'login' ) );
+			$email = trim( $req->input( 'email' ) );
+			$name  = trim( $req->input( 'displayName', $login ) );
+			$pass  = $req->input( 'password' );
+			if ( '' === $login || '' === $email || '' === $pass ) {
+				$msg = 'Login, e-mail e senha são obrigatórios.';
+			} else {
+				$res = $users->create(
+					array(
+						'login'       => $login,
+						'email'       => $email,
+						'password'    => $pass,
+						'displayName' => '' !== $name ? $name : $login,
+						'role'        => UserRegistryRoles::ROLE_OFFICIAL,
+					)
+				);
+				$msg = ! empty( $res['ok'] )
+					? 'Autoridade eleitoral cadastrada (#' . (int) ( $res['id'] ?? 0 ) . ').'
+					: ( 'Falha: ' . (string) ( $res['error'] ?? 'erro' ) );
+			}
+		}
+
+		$list = $users->listByRole( UserRegistryRoles::ROLE_OFFICIAL );
+		$rows = '';
+		foreach ( $list as $u ) {
+			$rows .= '<tr><td>' . (int) $u['id'] . '</td><td>'
+				. htmlspecialchars( (string) $u['displayName'], ENT_QUOTES, 'UTF-8' ) . '</td><td><code>'
+				. htmlspecialchars( (string) $u['login'], ENT_QUOTES, 'UTF-8' ) . '</code></td><td>'
+				. htmlspecialchars( (string) $u['email'], ENT_QUOTES, 'UTF-8' ) . '</td></tr>';
+		}
+		if ( '' === $rows ) {
+			$rows = '<tr><td colspan="4" class="ve-muted">Nenhuma autoridade cadastrada. Este passo é obrigatório antes de gerar e atribuir parcelas Shamir.</td></tr>';
+		}
+
+		$body = '<div class="ve-card"><h1>Autoridades eleitorais</h1>'
+			. '<p class="ve-muted">Cadastrar as contas que receberão as parcelas Shamir. Sem autoridades suficientes, a geração de chave não avança.</p>'
+			. ( $msg ? '<p class="ve-muted">' . htmlspecialchars( $msg, ENT_QUOTES, 'UTF-8' ) . '</p>' : '' )
+			. '<form method="post" action="/painel/autoridades">'
+			. '<label class="ve-field"><span>Login</span><input name="login" required autocomplete="off" /></label>'
+			. '<label class="ve-field"><span>Nome</span><input name="displayName" /></label>'
+			. '<label class="ve-field"><span>E-mail</span><input type="email" name="email" required /></label>'
+			. '<label class="ve-field"><span>Senha</span><input type="password" name="password" required autocomplete="new-password" /></label>'
+			. '<div class="ve-actions"><button type="submit">Cadastrar autoridade</button>'
+			. '<a class="secondary" href="/painel/keygen">Ir à geração de chave</a></div></form></div>'
+			. '<div class="ve-card"><h2>Cadastradas (' . count( $list ) . ')</h2>'
+			. '<table class="ve-table"><thead><tr><th>ID</th><th>Nome</th><th>Login</th><th>E-mail</th></tr></thead><tbody>'
+			. $rows . '</tbody></table></div>';
+		return $this->page( 'Autoridades', $body );
+	}
+
+	private function keygen( Request $req ): Response {
+		$this->node->requireMode( SiteModes::KEY_AUTHORITY );
+		$msg       = '';
+		$officials = $this->node->users->listByRole( UserRegistryRoles::ROLE_OFFICIAL );
+		$officialN = count( $officials );
+
 		if ( 'POST' === $req->method ) {
 			$bits = max( 256, min( 1024, (int) $req->input( 'bits', '512' ) ) );
 			$th   = max( 2, (int) $req->input( 'threshold', '2' ) );
-			$n    = max( $th, (int) $req->input( 'shares', '3' ) );
-			$kp   = ElGamal::generateKeyPair( $bits );
-			$x    = $kp->getPrivateGmp();
-			$field = PrimeGenerator::generatePrimeGreaterThan( $x, 64 );
-			$shares = ShamirSecretSharing::splitSecret( $x, $th, $n, $field );
-			$keyId = $this->node->persistence->keys->create(
-				array(
-					'key_label'   => 'http-' . gmdate( 'Ymd-His' ),
-					'public_p'    => $kp->getP(),
-					'public_q'    => $kp->getQ(),
-					'public_g'    => $kp->getG(),
-					'public_y'    => $kp->getY(),
-					'threshold'   => $th,
-					'total_shares'=> $n,
-					'field_prime' => \RelataSoft\SecureElectionSuite\Painel\Domain\Crypto\BigInt::toDecimalString( $field ),
-				)
-			);
-			$courierDir = dirname( $this->node->dataDir ) . '/courier';
-			$courier    = new MaterialCourier( $courierDir );
-			$pkg        = PublicKeyPackage::build(
-				array(
-					'key_label'   => 'http-' . gmdate( 'Ymd-His' ),
-					'key_size'    => $bits,
-					'p'           => $kp->getP(),
-					'q'           => $kp->getQ(),
-					'g'           => $kp->getG(),
-					'y'           => $kp->getY(),
-					'field_prime' => \RelataSoft\SecureElectionSuite\Painel\Domain\Crypto\BigInt::toDecimalString( $field ),
-					'threshold_t' => $th,
-					'total_n'     => $n,
-					'source_mode' => SiteModes::KEY_AUTHORITY,
-					'cliente_id'  => $this->node->clienteId,
-					'cliente_nome'=> $this->node->clienteId,
-				)
-			);
-			$courier->writeJson( 'public-key.json', $pkg );
-			foreach ( $shares as $i => $point ) {
-				$courier->writeJson(
-					'parcela-' . ( (int) ( $point['x'] ?? ( $i + 1 ) ) ) . '.json',
-					array(
-						'index'  => (int) ( $point['x'] ?? ( $i + 1 ) ),
-						'value'  => isset( $point['y'] ) ? \RelataSoft\SecureElectionSuite\Painel\Domain\Crypto\BigInt::toDecimalString( $point['y'] ) : '',
-						'field'  => \RelataSoft\SecureElectionSuite\Painel\Domain\Crypto\BigInt::toDecimalString( $field ),
-						'key_id' => $keyId,
-					)
-				);
+			$n    = max( $th, (int) $req->input( 'shares', (string) max( 3, $officialN ) ) );
+			$rawIds = $req->inputList( 'official_ids' );
+			$selected = array();
+			foreach ( $rawIds as $id ) {
+				$uid = (int) $id;
+				if ( $uid > 0 ) {
+					$selected[ $uid ] = $uid;
+				}
 			}
-			$msg = "Chave #{$keyId} gerada; public-key.json e parcelas escritos em courier/.";
+			$selected = array_values( $selected );
+
+			if ( $officialN < $n ) {
+				$msg = "É necessário cadastrar pelo menos {$n} autoridades eleitorais antes de gerar {$n} parcelas. Há {$officialN} cadastrada(s).";
+			} elseif ( count( $selected ) !== $n ) {
+				$msg = "Seleccionar exactamente {$n} autoridades para receber as parcelas (seleccionadas: " . count( $selected ) . ').';
+			} else {
+				$byId = array();
+				foreach ( $officials as $o ) {
+					$byId[ (int) $o['id'] ] = $o;
+				}
+				$okIds = array();
+				foreach ( $selected as $uid ) {
+					if ( ! isset( $byId[ $uid ] ) ) {
+						$msg = 'Uma das autoridades seleccionadas não é válida.';
+						break;
+					}
+					$okIds[] = $uid;
+				}
+				if ( '' === $msg ) {
+					$kp    = ElGamal::generateKeyPair( $bits );
+					$x     = $kp->getPrivateGmp();
+					$field = PrimeGenerator::generatePrimeGreaterThan( $x, 64 );
+					$shares = ShamirSecretSharing::splitSecret( $x, $th, $n, $field );
+					$label = 'http-' . gmdate( 'Ymd-His' );
+					$keyId = $this->node->persistence->keys->create(
+						array(
+							'key_label'    => $label,
+							'public_p'     => $kp->getP(),
+							'public_q'     => $kp->getQ(),
+							'public_g'     => $kp->getG(),
+							'public_y'     => $kp->getY(),
+							'threshold'    => $th,
+							'total_shares' => $n,
+							'field_prime'  => BigInt::toDecimalString( $field ),
+						)
+					);
+					$pub = array(
+						'p' => $kp->getP(),
+						'q' => $kp->getQ(),
+						'g' => $kp->getG(),
+						'y' => $kp->getY(),
+					);
+					$courierDir = dirname( $this->node->dataDir ) . '/courier';
+					$courier    = new MaterialCourier( $courierDir );
+					foreach ( $shares as $i => $point ) {
+						$idx     = (int) ( $point['x'] ?? ( $i + 1 ) );
+						$uid     = $okIds[ $i ];
+						$payload = ShamirSecretSharing::buildSharePayload(
+							$keyId,
+							0,
+							$th,
+							$n,
+							$field,
+							$idx,
+							$point['y'],
+							$pub
+						);
+						$this->node->persistence->shares->create(
+							array(
+								'key_id'           => $keyId,
+								'official_user_id' => $uid,
+								'share_index'      => $idx,
+								'share_payload'    => $payload,
+								'threshold_t'      => $th,
+								'total_n'          => $n,
+								'field_prime'      => BigInt::toDecimalString( $field ),
+								'status'           => 'assigned',
+							)
+						);
+						$who = (string) ( $byId[ $uid ]['login'] ?? (string) $uid );
+						$courier->writeJson(
+							'parcela-' . $idx . '.json',
+							array_merge(
+								$payload,
+								array(
+									'assigned_login' => $who,
+									'official_user_id' => $uid,
+								)
+							)
+						);
+					}
+					$pkg = PublicKeyPackage::build(
+						array(
+							'key_label'   => $label,
+							'key_size'    => $bits,
+							'p'           => $kp->getP(),
+							'q'           => $kp->getQ(),
+							'g'           => $kp->getG(),
+							'y'           => $kp->getY(),
+							'field_prime' => BigInt::toDecimalString( $field ),
+							'threshold_t' => $th,
+							'total_n'     => $n,
+							'source_mode' => SiteModes::KEY_AUTHORITY,
+							'cliente_id'  => $this->node->clienteId,
+							'cliente_nome'=> $this->node->clienteId,
+						)
+					);
+					$courier->writeJson( 'public-key.json', $pkg );
+					$msg = "Chave #{$keyId} gerada; {$n} parcelas atribuídas às autoridades seleccionadas; courier actualizado.";
+				}
+			}
 		}
+
+		$checkboxes = '';
+		foreach ( $officials as $o ) {
+			$id = (int) $o['id'];
+			$checkboxes .= '<label class="ve-field" style="display:flex;gap:0.5rem;align-items:center;max-width:none">'
+				. '<input type="checkbox" name="official_ids[]" value="' . $id . '" />'
+				. '<span><strong>' . htmlspecialchars( (string) $o['displayName'], ENT_QUOTES, 'UTF-8' )
+				. '</strong> <code>' . htmlspecialchars( (string) $o['login'], ENT_QUOTES, 'UTF-8' ) . '</code></span></label>';
+		}
+		if ( '' === $checkboxes ) {
+			$checkboxes = '<p class="ve-muted">Nenhuma autoridade cadastrada. '
+				. '<a href="/painel/autoridades">Cadastrar autoridades eleitorais</a> primeiro.</p>';
+		}
+
 		$keys = $this->node->persistence->keys->listActive();
-		$list = '<table class="ve-table"><thead><tr><th>ID</th><th>Label</th><th>t/n</th></tr></thead><tbody>';
+		$list = '<table class="ve-table"><thead><tr><th>ID</th><th>Label</th><th>t/n</th><th>Atribuições</th></tr></thead><tbody>';
 		foreach ( $keys as $k ) {
-			$list .= '<tr><td>' . (int) $k['id'] . '</td><td>' . htmlspecialchars( (string) ( $k['key_label'] ?? '' ), ENT_QUOTES, 'UTF-8' )
-				. '</td><td>' . (int) ( $k['threshold'] ?? 0 ) . '/' . (int) ( $k['total_shares'] ?? 0 ) . '</td></tr>';
+			$kid   = (int) $k['id'];
+			$asg   = $this->node->persistence->shares->listByKey( $kid );
+			$names = array();
+			foreach ( $asg as $s ) {
+				$uid = (int) ( $s['official_user_id'] ?? 0 );
+				$u   = $uid > 0 ? $this->node->users->findById( $uid ) : null;
+				$names[] = $u
+					? ( (string) $u['login'] . ' #' . (int) ( $s['share_index'] ?? 0 ) )
+					: ( '#' . $uid );
+			}
+			$list .= '<tr><td>' . $kid . '</td><td>' . htmlspecialchars( (string) ( $k['key_label'] ?? '' ), ENT_QUOTES, 'UTF-8' )
+				. '</td><td>' . (int) ( $k['threshold'] ?? 0 ) . '/' . (int) ( $k['total_shares'] ?? 0 )
+				. '</td><td>' . htmlspecialchars( $names ? implode( ', ', $names ) : '—', ENT_QUOTES, 'UTF-8' ) . '</td></tr>';
 		}
 		$list .= '</tbody></table>';
+
+		$canGenerate = $officialN >= 2;
 		$body = '<div class="ve-card"><h1>Autoridade de chaves</h1>'
+			. '<p class="ve-muted">O cadastramento de autoridades eleitorais é obrigatório antes da atribuição de parcelas Shamir.</p>'
 			. ( $msg ? '<p class="ve-muted">' . htmlspecialchars( $msg, ENT_QUOTES, 'UTF-8' ) . '</p>' : '' )
-			. '<form method="post"><label class="ve-field"><span>Bits</span><input name="bits" value="512" /></label>'
-			. '<label class="ve-field"><span>Limiar</span><input name="threshold" value="2" /></label>'
-			. '<label class="ve-field"><span>Parcelas</span><input name="shares" value="3" /></label>'
-			. '<div class="ve-actions"><button type="submit">Gerar chave + parcelas</button></div></form></div>'
+			. ( $canGenerate
+				? '<form method="post">'
+					. '<label class="ve-field"><span>Bits</span><input name="bits" value="512" /></label>'
+					. '<label class="ve-field"><span>Limiar (t)</span><input name="threshold" value="2" /></label>'
+					. '<label class="ve-field"><span>Parcelas (n)</span><input name="shares" value="' . max( 3, $officialN ) . '" /></label>'
+					. '<h2>Autoridades que recebem parcelas</h2>'
+					. '<p class="ve-muted">Seleccionar exactamente n contas (papel autoridade / editor).</p>'
+					. $checkboxes
+					. '<div class="ve-actions"><button type="submit">Gerar chave + atribuir parcelas</button></div></form>'
+				: '<p class="ve-muted">Cadastrar pelo menos duas autoridades em '
+					. '<a href="/painel/autoridades">/painel/autoridades</a> antes de gerar a chave.</p>' )
+			. '</div>'
 			. '<div class="ve-card"><h2>Chaves activas</h2>' . $list . '</div>';
 		return $this->page( 'Keygen', $body );
 	}
