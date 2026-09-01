@@ -100,6 +100,9 @@ final class HttpKernel {
 			'/painel/cadastro' === $path => $this->cadastro( $req ),
 			'/painel/autoridades' === $path => $this->autoridades( $req ),
 			'/painel/keygen' === $path => $this->keygen( $req ),
+			'/painel/keygen/status' === $path => $this->keygenStatus( $req ),
+			'/painel/keygen/tick' === $path => $this->keygenTick( $req ),
+			'/painel/keygen/cancel' === $path => $this->keygenCancel( $req ),
 			'/painel/parcelas' === $path => $this->parcelas( $req ),
 			'/painel/courier' === $path => $this->courier( $req ),
 			'/painel/eleicoes' === $path => $this->eleicoes(),
@@ -205,12 +208,15 @@ final class HttpKernel {
 
 	private function logout( Request $req ): Response {
 		$this->session->logout( $req->cookies[ CookieSessionPort::COOKIE ] ?? null );
+		// Resposta HTML mínima + redirect: evita parecer «morto» se o cliente esperar corpo.
 		return new Response(
-			'',
+			'<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"/><meta http-equiv="refresh" content="0;url=/login"/><title>Sair</title></head>'
+			. '<body><p>Sessão terminada. <a href="/login">Entrar</a></p></body></html>',
 			302,
 			array(
 				'Location'   => '/login',
 				'Set-Cookie' => CookieSessionPort::COOKIE . '=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax',
+				'Content-Type' => 'text/html; charset=UTF-8',
 			)
 		);
 	}
@@ -462,7 +468,6 @@ final class HttpKernel {
 		$msg       = trim( $req->query( 'msg', '' ) );
 		$officials = $this->node->users->listByRole( UserRegistryRoles::ROLE_OFFICIAL );
 		$officialN = count( $officials );
-		$wantsStream = $this->wantsKeygenProgress( $req );
 
 		if ( 'POST' === $req->method && 'delete_key' === $req->input( 'action' ) ) {
 			$del = $this->executeDeleteKey( $req );
@@ -477,31 +482,18 @@ final class HttpKernel {
 					! empty( $del['ok'] ) ? 200 : 422
 				);
 			}
-		} elseif ( 'POST' === $req->method && $wantsStream ) {
-			return Response::ndjsonStream(
-				function () use ( $req, $officials, $officialN ): void {
-					$this->streamKeygenProgress( $req, $officials, $officialN );
-				}
-			);
 		} elseif ( 'POST' === $req->method ) {
-			$result = $this->executeKeygen(
-				$req,
-				$officials,
-				$officialN,
-				static function (): void {}
-			);
-			$msg = (string) ( $result['message'] ?? '' );
+			$result = $this->startKeygenJob( $req, $officials, $officialN );
+			$msg    = (string) ( $result['message'] ?? '' );
 			if ( $this->wantsJson( $req ) ) {
-				return Response::json(
-					array(
-						'ok'      => ! empty( $result['ok'] ),
-						'message' => $msg,
-						'percent' => ! empty( $result['ok'] ) ? 100 : 0,
-						'key_id'  => $result['key_id'] ?? null,
-					),
-					! empty( $result['ok'] ) ? 200 : 422
-				);
+				return Response::json( $result, ! empty( $result['ok'] ) ? 200 : 422 );
 			}
+		}
+
+		$jobStatus = $this->node->jobs->keygen->status();
+		$jobActive = ! empty( $jobStatus['active'] );
+		if ( $jobActive && '' === $msg ) {
+			$msg = (string) ( $jobStatus['message'] ?? 'Geração em curso…' );
 		}
 
 		$checkboxes = '';
@@ -518,35 +510,78 @@ final class HttpKernel {
 		}
 
 		$list = $this->renderActiveKeysTable();
-		$canGenerate = $officialN >= 2;
-		$progressUi = $canGenerate ? $this->keygenProgressMarkup() : '';
+		$canGenerate = $officialN >= 2 && ! $jobActive;
+		$progressUi = $this->keygenProgressMarkup( $jobActive, $jobStatus );
 		$bitsSelect = $this->renderKeySizeSelect( 2048 );
+		$cancelBtn = $jobActive
+			? '<div class="ve-actions"><button type="button" id="ve-keygen-cancel" class="secondary">Cancelar geração</button></div>'
+			: '';
 		$body = '<div class="ve-card"><h1>Autoridade de chaves</h1>'
 			. '<p class="ve-muted">O cadastramento de autoridades eleitorais é obrigatório antes da atribuição de parcelas Shamir.</p>'
+			. '<p class="ve-muted">A geração corre em <strong>background no servidor</strong> (worker). Pode usar <a href="/logout">Sair</a> '
+			. 'e voltar noutro dispositivo — o andamento continua em <code>/painel/keygen</code>.</p>'
 			. '<p id="ve-keygen-flash" class="ve-muted"' . ( $msg ? '' : ' hidden' ) . '>'
 			. htmlspecialchars( $msg, ENT_QUOTES, 'UTF-8' ) . '</p>'
+			. $progressUi
+			. $cancelBtn
 			. ( $canGenerate
 				? '<form id="ve-keygen-form" method="post" action="/painel/keygen">'
 					. '<label class="ve-field"><span>Rótulo (nome legível)</span>'
 					. '<input name="key_title" required maxlength="120" placeholder="Ex.: Eleição municipal 2026 — urnas" value="'
 					. htmlspecialchars( 'Eleição ' . gmdate( 'Y-m-d H:i' ), ENT_QUOTES, 'UTF-8' ) . '" /></label>'
 					. '<label class="ve-field"><span>Tamanho da chave (bits)</span>' . $bitsSelect . '</label>'
-					. '<p class="ve-muted">Geração real ElGamal (GMP + primo seguro). 2048+ pode demorar minutos; 4096 vários minutos. 512 só laboratório.</p>'
+					. '<p class="ve-muted">Geração real ElGamal (GMP + primo seguro). 2048+ pode demorar minutos; 4096 horas em máquinas lentas. 512 só laboratório. Pode sair durante a geração.</p>'
 					. '<label class="ve-field"><span>Limiar (t)</span><input name="threshold" value="2" /></label>'
 					. '<label class="ve-field"><span>Parcelas (n)</span><input name="shares" value="' . max( 3, $officialN ) . '" /></label>'
 					. '<h2>Autoridades que recebem parcelas</h2>'
 					. '<p class="ve-muted">Selecionar exatamente n contas (papel autoridade).</p>'
 					. $checkboxes
-					. $progressUi
 					. '<div class="ve-actions">'
 					. '<button type="submit" id="ve-keygen-submit">Gerar chave + atribuir parcelas</button>'
 					. '</div></form>'
-				: '<p class="ve-muted">Cadastrar pelo menos duas autoridades em '
-					. '<a href="/painel/autoridades">/painel/autoridades</a> antes de gerar a chave.</p>' )
+				: ( $jobActive
+					? '<p class="ve-muted">Geração em curso — formulário bloqueado até concluir ou cancelar.</p>'
+					: '<p class="ve-muted">Cadastrar pelo menos duas autoridades em '
+						. '<a href="/painel/autoridades">/painel/autoridades</a> antes de gerar a chave.</p>' ) )
 			. '</div>'
 			. '<div class="ve-card"><h2>Chaves ativas</h2><div id="ve-keys-table">' . $list . '</div></div>'
-			. ( $canGenerate ? $this->keygenProgressScript() : '' );
+			. $this->keygenProgressScript( $jobActive );
 		return $this->page( 'Keygen', $body );
+	}
+
+	private function keygenStatus( Request $req ): Response {
+		$this->node->requireMode( SiteModes::KEY_AUTHORITY );
+		$status = $this->node->jobs->keygen->status();
+		if ( ! empty( $status['active'] ) ) {
+			// Avanço oportunista se o worker morreu (admin com sessão); o worker principal não precisa disto.
+			$status = $this->node->jobs->keygen->tick();
+		}
+		if ( ! empty( $status['stage'] ) && 'complete' === $status['stage'] ) {
+			$this->exportAuthoritiesToCourier( dirname( $this->node->dataDir ) . '/courier' );
+			$status['keys_html'] = $this->renderActiveKeysTable();
+		}
+		return Response::json( $status );
+	}
+
+	private function keygenTick( Request $req ): Response {
+		$this->node->requireMode( SiteModes::KEY_AUTHORITY );
+		if ( 'POST' !== $req->method ) {
+			return Response::json( array( 'ok' => false, 'message' => 'POST necessário.' ), 405 );
+		}
+		$status = $this->node->jobs->keygen->tick();
+		if ( ! empty( $status['stage'] ) && 'complete' === $status['stage'] ) {
+			$this->exportAuthoritiesToCourier( dirname( $this->node->dataDir ) . '/courier' );
+			$status['keys_html'] = $this->renderActiveKeysTable();
+		}
+		return Response::json( $status );
+	}
+
+	private function keygenCancel( Request $req ): Response {
+		$this->node->requireMode( SiteModes::KEY_AUTHORITY );
+		if ( 'POST' !== $req->method ) {
+			return Response::json( array( 'ok' => false, 'message' => 'POST necessário.' ), 405 );
+		}
+		return Response::json( $this->node->jobs->keygen->cancel() );
 	}
 
 	private function wantsJson( Request $req ): bool {
@@ -558,58 +593,21 @@ final class HttpKernel {
 			|| '1' === $req->input( 'ajax' );
 	}
 
-	private function wantsKeygenProgress( Request $req ): bool {
-		$accept = strtolower( (string) ( $req->server['HTTP_ACCEPT'] ?? '' ) );
-		return str_contains( $accept, 'application/x-ndjson' )
-			|| '1' === $req->query( 'progress' )
-			|| '1' === $req->input( 'progress' );
-	}
-
 	/**
 	 * @param list<array<string,mixed>> $officials
+	 * @return array<string,mixed>
 	 */
-	private function streamKeygenProgress( Request $req, array $officials, int $officialN ): void {
-		$emit = static function ( array $event ): void {
-			$line = json_encode( $event, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES );
-			if ( is_string( $line ) ) {
-				echo $line . "\n";
-				flush();
-			}
-		};
-		$result = $this->executeKeygen( $req, $officials, $officialN, $emit );
-		$emit(
-			array(
-				'ok'      => ! empty( $result['ok'] ),
-				'percent' => ! empty( $result['ok'] ) ? 100 : (int) ( $result['percent'] ?? 0 ),
-				'stage'   => (string) ( $result['stage'] ?? ( ! empty( $result['ok'] ) ? 'Concluído' : 'Erro' ) ),
-				'message' => (string) ( $result['message'] ?? '' ),
-				'key_id'  => $result['key_id'] ?? null,
-				'done'    => true,
-				'keys_html' => ! empty( $result['ok'] ) ? $this->renderActiveKeysTable() : null,
-			)
-		);
-	}
-
-	/**
-	 * @param list<array<string,mixed>> $officials
-	 * @param callable(array<string,mixed>):void $emit
-	 * @return array{ok:bool,message:string,percent?:int,stage?:string,key_id?:int}
-	 */
-	private function executeKeygen( Request $req, array $officials, int $officialN, callable $emit ): array {
-		$emit( array( 'percent' => 3, 'stage' => 'Validar parâmetros e autoridades…' ) );
-
+	private function startKeygenJob( Request $req, array $officials, int $officialN ): array {
 		$bitsReq = (int) $req->input( 'bits', '2048' );
 		if ( ! in_array( $bitsReq, self::ALLOWED_KEY_SIZES, true ) ) {
 			return array(
 				'ok'      => false,
-				'percent' => 0,
-				'stage'   => 'Bloqueado',
+				'active'  => false,
 				'message' => 'Tamanho de chave inválido. Usar: ' . implode( ', ', self::ALLOWED_KEY_SIZES ) . ' bits.',
 			);
 		}
-		$bits = $bitsReq;
-		$th   = max( 2, (int) $req->input( 'threshold', '2' ) );
-		$n    = max( $th, (int) $req->input( 'shares', (string) max( 3, $officialN ) ) );
+		$th = max( 2, (int) $req->input( 'threshold', '2' ) );
+		$n  = max( $th, (int) $req->input( 'shares', (string) max( 3, $officialN ) ) );
 		$title = trim( $req->input( 'key_title', '' ) );
 		if ( '' === $title ) {
 			$title = 'Eleição ' . gmdate( 'Y-m-d H:i' );
@@ -629,151 +627,73 @@ final class HttpKernel {
 		if ( $officialN < $n ) {
 			return array(
 				'ok'      => false,
-				'percent' => 0,
-				'stage'   => 'Bloqueado',
+				'active'  => false,
 				'message' => "É necessário cadastrar pelo menos {$n} autoridades eleitorais antes de gerar {$n} parcelas. Há {$officialN} cadastrada(s).",
 			);
 		}
 		if ( count( $selected ) !== $n ) {
 			return array(
 				'ok'      => false,
-				'percent' => 0,
-				'stage'   => 'Bloqueado',
+				'active'  => false,
 				'message' => "Selecionar exatamente {$n} autoridades para receber as parcelas (selecionadas: " . count( $selected ) . ').',
 			);
 		}
-
 		$byId = array();
 		foreach ( $officials as $o ) {
 			$byId[ (int) $o['id'] ] = $o;
 		}
-		$okIds = array();
 		foreach ( $selected as $uid ) {
 			if ( ! isset( $byId[ $uid ] ) ) {
 				return array(
 					'ok'      => false,
-					'percent' => 0,
-					'stage'   => 'Bloqueado',
+					'active'  => false,
 					'message' => 'Uma das autoridades seleccionadas não é válida.',
 				);
 			}
-			$okIds[] = $uid;
 		}
 
-		$slowHint = $bits >= 2048
-			? " ({$bits} bits — procura de primo seguro; aguarde)"
-			: '';
-		$emit( array( 'percent' => 12, 'stage' => 'Gerar par ElGamal real via GMP' . $slowHint . '…' ) );
-		$kp = ElGamal::generateKeyPair( $bits );
-		$actualBits = BigInt::bitLength( BigInt::fromDecimalString( $kp->getP() ) );
-		$emit( array( 'percent' => 48, 'stage' => "Par ElGamal gerado ({$actualBits} bits em p). Preparar campo primo…" ) );
-
-		$x     = $kp->getPrivateGmp();
-		$field = PrimeGenerator::generatePrimeGreaterThan( $x, 64 );
-		$emit( array( 'percent' => 58, 'stage' => 'Dividir o segredo em parcelas Shamir…' ) );
-		$shares = ShamirSecretSharing::splitSecret( $x, $th, $n, $field );
-		$fieldPrimeStr = BigInt::toDecimalString( $field );
-		// Não persistir o expoente privado além da divisão Shamir.
-		$kp->clearPrivateExponent();
-		unset( $x );
-
-		$emit( array( 'percent' => 68, 'stage' => 'Gravar chave pública neste nó…' ) );
-		$keyId = $this->node->persistence->keys->create(
+		$status = $this->node->jobs->keygen->start(
 			array(
-				'key_label'    => $techLabel,
-				'display_name' => $title,
-				'key_size'     => $bits,
-				'public_p'     => $kp->getP(),
-				'public_q'     => $kp->getQ(),
-				'public_g'     => $kp->getG(),
-				'public_y'     => $kp->getY(),
-				'threshold'    => $th,
-				'total_shares' => $n,
-				'field_prime'  => $fieldPrimeStr,
-			)
-		);
-		$pub = array(
-			'p' => $kp->getP(),
-			'q' => $kp->getQ(),
-			'g' => $kp->getG(),
-			'y' => $kp->getY(),
-		);
-		$courierDir = dirname( $this->node->dataDir ) . '/courier';
-		$courier    = new MaterialCourier( $courierDir );
-
-		$emit( array( 'percent' => 78, 'stage' => 'Atribuir parcelas às autoridades…' ) );
-		foreach ( $shares as $i => $point ) {
-			$idx     = (int) ( $point['x'] ?? ( $i + 1 ) );
-			$uid     = $okIds[ $i ];
-			$payload = ShamirSecretSharing::buildSharePayload(
-				$keyId,
-				0,
-				$th,
-				$n,
-				$field,
-				$idx,
-				$point['y'],
-				$pub
-			);
-			$this->node->persistence->shares->create(
-				array(
-					'key_id'           => $keyId,
-					'official_user_id' => $uid,
-					'share_index'      => $idx,
-					'share_payload'    => $payload,
-					'threshold_t'      => $th,
-					'total_n'          => $n,
-					'field_prime'      => $fieldPrimeStr,
-					'status'           => 'assigned',
-				)
-			);
-			$who = (string) ( $byId[ $uid ]['login'] ?? (string) $uid );
-			$courier->writeJson(
-				'parcela-' . $idx . '.json',
-				array_merge(
-					$payload,
-					array(
-						'assigned_login'   => $who,
-						'official_user_id' => $uid,
-					)
-				)
-			);
-			if ( isset( $shares[ $i ]['y'] ) && $shares[ $i ]['y'] instanceof \GMP ) {
-				$shares[ $i ]['y'] = gmp_init( 0 );
-			}
-			$pct = 78 + (int) floor( ( ( $i + 1 ) / max( 1, count( $shares ) ) ) * 12 );
-			$emit( array( 'percent' => min( 90, $pct ), 'stage' => 'Parcela ' . ( $i + 1 ) . '/' . count( $shares ) . ' atribuída…' ) );
-		}
-		unset( $shares, $field );
-
-		$emit( array( 'percent' => 93, 'stage' => 'Escrever chave pública e autoridades no courier…' ) );
-		$pkg = PublicKeyPackage::build(
-			array(
-				'key_label'   => $title,
-				'key_size'    => $bits,
-				'p'           => $kp->getP(),
-				'q'           => $kp->getQ(),
-				'g'           => $kp->getG(),
-				'y'           => $kp->getY(),
-				'field_prime' => $fieldPrimeStr,
+				'bits'        => $bitsReq,
 				'threshold_t' => $th,
 				'total_n'     => $n,
-				'source_mode' => SiteModes::KEY_AUTHORITY,
-				'cliente_id'  => $this->node->clienteId,
-				'cliente_nome'=> $this->node->clienteId,
+				'officials'   => $selected,
+				'label'       => $title,
+				'key_title'   => $title,
+				'key_label'   => $techLabel,
 			)
 		);
-		$courier->writeJson( 'public-key.json', $pkg );
-		$this->exportAuthoritiesToCourier( $courierDir );
-		unset( $kp );
-
-		return array(
-			'ok'      => true,
-			'percent' => 100,
-			'stage'   => 'Concluído',
-			'key_id'  => $keyId,
-			'message' => "Chave «{$title}» (#{$keyId}, {$bits} bits) gerada; {$n} parcelas atribuídas; courier atualizado. Chave privada não persistida.",
+		if ( empty( $status['ok'] ) && empty( $status['active'] ) ) {
+			return $status;
+		}
+		$this->spawnKeygenWorker();
+		$status['message'] = sprintf(
+			'Geração de %d bits iniciada em background (job %s). Pode sair — o progresso fica em /painel/keygen.',
+			$bitsReq,
+			(string) ( $status['job_id'] ?? '' )
 		);
+		$status['ok'] = true;
+		return $status;
+	}
+
+	private function spawnKeygenWorker(): void {
+		if ( '1' === (string) ( getenv( 'VE_KEYGEN_NO_WORKER' ) ?: '' ) ) {
+			return;
+		}
+		$php  = PHP_BINARY !== '' ? PHP_BINARY : 'php';
+		$bin  = $this->packageRoot . '/bin/ve-keygen-worker';
+		$data = $this->node->dataDir;
+		$mode = SiteModes::KEY_AUTHORITY;
+		$log  = rtrim( $data, '/\\' ) . '/keygen-worker.log';
+		$cmd  = sprintf(
+			'nohup %s %s --mode=%s --data=%s >> %s 2>&1 &',
+			escapeshellarg( $php ),
+			escapeshellarg( $bin ),
+			escapeshellarg( $mode ),
+			escapeshellarg( $data ),
+			escapeshellarg( $log )
+		);
+		exec( $cmd );
 	}
 
 	/**
@@ -789,7 +709,7 @@ final class HttpKernel {
 			1024 => '1024 — desenvolvimento',
 			2048 => '2048 — mínimo recomendado',
 			3072 => '3072 — mais forte (pode demorar minutos)',
-			4096 => '4096 — mais forte (pode demorar vários minutos)',
+			4096 => '4096 — mais forte (pode demorar horas; corre em background)',
 		);
 		$html = '<select name="bits" id="ve-key-bits" required>';
 		foreach ( $this->allowedKeySizes() as $size ) {
@@ -1032,16 +952,23 @@ final class HttpKernel {
 		return $this->page( 'Chave pública', $body );
 	}
 
-	private function keygenProgressMarkup(): string {
-		return <<<'HTML'
-<div id="ve-keygen-progress" class="ve-keygen-progress" hidden>
+	/**
+	 * @param array<string,mixed> $jobStatus
+	 */
+	private function keygenProgressMarkup( bool $visible, array $jobStatus = array() ): string {
+		$pct = (int) ( $jobStatus['progress'] ?? 0 );
+		$stage = htmlspecialchars( (string) ( $jobStatus['message'] ?? 'Preparar…' ), ENT_QUOTES, 'UTF-8' );
+		$hidden = $visible ? '' : ' hidden';
+		return <<<HTML
+<div id="ve-keygen-progress" class="ve-keygen-progress"{$hidden}>
   <div class="ve-keygen-progress__head">
-    <strong id="ve-keygen-pct">0%</strong>
-    <span id="ve-keygen-stage">Preparar…</span>
+    <strong id="ve-keygen-pct">{$pct}%</strong>
+    <span id="ve-keygen-stage">{$stage}</span>
   </div>
-  <div class="ve-keygen-progress__track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="ve-keygen-bar-wrap">
-    <div id="ve-keygen-bar" class="ve-keygen-progress__bar"></div>
+  <div class="ve-keygen-progress__track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{$pct}" id="ve-keygen-bar-wrap">
+    <div id="ve-keygen-bar" class="ve-keygen-progress__bar" style="width:{$pct}%"></div>
   </div>
+  <p class="ve-muted" style="margin:0.6rem 0 0">Trabalho no servidor (worker). Pode sair e regressar — o estado persiste em <code>jobs.json</code>.</p>
 </div>
 <style>
 .ve-keygen-progress{margin:1rem 0;padding:0.85rem 1rem;border:1px solid #c5d2dc;border-radius:10px;background:#f7fafc}
@@ -1054,13 +981,14 @@ button.ve-btn-busy{opacity:0.75;cursor:wait}
 HTML;
 	}
 
-	private function keygenProgressScript(): string {
-		return <<<'HTML'
+	private function keygenProgressScript( bool $resumePoll ): string {
+		$resume = $resumePoll ? 'true' : 'false';
+		return <<<HTML
 <script>
 (function () {
   var form = document.getElementById('ve-keygen-form');
-  if (!form) return;
   var btn = document.getElementById('ve-keygen-submit');
+  var cancelBtn = document.getElementById('ve-keygen-cancel');
   var box = document.getElementById('ve-keygen-progress');
   var bar = document.getElementById('ve-keygen-bar');
   var barWrap = document.getElementById('ve-keygen-bar-wrap');
@@ -1069,6 +997,8 @@ HTML;
   var flash = document.getElementById('ve-keygen-flash');
   var keys = document.getElementById('ve-keys-table');
   var labelIdle = btn ? btn.textContent : '';
+  var timer = null;
+  var resume = {$resume};
 
   function setProgress(pct, stage) {
     pct = Math.max(0, Math.min(100, pct|0));
@@ -1083,7 +1013,7 @@ HTML;
     btn.disabled = !!on;
     btn.classList.toggle('ve-btn-busy', !!on);
     btn.setAttribute('aria-busy', on ? 'true' : 'false');
-    btn.textContent = on ? 'Gerar… aguardar' : labelIdle;
+    btn.textContent = on ? 'Geração em curso…' : labelIdle;
   }
   function setFlash(text, isError) {
     if (!flash) return;
@@ -1091,59 +1021,78 @@ HTML;
     flash.textContent = text || '';
     flash.style.color = isError ? '#8a1f1f' : '';
   }
-
-  form.addEventListener('submit', function (ev) {
-    if (!window.fetch || !window.ReadableStream) return; // fallback POST clássico
-    ev.preventDefault();
-    setBusy(true);
-    setFlash('');
-    setProgress(1, 'Enviar pedido…');
-
-    var fd = new FormData(form);
-    fd.set('progress', '1');
-    fetch(form.action || '/painel/keygen', {
-      method: 'POST',
-      body: fd,
+  function stopPoll() {
+    if (timer) { clearInterval(timer); timer = null; }
+  }
+  function applyStatus(ev) {
+    if (!ev) return;
+    var pct = typeof ev.progress === 'number' ? ev.progress : (typeof ev.percent === 'number' ? ev.percent : 0);
+    setProgress(pct, ev.message || ev.stage || '');
+    if (ev.active) {
+      setBusy(true);
+      return;
+    }
+    stopPoll();
+    setBusy(false);
+    if (ev.stage === 'complete') {
+      setFlash(ev.message || 'Concluído.', false);
+      setProgress(100, ev.message || 'Concluído');
+      if (ev.keys_html && keys) keys.innerHTML = ev.keys_html;
+      setTimeout(function(){ location.reload(); }, 800);
+    } else if (ev.stage === 'cancelled' || ev.stage === 'failed') {
+      setFlash(ev.message || ev.error || 'Interrompido.', true);
+    }
+  }
+  function pollOnce() {
+    return fetch('/painel/keygen/status', {
       credentials: 'same-origin',
-      headers: {
-        'Accept': 'application/x-ndjson',
-        'X-Requested-With': 'XMLHttpRequest'
-      }
-    }).then(function (res) {
-      if (!res.ok && !res.body) throw new Error('HTTP ' + res.status);
-      var reader = res.body.getReader();
-      var decoder = new TextDecoder('utf-8');
-      var buf = '';
-      function pump() {
-        return reader.read().then(function (chunk) {
-          if (chunk.value) buf += decoder.decode(chunk.value, { stream: !chunk.done });
-          var lines = buf.split('\n');
-          buf = chunk.done ? '' : lines.pop();
-          lines.forEach(function (line) {
-            line = line.trim();
-            if (!line) return;
-            var ev;
-            try { ev = JSON.parse(line); } catch (e) { return; }
-            if (typeof ev.percent === 'number') setProgress(ev.percent, ev.stage || '');
-            else if (ev.stage) setProgress(parseInt(pctEl.textContent, 10) || 0, ev.stage);
-            if (ev.done) {
-              setFlash(ev.message || (ev.ok ? 'Concluído.' : 'Falhou.'), !ev.ok);
-              if (ev.ok) {
-                setProgress(100, ev.stage || 'Concluído');
-                if (ev.keys_html && keys) keys.innerHTML = ev.keys_html;
-              }
-              setBusy(false);
-            }
-          });
-          if (!chunk.done) return pump();
-        });
-      }
-      return pump();
-    }).catch(function (err) {
-      setFlash('Erro de rede ou do servidor: ' + (err && err.message ? err.message : err), true);
-      setBusy(false);
+      headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+    }).then(function(r){ return r.json(); }).then(applyStatus).catch(function(){});
+  }
+  function startPoll() {
+    stopPoll();
+    pollOnce();
+    timer = setInterval(pollOnce, 1500);
+  }
+
+  if (form) {
+    form.addEventListener('submit', function (ev) {
+      if (!window.fetch) return;
+      ev.preventDefault();
+      setBusy(true);
+      setFlash('');
+      setProgress(1, 'Iniciar job em background…');
+      var fd = new FormData(form);
+      fetch(form.action || '/painel/keygen', {
+        method: 'POST',
+        body: fd,
+        credentials: 'same-origin',
+        headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+      }).then(function(r){ return r.json().then(function(j){ return { ok: r.ok, j: j }; }); })
+      .then(function(res){
+        applyStatus(res.j);
+        setFlash(res.j.message || '', !res.j.ok && !res.j.active);
+        if (res.j.active || res.j.ok) startPoll();
+        else setBusy(false);
+      }).catch(function(err){
+        setFlash('Erro: ' + (err && err.message ? err.message : err), true);
+        setBusy(false);
+      });
     });
-  });
+  }
+  if (cancelBtn) {
+    cancelBtn.addEventListener('click', function(){
+      fetch('/painel/keygen/cancel', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+      }).then(function(r){ return r.json(); }).then(function(j){
+        applyStatus(j);
+        setTimeout(function(){ location.reload(); }, 500);
+      });
+    });
+  }
+  if (resume) startPoll();
 })();
 </script>
 HTML;

@@ -122,7 +122,7 @@ Documentação: [`docs/activar-standalone.md`](docs/activar-standalone.md),
 
 ## Ciclo operador (resumo)
 
-1. **KA** — cadastrar autoridades em `/painel/autoridades` → `/painel/keygen` (rótulo legível + tamanho 512…4096 + selecionar exatamente *n*) → ver/copiar/exportar chave pública → eliminar (digitar exactamente `Confirmo` / equivalente do locale, case-sensitive) → courier com chave, parcelas e `authorities.json`.
+1. **KA** — cadastrar autoridades em `/painel/autoridades` → `/painel/keygen` (rótulo + tamanho 512…4096 + selecionar *n*) → geração em **background** (`bin/ve-keygen-worker`, estado em `VE_DATA/jobs.json`; pode sair e voltar) → ver/copiar/exportar/eliminar chave pública → courier.
 2. **Voting** — importar autoridades (acompanhamento / validade jurídica) → cadastro `.rsv` → `/voto` → courier (material).
 3. **Tallying** — importar autoridades → importar material → cada autoridade submete a sua parcela em `/painel/parcelas` até ao **limiar Shamir** → certificar.
 

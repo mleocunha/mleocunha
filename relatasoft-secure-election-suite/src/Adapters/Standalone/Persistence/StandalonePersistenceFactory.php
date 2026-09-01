@@ -123,9 +123,11 @@ final class FileJsonKeyRepository implements KeyRepository {
 				if ( ! isset( $t['rows'][ $keyId ] ) ) {
 					return $t;
 				}
-				$t['rows'][ $keyId ]['field_prime'] = $fieldPrime;
-				$t['rows'][ $keyId ]['threshold_t'] = $thresholdT;
-				$t['rows'][ $keyId ]['total_n']     = $totalN;
+				$t['rows'][ $keyId ]['field_prime']  = $fieldPrime;
+				$t['rows'][ $keyId ]['threshold_t']  = $thresholdT;
+				$t['rows'][ $keyId ]['total_n']      = $totalN;
+				$t['rows'][ $keyId ]['threshold']    = $thresholdT;
+				$t['rows'][ $keyId ]['total_shares'] = $totalN;
 				$ok = true;
 				return $t;
 			}
