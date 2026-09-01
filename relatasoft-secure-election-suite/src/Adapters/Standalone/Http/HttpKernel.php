@@ -26,6 +26,9 @@ use RelataSoft\SecureElectionSuite\Painel\Infrastructure\Journey\InMemoryJourney
  */
 final class HttpKernel {
 
+	/** Tamanhos ElGamal permitidos (bits de p) — alinhado ao KA WordPress legado. */
+	private const ALLOWED_KEY_SIZES = array( 512, 1024, 2048, 3072, 4096 );
+
 	private CookieSessionPort $session;
 	private HtmlShell $shell;
 	private CatalogI18n $i18n;
@@ -506,6 +509,7 @@ final class HttpKernel {
 		$list = $this->renderActiveKeysTable();
 		$canGenerate = $officialN >= 2;
 		$progressUi = $canGenerate ? $this->keygenProgressMarkup() : '';
+		$bitsSelect = $this->renderKeySizeSelect( 2048 );
 		$body = '<div class="ve-card"><h1>Autoridade de chaves</h1>'
 			. '<p class="ve-muted">O cadastramento de autoridades eleitorais é obrigatório antes da atribuição de parcelas Shamir.</p>'
 			. '<p id="ve-keygen-flash" class="ve-muted"' . ( $msg ? '' : ' hidden' ) . '>'
@@ -515,11 +519,12 @@ final class HttpKernel {
 					. '<label class="ve-field"><span>Rótulo (nome legível)</span>'
 					. '<input name="key_title" required maxlength="120" placeholder="Ex.: Eleição municipal 2026 — urnas" value="'
 					. htmlspecialchars( 'Eleição ' . gmdate( 'Y-m-d H:i' ), ENT_QUOTES, 'UTF-8' ) . '" /></label>'
-					. '<label class="ve-field"><span>Bits</span><input name="bits" value="512" /></label>'
+					. '<label class="ve-field"><span>Tamanho da chave (bits)</span>' . $bitsSelect . '</label>'
+					. '<p class="ve-muted">Geração real ElGamal (GMP + primo seguro). 2048+ pode demorar minutos; 4096 vários minutos. 512 só laboratório.</p>'
 					. '<label class="ve-field"><span>Limiar (t)</span><input name="threshold" value="2" /></label>'
 					. '<label class="ve-field"><span>Parcelas (n)</span><input name="shares" value="' . max( 3, $officialN ) . '" /></label>'
 					. '<h2>Autoridades que recebem parcelas</h2>'
-					. '<p class="ve-muted">Seleccionar exactamente n contas (papel autoridade).</p>'
+					. '<p class="ve-muted">Selecionar exatamente n contas (papel autoridade).</p>'
 					. $checkboxes
 					. $progressUi
 					. '<div class="ve-actions">'
@@ -528,7 +533,7 @@ final class HttpKernel {
 				: '<p class="ve-muted">Cadastrar pelo menos duas autoridades em '
 					. '<a href="/painel/autoridades">/painel/autoridades</a> antes de gerar a chave.</p>' )
 			. '</div>'
-			. '<div class="ve-card"><h2>Chaves activas</h2><div id="ve-keys-table">' . $list . '</div></div>'
+			. '<div class="ve-card"><h2>Chaves ativas</h2><div id="ve-keys-table">' . $list . '</div></div>'
 			. ( $canGenerate ? $this->keygenProgressScript() : '' );
 		return $this->page( 'Keygen', $body );
 	}
@@ -582,7 +587,16 @@ final class HttpKernel {
 	private function executeKeygen( Request $req, array $officials, int $officialN, callable $emit ): array {
 		$emit( array( 'percent' => 3, 'stage' => 'Validar parâmetros e autoridades…' ) );
 
-		$bits = max( 256, min( 1024, (int) $req->input( 'bits', '512' ) ) );
+		$bitsReq = (int) $req->input( 'bits', '2048' );
+		if ( ! in_array( $bitsReq, self::ALLOWED_KEY_SIZES, true ) ) {
+			return array(
+				'ok'      => false,
+				'percent' => 0,
+				'stage'   => 'Bloqueado',
+				'message' => 'Tamanho de chave inválido. Usar: ' . implode( ', ', self::ALLOWED_KEY_SIZES ) . ' bits.',
+			);
+		}
+		$bits = $bitsReq;
 		$th   = max( 2, (int) $req->input( 'threshold', '2' ) );
 		$n    = max( $th, (int) $req->input( 'shares', (string) max( 3, $officialN ) ) );
 		$title = trim( $req->input( 'key_title', '' ) );
@@ -614,7 +628,7 @@ final class HttpKernel {
 				'ok'      => false,
 				'percent' => 0,
 				'stage'   => 'Bloqueado',
-				'message' => "Seleccionar exactamente {$n} autoridades para receber as parcelas (seleccionadas: " . count( $selected ) . ').',
+				'message' => "Selecionar exatamente {$n} autoridades para receber as parcelas (selecionadas: " . count( $selected ) . ').',
 			);
 		}
 
@@ -635,9 +649,13 @@ final class HttpKernel {
 			$okIds[] = $uid;
 		}
 
-		$emit( array( 'percent' => 12, 'stage' => 'Gerar par de chaves ElGamal (pode demorar)…' ) );
+		$slowHint = $bits >= 2048
+			? " ({$bits} bits — procura de primo seguro; aguarde)"
+			: '';
+		$emit( array( 'percent' => 12, 'stage' => 'Gerar par ElGamal real via GMP' . $slowHint . '…' ) );
 		$kp = ElGamal::generateKeyPair( $bits );
-		$emit( array( 'percent' => 48, 'stage' => 'Par ElGamal gerado. Preparar campo primo…' ) );
+		$actualBits = BigInt::bitLength( BigInt::fromDecimalString( $kp->getP() ) );
+		$emit( array( 'percent' => 48, 'stage' => "Par ElGamal gerado ({$actualBits} bits em p). Preparar campo primo…" ) );
 
 		$x     = $kp->getPrivateGmp();
 		$field = PrimeGenerator::generatePrimeGreaterThan( $x, 64 );
@@ -653,6 +671,7 @@ final class HttpKernel {
 			array(
 				'key_label'    => $techLabel,
 				'display_name' => $title,
+				'key_size'     => $bits,
 				'public_p'     => $kp->getP(),
 				'public_q'     => $kp->getQ(),
 				'public_g'     => $kp->getG(),
@@ -742,13 +761,67 @@ final class HttpKernel {
 			'percent' => 100,
 			'stage'   => 'Concluído',
 			'key_id'  => $keyId,
-			'message' => "Chave «{$title}» (#{$keyId}) gerada; {$n} parcelas atribuídas; courier actualizado. Chave privada não persistida.",
+			'message' => "Chave «{$title}» (#{$keyId}, {$bits} bits) gerada; {$n} parcelas atribuídas; courier atualizado. Chave privada não persistida.",
 		);
+	}
+
+	/**
+	 * @return list<int>
+	 */
+	private function allowedKeySizes(): array {
+		return self::ALLOWED_KEY_SIZES;
+	}
+
+	private function renderKeySizeSelect( int $selected ): string {
+		$labels = array(
+			512  => '512 — só laboratório / testes',
+			1024 => '1024 — desenvolvimento',
+			2048 => '2048 — mínimo recomendado',
+			3072 => '3072 — mais forte (pode demorar minutos)',
+			4096 => '4096 — mais forte (pode demorar vários minutos)',
+		);
+		$html = '<select name="bits" id="ve-key-bits" required>';
+		foreach ( $this->allowedKeySizes() as $size ) {
+			$sel   = $size === $selected ? ' selected' : '';
+			$label = $labels[ $size ] ?? ( (string) $size . ' bits' );
+			$html .= '<option value="' . $size . '"' . $sel . '>'
+				. htmlspecialchars( $label, ENT_QUOTES, 'UTF-8' ) . '</option>';
+		}
+		$html .= '</select>';
+		return $html;
+	}
+
+	/**
+	 * Tamanho em bits: campo gravado ou comprimento de p (chaves antigas sem key_size).
+	 *
+	 * @param array<string,mixed> $k
+	 */
+	private function resolveKeySizeBits( array $k ): int {
+		$stored = (int) ( $k['key_size'] ?? 0 );
+		if ( $stored >= 512 ) {
+			return $stored;
+		}
+		$p = trim( (string) ( $k['public_p'] ?? '' ) );
+		if ( '' === $p || ! ctype_digit( $p ) ) {
+			return 0;
+		}
+		try {
+			return BigInt::bitLength( BigInt::fromDecimalString( $p ) );
+		} catch ( \Throwable ) {
+			return 0;
+		}
+	}
+
+	private function formatKeySizeLabel( int $bits ): string {
+		if ( $bits < 1 ) {
+			return '—';
+		}
+		return $bits . ' bits';
 	}
 
 	private function renderActiveKeysTable(): string {
 		$keys = $this->node->persistence->keys->listActive();
-		$list = '<table class="ve-table"><thead><tr><th>ID</th><th>Rótulo</th><th>Técnico</th><th>t/n</th><th>Ações</th></tr></thead><tbody>';
+		$list = '<table class="ve-table"><thead><tr><th>ID</th><th>Rótulo</th><th>Tamanho</th><th>Técnico</th><th>t/n</th><th>Ações</th></tr></thead><tbody>';
 		foreach ( $keys as $k ) {
 			$kid   = (int) $k['id'];
 			$human = (string) ( $k['display_name'] ?? '' );
@@ -756,8 +829,13 @@ final class HttpKernel {
 				$human = (string) ( $k['key_label'] ?? 'Chave #' . $kid );
 			}
 			$tech = (string) ( $k['key_label'] ?? '' );
+			$bits = $this->resolveKeySizeBits( $k );
+			$bitsCell = $bits > 0
+				? '<strong class="ve-key-bits">' . htmlspecialchars( $this->formatKeySizeLabel( $bits ), ENT_QUOTES, 'UTF-8' ) . '</strong>'
+				: '<span class="ve-muted">—</span>';
 			$list .= '<tr><td>' . $kid . '</td><td><strong>'
-				. htmlspecialchars( $human, ENT_QUOTES, 'UTF-8' ) . '</strong></td><td><code>'
+				. htmlspecialchars( $human, ENT_QUOTES, 'UTF-8' ) . '</strong></td><td>'
+				. $bitsCell . '</td><td><code>'
 				. htmlspecialchars( $tech, ENT_QUOTES, 'UTF-8' ) . '</code></td><td>'
 				. (int) ( $k['threshold'] ?? 0 ) . '/' . (int) ( $k['total_shares'] ?? 0 )
 				. '</td><td class="ve-actions" style="margin:0">'
@@ -766,7 +844,7 @@ final class HttpKernel {
 				. '</td></tr>';
 		}
 		if ( ! $keys ) {
-			$list .= '<tr><td colspan="5" class="ve-muted">Nenhuma chave activa.</td></tr>';
+			$list .= '<tr><td colspan="6" class="ve-muted">Nenhuma chave ativa.</td></tr>';
 		}
 		$list .= '</tbody></table>';
 		return $list;
@@ -786,10 +864,11 @@ final class HttpKernel {
 
 	private function buildPublicKeyPackageForKey( array $k ): array {
 		$human = (string) ( $k['display_name'] ?? $k['key_label'] ?? 'chave' );
+		$bits  = $this->resolveKeySizeBits( $k );
 		return PublicKeyPackage::build(
 			array(
 				'key_label'   => $human,
-				'key_size'    => (int) ( $k['key_size'] ?? 0 ),
+				'key_size'    => $bits > 0 ? $bits : 512,
 				'p'           => (string) ( $k['public_p'] ?? '' ),
 				'q'           => (string) ( $k['public_q'] ?? '' ),
 				'g'           => (string) ( $k['public_g'] ?? '' ),
@@ -829,10 +908,13 @@ final class HttpKernel {
 		}
 		$human = htmlspecialchars( (string) ( $row['display_name'] ?? $row['key_label'] ?? '' ), ENT_QUOTES, 'UTF-8' );
 		$tech  = htmlspecialchars( (string) ( $row['key_label'] ?? '' ), ENT_QUOTES, 'UTF-8' );
+		$bits  = $this->resolveKeySizeBits( $row );
+		$bitsLabel = htmlspecialchars( $this->formatKeySizeLabel( $bits ), ENT_QUOTES, 'UTF-8' );
 		$esc   = htmlspecialchars( $json, ENT_QUOTES, 'UTF-8' );
 		$body  = '<div class="ve-card"><h1>Chave pública</h1>'
 			. '<p><strong>' . $human . '</strong></p>'
 			. '<p class="ve-muted">Identificador técnico: <code>' . $tech . '</code> · ID #' . $keyId
+			. ' · <strong class="ve-key-bits">' . $bitsLabel . '</strong>'
 			. ' · limiar ' . (int) ( $row['threshold'] ?? 0 ) . '/' . (int) ( $row['total_shares'] ?? 0 ) . '</p>'
 			. '<p class="ve-muted">Apenas componentes públicos (p, q, g, y). A chave privada não está armazenada neste nó após a geração.</p>'
 			. '<label class="ve-field"><span>JSON (visualizar / copiar)</span>'
@@ -844,7 +926,7 @@ final class HttpKernel {
 			. '<a class="secondary" href="/painel/keygen">Voltar às chaves</a>'
 			. '</div>'
 			. '<p id="ve-copy-flash" class="ve-muted" hidden>JSON copiado.</p></div>'
-			. '<script>(function(){var b=document.getElementById("ve-copy-pubkey");var t=document.getElementById("ve-pubkey-json");var f=document.getElementById("ve-copy-flash");if(!b||!t)return;b.addEventListener("click",function(){t.select();t.setSelectionRange(0,t.value.length);var ok=false;if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t.value).then(function(){ok=true;if(f){f.hidden=false;f.textContent="JSON copiado.";}}).catch(function(){});}if(!ok){try{ok=document.execCommand("copy");}catch(e){}if(f){f.hidden=false;f.textContent=ok?"JSON copiado.":"Seleccionar o texto e copiar manualmente.";}});})();</script>';
+			. '<script>(function(){var b=document.getElementById("ve-copy-pubkey");var t=document.getElementById("ve-pubkey-json");var f=document.getElementById("ve-copy-flash");if(!b||!t)return;b.addEventListener("click",function(){t.select();t.setSelectionRange(0,t.value.length);var ok=false;if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t.value).then(function(){ok=true;if(f){f.hidden=false;f.textContent="JSON copiado.";}}).catch(function(){});}if(!ok){try{ok=document.execCommand("copy");}catch(e){}if(f){f.hidden=false;f.textContent=ok?"JSON copiado.":"Selecionar o texto e copiar manualmente.";}});})();</script>';
 		return $this->page( 'Chave pública', $body );
 	}
 
@@ -1242,6 +1324,7 @@ HTML;
 					$this->node->persistence->keys->create(
 						array(
 							'key_label' => 'imported-courier',
+							'key_size'  => (int) ( $pkg['key_size'] ?? 0 ),
 							'public_p'  => (string) ( $pub['p'] ?? '' ),
 							'public_q'  => (string) ( $pub['q'] ?? '' ),
 							'public_g'  => (string) ( $pub['g'] ?? '' ),
