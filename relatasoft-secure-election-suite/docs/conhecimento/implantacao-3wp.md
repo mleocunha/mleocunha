@@ -1,5 +1,8 @@
 # Implantação E3 — um cliente, três sítios
 
+> **Standalone HTTP (caminho actual):** [`../piloto-3-nos.md`](../piloto-3-nos.md), [`../activar-standalone.md`](../activar-standalone.md).  
+> O modelo E3 abaixo permanece válido; a activação já **não** passa por CMS.
+
 Modelo essencial RelataSoft: **1 cliente = 3 sítios**, preferencialmente em **nuvens distintas**.
 
 ## Sítios

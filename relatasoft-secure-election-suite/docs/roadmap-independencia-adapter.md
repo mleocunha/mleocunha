@@ -310,17 +310,18 @@ exige:
 | A6.1 | **Feito** — persistência JSON durável por nó (`StandalonePersistenceFactory` / `persistence.json`); Identity/Jobs InMemory; `docs/verificacao-a61-persistencia.md`; CI cobre `DurablePersistenceTest` |
 | B1–B6 | **Feito (fecho B\*)** — Cadastro `.rsv`, Auditor+stats, Conhecimento/E3, áudio/beep, E1 cliente nos pacotes, PT-BR nos ecrãs-chave; `docs/verificacao-b-star.md` |
 | C1–C3 | **Feito (fecho C\*)** — ModeLock↔SiteModes; máscara 404 (`publicAccessDecision` + smoke); guards becape/módulos + Autoteste PT; `docs/verificacao-c-star.md` |
-| HTTP Adapter #2 | **Em curso** — `index.php` + `bin/ve-http` (default `10.42.0.1:8888`); identity JSON durável; login; painel mínimo 3 modos; RSV; `/voto`; courier |
+| HTTP standalone | **Feito (mínimo piloto)** — `index.php` + `bin/ve-http` (default `10.42.0.1:8888`); identity JSON durável; login; painel 3 modos; RSV; `/voto`; courier; docs em `activar-standalone.md` / `piloto-3-nos.md` |
 
-**Caminho crítico A0→A6 concluído** (gates M1–M6). Endurecimento Adapter #2: **A6.1 persistência** feito; **B\*** e **C\*** no Adapter #1 fechados. **UI HTTP mínima standalone** em curso (`docs/verificacao-http-standalone.md`).
+**Caminho crítico A0→A6 concluído** (gates M1–M6). Persistência A6.1 e UI HTTP mínima standalone disponíveis. Activação operacional: `README.md` + `docs/activar-standalone.md` (não usar procedimentos de plugin CMS).
 
 ---
 
 ## 11. Referências internas
 
 - `docs/architecture.md` — camadas Domain / Application / Adapters  
-- `docs/conhecimento/implantacao-3wp.md` — E3, 3 sítios  
-- `docs/wordpress-dependencies.md` — fachada `/painel` vs caminhos técnicos do motor  
+- `docs/activar-standalone.md` / `docs/piloto-3-nos.md` — activação e piloto standalone  
+- `docs/conhecimento/implantacao-3wp.md` — modelo E3 (3 sítios); activação actual é standalone  
+- `docs/wordpress-dependencies.md` — **legado** Adapter #1 / fachada hospedeiro  
 - `docs/glossary-pt.md` — termos de produto  
 
 ---

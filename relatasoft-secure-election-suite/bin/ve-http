@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 /**
- * Arranca o servidor HTTP embutido do Adapter #2.
+ * Arranca o servidor HTTP embutido do nó standalone.
  *
  * Default: 10.42.0.1:8888 (um processo = um modo E3).
  *

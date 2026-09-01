@@ -4,7 +4,7 @@ declare(strict_types=1);
 namespace RelataSoft\SecureElectionSuite\Painel\Adapters\Standalone\Persistence;
 
 /**
- * Single-file JSON bag for one Adapter #2 node (no sync across nodes).
+ * Single-file JSON bag for one standalone node (no sync across nodes).
  *
  * Atomic replace via temp file + rename. Tables are either:
  * - auto-id row maps: { "autoId": N, "rows": { "1": {...}, ... } }

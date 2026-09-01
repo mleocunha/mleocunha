@@ -36,7 +36,7 @@ use RelataSoft\SecureElectionSuite\Painel\Infrastructure\Persistence\Tallies\InM
 use RelataSoft\SecureElectionSuite\Painel\Infrastructure\Persistence\Votes\InMemoryEncryptedVoteRepository;
 
 /**
- * One isolated site node (Adapter #2) — own gateways, own mode, no shared DB.
+ * One isolated site node — own gateways, own mode, no shared store across nodes.
  *
  * Persistence + identity JSON under dataDir when durable (default).
  * Jobs remain InMemory until async HTTP jobs need a durable JobStore.

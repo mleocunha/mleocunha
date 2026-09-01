@@ -18,24 +18,24 @@ use RelataSoft\SecureElectionSuite\Painel\Domain\Material\PublicKeyPackage;
 use RelataSoft\SecureElectionSuite\Painel\Infrastructure\Journey\InMemoryJourneyRouteResolver;
 
 /**
- * Kernel HTTP do Adapter #2 — login, painel mínimo (3 modos), /voto, RSV, courier.
+ * Kernel HTTP standalone — login, painel (3 modos E3), /voto, RSV, courier.
  */
 final class HttpKernel {
 
 	private CookieSessionPort $session;
 	private HtmlShell $shell;
 	private CatalogI18n $i18n;
-	private string $pluginRoot;
+	private string $packageRoot;
 	private string $flash = '';
 
 	public function __construct(
 		private readonly NodeRuntime $node,
-		string $pluginRoot,
+		string $packageRoot,
 		?string $acceptLanguage = null,
 	) {
-		$this->pluginRoot = rtrim( $pluginRoot, '/\\' );
+		$this->packageRoot = rtrim( $packageRoot, '/\\' );
 		$locale = CatalogI18n::fromAcceptLanguage( $acceptLanguage, 'pt_BR' );
-		$this->i18n = new CatalogI18n( $this->pluginRoot . '/languages/catalogs', $locale );
+		$this->i18n = new CatalogI18n( $this->packageRoot . '/languages/catalogs', $locale );
 		$users = $this->node->users;
 		if ( ! $users instanceof FileJsonUserStore ) {
 			throw new \RuntimeException( 'HTTP kernel requires durable FileJsonUserStore (NodeRuntime durable=true).' );
@@ -43,7 +43,6 @@ final class HttpKernel {
 		$this->session = new CookieSessionPort( $users->documentStore(), $users );
 		$this->shell   = new HtmlShell(
 			$this->i18n,
-			$this->pluginRoot,
 			$this->node->mode->getMode(),
 			SiteModes::label( $this->node->mode->getMode() )
 		);
@@ -213,7 +212,7 @@ final class HttpKernel {
 		$user = $this->node->users->findById( $this->session->currentUserId() );
 		$who  = htmlspecialchars( (string) ( $user['login'] ?? '' ), ENT_QUOTES, 'UTF-8' );
 		$body = '<div class="ve-card"><h1>Painel de Controle Eleitoral</h1>'
-			. '<p class="ve-muted">Sessão: <code>' . $who . '</code> · Adapter #2 standalone</p></div>'
+			. '<p class="ve-muted">Sessão: <code>' . $who . '</code> · nó standalone</p></div>'
 			. $cards;
 		return $this->page( 'Painel', $body );
 	}
@@ -471,7 +470,7 @@ final class HttpKernel {
 		};
 
 		$inner = match ( $step ) {
-			JourneySteps::WELCOME => '<div class="ve-card"><h1>Boas-vindas</h1><p class="ve-muted">Jornada do eleitor no Adapter #2.</p>'
+			JourneySteps::WELCOME => '<div class="ve-card"><h1>Boas-vindas</h1><p class="ve-muted">Jornada do eleitor neste nó de votação.</p>'
 				. '<div class="ve-actions"><a href="/voto/cabina">Ir à cabina</a></div></div>',
 			JourneySteps::BOOTH => '<div class="ve-card"><h1>Cabina de votação</h1>'
 				. '<p class="ve-muted">Voto homomórfico mínimo (contagem 0/1) usando a chave pública importada no nó.</p>'
@@ -543,7 +542,7 @@ final class HttpKernel {
 	private function serveAsset( string $path ): Response {
 		$rel  = substr( $path, strlen( '/assets/' ) );
 		$rel  = str_replace( array( '..', "\0" ), '', $rel );
-		$file = $this->pluginRoot . '/assets/' . $rel;
+		$file = $this->packageRoot . '/assets/' . $rel;
 		if ( ! is_readable( $file ) || ! is_file( $file ) ) {
 			return Response::text( 'Not found', 404 );
 		}

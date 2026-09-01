@@ -7,7 +7,7 @@ use RelataSoft\SecureElectionSuite\Painel\Contracts\Mode\ModePort;
 use RelataSoft\SecureElectionSuite\Painel\Contracts\Mode\SiteModes;
 
 /**
- * Adapter #2: mode locked from constructor / env (immutable after lock).
+ * Standalone: mode locked from constructor / env (immutable after lock).
  */
 final class EnvModeLock implements ModePort {
 

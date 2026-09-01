@@ -1,10 +1,16 @@
-- 👋 Hi, I’m @mleocunha
-- 👀 I’m interested in Cryptografy for E-voting
-- 🌱 I’m currently learning project management
-- 💞️ I’m looking to collaborate on E-voting
-- 📫 How to reach me whatsapp +55 (61) 994-261-450
+# Voto Eletrônico (monorepo)
 
-<!---
-mleocunha/mleocunha is a ✨ special ✨ repository because its `README.md` (this file) appears on your GitHub profile.
-You can click the Preview link to take a look at your changes.
---->
+Pacote principal (activação standalone):  
+[`relatasoft-secure-election-suite/README.md`](relatasoft-secure-election-suite/README.md)
+
+```bash
+cd relatasoft-secure-election-suite
+composer install
+php bin/ve-http --mode=voting --data=/tmp/ve/voting
+```
+
+Documentação de activação:  
+[`relatasoft-secure-election-suite/docs/activar-standalone.md`](relatasoft-secure-election-suite/docs/activar-standalone.md)
+
+Outros directórios neste repositório (`votador-prova-de-conceito`, `voto-eletronico-tema-base`)
+são componentes auxiliares ou legado de integração — não substituem o arranque standalone acima.

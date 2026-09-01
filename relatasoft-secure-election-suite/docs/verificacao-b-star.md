@@ -1,4 +1,7 @@
-# Verificação B* — Produto no Adapter #1
+# Verificação B* — Produto no Adapter #1 (LEGADO)
+
+> Activação standalone actual: [`activar-standalone.md`](activar-standalone.md).  
+> Este ficheiro valida o fecho B* sobre o hospedeiro antigo.
 
 Pacote paralelo ao caminho crítico (roadmap §3.2): Cadastro, Auditor, Conhecimento, áudio/beep, E1 cliente, PT-BR.
 
