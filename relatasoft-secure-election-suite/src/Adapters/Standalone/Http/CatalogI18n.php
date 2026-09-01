@@ -56,6 +56,24 @@ final class CatalogI18n {
 		return $this->catalog[ $msgid ] ?? $msgid;
 	}
 
+	/**
+	 * Palavra que o administrador deve digitar para acções destrutivas.
+	 * Case-sensitive; msgid inglês «Confirm»; pt_BR → «Confirmo».
+	 */
+	public function destructiveConfirmWord(): string {
+		$word = $this->t( 'Confirm' );
+		return '' !== $word ? $word : 'Confirm';
+	}
+
+	/**
+	 * Comparação exacta (case-sensitive) após trim.
+	 */
+	public function matchesDestructiveConfirm( string $typed ): bool {
+		$expected = $this->destructiveConfirmWord();
+		$typed    = trim( $typed );
+		return '' !== $expected && '' !== $typed && $expected === $typed;
+	}
+
 	public static function fromAcceptLanguage( ?string $header, string $fallback = 'pt_BR' ): string {
 		if ( null === $header || '' === trim( $header ) ) {
 			return self::normalizeLocaleStatic( $fallback );

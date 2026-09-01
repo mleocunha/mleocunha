@@ -194,6 +194,9 @@ final class StandaloneHttpTest extends TestCase {
 		$this->assertStringContainsString( 'Eleição teste rótulo', $view->body );
 		$this->assertStringContainsString( '512 bits', $view->body );
 		$this->assertStringContainsString( 'Copiar JSON', $view->body );
+		$this->assertStringContainsString( 'id="eliminar"', $view->body );
+		$this->assertStringContainsString( 'Confirmo', $view->body );
+		$this->assertStringContainsString( 'name="confirm_word"', $view->body );
 		$dl = $kernel->handle(
 			new Request( 'GET', '/painel/chave/' . $kid . '.json', array(), array(), $cookie, array() )
 		);
@@ -282,6 +285,110 @@ final class StandaloneHttpTest extends TestCase {
 		);
 		$this->assertStringContainsString( 'Tamanho de chave inválido', $clamped->body );
 		$this->assertSame( array(), $node->persistence->keys->listActive() );
+	}
+
+	public function test_delete_key_requires_case_sensitive_confirmo(): void {
+		foreach ( array( 'ka', 'courier' ) as $dir ) {
+			$path = $this->root . '/' . $dir;
+			if ( ! is_dir( $path ) ) {
+				mkdir( $path, 0700, true );
+			}
+		}
+		$plugin = dirname( __DIR__, 3 );
+		$node   = NodeRuntime::create( SiteModes::KEY_AUTHORITY, $this->root . '/ka', 'teste', true );
+		$kernel = new HttpKernel( $node, $plugin, 'pt-BR' );
+		$login  = $kernel->handle(
+			new Request( 'POST', '/login', array(), array( 'login' => 'admin', 'password' => 'AdminPoC1!', 'next' => '/painel' ), array(), array() )
+		);
+		preg_match( '/' . CookieSessionPort::COOKIE . '=([^;]+)/', $login->headers['Set-Cookie'] ?? '', $m );
+		$cookie = array( CookieSessionPort::COOKIE => $m[1] ?? '' );
+		foreach ( array( 'd1', 'd2' ) as $loginName ) {
+			$kernel->handle(
+				new Request(
+					'POST',
+					'/painel/autoridades',
+					array(),
+					array(
+						'action'      => 'create',
+						'login'       => $loginName,
+						'email'       => $loginName . '@ex.test',
+						'displayName' => $loginName,
+						'password'    => 'SenhaAut1!',
+					),
+					$cookie,
+					array()
+				)
+			);
+		}
+		$ids = array_map( static fn( $o ) => (string) (int) $o['id'], $node->users->listByRole( 'editor' ) );
+		$kernel->handle(
+			new Request(
+				'POST',
+				'/painel/keygen',
+				array(),
+				array(
+					'bits'         => '512',
+					'threshold'    => '2',
+					'shares'       => '2',
+					'key_title'    => 'Para eliminar',
+					'official_ids' => $ids,
+				),
+				$cookie,
+				array()
+			)
+		);
+		$keys = $node->persistence->keys->listActive();
+		$this->assertCount( 1, $keys );
+		$kid = (int) $keys[0]['id'];
+
+		$wrongCase = $kernel->handle(
+			new Request(
+				'POST',
+				'/painel/chave/' . $kid,
+				array(),
+				array(
+					'action'       => 'delete_key',
+					'key_id'       => (string) $kid,
+					'confirm_word' => 'confirmo',
+				),
+				$cookie,
+				array()
+			)
+		);
+		$this->assertSame( 200, $wrongCase->status );
+		$this->assertStringContainsString( 'Eliminação cancelada', $wrongCase->body );
+		$this->assertCount( 1, $node->persistence->keys->listActive() );
+
+		$ok = $kernel->handle(
+			new Request(
+				'POST',
+				'/painel/chave/' . $kid,
+				array(),
+				array(
+					'action'       => 'delete_key',
+					'key_id'       => (string) $kid,
+					'confirm_word' => 'Confirmo',
+				),
+				$cookie,
+				array()
+			)
+		);
+		$this->assertSame( 302, $ok->status );
+		$this->assertStringContainsString( '/painel/keygen', (string) ( $ok->headers['Location'] ?? '' ) );
+		$this->assertSame( array(), $node->persistence->keys->listActive() );
+	}
+
+	public function test_catalog_destructive_confirm_words_per_locale(): void {
+		$plugin = dirname( __DIR__, 3 );
+		$cats   = $plugin . '/languages/catalogs';
+		$pt     = new CatalogI18n( $cats, 'pt_BR' );
+		$this->assertSame( 'Confirmo', $pt->destructiveConfirmWord() );
+		$this->assertTrue( $pt->matchesDestructiveConfirm( 'Confirmo' ) );
+		$this->assertFalse( $pt->matchesDestructiveConfirm( 'confirmo' ) );
+		$en = new CatalogI18n( $cats, 'en_US' );
+		$this->assertSame( 'Confirm', $en->destructiveConfirmWord() );
+		$fr = new CatalogI18n( $cats, 'fr_FR' );
+		$this->assertSame( 'Confirme', $fr->destructiveConfirmWord() );
 	}
 
 	public function test_keygen_ndjson_progress_stream(): void {
