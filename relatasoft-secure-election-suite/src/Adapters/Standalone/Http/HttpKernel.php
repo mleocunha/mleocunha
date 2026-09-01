@@ -38,7 +38,12 @@ final class HttpKernel {
 		?string $acceptLanguage = null,
 	) {
 		$this->packageRoot = rtrim( $packageRoot, '/\\' );
-		$locale = CatalogI18n::fromAcceptLanguage( $acceptLanguage, 'pt_BR' );
+		// Interface do produto: PT-BR por omissão (infinitivos). VE_LOCALE pode forçar outro catálogo.
+		$envLocale = (string) ( getenv( 'VE_LOCALE' ) ?: '' );
+		$locale    = '' !== $envLocale
+			? CatalogI18n::fromAcceptLanguage( $envLocale, 'pt_BR' )
+			: 'pt_BR';
+		unset( $acceptLanguage ); // Accept-Language do browser não muda o padrão do produto.
 		$this->i18n = new CatalogI18n( $this->packageRoot . '/languages/catalogs', $locale );
 		$users = $this->node->users;
 		if ( ! $users instanceof FileJsonUserStore ) {
@@ -83,6 +88,10 @@ final class HttpKernel {
 			return Response::redirect( '/login?next=' . rawurlencode( $path ) );
 		}
 
+		if ( preg_match( '#^/painel/chave/(\d+)(\.json)?$#', $path, $m ) ) {
+			return $this->chavePublica( $req, (int) $m[1], isset( $m[2] ) && '' !== $m[2] );
+		}
+
 		return match ( true ) {
 			'/painel' === $path => $this->painelHome(),
 			'/painel/cadastro' === $path => $this->cadastro( $req ),
@@ -117,25 +126,25 @@ final class HttpKernel {
 	private function nav(): array {
 		$mode = $this->node->mode->getMode();
 		$items = array(
-			array( 'href' => '/painel', 'label' => $this->i18n->t( 'Settings' ) === 'Settings' ? 'Painel' : 'Painel' ),
+			array( 'href' => '/painel', 'label' => 'Painel' ),
 		);
 		if ( SiteModes::VOTING === $mode ) {
 			$items[] = array( 'href' => '/painel/cadastro', 'label' => 'Cadastro' );
 			$items[] = array( 'href' => '/painel/autoridades', 'label' => 'Autoridades' );
-			$items[] = array( 'href' => '/painel/eleicoes', 'label' => $this->i18n->t( 'Elections' ) );
+			$items[] = array( 'href' => '/painel/eleicoes', 'label' => 'Eleições' );
 			$items[] = array( 'href' => '/voto', 'label' => 'Voto' );
 			$items[] = array( 'href' => '/painel/courier', 'label' => 'Courier' );
 		}
 		if ( SiteModes::KEY_AUTHORITY === $mode ) {
 			$items[] = array( 'href' => '/painel/autoridades', 'label' => 'Autoridades' );
-			$items[] = array( 'href' => '/painel/keygen', 'label' => $this->i18n->t( 'Key Authority' ) );
+			$items[] = array( 'href' => '/painel/keygen', 'label' => 'Chaves' );
 			$items[] = array( 'href' => '/painel/courier', 'label' => 'Courier' );
 		}
 		if ( SiteModes::TALLYING === $mode ) {
 			$items[] = array( 'href' => '/painel/autoridades', 'label' => 'Autoridades' );
-			$items[] = array( 'href' => '/painel/importar', 'label' => $this->i18n->t( 'Tally Import' ) );
+			$items[] = array( 'href' => '/painel/importar', 'label' => 'Importar' );
 			$items[] = array( 'href' => '/painel/parcelas', 'label' => 'Parcelas' );
-			$items[] = array( 'href' => '/painel/certificar', 'label' => $this->i18n->t( 'Certification' ) );
+			$items[] = array( 'href' => '/painel/certificar', 'label' => 'Certificar' );
 			$items[] = array( 'href' => '/painel/courier', 'label' => 'Courier' );
 		}
 		$items[] = array( 'href' => '/logout', 'label' => 'Sair' );
@@ -207,20 +216,20 @@ final class HttpKernel {
 		$mode = $this->node->mode->getMode();
 		$cards = '';
 		if ( SiteModes::VOTING === $mode ) {
-			$cards .= $this->card( 'Cadastro Eleitoral', 'Importar .rsv e listar papéis.', '/painel/cadastro' );
-			$cards .= $this->card( 'Autoridades eleitorais', 'Importar/acompanhar autoridades (validade jurídica da eleição).', '/painel/autoridades' );
+			$cards .= $this->card( 'Cadastro eleitoral', 'Importar .rsv e listar papéis.', '/painel/cadastro' );
+			$cards .= $this->card( 'Autoridades eleitorais', 'Importar ou acompanhar autoridades (validade jurídica da eleição).', '/painel/autoridades' );
 			$cards .= $this->card( 'Eleições', 'Ver eleições neste nó.', '/painel/eleicoes' );
-			$cards .= $this->card( 'Jornada /voto', 'Boas-vindas, cabina e obrigado.', '/voto' );
+			$cards .= $this->card( 'Jornada /voto', 'Boas-vindas, cabine e obrigado.', '/voto' );
 			$cards .= $this->card( 'Courier', 'Importar chave pública / exportar material de voto.', '/painel/courier' );
 		} elseif ( SiteModes::KEY_AUTHORITY === $mode ) {
 			$cards .= $this->card( 'Autoridades eleitorais', 'Cadastrar e exportar autoridades antes de atribuir parcelas Shamir.', '/painel/autoridades' );
-			$cards .= $this->card( $this->i18n->t( 'Key Authority' ), 'Gerar chave e atribuir parcelas às autoridades.', '/painel/keygen' );
+			$cards .= $this->card( 'Chaves', 'Gerar chave, atribuir parcelas e visualizar a chave pública.', '/painel/keygen' );
 			$cards .= $this->card( 'Courier', 'Exportar chave pública e parcelas.', '/painel/courier' );
 		} else {
 			$cards .= $this->card( 'Autoridades eleitorais', 'Importar autoridades para subirem parcelas até ao limiar Shamir.', '/painel/autoridades' );
-			$cards .= $this->card( $this->i18n->t( 'Tally Import' ), 'Importar material de voto + parcelas.', '/painel/importar' );
-			$cards .= $this->card( 'Parcelas Shamir', 'Autoridades submetem parcelas até atingir o limiar.', '/painel/parcelas' );
-			$cards .= $this->card( $this->i18n->t( 'Certification' ), 'Apurar e certificar.', '/painel/certificar' );
+			$cards .= $this->card( 'Importar apuração', 'Importar material de voto do courier.', '/painel/importar' );
+			$cards .= $this->card( 'Parcelas Shamir', 'Submeter parcelas até atingir o limiar.', '/painel/parcelas' );
+			$cards .= $this->card( 'Certificar', 'Registar certificação da apuração.', '/painel/certificar' );
 			$cards .= $this->card( 'Courier', 'Pasta de material entre nós.', '/painel/courier' );
 		}
 		$user = $this->node->users->findById( $this->session->currentUserId() );
@@ -503,11 +512,14 @@ final class HttpKernel {
 			. htmlspecialchars( $msg, ENT_QUOTES, 'UTF-8' ) . '</p>'
 			. ( $canGenerate
 				? '<form id="ve-keygen-form" method="post" action="/painel/keygen">'
+					. '<label class="ve-field"><span>Rótulo (nome legível)</span>'
+					. '<input name="key_title" required maxlength="120" placeholder="Ex.: Eleição municipal 2026 — urnas" value="'
+					. htmlspecialchars( 'Eleição ' . gmdate( 'Y-m-d H:i' ), ENT_QUOTES, 'UTF-8' ) . '" /></label>'
 					. '<label class="ve-field"><span>Bits</span><input name="bits" value="512" /></label>'
 					. '<label class="ve-field"><span>Limiar (t)</span><input name="threshold" value="2" /></label>'
 					. '<label class="ve-field"><span>Parcelas (n)</span><input name="shares" value="' . max( 3, $officialN ) . '" /></label>'
 					. '<h2>Autoridades que recebem parcelas</h2>'
-					. '<p class="ve-muted">Seleccionar exactamente n contas (papel autoridade / editor).</p>'
+					. '<p class="ve-muted">Seleccionar exactamente n contas (papel autoridade).</p>'
 					. $checkboxes
 					. $progressUi
 					. '<div class="ve-actions">'
@@ -568,11 +580,17 @@ final class HttpKernel {
 	 * @return array{ok:bool,message:string,percent?:int,stage?:string,key_id?:int}
 	 */
 	private function executeKeygen( Request $req, array $officials, int $officialN, callable $emit ): array {
-		$emit( array( 'percent' => 3, 'stage' => 'A validar parâmetros e autoridades…' ) );
+		$emit( array( 'percent' => 3, 'stage' => 'Validar parâmetros e autoridades…' ) );
 
 		$bits = max( 256, min( 1024, (int) $req->input( 'bits', '512' ) ) );
 		$th   = max( 2, (int) $req->input( 'threshold', '2' ) );
 		$n    = max( $th, (int) $req->input( 'shares', (string) max( 3, $officialN ) ) );
+		$title = trim( $req->input( 'key_title', '' ) );
+		if ( '' === $title ) {
+			$title = 'Eleição ' . gmdate( 'Y-m-d H:i' );
+		}
+		$title = function_exists( 'mb_substr' ) ? mb_substr( $title, 0, 120 ) : substr( $title, 0, 120 );
+		$techLabel = 've-' . gmdate( 'Ymd-His' );
 		$rawIds = $req->inputList( 'official_ids' );
 		$selected = array();
 		foreach ( $rawIds as $id ) {
@@ -617,27 +635,31 @@ final class HttpKernel {
 			$okIds[] = $uid;
 		}
 
-		$emit( array( 'percent' => 12, 'stage' => 'A gerar par de chaves ElGamal (pode demorar)…' ) );
+		$emit( array( 'percent' => 12, 'stage' => 'Gerar par de chaves ElGamal (pode demorar)…' ) );
 		$kp = ElGamal::generateKeyPair( $bits );
-		$emit( array( 'percent' => 48, 'stage' => 'Par ElGamal gerado. A preparar campo primo…' ) );
+		$emit( array( 'percent' => 48, 'stage' => 'Par ElGamal gerado. Preparar campo primo…' ) );
 
 		$x     = $kp->getPrivateGmp();
 		$field = PrimeGenerator::generatePrimeGreaterThan( $x, 64 );
-		$emit( array( 'percent' => 58, 'stage' => 'A dividir o segredo em parcelas Shamir…' ) );
+		$emit( array( 'percent' => 58, 'stage' => 'Dividir o segredo em parcelas Shamir…' ) );
 		$shares = ShamirSecretSharing::splitSecret( $x, $th, $n, $field );
+		$fieldPrimeStr = BigInt::toDecimalString( $field );
+		// Não persistir o expoente privado além da divisão Shamir.
+		$kp->clearPrivateExponent();
+		unset( $x );
 
-		$label = 'http-' . gmdate( 'Ymd-His' );
-		$emit( array( 'percent' => 68, 'stage' => 'A gravar chave pública neste nó…' ) );
+		$emit( array( 'percent' => 68, 'stage' => 'Gravar chave pública neste nó…' ) );
 		$keyId = $this->node->persistence->keys->create(
 			array(
-				'key_label'    => $label,
+				'key_label'    => $techLabel,
+				'display_name' => $title,
 				'public_p'     => $kp->getP(),
 				'public_q'     => $kp->getQ(),
 				'public_g'     => $kp->getG(),
 				'public_y'     => $kp->getY(),
 				'threshold'    => $th,
 				'total_shares' => $n,
-				'field_prime'  => BigInt::toDecimalString( $field ),
+				'field_prime'  => $fieldPrimeStr,
 			)
 		);
 		$pub = array(
@@ -649,7 +671,7 @@ final class HttpKernel {
 		$courierDir = dirname( $this->node->dataDir ) . '/courier';
 		$courier    = new MaterialCourier( $courierDir );
 
-		$emit( array( 'percent' => 78, 'stage' => 'A atribuir parcelas às autoridades…' ) );
+		$emit( array( 'percent' => 78, 'stage' => 'Atribuir parcelas às autoridades…' ) );
 		foreach ( $shares as $i => $point ) {
 			$idx     = (int) ( $point['x'] ?? ( $i + 1 ) );
 			$uid     = $okIds[ $i ];
@@ -671,7 +693,7 @@ final class HttpKernel {
 					'share_payload'    => $payload,
 					'threshold_t'      => $th,
 					'total_n'          => $n,
-					'field_prime'      => BigInt::toDecimalString( $field ),
+					'field_prime'      => $fieldPrimeStr,
 					'status'           => 'assigned',
 				)
 			);
@@ -686,20 +708,24 @@ final class HttpKernel {
 					)
 				)
 			);
+			if ( isset( $shares[ $i ]['y'] ) && $shares[ $i ]['y'] instanceof \GMP ) {
+				$shares[ $i ]['y'] = gmp_init( 0 );
+			}
 			$pct = 78 + (int) floor( ( ( $i + 1 ) / max( 1, count( $shares ) ) ) * 12 );
 			$emit( array( 'percent' => min( 90, $pct ), 'stage' => 'Parcela ' . ( $i + 1 ) . '/' . count( $shares ) . ' atribuída…' ) );
 		}
+		unset( $shares, $field );
 
-		$emit( array( 'percent' => 93, 'stage' => 'A escrever chave pública e autoridades no courier…' ) );
+		$emit( array( 'percent' => 93, 'stage' => 'Escrever chave pública e autoridades no courier…' ) );
 		$pkg = PublicKeyPackage::build(
 			array(
-				'key_label'   => $label,
+				'key_label'   => $title,
 				'key_size'    => $bits,
 				'p'           => $kp->getP(),
 				'q'           => $kp->getQ(),
 				'g'           => $kp->getG(),
 				'y'           => $kp->getY(),
-				'field_prime' => BigInt::toDecimalString( $field ),
+				'field_prime' => $fieldPrimeStr,
 				'threshold_t' => $th,
 				'total_n'     => $n,
 				'source_mode' => SiteModes::KEY_AUTHORITY,
@@ -709,39 +735,117 @@ final class HttpKernel {
 		);
 		$courier->writeJson( 'public-key.json', $pkg );
 		$this->exportAuthoritiesToCourier( $courierDir );
+		unset( $kp );
 
 		return array(
 			'ok'      => true,
 			'percent' => 100,
 			'stage'   => 'Concluído',
 			'key_id'  => $keyId,
-			'message' => "Chave #{$keyId} gerada; {$n} parcelas atribuídas às autoridades seleccionadas; courier actualizado (inclui authorities.json).",
+			'message' => "Chave «{$title}» (#{$keyId}) gerada; {$n} parcelas atribuídas; courier actualizado. Chave privada não persistida.",
 		);
 	}
 
 	private function renderActiveKeysTable(): string {
 		$keys = $this->node->persistence->keys->listActive();
-		$list = '<table class="ve-table"><thead><tr><th>ID</th><th>Label</th><th>t/n</th><th>Atribuições</th></tr></thead><tbody>';
+		$list = '<table class="ve-table"><thead><tr><th>ID</th><th>Rótulo</th><th>Técnico</th><th>t/n</th><th>Ações</th></tr></thead><tbody>';
 		foreach ( $keys as $k ) {
 			$kid   = (int) $k['id'];
-			$asg   = $this->node->persistence->shares->listByKey( $kid );
-			$names = array();
-			foreach ( $asg as $s ) {
-				$uid = (int) ( $s['official_user_id'] ?? 0 );
-				$u   = $uid > 0 ? $this->node->users->findById( $uid ) : null;
-				$names[] = $u
-					? ( (string) $u['login'] . ' #' . (int) ( $s['share_index'] ?? 0 ) )
-					: ( '#' . $uid );
+			$human = (string) ( $k['display_name'] ?? '' );
+			if ( '' === $human ) {
+				$human = (string) ( $k['key_label'] ?? 'Chave #' . $kid );
 			}
-			$list .= '<tr><td>' . $kid . '</td><td>' . htmlspecialchars( (string) ( $k['key_label'] ?? '' ), ENT_QUOTES, 'UTF-8' )
-				. '</td><td>' . (int) ( $k['threshold'] ?? 0 ) . '/' . (int) ( $k['total_shares'] ?? 0 )
-				. '</td><td>' . htmlspecialchars( $names ? implode( ', ', $names ) : '—', ENT_QUOTES, 'UTF-8' ) . '</td></tr>';
+			$tech = (string) ( $k['key_label'] ?? '' );
+			$list .= '<tr><td>' . $kid . '</td><td><strong>'
+				. htmlspecialchars( $human, ENT_QUOTES, 'UTF-8' ) . '</strong></td><td><code>'
+				. htmlspecialchars( $tech, ENT_QUOTES, 'UTF-8' ) . '</code></td><td>'
+				. (int) ( $k['threshold'] ?? 0 ) . '/' . (int) ( $k['total_shares'] ?? 0 )
+				. '</td><td class="ve-actions" style="margin:0">'
+				. '<a href="/painel/chave/' . $kid . '">Ver / copiar</a> '
+				. '<a class="secondary" href="/painel/chave/' . $kid . '.json">Exportar JSON</a>'
+				. '</td></tr>';
 		}
 		if ( ! $keys ) {
-			$list .= '<tr><td colspan="4" class="ve-muted">Nenhuma chave activa.</td></tr>';
+			$list .= '<tr><td colspan="5" class="ve-muted">Nenhuma chave activa.</td></tr>';
 		}
 		$list .= '</tbody></table>';
 		return $list;
+	}
+
+	/**
+	 * @return array<string,mixed>|null
+	 */
+	private function findKeyRow( int $keyId ): ?array {
+		foreach ( $this->node->persistence->keys->listActive() as $k ) {
+			if ( (int) ( $k['id'] ?? 0 ) === $keyId ) {
+				return $k;
+			}
+		}
+		return null;
+	}
+
+	private function buildPublicKeyPackageForKey( array $k ): array {
+		$human = (string) ( $k['display_name'] ?? $k['key_label'] ?? 'chave' );
+		return PublicKeyPackage::build(
+			array(
+				'key_label'   => $human,
+				'key_size'    => (int) ( $k['key_size'] ?? 0 ),
+				'p'           => (string) ( $k['public_p'] ?? '' ),
+				'q'           => (string) ( $k['public_q'] ?? '' ),
+				'g'           => (string) ( $k['public_g'] ?? '' ),
+				'y'           => (string) ( $k['public_y'] ?? '' ),
+				'field_prime' => (string) ( $k['field_prime'] ?? '' ),
+				'threshold_t' => (int) ( $k['threshold'] ?? 0 ),
+				'total_n'     => (int) ( $k['total_shares'] ?? 0 ),
+				'source_mode' => SiteModes::KEY_AUTHORITY,
+				'cliente_id'  => $this->node->clienteId,
+				'cliente_nome'=> $this->node->clienteId,
+			)
+		);
+	}
+
+	private function chavePublica( Request $req, int $keyId, bool $asJson ): Response {
+		$this->node->requireMode( SiteModes::KEY_AUTHORITY );
+		$row = $this->findKeyRow( $keyId );
+		if ( null === $row ) {
+			return Response::html(
+				$this->shell->render( 'Chave', '<div class="ve-card"><h1>Chave não encontrada</h1><p class="ve-muted"><a href="/painel/keygen">Voltar às chaves</a></p></div>', $this->nav() ),
+				404
+			);
+		}
+		$pkg  = $this->buildPublicKeyPackageForKey( $row );
+		$json = json_encode( $pkg, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES );
+		$json = is_string( $json ) ? $json . "\n" : "{}\n";
+		if ( $asJson ) {
+			$safe = preg_replace( '/[^a-zA-Z0-9_\-]+/', '-', (string) ( $row['display_name'] ?? $row['key_label'] ?? 'chave' ) ) ?: 'chave';
+			return new Response(
+				$json,
+				200,
+				array(
+					'Content-Type'        => 'application/json; charset=UTF-8',
+					'Content-Disposition' => 'attachment; filename="chave-publica-' . $keyId . '-' . $safe . '.json"',
+				)
+			);
+		}
+		$human = htmlspecialchars( (string) ( $row['display_name'] ?? $row['key_label'] ?? '' ), ENT_QUOTES, 'UTF-8' );
+		$tech  = htmlspecialchars( (string) ( $row['key_label'] ?? '' ), ENT_QUOTES, 'UTF-8' );
+		$esc   = htmlspecialchars( $json, ENT_QUOTES, 'UTF-8' );
+		$body  = '<div class="ve-card"><h1>Chave pública</h1>'
+			. '<p><strong>' . $human . '</strong></p>'
+			. '<p class="ve-muted">Identificador técnico: <code>' . $tech . '</code> · ID #' . $keyId
+			. ' · limiar ' . (int) ( $row['threshold'] ?? 0 ) . '/' . (int) ( $row['total_shares'] ?? 0 ) . '</p>'
+			. '<p class="ve-muted">Apenas componentes públicos (p, q, g, y). A chave privada não está armazenada neste nó após a geração.</p>'
+			. '<label class="ve-field"><span>JSON (visualizar / copiar)</span>'
+			. '<textarea id="ve-pubkey-json" readonly rows="16" style="max-width:100%;font-family:ui-monospace,monospace;font-size:0.85rem">'
+			. $esc . '</textarea></label>'
+			. '<div class="ve-actions">'
+			. '<button type="button" id="ve-copy-pubkey">Copiar JSON</button>'
+			. '<a class="secondary" href="/painel/chave/' . $keyId . '.json">Exportar JSON</a>'
+			. '<a class="secondary" href="/painel/keygen">Voltar às chaves</a>'
+			. '</div>'
+			. '<p id="ve-copy-flash" class="ve-muted" hidden>JSON copiado.</p></div>'
+			. '<script>(function(){var b=document.getElementById("ve-copy-pubkey");var t=document.getElementById("ve-pubkey-json");var f=document.getElementById("ve-copy-flash");if(!b||!t)return;b.addEventListener("click",function(){t.select();t.setSelectionRange(0,t.value.length);var ok=false;if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t.value).then(function(){ok=true;if(f){f.hidden=false;f.textContent="JSON copiado.";}}).catch(function(){});}if(!ok){try{ok=document.execCommand("copy");}catch(e){}if(f){f.hidden=false;f.textContent=ok?"JSON copiado.":"Seleccionar o texto e copiar manualmente.";}});})();</script>';
+		return $this->page( 'Chave pública', $body );
 	}
 
 	private function keygenProgressMarkup(): string {
@@ -749,7 +853,7 @@ final class HttpKernel {
 <div id="ve-keygen-progress" class="ve-keygen-progress" hidden>
   <div class="ve-keygen-progress__head">
     <strong id="ve-keygen-pct">0%</strong>
-    <span id="ve-keygen-stage">A preparar…</span>
+    <span id="ve-keygen-stage">Preparar…</span>
   </div>
   <div class="ve-keygen-progress__track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="ve-keygen-bar-wrap">
     <div id="ve-keygen-bar" class="ve-keygen-progress__bar"></div>
@@ -795,7 +899,7 @@ HTML;
     btn.disabled = !!on;
     btn.classList.toggle('ve-btn-busy', !!on);
     btn.setAttribute('aria-busy', on ? 'true' : 'false');
-    btn.textContent = on ? 'A gerar… aguarde' : labelIdle;
+    btn.textContent = on ? 'Gerar… aguardar' : labelIdle;
   }
   function setFlash(text, isError) {
     if (!flash) return;
@@ -809,7 +913,7 @@ HTML;
     ev.preventDefault();
     setBusy(true);
     setFlash('');
-    setProgress(1, 'Pedido enviado…');
+    setProgress(1, 'Enviar pedido…');
 
     var fd = new FormData(form);
     fd.set('progress', '1');

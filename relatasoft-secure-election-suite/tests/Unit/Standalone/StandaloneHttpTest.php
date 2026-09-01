@@ -105,7 +105,7 @@ final class StandaloneHttpTest extends TestCase {
 		$home = $kernel->handle(
 			new Request( 'GET', '/painel', array(), array(), array( CookieSessionPort::COOKIE => $cookie ), array() )
 		);
-		$this->assertStringContainsString( 'Key Authority', $home->body );
+		$this->assertStringContainsString( 'Chaves', $home->body );
 		$this->assertStringContainsString( 'Autoridades', $home->body );
 
 		$keygenBlocked = $kernel->handle(
@@ -162,6 +162,7 @@ final class StandaloneHttpTest extends TestCase {
 					'bits'         => '512',
 					'threshold'    => '2',
 					'shares'       => '3',
+					'key_title'    => 'Eleição teste rótulo',
 					'official_ids' => $ids,
 				),
 				$cookie,
@@ -172,11 +173,26 @@ final class StandaloneHttpTest extends TestCase {
 		$this->assertStringContainsString( 'parcelas atribuídas', $gen->body );
 		$keys = $node->persistence->keys->listActive();
 		$this->assertNotEmpty( $keys );
+		$this->assertSame( 'Eleição teste rótulo', (string) ( $keys[0]['display_name'] ?? '' ) );
 		$shares = $node->persistence->shares->listByKey( (int) $keys[0]['id'] );
 		$this->assertCount( 3, $shares );
 		$this->assertFileExists( $this->root . '/courier/public-key.json' );
 		$this->assertFileExists( $this->root . '/courier/parcela-1.json' );
 		$this->assertFileExists( $this->root . '/courier/authorities.json' );
+
+		$kid = (int) $keys[0]['id'];
+		$view = $kernel->handle(
+			new Request( 'GET', '/painel/chave/' . $kid, array(), array(), $cookie, array() )
+		);
+		$this->assertSame( 200, $view->status );
+		$this->assertStringContainsString( 'Eleição teste rótulo', $view->body );
+		$this->assertStringContainsString( 'Copiar JSON', $view->body );
+		$dl = $kernel->handle(
+			new Request( 'GET', '/painel/chave/' . $kid . '.json', array(), array(), $cookie, array() )
+		);
+		$this->assertSame( 200, $dl->status );
+		$this->assertStringContainsString( 'application/json', (string) ( $dl->headers['Content-Type'] ?? '' ) );
+		$this->assertStringContainsString( 've-public-key-v1', $dl->body );
 
 		$page = $kernel->handle(
 			new Request( 'GET', '/painel/keygen', array(), array(), $cookie, array() )

@@ -151,4 +151,18 @@ class ElGamalKeyPair {
 	public function getPrivateGmp(): \GMP {
 		return BigInt::fromDecimalString( $this->x );
 	}
+
+	/**
+	 * Apagar o expoente privado desta instância (não persistir em memória além do necessário).
+	 *
+	 * Após a divisão Shamir, chamar isto antes de libertar a referência ao par.
+	 */
+	public function clearPrivateExponent(): void {
+		$this->x = '0';
+	}
+
+	/** O expoente privado ainda está presente (não foi limpo)? */
+	public function hasPrivateExponent(): bool {
+		return '' !== $this->x && '0' !== $this->x;
+	}
 }
