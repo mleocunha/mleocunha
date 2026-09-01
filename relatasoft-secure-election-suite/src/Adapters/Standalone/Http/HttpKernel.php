@@ -450,121 +450,34 @@ final class HttpKernel {
 		$msg       = '';
 		$officials = $this->node->users->listByRole( UserRegistryRoles::ROLE_OFFICIAL );
 		$officialN = count( $officials );
+		$wantsStream = $this->wantsKeygenProgress( $req );
+
+		if ( 'POST' === $req->method && $wantsStream ) {
+			return Response::ndjsonStream(
+				function () use ( $req, $officials, $officialN ): void {
+					$this->streamKeygenProgress( $req, $officials, $officialN );
+				}
+			);
+		}
 
 		if ( 'POST' === $req->method ) {
-			$bits = max( 256, min( 1024, (int) $req->input( 'bits', '512' ) ) );
-			$th   = max( 2, (int) $req->input( 'threshold', '2' ) );
-			$n    = max( $th, (int) $req->input( 'shares', (string) max( 3, $officialN ) ) );
-			$rawIds = $req->inputList( 'official_ids' );
-			$selected = array();
-			foreach ( $rawIds as $id ) {
-				$uid = (int) $id;
-				if ( $uid > 0 ) {
-					$selected[ $uid ] = $uid;
-				}
-			}
-			$selected = array_values( $selected );
-
-			if ( $officialN < $n ) {
-				$msg = "É necessário cadastrar pelo menos {$n} autoridades eleitorais antes de gerar {$n} parcelas. Há {$officialN} cadastrada(s).";
-			} elseif ( count( $selected ) !== $n ) {
-				$msg = "Seleccionar exactamente {$n} autoridades para receber as parcelas (seleccionadas: " . count( $selected ) . ').';
-			} else {
-				$byId = array();
-				foreach ( $officials as $o ) {
-					$byId[ (int) $o['id'] ] = $o;
-				}
-				$okIds = array();
-				foreach ( $selected as $uid ) {
-					if ( ! isset( $byId[ $uid ] ) ) {
-						$msg = 'Uma das autoridades seleccionadas não é válida.';
-						break;
-					}
-					$okIds[] = $uid;
-				}
-				if ( '' === $msg ) {
-					$kp    = ElGamal::generateKeyPair( $bits );
-					$x     = $kp->getPrivateGmp();
-					$field = PrimeGenerator::generatePrimeGreaterThan( $x, 64 );
-					$shares = ShamirSecretSharing::splitSecret( $x, $th, $n, $field );
-					$label = 'http-' . gmdate( 'Ymd-His' );
-					$keyId = $this->node->persistence->keys->create(
-						array(
-							'key_label'    => $label,
-							'public_p'     => $kp->getP(),
-							'public_q'     => $kp->getQ(),
-							'public_g'     => $kp->getG(),
-							'public_y'     => $kp->getY(),
-							'threshold'    => $th,
-							'total_shares' => $n,
-							'field_prime'  => BigInt::toDecimalString( $field ),
-						)
-					);
-					$pub = array(
-						'p' => $kp->getP(),
-						'q' => $kp->getQ(),
-						'g' => $kp->getG(),
-						'y' => $kp->getY(),
-					);
-					$courierDir = dirname( $this->node->dataDir ) . '/courier';
-					$courier    = new MaterialCourier( $courierDir );
-					foreach ( $shares as $i => $point ) {
-						$idx     = (int) ( $point['x'] ?? ( $i + 1 ) );
-						$uid     = $okIds[ $i ];
-						$payload = ShamirSecretSharing::buildSharePayload(
-							$keyId,
-							0,
-							$th,
-							$n,
-							$field,
-							$idx,
-							$point['y'],
-							$pub
-						);
-						$this->node->persistence->shares->create(
-							array(
-								'key_id'           => $keyId,
-								'official_user_id' => $uid,
-								'share_index'      => $idx,
-								'share_payload'    => $payload,
-								'threshold_t'      => $th,
-								'total_n'          => $n,
-								'field_prime'      => BigInt::toDecimalString( $field ),
-								'status'           => 'assigned',
-							)
-						);
-						$who = (string) ( $byId[ $uid ]['login'] ?? (string) $uid );
-						$courier->writeJson(
-							'parcela-' . $idx . '.json',
-							array_merge(
-								$payload,
-								array(
-									'assigned_login' => $who,
-									'official_user_id' => $uid,
-								)
-							)
-						);
-					}
-					$pkg = PublicKeyPackage::build(
-						array(
-							'key_label'   => $label,
-							'key_size'    => $bits,
-							'p'           => $kp->getP(),
-							'q'           => $kp->getQ(),
-							'g'           => $kp->getG(),
-							'y'           => $kp->getY(),
-							'field_prime' => BigInt::toDecimalString( $field ),
-							'threshold_t' => $th,
-							'total_n'     => $n,
-							'source_mode' => SiteModes::KEY_AUTHORITY,
-							'cliente_id'  => $this->node->clienteId,
-							'cliente_nome'=> $this->node->clienteId,
-						)
-					);
-					$courier->writeJson( 'public-key.json', $pkg );
-					$this->exportAuthoritiesToCourier( $courierDir );
-					$msg = "Chave #{$keyId} gerada; {$n} parcelas atribuídas às autoridades seleccionadas; courier actualizado (inclui authorities.json).";
-				}
+			$result = $this->executeKeygen(
+				$req,
+				$officials,
+				$officialN,
+				static function (): void {}
+			);
+			$msg = (string) ( $result['message'] ?? '' );
+			if ( $this->wantsJson( $req ) ) {
+				return Response::json(
+					array(
+						'ok'      => ! empty( $result['ok'] ),
+						'message' => $msg,
+						'percent' => ! empty( $result['ok'] ) ? 100 : 0,
+						'key_id'  => $result['key_id'] ?? null,
+					),
+					! empty( $result['ok'] ) ? 200 : 422
+				);
 			}
 		}
 
@@ -581,6 +494,232 @@ final class HttpKernel {
 				. '<a href="/painel/autoridades">Cadastrar autoridades eleitorais</a> primeiro.</p>';
 		}
 
+		$list = $this->renderActiveKeysTable();
+		$canGenerate = $officialN >= 2;
+		$progressUi = $canGenerate ? $this->keygenProgressMarkup() : '';
+		$body = '<div class="ve-card"><h1>Autoridade de chaves</h1>'
+			. '<p class="ve-muted">O cadastramento de autoridades eleitorais é obrigatório antes da atribuição de parcelas Shamir.</p>'
+			. '<p id="ve-keygen-flash" class="ve-muted"' . ( $msg ? '' : ' hidden' ) . '>'
+			. htmlspecialchars( $msg, ENT_QUOTES, 'UTF-8' ) . '</p>'
+			. ( $canGenerate
+				? '<form id="ve-keygen-form" method="post" action="/painel/keygen">'
+					. '<label class="ve-field"><span>Bits</span><input name="bits" value="512" /></label>'
+					. '<label class="ve-field"><span>Limiar (t)</span><input name="threshold" value="2" /></label>'
+					. '<label class="ve-field"><span>Parcelas (n)</span><input name="shares" value="' . max( 3, $officialN ) . '" /></label>'
+					. '<h2>Autoridades que recebem parcelas</h2>'
+					. '<p class="ve-muted">Seleccionar exactamente n contas (papel autoridade / editor).</p>'
+					. $checkboxes
+					. $progressUi
+					. '<div class="ve-actions">'
+					. '<button type="submit" id="ve-keygen-submit">Gerar chave + atribuir parcelas</button>'
+					. '</div></form>'
+				: '<p class="ve-muted">Cadastrar pelo menos duas autoridades em '
+					. '<a href="/painel/autoridades">/painel/autoridades</a> antes de gerar a chave.</p>' )
+			. '</div>'
+			. '<div class="ve-card"><h2>Chaves activas</h2><div id="ve-keys-table">' . $list . '</div></div>'
+			. ( $canGenerate ? $this->keygenProgressScript() : '' );
+		return $this->page( 'Keygen', $body );
+	}
+
+	private function wantsJson( Request $req ): bool {
+		$accept = strtolower( (string) ( $req->server['HTTP_ACCEPT'] ?? '' ) );
+		$xrw    = strtolower( (string) ( $req->server['HTTP_X_REQUESTED_WITH'] ?? '' ) );
+		return str_contains( $accept, 'application/json' )
+			|| 'xmlhttprequest' === $xrw
+			|| '1' === $req->query( 'ajax' )
+			|| '1' === $req->input( 'ajax' );
+	}
+
+	private function wantsKeygenProgress( Request $req ): bool {
+		$accept = strtolower( (string) ( $req->server['HTTP_ACCEPT'] ?? '' ) );
+		return str_contains( $accept, 'application/x-ndjson' )
+			|| '1' === $req->query( 'progress' )
+			|| '1' === $req->input( 'progress' );
+	}
+
+	/**
+	 * @param list<array<string,mixed>> $officials
+	 */
+	private function streamKeygenProgress( Request $req, array $officials, int $officialN ): void {
+		$emit = static function ( array $event ): void {
+			$line = json_encode( $event, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES );
+			if ( is_string( $line ) ) {
+				echo $line . "\n";
+				flush();
+			}
+		};
+		$result = $this->executeKeygen( $req, $officials, $officialN, $emit );
+		$emit(
+			array(
+				'ok'      => ! empty( $result['ok'] ),
+				'percent' => ! empty( $result['ok'] ) ? 100 : (int) ( $result['percent'] ?? 0 ),
+				'stage'   => (string) ( $result['stage'] ?? ( ! empty( $result['ok'] ) ? 'Concluído' : 'Erro' ) ),
+				'message' => (string) ( $result['message'] ?? '' ),
+				'key_id'  => $result['key_id'] ?? null,
+				'done'    => true,
+				'keys_html' => ! empty( $result['ok'] ) ? $this->renderActiveKeysTable() : null,
+			)
+		);
+	}
+
+	/**
+	 * @param list<array<string,mixed>> $officials
+	 * @param callable(array<string,mixed>):void $emit
+	 * @return array{ok:bool,message:string,percent?:int,stage?:string,key_id?:int}
+	 */
+	private function executeKeygen( Request $req, array $officials, int $officialN, callable $emit ): array {
+		$emit( array( 'percent' => 3, 'stage' => 'A validar parâmetros e autoridades…' ) );
+
+		$bits = max( 256, min( 1024, (int) $req->input( 'bits', '512' ) ) );
+		$th   = max( 2, (int) $req->input( 'threshold', '2' ) );
+		$n    = max( $th, (int) $req->input( 'shares', (string) max( 3, $officialN ) ) );
+		$rawIds = $req->inputList( 'official_ids' );
+		$selected = array();
+		foreach ( $rawIds as $id ) {
+			$uid = (int) $id;
+			if ( $uid > 0 ) {
+				$selected[ $uid ] = $uid;
+			}
+		}
+		$selected = array_values( $selected );
+
+		if ( $officialN < $n ) {
+			return array(
+				'ok'      => false,
+				'percent' => 0,
+				'stage'   => 'Bloqueado',
+				'message' => "É necessário cadastrar pelo menos {$n} autoridades eleitorais antes de gerar {$n} parcelas. Há {$officialN} cadastrada(s).",
+			);
+		}
+		if ( count( $selected ) !== $n ) {
+			return array(
+				'ok'      => false,
+				'percent' => 0,
+				'stage'   => 'Bloqueado',
+				'message' => "Seleccionar exactamente {$n} autoridades para receber as parcelas (seleccionadas: " . count( $selected ) . ').',
+			);
+		}
+
+		$byId = array();
+		foreach ( $officials as $o ) {
+			$byId[ (int) $o['id'] ] = $o;
+		}
+		$okIds = array();
+		foreach ( $selected as $uid ) {
+			if ( ! isset( $byId[ $uid ] ) ) {
+				return array(
+					'ok'      => false,
+					'percent' => 0,
+					'stage'   => 'Bloqueado',
+					'message' => 'Uma das autoridades seleccionadas não é válida.',
+				);
+			}
+			$okIds[] = $uid;
+		}
+
+		$emit( array( 'percent' => 12, 'stage' => 'A gerar par de chaves ElGamal (pode demorar)…' ) );
+		$kp = ElGamal::generateKeyPair( $bits );
+		$emit( array( 'percent' => 48, 'stage' => 'Par ElGamal gerado. A preparar campo primo…' ) );
+
+		$x     = $kp->getPrivateGmp();
+		$field = PrimeGenerator::generatePrimeGreaterThan( $x, 64 );
+		$emit( array( 'percent' => 58, 'stage' => 'A dividir o segredo em parcelas Shamir…' ) );
+		$shares = ShamirSecretSharing::splitSecret( $x, $th, $n, $field );
+
+		$label = 'http-' . gmdate( 'Ymd-His' );
+		$emit( array( 'percent' => 68, 'stage' => 'A gravar chave pública neste nó…' ) );
+		$keyId = $this->node->persistence->keys->create(
+			array(
+				'key_label'    => $label,
+				'public_p'     => $kp->getP(),
+				'public_q'     => $kp->getQ(),
+				'public_g'     => $kp->getG(),
+				'public_y'     => $kp->getY(),
+				'threshold'    => $th,
+				'total_shares' => $n,
+				'field_prime'  => BigInt::toDecimalString( $field ),
+			)
+		);
+		$pub = array(
+			'p' => $kp->getP(),
+			'q' => $kp->getQ(),
+			'g' => $kp->getG(),
+			'y' => $kp->getY(),
+		);
+		$courierDir = dirname( $this->node->dataDir ) . '/courier';
+		$courier    = new MaterialCourier( $courierDir );
+
+		$emit( array( 'percent' => 78, 'stage' => 'A atribuir parcelas às autoridades…' ) );
+		foreach ( $shares as $i => $point ) {
+			$idx     = (int) ( $point['x'] ?? ( $i + 1 ) );
+			$uid     = $okIds[ $i ];
+			$payload = ShamirSecretSharing::buildSharePayload(
+				$keyId,
+				0,
+				$th,
+				$n,
+				$field,
+				$idx,
+				$point['y'],
+				$pub
+			);
+			$this->node->persistence->shares->create(
+				array(
+					'key_id'           => $keyId,
+					'official_user_id' => $uid,
+					'share_index'      => $idx,
+					'share_payload'    => $payload,
+					'threshold_t'      => $th,
+					'total_n'          => $n,
+					'field_prime'      => BigInt::toDecimalString( $field ),
+					'status'           => 'assigned',
+				)
+			);
+			$who = (string) ( $byId[ $uid ]['login'] ?? (string) $uid );
+			$courier->writeJson(
+				'parcela-' . $idx . '.json',
+				array_merge(
+					$payload,
+					array(
+						'assigned_login'   => $who,
+						'official_user_id' => $uid,
+					)
+				)
+			);
+			$pct = 78 + (int) floor( ( ( $i + 1 ) / max( 1, count( $shares ) ) ) * 12 );
+			$emit( array( 'percent' => min( 90, $pct ), 'stage' => 'Parcela ' . ( $i + 1 ) . '/' . count( $shares ) . ' atribuída…' ) );
+		}
+
+		$emit( array( 'percent' => 93, 'stage' => 'A escrever chave pública e autoridades no courier…' ) );
+		$pkg = PublicKeyPackage::build(
+			array(
+				'key_label'   => $label,
+				'key_size'    => $bits,
+				'p'           => $kp->getP(),
+				'q'           => $kp->getQ(),
+				'g'           => $kp->getG(),
+				'y'           => $kp->getY(),
+				'field_prime' => BigInt::toDecimalString( $field ),
+				'threshold_t' => $th,
+				'total_n'     => $n,
+				'source_mode' => SiteModes::KEY_AUTHORITY,
+				'cliente_id'  => $this->node->clienteId,
+				'cliente_nome'=> $this->node->clienteId,
+			)
+		);
+		$courier->writeJson( 'public-key.json', $pkg );
+		$this->exportAuthoritiesToCourier( $courierDir );
+
+		return array(
+			'ok'      => true,
+			'percent' => 100,
+			'stage'   => 'Concluído',
+			'key_id'  => $keyId,
+			'message' => "Chave #{$keyId} gerada; {$n} parcelas atribuídas às autoridades seleccionadas; courier actualizado (inclui authorities.json).",
+		);
+	}
+
+	private function renderActiveKeysTable(): string {
 		$keys = $this->node->persistence->keys->listActive();
 		$list = '<table class="ve-table"><thead><tr><th>ID</th><th>Label</th><th>t/n</th><th>Atribuições</th></tr></thead><tbody>';
 		foreach ( $keys as $k ) {
@@ -598,26 +737,128 @@ final class HttpKernel {
 				. '</td><td>' . (int) ( $k['threshold'] ?? 0 ) . '/' . (int) ( $k['total_shares'] ?? 0 )
 				. '</td><td>' . htmlspecialchars( $names ? implode( ', ', $names ) : '—', ENT_QUOTES, 'UTF-8' ) . '</td></tr>';
 		}
+		if ( ! $keys ) {
+			$list .= '<tr><td colspan="4" class="ve-muted">Nenhuma chave activa.</td></tr>';
+		}
 		$list .= '</tbody></table>';
+		return $list;
+	}
 
-		$canGenerate = $officialN >= 2;
-		$body = '<div class="ve-card"><h1>Autoridade de chaves</h1>'
-			. '<p class="ve-muted">O cadastramento de autoridades eleitorais é obrigatório antes da atribuição de parcelas Shamir.</p>'
-			. ( $msg ? '<p class="ve-muted">' . htmlspecialchars( $msg, ENT_QUOTES, 'UTF-8' ) . '</p>' : '' )
-			. ( $canGenerate
-				? '<form method="post">'
-					. '<label class="ve-field"><span>Bits</span><input name="bits" value="512" /></label>'
-					. '<label class="ve-field"><span>Limiar (t)</span><input name="threshold" value="2" /></label>'
-					. '<label class="ve-field"><span>Parcelas (n)</span><input name="shares" value="' . max( 3, $officialN ) . '" /></label>'
-					. '<h2>Autoridades que recebem parcelas</h2>'
-					. '<p class="ve-muted">Seleccionar exactamente n contas (papel autoridade / editor).</p>'
-					. $checkboxes
-					. '<div class="ve-actions"><button type="submit">Gerar chave + atribuir parcelas</button></div></form>'
-				: '<p class="ve-muted">Cadastrar pelo menos duas autoridades em '
-					. '<a href="/painel/autoridades">/painel/autoridades</a> antes de gerar a chave.</p>' )
-			. '</div>'
-			. '<div class="ve-card"><h2>Chaves activas</h2>' . $list . '</div>';
-		return $this->page( 'Keygen', $body );
+	private function keygenProgressMarkup(): string {
+		return <<<'HTML'
+<div id="ve-keygen-progress" class="ve-keygen-progress" hidden>
+  <div class="ve-keygen-progress__head">
+    <strong id="ve-keygen-pct">0%</strong>
+    <span id="ve-keygen-stage">A preparar…</span>
+  </div>
+  <div class="ve-keygen-progress__track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="ve-keygen-bar-wrap">
+    <div id="ve-keygen-bar" class="ve-keygen-progress__bar"></div>
+  </div>
+</div>
+<style>
+.ve-keygen-progress{margin:1rem 0;padding:0.85rem 1rem;border:1px solid #c5d2dc;border-radius:10px;background:#f7fafc}
+.ve-keygen-progress__head{display:flex;gap:0.75rem;align-items:baseline;margin-bottom:0.55rem;flex-wrap:wrap}
+.ve-keygen-progress__head strong{font-size:1.15rem;color:#0b3d4a;min-width:3.5rem}
+.ve-keygen-progress__track{height:0.85rem;background:#e2eaf0;border-radius:999px;overflow:hidden}
+.ve-keygen-progress__bar{height:100%;width:0%;background:linear-gradient(90deg,#0b3d4a,#1a6b7c);transition:width 0.25s ease}
+button.ve-btn-busy{opacity:0.75;cursor:wait}
+</style>
+HTML;
+	}
+
+	private function keygenProgressScript(): string {
+		return <<<'HTML'
+<script>
+(function () {
+  var form = document.getElementById('ve-keygen-form');
+  if (!form) return;
+  var btn = document.getElementById('ve-keygen-submit');
+  var box = document.getElementById('ve-keygen-progress');
+  var bar = document.getElementById('ve-keygen-bar');
+  var barWrap = document.getElementById('ve-keygen-bar-wrap');
+  var pctEl = document.getElementById('ve-keygen-pct');
+  var stageEl = document.getElementById('ve-keygen-stage');
+  var flash = document.getElementById('ve-keygen-flash');
+  var keys = document.getElementById('ve-keys-table');
+  var labelIdle = btn ? btn.textContent : '';
+
+  function setProgress(pct, stage) {
+    pct = Math.max(0, Math.min(100, pct|0));
+    if (box) box.hidden = false;
+    if (bar) bar.style.width = pct + '%';
+    if (barWrap) barWrap.setAttribute('aria-valuenow', String(pct));
+    if (pctEl) pctEl.textContent = pct + '%';
+    if (stageEl && stage) stageEl.textContent = stage;
+  }
+  function setBusy(on) {
+    if (!btn) return;
+    btn.disabled = !!on;
+    btn.classList.toggle('ve-btn-busy', !!on);
+    btn.setAttribute('aria-busy', on ? 'true' : 'false');
+    btn.textContent = on ? 'A gerar… aguarde' : labelIdle;
+  }
+  function setFlash(text, isError) {
+    if (!flash) return;
+    flash.hidden = !text;
+    flash.textContent = text || '';
+    flash.style.color = isError ? '#8a1f1f' : '';
+  }
+
+  form.addEventListener('submit', function (ev) {
+    if (!window.fetch || !window.ReadableStream) return; // fallback POST clássico
+    ev.preventDefault();
+    setBusy(true);
+    setFlash('');
+    setProgress(1, 'Pedido enviado…');
+
+    var fd = new FormData(form);
+    fd.set('progress', '1');
+    fetch(form.action || '/painel/keygen', {
+      method: 'POST',
+      body: fd,
+      credentials: 'same-origin',
+      headers: {
+        'Accept': 'application/x-ndjson',
+        'X-Requested-With': 'XMLHttpRequest'
+      }
+    }).then(function (res) {
+      if (!res.ok && !res.body) throw new Error('HTTP ' + res.status);
+      var reader = res.body.getReader();
+      var decoder = new TextDecoder('utf-8');
+      var buf = '';
+      function pump() {
+        return reader.read().then(function (chunk) {
+          if (chunk.value) buf += decoder.decode(chunk.value, { stream: !chunk.done });
+          var lines = buf.split('\n');
+          buf = chunk.done ? '' : lines.pop();
+          lines.forEach(function (line) {
+            line = line.trim();
+            if (!line) return;
+            var ev;
+            try { ev = JSON.parse(line); } catch (e) { return; }
+            if (typeof ev.percent === 'number') setProgress(ev.percent, ev.stage || '');
+            else if (ev.stage) setProgress(parseInt(pctEl.textContent, 10) || 0, ev.stage);
+            if (ev.done) {
+              setFlash(ev.message || (ev.ok ? 'Concluído.' : 'Falhou.'), !ev.ok);
+              if (ev.ok) {
+                setProgress(100, ev.stage || 'Concluído');
+                if (ev.keys_html && keys) keys.innerHTML = ev.keys_html;
+              }
+              setBusy(false);
+            }
+          });
+          if (!chunk.done) return pump();
+        });
+      }
+      return pump();
+    }).catch(function (err) {
+      setFlash('Erro de rede ou do servidor: ' + (err && err.message ? err.message : err), true);
+      setBusy(false);
+    });
+  });
+})();
+</script>
+HTML;
 	}
 
 	private function parcelas( Request $req ): Response {

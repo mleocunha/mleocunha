@@ -177,6 +177,72 @@ final class StandaloneHttpTest extends TestCase {
 		$this->assertFileExists( $this->root . '/courier/public-key.json' );
 		$this->assertFileExists( $this->root . '/courier/parcela-1.json' );
 		$this->assertFileExists( $this->root . '/courier/authorities.json' );
+
+		$page = $kernel->handle(
+			new Request( 'GET', '/painel/keygen', array(), array(), $cookie, array() )
+		);
+		$this->assertStringContainsString( 've-keygen-progress', $page->body );
+		$this->assertStringContainsString( 've-keygen-form', $page->body );
+	}
+
+	public function test_keygen_ndjson_progress_stream(): void {
+		if ( ! is_dir( $this->root . '/ka' ) ) {
+			mkdir( $this->root . '/ka', 0700, true );
+		}
+		if ( ! is_dir( $this->root . '/courier' ) ) {
+			mkdir( $this->root . '/courier', 0700, true );
+		}
+		$plugin = dirname( __DIR__, 3 );
+		$node   = NodeRuntime::create( SiteModes::KEY_AUTHORITY, $this->root . '/ka', 'teste', true );
+		$kernel = new HttpKernel( $node, $plugin, 'pt-BR' );
+		$login  = $kernel->handle(
+			new Request( 'POST', '/login', array(), array( 'login' => 'admin', 'password' => 'AdminPoC1!', 'next' => '/painel' ), array(), array() )
+		);
+		preg_match( '/' . CookieSessionPort::COOKIE . '=([^;]+)/', $login->headers['Set-Cookie'] ?? '', $m );
+		$cookie = array( CookieSessionPort::COOKIE => $m[1] ?? '' );
+		foreach ( array( 'p1', 'p2' ) as $loginName ) {
+			$kernel->handle(
+				new Request(
+					'POST',
+					'/painel/autoridades',
+					array(),
+					array(
+						'action'      => 'create',
+						'login'       => $loginName,
+						'email'       => $loginName . '@ex.test',
+						'displayName' => $loginName,
+						'password'    => 'SenhaAut1!',
+					),
+					$cookie,
+					array()
+				)
+			);
+		}
+		$ids = array_map( static fn( $o ) => (string) (int) $o['id'], $node->users->listByRole( 'editor' ) );
+		$res = $kernel->handle(
+			new Request(
+				'POST',
+				'/painel/keygen',
+				array(),
+				array(
+					'bits'         => '512',
+					'threshold'    => '2',
+					'shares'       => '2',
+					'official_ids' => $ids,
+					'progress'     => '1',
+				),
+				$cookie,
+				array( 'HTTP_ACCEPT' => 'application/x-ndjson' )
+			)
+		);
+		$this->assertSame( 'application/x-ndjson; charset=UTF-8', $res->headers['Content-Type'] ?? '' );
+		$this->assertIsCallable( $res->streamer );
+		ob_start();
+		( $res->streamer )();
+		$out = (string) ob_get_clean();
+		$this->assertStringContainsString( '"percent":12', $out );
+		$this->assertStringContainsString( '"done":true', $out );
+		$this->assertStringContainsString( '"ok":true', $out );
 	}
 
 	public function test_voting_and_tallying_import_authorities_and_submit_share(): void {
