@@ -16,7 +16,7 @@ use RelataSoft\SecureElectionSuite\Painel\Contracts\Tallies\TallyImportRepositor
 use RelataSoft\SecureElectionSuite\Painel\Contracts\Votes\EncryptedVoteRepository;
 
 /**
- * Builds a {@see PersistenceGateway} backed by one JSON file per node (Adapter #2).
+ * Builds a {@see PersistenceGateway} backed by one JSON file per standalone node.
  */
 final class StandalonePersistenceFactory {
 

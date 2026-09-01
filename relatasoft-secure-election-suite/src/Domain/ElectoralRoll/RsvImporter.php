@@ -6,9 +6,9 @@ namespace RelataSoft\SecureElectionSuite\Painel\Domain\ElectoralRoll;
 use RelataSoft\SecureElectionSuite\Painel\Contracts\User\UserDirectory;
 
 /**
- * Importação .rsv → UserDirectory (domínio puro, sem WordPress).
+ * Importação .rsv → UserDirectory (domínio puro, sem I/O HTTP).
  *
- * Mesmo contrato de campos/meta do Cadastro Eleitoral do Adapter #1.
+ * Contrato de campos/meta alinhado ao Cadastro Eleitoral do produto.
  */
 final class RsvImporter {
 

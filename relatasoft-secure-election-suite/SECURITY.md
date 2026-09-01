@@ -2,7 +2,9 @@
 
 ## Production Warning
 
-RelataSoft Secure Election Suite is intended to be engineered toward production-grade use. However, **the cryptography in this plugin has not been independently reviewed** and must not be used for binding public elections without:
+**Voto Eletrônico / RelataSoft Secure Election Suite** is engineered toward
+production-grade use. The cryptography **has not been independently reviewed** and
+must not be used for binding public elections without:
 
 - Independent cryptographic review
 - Penetration testing
@@ -21,7 +23,7 @@ RelataSoft Secure Election Suite is intended to be engineered toward production-
 ### Shamir Secret Sharing
 
 - Private exponent x is split immediately after key generation
-- Field prime is dynamically generated greater than x (not fixed 128-bit)
+- Field prime is dynamically generated greater than x
 - Threshold t-of-n reconstruction required for decryption
 - Share payloads include SHA-256 checksums
 
@@ -29,36 +31,33 @@ RelataSoft Secure Election Suite is intended to be engineered toward production-
 
 - Full private key x is **not persisted** by default
 - Reconstructed x exists only in memory during tally decryption
-- x is never written to database, logs, or exports
+- x is never written to durable stores, logs, or exports
 - Reconstructed variables are cleared after use
 
-### Share Storage Encryption
+### Share Storage Encryption (standalone)
 
-- Shares are encrypted at rest using a key derived from WordPress salts
-- This is a basic storage protection abstraction only
-- **Not a substitute** for hardware-backed key custody (HSM, KMS)
-- Future versions may integrate libsodium, OpenSSL, or HSM backends
+- Per-node data lives under `VE_DATA` (file JSON / secrets tree)
+- Protect `VE_DATA` with OS permissions, disk encryption, and backup isolation
+- **One node must never read another node's secrets**
+- File encryption of shares is a storage abstraction only — **not** a substitute
+  for HSM/KMS custody
 
-## Access Control
+## Access Control (standalone HTTP)
 
-| Action | Required Capability |
-|--------|---------------------|
-| Admin operations | `manage_options` |
-| Official/share holder | `edit_posts` |
-| Voting | Logged-in user with `read` (subscriber) |
+| Action | Requirement |
+|--------|-------------|
+| Operator panel `/painel` | Authenticated session after `/login` |
+| Admin bootstrap | First admin from `VE_ADMIN_LOGIN` / `VE_ADMIN_PASS` |
+| Voting journey `/voto` | Voting-mode node; enrolment per cadastro / session rules |
+
+Do not expose the PHP listener on the public Internet without TLS and network controls.
 
 ## Audit Log
 
-- Append-only hash-chained audit log
+- Append-only / hash-chained audit where enabled
 - Never logs: private key x, Shamir share values, plaintext votes
-- Chain integrity verifiable from admin Audit Log page
 
 ## Reporting Vulnerabilities
 
-Report security issues to your election system administrator. Do not disclose cryptographic vulnerabilities publicly before coordinated review.
-
-## Export Security
-
-- All state-changing requests require WordPress nonces
-- Downloads use `admin-post.php` handlers (not fragile AJAX blob downloads)
-- Full private key export disabled by default; requires explicit admin setting and confirmation
+Report security issues to your election system administrator. Do not disclose
+cryptographic vulnerabilities publicly before coordinated review.

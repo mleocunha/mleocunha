@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 /**
- * Adapter #2 CLI — isolated site node or three-node pilot (A6 / M6).
+ * CLI do nó standalone — piloto de três nós ou info de um nó.
  *
  * Usage:
  *   php bin/ve-node pilot --root=/tmp/ve-piloto [--cliente=piloto] [--bits=512] [--votes=2]
@@ -49,7 +49,7 @@ $args = ve_node_args( $argv );
 
 if ( 'help' === $cmd || '--help' === $cmd || '-h' === $cmd ) {
 	echo <<<TXT
-ve-node — Adapter #2 (standalone) do Voto Eletrônico / Painel
+ve-node — CLI standalone do Voto Eletrônico / Painel
 
 Comandos:
   pilot   Executar piloto E3: 3 nós isolados + courier manual (sem sync)
@@ -79,7 +79,7 @@ if ( 'pilot' === $cmd ) {
 		exit( 1 );
 	}
 
-	echo "Piloto Adapter #2 — cliente={$cliente} root={$rootDir}\n";
+	echo "Piloto standalone — cliente={$cliente} root={$rootDir}\n";
 	$pilot  = Bootstrap::bootPilotWorkspace( $rootDir, $cliente, $bits );
 	$result = $pilot->run( $votes );
 	$iso    = $pilot->isolationSnapshot();

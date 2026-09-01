@@ -4,13 +4,12 @@ declare(strict_types=1);
 namespace RelataSoft\SecureElectionSuite\Painel\Adapters\Standalone\Http;
 
 /**
- * Shell HTML reutilizando CSS do Painel (assets/).
+ * Shell HTML reutilizando CSS do pacote (assets/).
  */
 final class HtmlShell {
 
 	public function __construct(
 		private readonly CatalogI18n $i18n,
-		private readonly string $pluginRoot,
 		private readonly string $mode,
 		private readonly string $modeLabel,
 	) {}

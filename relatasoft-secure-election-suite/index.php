@@ -2,14 +2,13 @@
 declare(strict_types=1);
 
 /**
- * Adapter #2 — entrada HTTP (raiz do pacote).
+ * Entrada HTTP do pacote (raiz).
  *
  * Uso (um processo = um nó E3):
- *   RSES_MODE=voting VE_DATA=/var/ve/voting php -S 10.42.0.1:8888 index.php
+ *   VE_MODE=voting VE_DATA=/var/ve/voting php -S 10.42.0.1:8888 index.php
  *   php bin/ve-http --mode=voting --data=/var/ve/voting
  *
- * Nginx pode fazer proxy para este processo mantendo as mesmas URLs públicas
- * (/login, /painel, /voto, …).
+ * Nginx pode fazer proxy mantendo as URLs públicas (/login, /painel, /voto, …).
  */
 
 $root = __DIR__;

@@ -8,7 +8,7 @@ use RelataSoft\SecureElectionSuite\Painel\Contracts\User\UserDirectory;
 use RelataSoft\SecureElectionSuite\Painel\Contracts\User\UserProvider;
 
 /**
- * Users + meta duráveis por nó (identity.json) — Adapter #2 HTTP.
+ * Users + meta duráveis por nó (identity.json) — superfície HTTP standalone.
  */
 final class FileJsonUserStore implements UserProvider, UserDirectory {
 

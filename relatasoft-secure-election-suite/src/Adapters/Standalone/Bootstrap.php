@@ -7,7 +7,7 @@ use RelataSoft\SecureElectionSuite\Painel\Application\Standalone\ThreeNodePilot;
 use RelataSoft\SecureElectionSuite\Painel\Contracts\Mode\SiteModes;
 
 /**
- * Adapter #2 entry — standalone node(s) without the legacy host.
+ * Standalone entry — isolated node(s) without a host CMS.
  */
 final class Bootstrap {
 

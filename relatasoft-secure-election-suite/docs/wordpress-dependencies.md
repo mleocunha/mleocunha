@@ -1,4 +1,7 @@
-# Dependências do sítio (adapters do Painel)
+# LEGADO — Dependências do sítio hospedeiro (Adapter #1)
+
+> **Operação nova:** activar o pacote standalone — [`activar-standalone.md`](activar-standalone.md).  
+> Este documento descreve a fachada `/painel` sobre o motor hospedeiro antigo.
 
 ## URLs públicas (sem symlinks)
 

@@ -4,7 +4,7 @@ declare(strict_types=1);
 namespace RelataSoft\SecureElectionSuite\Painel\Adapters\Standalone\Http;
 
 /**
- * Resolução de locale + catálogos JSON (sem WordPress).
+ * Resolução de locale a partir de Accept-Language e catálogos JSON em languages/catalogs.
  */
 final class CatalogI18n {
 
