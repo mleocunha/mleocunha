@@ -171,12 +171,18 @@ final class StandaloneHttpTest extends TestCase {
 		);
 		$this->assertSame( 200, $gen->status );
 		$this->assertStringContainsString( 'parcelas atribuídas', $gen->body );
+		$this->assertStringContainsString( '512 bits', $gen->body );
 		$keys = $node->persistence->keys->listActive();
 		$this->assertNotEmpty( $keys );
 		$this->assertSame( 'Eleição teste rótulo', (string) ( $keys[0]['display_name'] ?? '' ) );
+		$this->assertSame( 512, (int) ( $keys[0]['key_size'] ?? 0 ) );
 		$shares = $node->persistence->shares->listByKey( (int) $keys[0]['id'] );
 		$this->assertCount( 3, $shares );
 		$this->assertFileExists( $this->root . '/courier/public-key.json' );
+		$pkgJson = (string) file_get_contents( $this->root . '/courier/public-key.json' );
+		$pkg     = json_decode( $pkgJson, true );
+		$this->assertIsArray( $pkg );
+		$this->assertSame( 512, (int) ( $pkg['key_size'] ?? 0 ) );
 		$this->assertFileExists( $this->root . '/courier/parcela-1.json' );
 		$this->assertFileExists( $this->root . '/courier/authorities.json' );
 
@@ -186,6 +192,7 @@ final class StandaloneHttpTest extends TestCase {
 		);
 		$this->assertSame( 200, $view->status );
 		$this->assertStringContainsString( 'Eleição teste rótulo', $view->body );
+		$this->assertStringContainsString( '512 bits', $view->body );
 		$this->assertStringContainsString( 'Copiar JSON', $view->body );
 		$dl = $kernel->handle(
 			new Request( 'GET', '/painel/chave/' . $kid . '.json', array(), array(), $cookie, array() )
@@ -193,12 +200,88 @@ final class StandaloneHttpTest extends TestCase {
 		$this->assertSame( 200, $dl->status );
 		$this->assertStringContainsString( 'application/json', (string) ( $dl->headers['Content-Type'] ?? '' ) );
 		$this->assertStringContainsString( 've-public-key-v1', $dl->body );
+		$this->assertStringContainsString( '"key_size": 512', $dl->body );
 
 		$page = $kernel->handle(
 			new Request( 'GET', '/painel/keygen', array(), array(), $cookie, array() )
 		);
 		$this->assertStringContainsString( 've-keygen-progress', $page->body );
 		$this->assertStringContainsString( 've-keygen-form', $page->body );
+		$this->assertStringContainsString( 'Chaves ativas', $page->body );
+		$this->assertStringNotContainsString( 'Chaves activas', $page->body );
+		$this->assertStringContainsString( 'Tamanho da chave', $page->body );
+		$this->assertStringContainsString( 'value="4096"', $page->body );
+		$this->assertStringContainsString( '512 bits', $page->body );
+	}
+
+	public function test_keygen_rejects_invalid_bit_size(): void {
+		if ( ! is_dir( $this->root . '/ka' ) ) {
+			mkdir( $this->root . '/ka', 0700, true );
+		}
+		$plugin = dirname( __DIR__, 3 );
+		$node   = NodeRuntime::create( SiteModes::KEY_AUTHORITY, $this->root . '/ka', 'teste', true );
+		$kernel = new HttpKernel( $node, $plugin, 'pt-BR' );
+		$login  = $kernel->handle(
+			new Request( 'POST', '/login', array(), array( 'login' => 'admin', 'password' => 'AdminPoC1!', 'next' => '/painel' ), array(), array() )
+		);
+		preg_match( '/' . CookieSessionPort::COOKIE . '=([^;]+)/', $login->headers['Set-Cookie'] ?? '', $m );
+		$cookie = array( CookieSessionPort::COOKIE => $m[1] ?? '' );
+		foreach ( array( 'a1', 'a2' ) as $loginName ) {
+			$kernel->handle(
+				new Request(
+					'POST',
+					'/painel/autoridades',
+					array(),
+					array(
+						'action'      => 'create',
+						'login'       => $loginName,
+						'email'       => $loginName . '@ex.test',
+						'displayName' => $loginName,
+						'password'    => 'SenhaAut1!',
+					),
+					$cookie,
+					array()
+				)
+			);
+		}
+		$ids = array_map( static fn( $o ) => (string) (int) $o['id'], $node->users->listByRole( 'editor' ) );
+		$bad = $kernel->handle(
+			new Request(
+				'POST',
+				'/painel/keygen',
+				array(),
+				array(
+					'bits'         => '4097',
+					'threshold'    => '2',
+					'shares'       => '2',
+					'official_ids' => $ids,
+				),
+				$cookie,
+				array()
+			)
+		);
+		$this->assertSame( 200, $bad->status );
+		$this->assertStringContainsString( 'Tamanho de chave inválido', $bad->body );
+		$this->assertSame( array(), $node->persistence->keys->listActive() );
+
+		// Antigo teto silencioso a 1024: 1500 já não é aceite (nem cortado).
+		$clamped = $kernel->handle(
+			new Request(
+				'POST',
+				'/painel/keygen',
+				array(),
+				array(
+					'bits'         => '1500',
+					'threshold'    => '2',
+					'shares'       => '2',
+					'official_ids' => $ids,
+				),
+				$cookie,
+				array()
+			)
+		);
+		$this->assertStringContainsString( 'Tamanho de chave inválido', $clamped->body );
+		$this->assertSame( array(), $node->persistence->keys->listActive() );
 	}
 
 	public function test_keygen_ndjson_progress_stream(): void {
