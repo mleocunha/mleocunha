@@ -25,12 +25,13 @@ sleep 1
 |---|--------|----------|
 | 1 | `GET http://127.0.0.1:8888/login` | Formulário |
 | 2 | Login admin no KA | Redireciona a `/painel` |
-| 3 | `/painel/keygen` | Gera chave; ficheiros no courier |
-| 4 | Login no voting `:8889` | Painel com Cadastro / Voto |
-| 5 | Importar `.rsv` mínimo | Linhas no cadastro |
-| 6 | `/voto` → cabina | Fluxo de voto |
-| 7 | Tallying `:8890` importar/certificar | Usa material + parcelas do courier |
-| 8 | `/assets/painel/css/shell.css` | 200 |
+| 3 | `/painel/autoridades` — cadastrar ≥3 autoridades | Listadas na tabela |
+| 4 | `/painel/keygen` — seleccionar n e gerar | Parcelas atribuídas; ficheiros no courier |
+| 5 | Login no voting `:8889` | Painel com Cadastro / Voto |
+| 6 | Importar `.rsv` mínimo | Eleitores listados no cadastro |
+| 7 | `/voto` → cabina | Fluxo de voto |
+| 8 | Tallying `:8890` importar/certificar | Usa material + parcelas do courier |
+| 9 | `/assets/painel/css/shell.css` | 200 |
 
 ## Testes automatizados
 

@@ -101,10 +101,265 @@ final class StandaloneHttpTest extends TestCase {
 			new Request( 'POST', '/login', array(), array( 'login' => 'admin', 'password' => 'AdminPoC1!', 'next' => '/painel' ), array(), array() )
 		);
 		preg_match( '/' . CookieSessionPort::COOKIE . '=([^;]+)/', $post->headers['Set-Cookie'] ?? '', $m );
+		$cookie = $m[1] ?? '';
 		$home = $kernel->handle(
-			new Request( 'GET', '/painel', array(), array(), array( CookieSessionPort::COOKIE => $m[1] ?? '' ), array() )
+			new Request( 'GET', '/painel', array(), array(), array( CookieSessionPort::COOKIE => $cookie ), array() )
 		);
 		$this->assertStringContainsString( 'Key Authority', $home->body );
+		$this->assertStringContainsString( 'Autoridades', $home->body );
+
+		$keygenBlocked = $kernel->handle(
+			new Request( 'GET', '/painel/keygen', array(), array(), array( CookieSessionPort::COOKIE => $cookie ), array() )
+		);
+		$this->assertStringContainsString( '/painel/autoridades', $keygenBlocked->body );
+		$this->assertStringNotContainsString( 'Gerar chave + atribuir parcelas', $keygenBlocked->body );
+	}
+
+	public function test_ka_autoridades_then_assign_shares(): void {
+		mkdir( $this->root . '/ka', 0700, true );
+		mkdir( $this->root . '/courier', 0700, true );
+		$plugin = dirname( __DIR__, 3 );
+		$node   = NodeRuntime::create( SiteModes::KEY_AUTHORITY, $this->root . '/ka', 'teste', true );
+		$kernel = new HttpKernel( $node, $plugin, 'pt-BR' );
+		$login  = $kernel->handle(
+			new Request( 'POST', '/login', array(), array( 'login' => 'admin', 'password' => 'AdminPoC1!', 'next' => '/painel' ), array(), array() )
+		);
+		preg_match( '/' . CookieSessionPort::COOKIE . '=([^;]+)/', $login->headers['Set-Cookie'] ?? '', $m );
+		$cookie = array( CookieSessionPort::COOKIE => $m[1] ?? '' );
+
+		$ids = array();
+		foreach ( array( 'aut1', 'aut2', 'aut3' ) as $loginName ) {
+			$res = $kernel->handle(
+				new Request(
+					'POST',
+					'/painel/autoridades',
+					array(),
+					array(
+						'login'       => $loginName,
+						'email'       => $loginName . '@ex.test',
+						'displayName' => 'Aut ' . $loginName,
+						'password'    => 'SenhaAut1!',
+					),
+					$cookie,
+					array()
+				)
+			);
+			$this->assertSame( 200, $res->status );
+			$this->assertStringContainsString( 'cadastrada', $res->body );
+		}
+		$officials = $node->users->listByRole( 'editor' );
+		$this->assertCount( 3, $officials );
+		foreach ( $officials as $o ) {
+			$ids[] = (string) (int) $o['id'];
+		}
+
+		$gen = $kernel->handle(
+			new Request(
+				'POST',
+				'/painel/keygen',
+				array(),
+				array(
+					'bits'         => '512',
+					'threshold'    => '2',
+					'shares'       => '3',
+					'official_ids' => $ids,
+				),
+				$cookie,
+				array()
+			)
+		);
+		$this->assertSame( 200, $gen->status );
+		$this->assertStringContainsString( 'parcelas atribuídas', $gen->body );
+		$keys = $node->persistence->keys->listActive();
+		$this->assertNotEmpty( $keys );
+		$shares = $node->persistence->shares->listByKey( (int) $keys[0]['id'] );
+		$this->assertCount( 3, $shares );
+		$this->assertFileExists( $this->root . '/courier/public-key.json' );
+		$this->assertFileExists( $this->root . '/courier/parcela-1.json' );
+		$this->assertFileExists( $this->root . '/courier/authorities.json' );
+
+		$page = $kernel->handle(
+			new Request( 'GET', '/painel/keygen', array(), array(), $cookie, array() )
+		);
+		$this->assertStringContainsString( 've-keygen-progress', $page->body );
+		$this->assertStringContainsString( 've-keygen-form', $page->body );
+	}
+
+	public function test_keygen_ndjson_progress_stream(): void {
+		if ( ! is_dir( $this->root . '/ka' ) ) {
+			mkdir( $this->root . '/ka', 0700, true );
+		}
+		if ( ! is_dir( $this->root . '/courier' ) ) {
+			mkdir( $this->root . '/courier', 0700, true );
+		}
+		$plugin = dirname( __DIR__, 3 );
+		$node   = NodeRuntime::create( SiteModes::KEY_AUTHORITY, $this->root . '/ka', 'teste', true );
+		$kernel = new HttpKernel( $node, $plugin, 'pt-BR' );
+		$login  = $kernel->handle(
+			new Request( 'POST', '/login', array(), array( 'login' => 'admin', 'password' => 'AdminPoC1!', 'next' => '/painel' ), array(), array() )
+		);
+		preg_match( '/' . CookieSessionPort::COOKIE . '=([^;]+)/', $login->headers['Set-Cookie'] ?? '', $m );
+		$cookie = array( CookieSessionPort::COOKIE => $m[1] ?? '' );
+		foreach ( array( 'p1', 'p2' ) as $loginName ) {
+			$kernel->handle(
+				new Request(
+					'POST',
+					'/painel/autoridades',
+					array(),
+					array(
+						'action'      => 'create',
+						'login'       => $loginName,
+						'email'       => $loginName . '@ex.test',
+						'displayName' => $loginName,
+						'password'    => 'SenhaAut1!',
+					),
+					$cookie,
+					array()
+				)
+			);
+		}
+		$ids = array_map( static fn( $o ) => (string) (int) $o['id'], $node->users->listByRole( 'editor' ) );
+		$res = $kernel->handle(
+			new Request(
+				'POST',
+				'/painel/keygen',
+				array(),
+				array(
+					'bits'         => '512',
+					'threshold'    => '2',
+					'shares'       => '2',
+					'official_ids' => $ids,
+					'progress'     => '1',
+				),
+				$cookie,
+				array( 'HTTP_ACCEPT' => 'application/x-ndjson' )
+			)
+		);
+		$this->assertSame( 'application/x-ndjson; charset=UTF-8', $res->headers['Content-Type'] ?? '' );
+		$this->assertIsCallable( $res->streamer );
+		ob_start();
+		( $res->streamer )();
+		$out = (string) ob_get_clean();
+		$this->assertStringContainsString( '"percent":12', $out );
+		$this->assertStringContainsString( '"done":true', $out );
+		$this->assertStringContainsString( '"ok":true', $out );
+	}
+
+	public function test_voting_and_tallying_import_authorities_and_submit_share(): void {
+		foreach ( array( 'ka', 'tallying', 'courier' ) as $dir ) {
+			$path = $this->root . '/' . $dir;
+			if ( ! is_dir( $path ) ) {
+				mkdir( $path, 0700, true );
+			}
+		}
+		$plugin = dirname( __DIR__, 3 );
+
+		$ka = NodeRuntime::create( SiteModes::KEY_AUTHORITY, $this->root . '/ka', 'teste', true );
+		$kk = new HttpKernel( $ka, $plugin, 'pt-BR' );
+		$loginKa = $kk->handle(
+			new Request( 'POST', '/login', array(), array( 'login' => 'admin', 'password' => 'AdminPoC1!', 'next' => '/painel' ), array(), array() )
+		);
+		preg_match( '/' . CookieSessionPort::COOKIE . '=([^;]+)/', $loginKa->headers['Set-Cookie'] ?? '', $m );
+		$cKa = array( CookieSessionPort::COOKIE => $m[1] ?? '' );
+		foreach ( array( 'aut1', 'aut2', 'aut3' ) as $loginName ) {
+			$kk->handle(
+				new Request(
+					'POST',
+					'/painel/autoridades',
+					array(),
+					array(
+						'action'      => 'create',
+						'login'       => $loginName,
+						'email'       => $loginName . '@ex.test',
+						'displayName' => $loginName,
+						'password'    => 'SenhaAut1!',
+					),
+					$cKa,
+					array()
+				)
+			);
+		}
+		$officials = $ka->users->listByRole( 'editor' );
+		$ids       = array_map( static fn( $o ) => (string) (int) $o['id'], $officials );
+		$kk->handle(
+			new Request(
+				'POST',
+				'/painel/keygen',
+				array(),
+				array(
+					'bits'         => '512',
+					'threshold'    => '2',
+					'shares'       => '3',
+					'official_ids' => $ids,
+				),
+				$cKa,
+				array()
+			)
+		);
+		$this->assertFileExists( $this->root . '/courier/authorities.json' );
+
+		$voting = NodeRuntime::create( SiteModes::VOTING, $this->root . '/voting', 'teste', true );
+		$vk     = new HttpKernel( $voting, $plugin, 'pt-BR' );
+		$loginV = $vk->handle(
+			new Request( 'POST', '/login', array(), array( 'login' => 'admin', 'password' => 'AdminPoC1!', 'next' => '/painel' ), array(), array() )
+		);
+		preg_match( '/' . CookieSessionPort::COOKIE . '=([^;]+)/', $loginV->headers['Set-Cookie'] ?? '', $mv );
+		$cV = array( CookieSessionPort::COOKIE => $mv[1] ?? '' );
+		$impV = $vk->handle(
+			new Request( 'POST', '/painel/autoridades', array(), array( 'action' => 'import_courier' ), $cV, array() )
+		);
+		$this->assertStringContainsString( 'criados 3', $impV->body );
+		$this->assertSame( 3, $voting->users->countByRole( 'editor' ) );
+		$this->assertNotNull( $voting->users->verifyPassword( 'aut1', 'SenhaAut1!' ) );
+
+		$tally = NodeRuntime::create( SiteModes::TALLYING, $this->root . '/tallying', 'teste', true );
+		$tk    = new HttpKernel( $tally, $plugin, 'pt-BR' );
+		$loginT = $tk->handle(
+			new Request( 'POST', '/login', array(), array( 'login' => 'admin', 'password' => 'AdminPoC1!', 'next' => '/painel' ), array(), array() )
+		);
+		preg_match( '/' . CookieSessionPort::COOKIE . '=([^;]+)/', $loginT->headers['Set-Cookie'] ?? '', $mt );
+		$cT = array( CookieSessionPort::COOKIE => $mt[1] ?? '' );
+		$tk->handle(
+			new Request( 'POST', '/painel/autoridades', array(), array( 'action' => 'import_courier' ), $cT, array() )
+		);
+		$this->assertSame( 3, $tally->users->countByRole( 'editor' ) );
+
+		$importId = $tally->persistence->tallyImports->create(
+			array( 'source' => 'test', 'status' => 'imported', 'created_at' => gmdate( 'c' ) )
+		);
+		$parcela = json_decode( (string) file_get_contents( $this->root . '/courier/parcela-1.json' ), true );
+		$this->assertIsArray( $parcela );
+		$sub1 = $tk->handle(
+			new Request(
+				'POST',
+				'/painel/parcelas',
+				array(),
+				array(
+					'import_id'  => (string) $importId,
+					'share_json' => (string) json_encode( $parcela ),
+				),
+				$cT,
+				array()
+			)
+		);
+		$this->assertStringContainsString( 'submetida', $sub1->body );
+
+		$parcela2 = json_decode( (string) file_get_contents( $this->root . '/courier/parcela-2.json' ), true );
+		$sub2 = $tk->handle(
+			new Request(
+				'POST',
+				'/painel/parcelas',
+				array(),
+				array(
+					'import_id'  => (string) $importId,
+					'share_json' => (string) json_encode( $parcela2 ),
+				),
+				$cT,
+				array()
+			)
+		);
+		$this->assertStringContainsString( 'Limiar Shamir atingido', $sub2->body );
+		$this->assertSame( 2, $tally->persistence->shareSubmissions->countByImport( $importId ) );
 	}
 
 	private function rrmdir( string $dir ): void {

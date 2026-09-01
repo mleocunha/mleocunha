@@ -9,10 +9,10 @@ namespace RelataSoft\SecureElectionSuite\Painel\Adapters\Standalone\Http;
 final class Request {
 
 	/**
-	 * @param array<string,string> $get
-	 * @param array<string,string> $post
-	 * @param array<string,string> $cookies
-	 * @param array<string,string> $server
+	 * @param array<string,string>              $get
+	 * @param array<string,string|list<string>> $post
+	 * @param array<string,string>              $cookies
+	 * @param array<string,string>              $server
 	 * @param array<string,array<string,mixed>> $files
 	 */
 	public function __construct(
@@ -40,10 +40,10 @@ final class Request {
 		return new self(
 			$method,
 			$path,
-			self::stringify( $_GET ),
-			self::stringify( $_POST ),
-			self::stringify( $_COOKIE ),
-			self::stringify( $_SERVER ),
+			self::stringifyFlat( $_GET ),
+			self::stringifyPost( $_POST ),
+			self::stringifyFlat( $_COOKIE ),
+			self::stringifyFlat( $_SERVER ),
 			$files,
 		);
 	}
@@ -53,18 +53,60 @@ final class Request {
 	}
 
 	public function input( string $key, string $default = '' ): string {
-		return $this->post[ $key ] ?? $default;
+		$v = $this->post[ $key ] ?? $default;
+		return is_array( $v ) ? $default : (string) $v;
+	}
+
+	/**
+	 * @return list<string>
+	 */
+	public function inputList( string $key ): array {
+		$v = $this->post[ $key ] ?? null;
+		if ( ! is_array( $v ) ) {
+			return array();
+		}
+		$out = array();
+		foreach ( $v as $item ) {
+			if ( is_scalar( $item ) || null === $item ) {
+				$out[] = (string) $item;
+			}
+		}
+		return $out;
 	}
 
 	/**
 	 * @param array<mixed,mixed> $src
 	 * @return array<string,string>
 	 */
-	private static function stringify( array $src ): array {
+	private static function stringifyFlat( array $src ): array {
 		$out = array();
 		foreach ( $src as $k => $v ) {
 			if ( is_scalar( $v ) || null === $v ) {
 				$out[ (string) $k ] = (string) $v;
+			}
+		}
+		return $out;
+	}
+
+	/**
+	 * @param array<mixed,mixed> $src
+	 * @return array<string,string|list<string>>
+	 */
+	private static function stringifyPost( array $src ): array {
+		$out = array();
+		foreach ( $src as $k => $v ) {
+			if ( is_scalar( $v ) || null === $v ) {
+				$out[ (string) $k ] = (string) $v;
+				continue;
+			}
+			if ( is_array( $v ) ) {
+				$list = array();
+				foreach ( $v as $item ) {
+					if ( is_scalar( $item ) || null === $item ) {
+						$list[] = (string) $item;
+					}
+				}
+				$out[ (string) $k ] = $list;
 			}
 		}
 		return $out;

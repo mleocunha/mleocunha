@@ -122,9 +122,11 @@ Documentação: [`docs/activar-standalone.md`](docs/activar-standalone.md),
 
 ## Ciclo operador (resumo)
 
-1. **KA** — `/login` → `/painel/keygen` → chave + parcelas no courier.
-2. **Voting** — cadastro `.rsv` em `/painel/cadastro` → `/voto` → courier (material).
-3. **Tallying** — `/painel/importar` + parcelas → `/painel/certificar`.
+1. **KA** — cadastrar autoridades em `/painel/autoridades` → `/painel/keygen` (seleccionar exactamente *n*) → courier com chave, parcelas e `authorities.json`.
+2. **Voting** — importar autoridades (acompanhamento / validade jurídica) → cadastro `.rsv` → `/voto` → courier (material).
+3. **Tallying** — importar autoridades → importar material → cada autoridade submete a sua parcela em `/painel/parcelas` até ao **limiar Shamir** → certificar.
+
+As autoridades eleitorais existem nos **três** nós (identidades locais; preferir o pacote `authorities.json` do KA). Sem elas no tallying, o limiar de parcelas não é atingível.
 
 Piloto criptográfico CLI (sem browser): `php bin/ve-node pilot --root=/tmp/ve-piloto`.
 
