@@ -67,11 +67,11 @@ identificador;nome;papel
 
 ## Fluxo de material (courier)
 
-1. KA: cadastrar autoridades em `/painel/autoridades` → `/painel/keygen` (atribuir parcelas) → `public-key.json` e `parcela-*.json` em `courier/`.
-2. Voting: confirmar courier → votar → exportar material de voto para `courier/`.
-3. Tallying: `/painel/importar` + parcelas → `/painel/certificar`.
+1. KA: `/painel/autoridades` → `/painel/keygen` → `public-key.json`, `parcela-*.json`, `authorities.json`.
+2. Voting: importar `authorities.json` (acompanhamento administrativo) → votar → exportar material de voto.
+3. Tallying: importar `authorities.json` → importar material → autoridades submetem parcelas em `/painel/parcelas` até ao limiar → certificar.
 
-Permissões: os três processos devem ler/escrever o mesmo `courier/` (lab). Em produção o canal é auditável entre sítios.
+Sem autoridades no nó de apuração, as parcelas não sobem e o limiar Shamir não é atingido.
 
 ## Becape
 

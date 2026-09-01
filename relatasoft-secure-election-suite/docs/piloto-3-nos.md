@@ -46,24 +46,25 @@ Confirmar as três portas, `/login` em cada uma e, no voting, `/voto`. Registar 
 
 ## Dia 1 — identidade, autoridades e chave
 
-1. Login admin em cada nó (contas não sincronizam).
-2. No **KA**: cadastrar autoridades eleitorais em `/painel/autoridades` (pelo menos *n* para *n* parcelas).
-3. KA: `/painel/keygen` — seleccionar exactamente *n* autoridades → gerar chave e atribuir parcelas → courier.
-4. Nos outros sítios, criar operadores necessários *naquele* sítio.
+1. Login admin em cada nó (contas não sincronizam automaticamente).
+2. No **KA**: cadastrar autoridades em `/painel/autoridades` (≥ *n*).
+3. KA: `/painel/keygen` — seleccionar *n* autoridades → gerar → courier (`authorities.json` incluído).
+4. Em **voting** e **tallying**: importar `authorities.json` do courier (ou cadastrar localmente). No voting, as autoridades acompanham a eleição; no tallying, sobem parcelas.
 
 ## Dia 2 — cadastro e voto
 
 1. Voting: importar `.rsv` em `/painel/cadastro`.
-2. Confirmar material do courier.
+2. Confirmar material do courier / autoridades importadas.
 3. Exercitar `/voto` / cabine.
 4. Exportar material de voto para o courier.
 
 ## Dia 3 — apuramento
 
-1. Tallying: importar material + parcelas.
-2. Certificar conforme o painel.
-3. Opcional: validar crypto ponta a ponta com `php bin/ve-node pilot --root=/tmp/ve-piloto`.
-4. Becape de cada `VE_DATA` + courier.
+1. Tallying: importar material.
+2. Cada autoridade (login próprio) submete a parcela em `/painel/parcelas` até ao limiar.
+3. Certificar conforme o painel.
+4. Opcional: `php bin/ve-node pilot --root=/tmp/ve-piloto`.
+5. Becape de cada `VE_DATA` + courier.
 
 ## Critérios de aceite
 

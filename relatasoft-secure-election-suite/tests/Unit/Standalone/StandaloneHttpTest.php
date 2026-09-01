@@ -176,6 +176,124 @@ final class StandaloneHttpTest extends TestCase {
 		$this->assertCount( 3, $shares );
 		$this->assertFileExists( $this->root . '/courier/public-key.json' );
 		$this->assertFileExists( $this->root . '/courier/parcela-1.json' );
+		$this->assertFileExists( $this->root . '/courier/authorities.json' );
+	}
+
+	public function test_voting_and_tallying_import_authorities_and_submit_share(): void {
+		foreach ( array( 'ka', 'tallying', 'courier' ) as $dir ) {
+			$path = $this->root . '/' . $dir;
+			if ( ! is_dir( $path ) ) {
+				mkdir( $path, 0700, true );
+			}
+		}
+		$plugin = dirname( __DIR__, 3 );
+
+		$ka = NodeRuntime::create( SiteModes::KEY_AUTHORITY, $this->root . '/ka', 'teste', true );
+		$kk = new HttpKernel( $ka, $plugin, 'pt-BR' );
+		$loginKa = $kk->handle(
+			new Request( 'POST', '/login', array(), array( 'login' => 'admin', 'password' => 'AdminPoC1!', 'next' => '/painel' ), array(), array() )
+		);
+		preg_match( '/' . CookieSessionPort::COOKIE . '=([^;]+)/', $loginKa->headers['Set-Cookie'] ?? '', $m );
+		$cKa = array( CookieSessionPort::COOKIE => $m[1] ?? '' );
+		foreach ( array( 'aut1', 'aut2', 'aut3' ) as $loginName ) {
+			$kk->handle(
+				new Request(
+					'POST',
+					'/painel/autoridades',
+					array(),
+					array(
+						'action'      => 'create',
+						'login'       => $loginName,
+						'email'       => $loginName . '@ex.test',
+						'displayName' => $loginName,
+						'password'    => 'SenhaAut1!',
+					),
+					$cKa,
+					array()
+				)
+			);
+		}
+		$officials = $ka->users->listByRole( 'editor' );
+		$ids       = array_map( static fn( $o ) => (string) (int) $o['id'], $officials );
+		$kk->handle(
+			new Request(
+				'POST',
+				'/painel/keygen',
+				array(),
+				array(
+					'bits'         => '512',
+					'threshold'    => '2',
+					'shares'       => '3',
+					'official_ids' => $ids,
+				),
+				$cKa,
+				array()
+			)
+		);
+		$this->assertFileExists( $this->root . '/courier/authorities.json' );
+
+		$voting = NodeRuntime::create( SiteModes::VOTING, $this->root . '/voting', 'teste', true );
+		$vk     = new HttpKernel( $voting, $plugin, 'pt-BR' );
+		$loginV = $vk->handle(
+			new Request( 'POST', '/login', array(), array( 'login' => 'admin', 'password' => 'AdminPoC1!', 'next' => '/painel' ), array(), array() )
+		);
+		preg_match( '/' . CookieSessionPort::COOKIE . '=([^;]+)/', $loginV->headers['Set-Cookie'] ?? '', $mv );
+		$cV = array( CookieSessionPort::COOKIE => $mv[1] ?? '' );
+		$impV = $vk->handle(
+			new Request( 'POST', '/painel/autoridades', array(), array( 'action' => 'import_courier' ), $cV, array() )
+		);
+		$this->assertStringContainsString( 'criados 3', $impV->body );
+		$this->assertSame( 3, $voting->users->countByRole( 'editor' ) );
+		$this->assertNotNull( $voting->users->verifyPassword( 'aut1', 'SenhaAut1!' ) );
+
+		$tally = NodeRuntime::create( SiteModes::TALLYING, $this->root . '/tallying', 'teste', true );
+		$tk    = new HttpKernel( $tally, $plugin, 'pt-BR' );
+		$loginT = $tk->handle(
+			new Request( 'POST', '/login', array(), array( 'login' => 'admin', 'password' => 'AdminPoC1!', 'next' => '/painel' ), array(), array() )
+		);
+		preg_match( '/' . CookieSessionPort::COOKIE . '=([^;]+)/', $loginT->headers['Set-Cookie'] ?? '', $mt );
+		$cT = array( CookieSessionPort::COOKIE => $mt[1] ?? '' );
+		$tk->handle(
+			new Request( 'POST', '/painel/autoridades', array(), array( 'action' => 'import_courier' ), $cT, array() )
+		);
+		$this->assertSame( 3, $tally->users->countByRole( 'editor' ) );
+
+		$importId = $tally->persistence->tallyImports->create(
+			array( 'source' => 'test', 'status' => 'imported', 'created_at' => gmdate( 'c' ) )
+		);
+		$parcela = json_decode( (string) file_get_contents( $this->root . '/courier/parcela-1.json' ), true );
+		$this->assertIsArray( $parcela );
+		$sub1 = $tk->handle(
+			new Request(
+				'POST',
+				'/painel/parcelas',
+				array(),
+				array(
+					'import_id'  => (string) $importId,
+					'share_json' => (string) json_encode( $parcela ),
+				),
+				$cT,
+				array()
+			)
+		);
+		$this->assertStringContainsString( 'submetida', $sub1->body );
+
+		$parcela2 = json_decode( (string) file_get_contents( $this->root . '/courier/parcela-2.json' ), true );
+		$sub2 = $tk->handle(
+			new Request(
+				'POST',
+				'/painel/parcelas',
+				array(),
+				array(
+					'import_id'  => (string) $importId,
+					'share_json' => (string) json_encode( $parcela2 ),
+				),
+				$cT,
+				array()
+			)
+		);
+		$this->assertStringContainsString( 'Limiar Shamir atingido', $sub2->body );
+		$this->assertSame( 2, $tally->persistence->shareSubmissions->countByImport( $importId ) );
 	}
 
 	private function rrmdir( string $dir ): void {

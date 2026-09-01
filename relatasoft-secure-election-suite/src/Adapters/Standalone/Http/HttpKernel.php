@@ -8,6 +8,8 @@ use RelataSoft\SecureElectionSuite\Painel\Adapters\Standalone\NodeRuntime;
 use RelataSoft\SecureElectionSuite\Painel\Contracts\Journey\JourneySteps;
 use RelataSoft\SecureElectionSuite\Painel\Contracts\Mode\SiteModes;
 use RelataSoft\SecureElectionSuite\Painel\Domain\Access\UserRegistryRoles;
+use RelataSoft\SecureElectionSuite\Painel\Domain\Authorities\AuthoritiesDirectorySync;
+use RelataSoft\SecureElectionSuite\Painel\Domain\Authorities\AuthoritiesPackage;
 use RelataSoft\SecureElectionSuite\Painel\Domain\Crypto\BigInt;
 use RelataSoft\SecureElectionSuite\Painel\Domain\Crypto\ElGamal;
 use RelataSoft\SecureElectionSuite\Painel\Domain\Crypto\HomomorphicTally;
@@ -86,6 +88,7 @@ final class HttpKernel {
 			'/painel/cadastro' === $path => $this->cadastro( $req ),
 			'/painel/autoridades' === $path => $this->autoridades( $req ),
 			'/painel/keygen' === $path => $this->keygen( $req ),
+			'/painel/parcelas' === $path => $this->parcelas( $req ),
 			'/painel/courier' === $path => $this->courier( $req ),
 			'/painel/eleicoes' === $path => $this->eleicoes(),
 			'/painel/importar' === $path => $this->tallyImport( $req ),
@@ -118,6 +121,7 @@ final class HttpKernel {
 		);
 		if ( SiteModes::VOTING === $mode ) {
 			$items[] = array( 'href' => '/painel/cadastro', 'label' => 'Cadastro' );
+			$items[] = array( 'href' => '/painel/autoridades', 'label' => 'Autoridades' );
 			$items[] = array( 'href' => '/painel/eleicoes', 'label' => $this->i18n->t( 'Elections' ) );
 			$items[] = array( 'href' => '/voto', 'label' => 'Voto' );
 			$items[] = array( 'href' => '/painel/courier', 'label' => 'Courier' );
@@ -128,7 +132,9 @@ final class HttpKernel {
 			$items[] = array( 'href' => '/painel/courier', 'label' => 'Courier' );
 		}
 		if ( SiteModes::TALLYING === $mode ) {
+			$items[] = array( 'href' => '/painel/autoridades', 'label' => 'Autoridades' );
 			$items[] = array( 'href' => '/painel/importar', 'label' => $this->i18n->t( 'Tally Import' ) );
+			$items[] = array( 'href' => '/painel/parcelas', 'label' => 'Parcelas' );
 			$items[] = array( 'href' => '/painel/certificar', 'label' => $this->i18n->t( 'Certification' ) );
 			$items[] = array( 'href' => '/painel/courier', 'label' => 'Courier' );
 		}
@@ -202,15 +208,18 @@ final class HttpKernel {
 		$cards = '';
 		if ( SiteModes::VOTING === $mode ) {
 			$cards .= $this->card( 'Cadastro Eleitoral', 'Importar .rsv e listar papéis.', '/painel/cadastro' );
+			$cards .= $this->card( 'Autoridades eleitorais', 'Importar/acompanhar autoridades (validade jurídica da eleição).', '/painel/autoridades' );
 			$cards .= $this->card( 'Eleições', 'Ver eleições neste nó.', '/painel/eleicoes' );
 			$cards .= $this->card( 'Jornada /voto', 'Boas-vindas, cabina e obrigado.', '/voto' );
 			$cards .= $this->card( 'Courier', 'Importar chave pública / exportar material de voto.', '/painel/courier' );
 		} elseif ( SiteModes::KEY_AUTHORITY === $mode ) {
-			$cards .= $this->card( 'Autoridades eleitorais', 'Cadastrar autoridades antes de atribuir parcelas Shamir.', '/painel/autoridades' );
+			$cards .= $this->card( 'Autoridades eleitorais', 'Cadastrar e exportar autoridades antes de atribuir parcelas Shamir.', '/painel/autoridades' );
 			$cards .= $this->card( $this->i18n->t( 'Key Authority' ), 'Gerar chave e atribuir parcelas às autoridades.', '/painel/keygen' );
 			$cards .= $this->card( 'Courier', 'Exportar chave pública e parcelas.', '/painel/courier' );
 		} else {
+			$cards .= $this->card( 'Autoridades eleitorais', 'Importar autoridades para subirem parcelas até ao limiar Shamir.', '/painel/autoridades' );
 			$cards .= $this->card( $this->i18n->t( 'Tally Import' ), 'Importar material de voto + parcelas.', '/painel/importar' );
+			$cards .= $this->card( 'Parcelas Shamir', 'Autoridades submetem parcelas até atingir o limiar.', '/painel/parcelas' );
 			$cards .= $this->card( $this->i18n->t( 'Certification' ), 'Apurar e certificar.', '/painel/certificar' );
 			$cards .= $this->card( 'Courier', 'Pasta de material entre nós.', '/painel/courier' );
 		}
@@ -279,33 +288,48 @@ final class HttpKernel {
 	}
 
 	private function autoridades( Request $req ): Response {
-		$this->node->requireMode( SiteModes::KEY_AUTHORITY );
-		$msg = '';
+		$mode = $this->node->mode->getMode();
+		$msg  = '';
 		$users = $this->node->users;
 		if ( ! $users instanceof FileJsonUserStore ) {
 			throw new \RuntimeException( 'Autoridades require FileJsonUserStore.' );
 		}
+		$courierDir = dirname( $this->node->dataDir ) . '/courier';
 
 		if ( 'POST' === $req->method ) {
-			$login = trim( $req->input( 'login' ) );
-			$email = trim( $req->input( 'email' ) );
-			$name  = trim( $req->input( 'displayName', $login ) );
-			$pass  = $req->input( 'password' );
-			if ( '' === $login || '' === $email || '' === $pass ) {
-				$msg = 'Login, e-mail e senha são obrigatórios.';
+			$action = $req->input( 'action', 'create' );
+			if ( 'export' === $action && SiteModes::KEY_AUTHORITY === $mode ) {
+				$path = $this->exportAuthoritiesToCourier( $courierDir );
+				$msg  = 'Pacote exportado para courier: ' . basename( $path );
+			} elseif ( 'import_courier' === $action && SiteModes::KEY_AUTHORITY !== $mode ) {
+				$file = $courierDir . '/' . AuthoritiesDirectorySync::COURIER_FILE;
+				$msg  = $this->importAuthoritiesFromFile( $users, $file );
+			} elseif ( 'import_upload' === $action && SiteModes::KEY_AUTHORITY !== $mode ) {
+				$tmp = (string) ( $req->files['package']['tmp_name'] ?? '' );
+				$msg = ( is_readable( $tmp ) && '' !== $tmp )
+					? $this->importAuthoritiesFromFile( $users, $tmp )
+					: 'Falha no upload do pacote de autoridades.';
 			} else {
-				$res = $users->create(
-					array(
-						'login'       => $login,
-						'email'       => $email,
-						'password'    => $pass,
-						'displayName' => '' !== $name ? $name : $login,
-						'role'        => UserRegistryRoles::ROLE_OFFICIAL,
-					)
-				);
-				$msg = ! empty( $res['ok'] )
-					? 'Autoridade eleitoral cadastrada (#' . (int) ( $res['id'] ?? 0 ) . ').'
-					: ( 'Falha: ' . (string) ( $res['error'] ?? 'erro' ) );
+				$login = trim( $req->input( 'login' ) );
+				$email = trim( $req->input( 'email' ) );
+				$name  = trim( $req->input( 'displayName', $login ) );
+				$pass  = $req->input( 'password' );
+				if ( '' === $login || '' === $email || '' === $pass ) {
+					$msg = 'Login, e-mail e senha são obrigatórios.';
+				} else {
+					$res = $users->create(
+						array(
+							'login'       => $login,
+							'email'       => $email,
+							'password'    => $pass,
+							'displayName' => '' !== $name ? $name : $login,
+							'role'        => UserRegistryRoles::ROLE_OFFICIAL,
+						)
+					);
+					$msg = ! empty( $res['ok'] )
+						? 'Autoridade eleitoral cadastrada (#' . (int) ( $res['id'] ?? 0 ) . ').'
+						: ( 'Falha: ' . (string) ( $res['error'] ?? 'erro' ) );
+				}
 			}
 		}
 
@@ -318,23 +342,107 @@ final class HttpKernel {
 				. htmlspecialchars( (string) $u['email'], ENT_QUOTES, 'UTF-8' ) . '</td></tr>';
 		}
 		if ( '' === $rows ) {
-			$rows = '<tr><td colspan="4" class="ve-muted">Nenhuma autoridade cadastrada. Este passo é obrigatório antes de gerar e atribuir parcelas Shamir.</td></tr>';
+			$rows = '<tr><td colspan="4" class="ve-muted">Nenhuma autoridade neste nó.</td></tr>';
+		}
+
+		$lead = match ( $mode ) {
+			SiteModes::KEY_AUTHORITY => 'Cadastrar quem receberá as parcelas Shamir. Exportar o pacote para o courier para provisionar voting e tallying.',
+			SiteModes::VOTING => 'As autoridades acompanham a eleição neste sítio; a validade jurídica fica comprometida sem o seu acompanhamento. Preferir importar o pacote exportado pelo nó de chaves.',
+			default => 'Sem autoridades neste nó, ninguém sobe parcelas Shamir — o limiar de reconstrução não é atingível. Importar o pacote do KA e pedir a cada autoridade que entre e submeta a sua parcela.',
+		};
+
+		$extra = '';
+		if ( SiteModes::KEY_AUTHORITY === $mode ) {
+			$extra = '<form method="post" action="/painel/autoridades" style="margin-top:1rem">'
+				. '<input type="hidden" name="action" value="export" />'
+				. '<div class="ve-actions"><button type="submit">Exportar autoridades → courier/'
+				. htmlspecialchars( AuthoritiesDirectorySync::COURIER_FILE, ENT_QUOTES, 'UTF-8' )
+				. '</button></div></form>';
+		} else {
+			$extra = '<div class="ve-card" style="margin-top:1rem"><h2>Importar pacote</h2>'
+				. '<form method="post" action="/painel/autoridades">'
+				. '<input type="hidden" name="action" value="import_courier" />'
+				. '<div class="ve-actions"><button type="submit">Importar '
+				. htmlspecialchars( AuthoritiesDirectorySync::COURIER_FILE, ENT_QUOTES, 'UTF-8' )
+				. ' do courier</button></div></form>'
+				. '<form method="post" enctype="multipart/form-data" action="/painel/autoridades" style="margin-top:0.75rem">'
+				. '<input type="hidden" name="action" value="import_upload" />'
+				. '<label class="ve-field"><span>Ficheiro JSON</span><input type="file" name="package" accept=".json,application/json" required /></label>'
+				. '<div class="ve-actions"><button type="submit">Importar upload</button></div></form></div>';
 		}
 
 		$body = '<div class="ve-card"><h1>Autoridades eleitorais</h1>'
-			. '<p class="ve-muted">Cadastrar as contas que receberão as parcelas Shamir. Sem autoridades suficientes, a geração de chave não avança.</p>'
+			. '<p class="ve-muted">' . htmlspecialchars( $lead, ENT_QUOTES, 'UTF-8' ) . '</p>'
 			. ( $msg ? '<p class="ve-muted">' . htmlspecialchars( $msg, ENT_QUOTES, 'UTF-8' ) . '</p>' : '' )
 			. '<form method="post" action="/painel/autoridades">'
+			. '<input type="hidden" name="action" value="create" />'
 			. '<label class="ve-field"><span>Login</span><input name="login" required autocomplete="off" /></label>'
 			. '<label class="ve-field"><span>Nome</span><input name="displayName" /></label>'
 			. '<label class="ve-field"><span>E-mail</span><input type="email" name="email" required /></label>'
 			. '<label class="ve-field"><span>Senha</span><input type="password" name="password" required autocomplete="new-password" /></label>'
-			. '<div class="ve-actions"><button type="submit">Cadastrar autoridade</button>'
-			. '<a class="secondary" href="/painel/keygen">Ir à geração de chave</a></div></form></div>'
-			. '<div class="ve-card"><h2>Cadastradas (' . count( $list ) . ')</h2>'
+			. '<div class="ve-actions"><button type="submit">Cadastrar autoridade neste nó</button>'
+			. ( SiteModes::KEY_AUTHORITY === $mode
+				? '<a class="secondary" href="/painel/keygen">Ir à geração de chave</a>'
+				: ( SiteModes::TALLYING === $mode
+					? '<a class="secondary" href="/painel/parcelas">Ir às parcelas</a>'
+					: '' ) )
+			. '</div></form>'
+			. $extra
+			. '</div>'
+			. '<div class="ve-card"><h2>Neste nó (' . count( $list ) . ')</h2>'
 			. '<table class="ve-table"><thead><tr><th>ID</th><th>Nome</th><th>Login</th><th>E-mail</th></tr></thead><tbody>'
 			. $rows . '</tbody></table></div>';
 		return $this->page( 'Autoridades', $body );
+	}
+
+	private function exportAuthoritiesToCourier( string $courierDir ): string {
+		if ( ! is_dir( $courierDir ) ) {
+			mkdir( $courierDir, 0700, true );
+		}
+		$officials = $this->node->users->listByRole( UserRegistryRoles::ROLE_OFFICIAL );
+		$shareMeta = array();
+		foreach ( $this->node->persistence->keys->listActive() as $k ) {
+			$kid = (int) $k['id'];
+			foreach ( $this->node->persistence->shares->listByKey( $kid ) as $s ) {
+				$uid = (int) ( $s['official_user_id'] ?? 0 );
+				if ( $uid <= 0 ) {
+					continue;
+				}
+				$shareMeta[ $uid ] = array(
+					'share_index' => (int) ( $s['share_index'] ?? 0 ),
+					'key_id'      => $kid,
+					'threshold_t' => (int) ( $k['threshold'] ?? $s['threshold_t'] ?? 0 ),
+					'total_n'     => (int) ( $k['total_shares'] ?? $s['total_n'] ?? 0 ),
+				);
+			}
+		}
+		$pkg  = AuthoritiesDirectorySync::buildPackage(
+			$officials,
+			$shareMeta,
+			SiteModes::KEY_AUTHORITY,
+			(string) ( getenv( 'VE_PUBLIC_BASE' ) ?: '' )
+		);
+		$path = $courierDir . '/' . AuthoritiesDirectorySync::COURIER_FILE;
+		file_put_contents( $path, AuthoritiesPackage::toJson( $pkg ) );
+		return $path;
+	}
+
+	private function importAuthoritiesFromFile( FileJsonUserStore $users, string $file ): string {
+		if ( ! is_readable( $file ) ) {
+			return 'Ficheiro inacessível: ' . basename( $file );
+		}
+		$pkg = AuthoritiesPackage::fromJson( (string) file_get_contents( $file ) );
+		if ( null === $pkg ) {
+			return 'Pacote inválido ou checksum incorrecto.';
+		}
+		$res = AuthoritiesDirectorySync::importPackage( $users, $pkg );
+		return sprintf(
+			'Importação: criados %d, actualizados %d, ignorados %d, erros %d.',
+			$res['created'],
+			$res['updated'],
+			$res['skipped'],
+			count( $res['errors'] )
+		) . ( $res['errors'] ? ' ' . $res['errors'][0] : '' );
 	}
 
 	private function keygen( Request $req ): Response {
@@ -454,7 +562,8 @@ final class HttpKernel {
 						)
 					);
 					$courier->writeJson( 'public-key.json', $pkg );
-					$msg = "Chave #{$keyId} gerada; {$n} parcelas atribuídas às autoridades seleccionadas; courier actualizado.";
+					$this->exportAuthoritiesToCourier( $courierDir );
+					$msg = "Chave #{$keyId} gerada; {$n} parcelas atribuídas às autoridades seleccionadas; courier actualizado (inclui authorities.json).";
 				}
 			}
 		}
@@ -509,6 +618,128 @@ final class HttpKernel {
 			. '</div>'
 			. '<div class="ve-card"><h2>Chaves activas</h2>' . $list . '</div>';
 		return $this->page( 'Keygen', $body );
+	}
+
+	private function parcelas( Request $req ): Response {
+		$this->node->requireMode( SiteModes::TALLYING );
+		$officialN = $this->node->users->countByRole( UserRegistryRoles::ROLE_OFFICIAL );
+		$msg       = '';
+		$imports   = $this->node->persistence->tallyImports->listSummaries();
+		$importId  = (int) $req->input( 'import_id', $req->query( 'import_id', '0' ) );
+		if ( $importId <= 0 && $imports ) {
+			$importId = (int) ( $imports[0]['id'] ?? 0 );
+		}
+
+		if ( 'POST' === $req->method ) {
+			if ( $officialN < 1 ) {
+				$msg = 'Importar ou cadastrar autoridades eleitorais neste nó antes de submeter parcelas.';
+			} elseif ( ! $this->sessionUserCanSubmitShare() ) {
+				$msg = 'Entrar como autoridade eleitoral (ou administrador) para submeter uma parcela.';
+			} else {
+				$importId = max( 1, (int) $req->input( 'import_id', (string) $importId ) );
+				$raw      = trim( $req->input( 'share_json' ) );
+				$tmp      = (string) ( $req->files['share_file']['tmp_name'] ?? '' );
+				if ( '' === $raw && is_readable( $tmp ) ) {
+					$raw = (string) file_get_contents( $tmp );
+				}
+				$payload = json_decode( $raw, true );
+				if ( ! is_array( $payload ) ) {
+					$msg = 'JSON da parcela inválido.';
+				} else {
+					unset( $payload['assigned_login'], $payload['official_user_id'] );
+					try {
+						ShamirSecretSharing::validateSharePayload( $payload );
+						$shareIndex = (int) $payload['share_index'];
+						$threshold  = (int) $payload['threshold_t'];
+						if ( $this->node->persistence->shareSubmissions->countByImportAndIndex( $importId, $shareIndex ) > 0 ) {
+							$msg = "Índice de parcela {$shareIndex} já submetido para o import #{$importId}.";
+						} else {
+							$this->node->persistence->shareSubmissions->create(
+								array(
+									'tally_import_id'  => $importId,
+									'key_id'           => (int) ( $payload['key_id'] ?? 0 ),
+									'election_round_id'=> (int) ( $payload['election_round_id'] ?? 0 ),
+									'official_user_id' => $this->session->currentUserId(),
+									'share_index'      => $shareIndex,
+									'share_payload'    => $payload,
+									'threshold_t'      => $threshold,
+									'total_n'          => (int) ( $payload['total_n'] ?? 0 ),
+									'submitted_at'     => gmdate( 'c' ),
+								)
+							);
+							$have = $this->node->persistence->shareSubmissions->countByImport( $importId );
+							$msg  = "Parcela #{$shareIndex} submetida. Progresso: {$have}"
+								. ( $threshold > 0 ? " / limiar {$threshold}" : '' ) . '.';
+							if ( $threshold > 0 && $have >= $threshold ) {
+								$msg .= ' Limiar Shamir atingido para este import.';
+							}
+						}
+					} catch ( \Throwable $e ) {
+						$msg = 'Parcela rejeitada: ' . $e->getMessage();
+					}
+				}
+			}
+		}
+
+		$subs = $importId > 0
+			? $this->node->persistence->shareSubmissions->listByImport( $importId )
+			: array();
+		$subRows = '';
+		$thresholdSeen = 0;
+		foreach ( $subs as $s ) {
+			$thresholdSeen = max( $thresholdSeen, (int) ( $s['threshold_t'] ?? 0 ) );
+			$uid = (int) ( $s['official_user_id'] ?? 0 );
+			$u   = $uid > 0 ? $this->node->users->findById( $uid ) : null;
+			$subRows .= '<tr><td>' . (int) ( $s['share_index'] ?? 0 ) . '</td><td>'
+				. htmlspecialchars( (string) ( $u['login'] ?? ( '#' . $uid ) ), ENT_QUOTES, 'UTF-8' )
+				. '</td><td>' . htmlspecialchars( (string) ( $s['submitted_at'] ?? '' ), ENT_QUOTES, 'UTF-8' ) . '</td></tr>';
+		}
+		if ( '' === $subRows ) {
+			$subRows = '<tr><td colspan="3" class="ve-muted">Nenhuma parcela submetida ainda.</td></tr>';
+		}
+		$have = count( $subs );
+		$progress = $thresholdSeen > 0
+			? "{$have} / limiar {$thresholdSeen}" . ( $have >= $thresholdSeen ? ' — limiar atingido' : '' )
+			: (string) $have;
+
+		$importOpts = '';
+		foreach ( $imports as $s ) {
+			$id = (int) ( $s['id'] ?? 0 );
+			$sel = $id === $importId ? ' selected' : '';
+			$importOpts .= '<option value="' . $id . '"' . $sel . '>#' . $id . ' '
+				. htmlspecialchars( (string) ( $s['status'] ?? '' ), ENT_QUOTES, 'UTF-8' ) . '</option>';
+		}
+		if ( '' === $importOpts ) {
+			$importOpts = '<option value="1">#1 (criar import antes, se necessário)</option>';
+		}
+
+		$body = '<div class="ve-card"><h1>Parcelas Shamir</h1>'
+			. '<p class="ve-muted">Cada autoridade sobe a sua parcela. Sem autoridades neste nó e sem submissões suficientes, o limiar Shamir não é atingido e a contagem não pode avançar.</p>'
+			. ( $officialN < 1
+				? '<p class="ve-muted"><a href="/painel/autoridades">Importar autoridades</a> primeiro.</p>'
+				: '' )
+			. ( $msg ? '<p class="ve-muted">' . htmlspecialchars( $msg, ENT_QUOTES, 'UTF-8' ) . '</p>' : '' )
+			. '<form method="post" enctype="multipart/form-data" action="/painel/parcelas">'
+			. '<label class="ve-field"><span>Import de apuração</span><select name="import_id">' . $importOpts . '</select></label>'
+			. '<label class="ve-field"><span>JSON da parcela</span><textarea name="share_json" rows="8" placeholder="{ … share payload … }"></textarea></label>'
+			. '<label class="ve-field"><span>Ou ficheiro parcela-*.json</span><input type="file" name="share_file" accept=".json,application/json" /></label>'
+			. '<div class="ve-actions"><button type="submit">Submeter parcela</button>'
+			. '<a class="secondary" href="/painel/autoridades">Autoridades</a></div></form></div>'
+			. '<div class="ve-card"><h2>Submissões (import #' . (int) $importId . ')</h2>'
+			. '<p class="ve-muted">Progresso: ' . htmlspecialchars( $progress, ENT_QUOTES, 'UTF-8' ) . '</p>'
+			. '<table class="ve-table"><thead><tr><th>Índice</th><th>Autoridade</th><th>Quando</th></tr></thead><tbody>'
+			. $subRows . '</tbody></table></div>';
+		return $this->page( 'Parcelas', $body );
+	}
+
+	private function sessionUserCanSubmitShare(): bool {
+		$user = $this->node->users->findById( $this->session->currentUserId() );
+		if ( null === $user ) {
+			return false;
+		}
+		$roles = array_map( 'strval', (array) ( $user['roles'] ?? array() ) );
+		return in_array( UserRegistryRoles::ROLE_OFFICIAL, $roles, true )
+			|| in_array( UserRegistryRoles::ROLE_ADMIN, $roles, true );
 	}
 
 	private function courier( Request $req ): Response {
@@ -612,6 +843,7 @@ final class HttpKernel {
 		}
 		$body = '<div class="ve-card"><h1>Certificação</h1>'
 			. ( $msg ? '<p class="ve-muted">' . htmlspecialchars( $msg, ENT_QUOTES, 'UTF-8' ) . '</p>' : '' )
+			. '<p class="ve-muted">Só faz sentido após o limiar Shamir em <a href="/painel/parcelas">/painel/parcelas</a> (autoridades a submeter parcelas).</p>'
 			. '<form method="post"><label class="ve-field"><span>Import ID</span><input name="import_id" value="1" /></label>'
 			. '<div class="ve-actions"><button type="submit">Criar certificação</button></div></form>'
 			. '<p class="ve-muted">Para apuração criptográfica completa use o piloto E3 (`ve-node pilot`) com as parcelas no courier; esta UI regista o artefacto no nó.</p></div>';
