@@ -459,20 +459,31 @@ final class HttpKernel {
 
 	private function keygen( Request $req ): Response {
 		$this->node->requireMode( SiteModes::KEY_AUTHORITY );
-		$msg       = '';
+		$msg       = trim( $req->query( 'msg', '' ) );
 		$officials = $this->node->users->listByRole( UserRegistryRoles::ROLE_OFFICIAL );
 		$officialN = count( $officials );
 		$wantsStream = $this->wantsKeygenProgress( $req );
 
-		if ( 'POST' === $req->method && $wantsStream ) {
+		if ( 'POST' === $req->method && 'delete_key' === $req->input( 'action' ) ) {
+			$del = $this->executeDeleteKey( $req );
+			$msg = (string) ( $del['message'] ?? '' );
+			if ( $this->wantsJson( $req ) ) {
+				return Response::json(
+					array(
+						'ok'      => ! empty( $del['ok'] ),
+						'message' => $msg,
+						'key_id'  => $del['key_id'] ?? null,
+					),
+					! empty( $del['ok'] ) ? 200 : 422
+				);
+			}
+		} elseif ( 'POST' === $req->method && $wantsStream ) {
 			return Response::ndjsonStream(
 				function () use ( $req, $officials, $officialN ): void {
 					$this->streamKeygenProgress( $req, $officials, $officialN );
 				}
 			);
-		}
-
-		if ( 'POST' === $req->method ) {
+		} elseif ( 'POST' === $req->method ) {
 			$result = $this->executeKeygen(
 				$req,
 				$officials,
@@ -821,6 +832,8 @@ final class HttpKernel {
 
 	private function renderActiveKeysTable(): string {
 		$keys = $this->node->persistence->keys->listActive();
+		$confirmWord = $this->i18n->destructiveConfirmWord();
+		$confirmEsc  = htmlspecialchars( $confirmWord, ENT_QUOTES, 'UTF-8' );
 		$list = '<table class="ve-table"><thead><tr><th>ID</th><th>Rótulo</th><th>Tamanho</th><th>Técnico</th><th>t/n</th><th>Ações</th></tr></thead><tbody>';
 		foreach ( $keys as $k ) {
 			$kid   = (int) $k['id'];
@@ -840,14 +853,63 @@ final class HttpKernel {
 				. (int) ( $k['threshold'] ?? 0 ) . '/' . (int) ( $k['total_shares'] ?? 0 )
 				. '</td><td class="ve-actions" style="margin:0">'
 				. '<a href="/painel/chave/' . $kid . '">Ver / copiar</a> '
-				. '<a class="secondary" href="/painel/chave/' . $kid . '.json">Exportar JSON</a>'
+				. '<a class="secondary" href="/painel/chave/' . $kid . '.json">Exportar JSON</a> '
+				. '<a class="secondary" href="/painel/chave/' . $kid . '#eliminar">Eliminar</a>'
 				. '</td></tr>';
 		}
 		if ( ! $keys ) {
 			$list .= '<tr><td colspan="6" class="ve-muted">Nenhuma chave ativa.</td></tr>';
 		}
 		$list .= '</tbody></table>';
+		$list .= '<p class="ve-muted" style="margin-top:0.75rem">Para eliminar, abrir a chave e digitar exactamente '
+			. '<code>' . $confirmEsc . '</code> (respeita maiúsculas/minúsculas; locale '
+			. htmlspecialchars( $this->i18n->locale(), ENT_QUOTES, 'UTF-8' ) . ').</p>';
 		return $list;
+	}
+
+	/**
+	 * @return array{ok:bool,message:string,key_id?:int}
+	 */
+	private function executeDeleteKey( Request $req ): array {
+		$keyId = (int) $req->input( 'key_id', '0' );
+		$typed = $req->input( 'confirm_word', '' );
+		$word  = $this->i18n->destructiveConfirmWord();
+
+		if ( $keyId < 1 ) {
+			return array(
+				'ok'      => false,
+				'message' => 'ID de chave inválido.',
+			);
+		}
+		if ( ! $this->i18n->matchesDestructiveConfirm( $typed ) ) {
+			return array(
+				'ok'      => false,
+				'key_id'  => $keyId,
+				'message' => 'Eliminação cancelada. Digitar exactamente «' . $word . '» (case-sensitive) para confirmar.',
+			);
+		}
+		$row = $this->findKeyRow( $keyId );
+		if ( null === $row ) {
+			return array(
+				'ok'      => false,
+				'key_id'  => $keyId,
+				'message' => 'Chave não encontrada ou já eliminada.',
+			);
+		}
+		$label = (string) ( $row['display_name'] ?? $row['key_label'] ?? ( 'Chave #' . $keyId ) );
+		$ok    = $this->node->persistence->keys->trash( $keyId );
+		if ( ! $ok ) {
+			return array(
+				'ok'      => false,
+				'key_id'  => $keyId,
+				'message' => 'Não foi possível eliminar a chave.',
+			);
+		}
+		return array(
+			'ok'      => true,
+			'key_id'  => $keyId,
+			'message' => 'Chave «' . $label . '» (#' . $keyId . ') eliminada (removida das chaves ativas).',
+		);
 	}
 
 	/**
@@ -885,6 +947,32 @@ final class HttpKernel {
 
 	private function chavePublica( Request $req, int $keyId, bool $asJson ): Response {
 		$this->node->requireMode( SiteModes::KEY_AUTHORITY );
+		$flash = '';
+
+		if ( ! $asJson && 'POST' === $req->method && 'delete_key' === $req->input( 'action' ) ) {
+			$del = $this->executeDeleteKey(
+				new Request(
+					$req->method,
+					$req->path,
+					$req->get,
+					array_merge(
+						$req->post,
+						array(
+							'action'       => 'delete_key',
+							'key_id'       => (string) $keyId,
+							'confirm_word' => $req->input( 'confirm_word', '' ),
+						)
+					),
+					$req->cookies,
+					$req->server
+				)
+			);
+			if ( ! empty( $del['ok'] ) ) {
+				return Response::redirect( '/painel/keygen?msg=' . rawurlencode( (string) $del['message'] ) );
+			}
+			$flash = (string) ( $del['message'] ?? 'Eliminação falhou.' );
+		}
+
 		$row = $this->findKeyRow( $keyId );
 		if ( null === $row ) {
 			return Response::html(
@@ -911,7 +999,10 @@ final class HttpKernel {
 		$bits  = $this->resolveKeySizeBits( $row );
 		$bitsLabel = htmlspecialchars( $this->formatKeySizeLabel( $bits ), ENT_QUOTES, 'UTF-8' );
 		$esc   = htmlspecialchars( $json, ENT_QUOTES, 'UTF-8' );
+		$confirmWord = $this->i18n->destructiveConfirmWord();
+		$confirmEsc  = htmlspecialchars( $confirmWord, ENT_QUOTES, 'UTF-8' );
 		$body  = '<div class="ve-card"><h1>Chave pública</h1>'
+			. ( $flash ? '<p class="ve-muted">' . htmlspecialchars( $flash, ENT_QUOTES, 'UTF-8' ) . '</p>' : '' )
 			. '<p><strong>' . $human . '</strong></p>'
 			. '<p class="ve-muted">Identificador técnico: <code>' . $tech . '</code> · ID #' . $keyId
 			. ' · <strong class="ve-key-bits">' . $bitsLabel . '</strong>'
@@ -926,6 +1017,17 @@ final class HttpKernel {
 			. '<a class="secondary" href="/painel/keygen">Voltar às chaves</a>'
 			. '</div>'
 			. '<p id="ve-copy-flash" class="ve-muted" hidden>JSON copiado.</p></div>'
+			. '<div class="ve-card" id="eliminar"><h2>Eliminar chave</h2>'
+			. '<p class="ve-muted">Acção destrutiva: a chave deixa de aparecer nas chaves ativas. Digitar exactamente '
+			. '<code>' . $confirmEsc . '</code> (case-sensitive; locale '
+			. htmlspecialchars( $this->i18n->locale(), ENT_QUOTES, 'UTF-8' ) . ').</p>'
+			. '<form method="post" action="/painel/chave/' . $keyId . '">'
+			. '<input type="hidden" name="action" value="delete_key" />'
+			. '<input type="hidden" name="key_id" value="' . $keyId . '" />'
+			. '<label class="ve-field"><span>Confirmação</span>'
+			. '<input name="confirm_word" autocomplete="off" spellcheck="false" required placeholder="' . $confirmEsc . '" /></label>'
+			. '<div class="ve-actions"><button type="submit">Eliminar chave</button></div>'
+			. '</form></div>'
 			. '<script>(function(){var b=document.getElementById("ve-copy-pubkey");var t=document.getElementById("ve-pubkey-json");var f=document.getElementById("ve-copy-flash");if(!b||!t)return;b.addEventListener("click",function(){t.select();t.setSelectionRange(0,t.value.length);var ok=false;if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t.value).then(function(){ok=true;if(f){f.hidden=false;f.textContent="JSON copiado.";}}).catch(function(){});}if(!ok){try{ok=document.execCommand("copy");}catch(e){}if(f){f.hidden=false;f.textContent=ok?"JSON copiado.":"Selecionar o texto e copiar manualmente.";}});})();</script>';
 		return $this->page( 'Chave pública', $body );
 	}

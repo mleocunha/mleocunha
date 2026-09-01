@@ -22,7 +22,7 @@ class ConfirmWord {
 	}
 
 	/**
-	 * Whether typed text matches the required confirmation word.
+	 * Whether typed text matches the required confirmation word (case-sensitive).
 	 *
 	 * @param string $typed User input.
 	 */
@@ -32,6 +32,6 @@ class ConfirmWord {
 		if ( '' === $rses_expected || '' === $rses_typed ) {
 			return false;
 		}
-		return 0 === strcasecmp( $rses_typed, $rses_expected );
+		return $rses_typed === $rses_expected;
 	}
 }
