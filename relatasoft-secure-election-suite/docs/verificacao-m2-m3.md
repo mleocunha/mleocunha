@@ -18,7 +18,7 @@ Auditoria pós-pipeline GitHub Actions. Objectivo: fechar gaps residuales e conf
 ### Residual aceitável (Adapter #1)
 
 - `$wpdb` / `Database\Repository` **só** em `src/Adapters/WordPress/Persistence/**`
-- Anexos de mídia do PDF assinado (ficheiros) continuam no host; o **meta** está no port
+- Anexos de mídia do PDF assinado (arquivos) continuam no host; o **meta** está no port
 - `ModeLock::rses_truncate_all_tables` — ops de reset, fora do CRUD de domínio
 
 **Veredicto M2:** PASS

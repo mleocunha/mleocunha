@@ -4,7 +4,7 @@ Formato de importação/exportação do cadastro unificado no sítio de **votaç
 
 ## O que é
 
-Ficheiro de texto com colunas separadas por `:` e linhas por `;` (ver `RsvFormat`). Papéis em português:
+Arquivo de texto com colunas separadas por `:` e linhas por `;` (ver `RsvFormat`). Papéis em português:
 
 | Papel no `.rsv` | Função no sítio |
 |-----------------|-----------------|
@@ -18,7 +18,7 @@ Ficheiro de texto com colunas separadas por `:` e linhas por `;` (ver `RsvFormat
 
 1. Abrir **Cadastro Eleitoral** no Painel (modo votação para import/export).
 2. Importar `.rsv` (job assíncrono) ou exportar por papel.
-3. Cada exportação gera **um papel por ficheiro** — não misturar papéis no mesmo download.
+3. Cada exportação gera **um papel por arquivo** — não misturar papéis no mesmo download.
 4. Não há sincronização automática entre os 3 sítios: o courier de material crypto é independente do cadastro.
 
 ## Isolamento E3

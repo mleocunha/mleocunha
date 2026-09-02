@@ -6,7 +6,7 @@ namespace RelataSoft\SecureElectionSuite\Painel\Contracts\Mode;
 /**
  * Modos canónicos de sítio — vocabulário único do domínio (E3 / C1 / A6).
  *
- * Regra de produto: 1 cliente = 3 sítios isolados, cada um com exactamente
+ * Regra de produto: 1 cliente = 3 sítios isolados, cada um com exatamente
  * um papel. Não existe modo “tudo-em-um”. Não há sincronização automática
  * entre sítios; material criptográfico e resultados viajam só por courier manual.
  *

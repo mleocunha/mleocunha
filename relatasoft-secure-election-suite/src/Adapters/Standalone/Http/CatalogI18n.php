@@ -57,7 +57,7 @@ final class CatalogI18n {
 	}
 
 	/**
-	 * Palavra que o administrador deve digitar para acções destrutivas.
+	 * Palavra que o administrador deve digitar para ações destrutivas.
 	 * Case-sensitive; msgid inglês «Confirm»; pt_BR → «Confirmo».
 	 */
 	public function destructiveConfirmWord(): string {
@@ -66,7 +66,7 @@ final class CatalogI18n {
 	}
 
 	/**
-	 * Comparação exacta (case-sensitive) após trim.
+	 * Comparação exata (case-sensitive) após trim.
 	 */
 	public function matchesDestructiveConfirm( string $typed ): bool {
 		$expected = $this->destructiveConfirmWord();

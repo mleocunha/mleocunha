@@ -26,7 +26,7 @@ Gate M6: **3 nós** de um cliente **sem host legado**, material só via courier 
 
 - `PublicKeyPackage` / `VoteMaterialPackage` rejeitam pacotes com `private_x`
 - Tallying lê material **só** via `MaterialCourier::readJson` (sem `file_get_contents` directo)
-- Testes: env mode lock, rejeição de `private_x`, path traversal do courier, ficheiros do courier sem `private_x`, gateways distintos
+- Testes: env mode lock, rejeição de `private_x`, path traversal do courier, arquivos do courier sem `private_x`, gateways distintos
 
 ## Residual aceitável (pós-M6)
 

@@ -1,6 +1,6 @@
-# Activar o Voto Eletrônico (standalone)
+# Ativar o Voto Eletrônico (standalone)
 
-Guia de activação **do zero**: um processo PHP por nó, sem CMS hospedeiro.
+Guia de ativação **do zero**: um processo PHP por nó, sem CMS hospedeiro.
 
 **Âmbito deste guia:** pôr o software a correr (lab, demonstração ou primeiro nó).  
 Três processos no mesmo anfitrião são a configuração **correcta para testes e demonstrações**.  
@@ -42,7 +42,7 @@ sudo mkdir -p /var/lib/ve/{ka,voting,tallying,courier}
 sudo chown -R ve-operador:ve-operador /var/lib/ve
 ```
 
-Com `--data=/var/lib/ve/ka`, o courier por omissão é `/var/lib/ve/courier`.
+Com `--data=/var/lib/ve/ka`, o courier por padrão é `/var/lib/ve/courier`.
 
 ### D. Credenciais iniciais
 
@@ -56,7 +56,7 @@ Produção: definir senha forte **antes** do primeiro arranque HTTP de cada nó
 
 ### E. Arrancar
 
-**Testes / demonstração** (três processos no mesmo host — esperado e correcto):
+**Testes / demonstração** (três processos no mesmo host — esperado e correto):
 
 ```bash
 cd /home/votoeletronico/relatasoft-secure-election-suite   # exemplo
@@ -121,7 +121,7 @@ Colocar TLS no nginx à frente; PHP só em loopback. Ver `docs/operacao-standalo
 
 ## O que *não* fazer
 
-- Não activar como plugin de CMS.
+- Não ativar como plugin de CMS.
 - Não reutilizar o mesmo `VE_DATA` em dois processos.
 - Não expor a porta do PHP sem TLS / controlo de acesso.
 - Não deixar `AdminPoC1!` acessível em rede.

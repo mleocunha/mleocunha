@@ -60,7 +60,7 @@ final class RsvFormat {
 	}
 
 	/**
-	 * Parte uma linha .rsv em campos (exactamente count(HEADERS)).
+	 * Parte uma linha .rsv em campos (exatamente count(HEADERS)).
 	 *
 	 * @return list<string>|null Null se o número de campos for inválido.
 	 */

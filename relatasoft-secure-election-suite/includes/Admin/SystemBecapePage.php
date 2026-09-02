@@ -109,7 +109,7 @@ class SystemBecapePage {
 			<section class="ve-system-card ve-system-card--danger">
 				<h2><?php esc_html_e( 'Restaurar a partir de becape', 'relatasoft-secure-election-suite' ); ?></h2>
 				<p class="ve-system-muted">
-					<?php esc_html_e( 'Operação destrutiva: substitui arquivos e base de dados pelo conteúdo do pacote. Digite RESTAURAR para confirmar.', 'relatasoft-secure-election-suite' ); ?>
+					<?php esc_html_e( 'Operação destrutiva: substitui arquivos e base de dados pelo conteúdo do pacote. Digitar RESTAURAR para confirmar.', 'relatasoft-secure-election-suite' ); ?>
 				</p>
 				<form method="post" enctype="multipart/form-data" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="ve-system-restore-form">
 					<input type="hidden" name="action" value="ve_becape_restore" />

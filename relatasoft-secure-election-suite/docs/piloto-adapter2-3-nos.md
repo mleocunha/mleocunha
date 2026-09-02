@@ -1,9 +1,9 @@
 # LEGADO — Piloto Adapter #2 (gate M6 / CLI)
 
-> **Procedimento actual de activação e piloto HTTP:**  
-> [`activar-standalone.md`](activar-standalone.md) · [`piloto-3-nos.md`](piloto-3-nos.md) · [`operacao-standalone.md`](operacao-standalone.md)
+> **Procedimento atual de ativação e piloto HTTP:**  
+> [`ativar-standalone.md`](ativar-standalone.md) · [`piloto-3-nos.md`](piloto-3-nos.md) · [`operacao-standalone.md`](operacao-standalone.md)
 
-Este ficheiro conserva o guião **histórico** do gate M6 (`bin/ve-node pilot`,
+Este arquivo conserva o guião **histórico** do gate M6 (`bin/ve-node pilot`,
 persistência JSON, courier). A superfície suportada para operadores e eleitores
 é o **standalone HTTP** (`index.php` / `bin/ve-http`).
 

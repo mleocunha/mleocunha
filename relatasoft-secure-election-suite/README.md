@@ -1,7 +1,7 @@
 # Voto Eletrônico — Suite Segura (standalone)
 
 Pacote PHP autónomo: domínio criptográfico (ElGamal, Feldman/Shamir, Schnorr, E3),
-persistência em ficheiros por nó, e **interface HTTP** para operador e eleitor.
+persistência em arquivos por nó, e **interface HTTP** para operador e eleitor.
 
 **Um processo = um nó = um modo E3.** Um cliente típico = **três sítios** isolados
 (três processos + três árvores de dados). Não há sincronização automática entre sítios.
@@ -29,7 +29,7 @@ Modos (`VE_MODE` / `RSES_MODE`):
 - Composer 2
 - Linux recomendado em piloto/produção
 
-## Activar (do zero)
+## Ativar (do zero)
 
 ### 1. Instalar dependências
 
@@ -90,7 +90,7 @@ php -S 10.42.0.1:8889 index.php
 | `VE_ADMIN_PASS` | Senha do 1.º administrador | `AdminPoC1!` |
 
 Na **primeira** execução HTTP, se ainda não existir administrador em `identity.json`,
-o sistema cria um com `VE_ADMIN_LOGIN` / `VE_ADMIN_PASS`. **Alterar a omissão** antes
+o sistema cria um com `VE_ADMIN_LOGIN` / `VE_ADMIN_PASS`. **Alterar o padrão** antes
 de exposição em rede.
 
 ### 4. Abrir no navegador
@@ -117,7 +117,7 @@ location / {
 
 Definir `VE_PUBLIC_BASE=https://voto.exemplo.gov.br` no processo PHP.
 
-Documentação: [`docs/activar-standalone.md`](docs/activar-standalone.md),
+Documentação: [`docs/ativar-standalone.md`](docs/ativar-standalone.md),
 [`docs/operacao-standalone.md`](docs/operacao-standalone.md).
 
 ## Ciclo operador (resumo)
@@ -126,7 +126,7 @@ Documentação: [`docs/activar-standalone.md`](docs/activar-standalone.md),
 2. **Voting** — importar autoridades (acompanhamento / validade jurídica) → cadastro `.rsv` → `/voto` → courier (material).
 3. **Tallying** — importar autoridades → importar material → cada autoridade submete a sua parcela em `/painel/parcelas` até ao **limiar Shamir** → certificar.
 
-A interface HTTP usa **PT-BR** por omissão (infinitivos nas acções). `VE_LOCALE` pode forçar outro catálogo. A chave privada é limpa da memória após a divisão Shamir e **não** é gravada no nó.
+A interface HTTP usa **PT-BR** por padrão (infinitivos nas ações). `VE_LOCALE` pode forçar outro catálogo. A chave privada é limpa da memória após a divisão Shamir e **não** é gravada no nó.
 
 Piloto criptográfico CLI (sem browser): `php bin/ve-node pilot --root=/tmp/ve-piloto`.
 
@@ -153,22 +153,22 @@ index.php                 # front controller HTTP
 bin/ve-http               # servidor embutido (um modo por processo)
 bin/ve-node               # piloto / utilitários de nó
 src/Domain/               # criptografia, eleição, cadastro, material
-src/Adapters/Standalone/  # ficheiros, HTTP, identidade, sessões
+src/Adapters/Standalone/  # arquivos, HTTP, identidade, sessões
 assets/                   # CSS da UI
-docs/                     # activação, operação, verificação
+docs/                     # ativação, operação, verificação
 ```
 
 ## Segurança
 
 - Não partilhar `VE_DATA` nem segredos entre nós.
-- Não registar parcelas em claro em auditoria.
+- Não registrar parcelas em claro em auditoria.
 - Ver [`SECURITY.md`](SECURITY.md).
 
 ## Documentação
 
 | Documento | Conteúdo |
 |-----------|----------|
-| [`docs/activar-standalone.md`](docs/activar-standalone.md) | Instalação e primeiro arranque |
+| [`docs/ativar-standalone.md`](docs/ativar-standalone.md) | Instalação e primeiro arranque |
 | [`docs/operacao-standalone.md`](docs/operacao-standalone.md) | Três nós, courier, becape, proxy |
 | [`docs/verificacao-http-standalone.md`](docs/verificacao-http-standalone.md) | Checklist HTTP |
 | [`docs/piloto-3-nos.md`](docs/piloto-3-nos.md) | Guião de piloto |

@@ -41,7 +41,7 @@ final class HttpKernel {
 		?string $acceptLanguage = null,
 	) {
 		$this->packageRoot = rtrim( $packageRoot, '/\\' );
-		// Interface do produto: PT-BR por omissão (infinitivos). VE_LOCALE pode forçar outro catálogo.
+		// Interface do produto: PT-BR por padrão (infinitivos). VE_LOCALE pode forçar outro catálogo.
 		$envLocale = (string) ( getenv( 'VE_LOCALE' ) ?: '' );
 		$locale    = '' !== $envLocale
 			? CatalogI18n::fromAcceptLanguage( $envLocale, 'pt_BR' )
@@ -192,7 +192,7 @@ final class HttpKernel {
 					)
 				);
 			}
-			$error = 'Login ou senha incorrectos.';
+			$error = 'Login ou senha incorretos.';
 		}
 		$body = '<div class="ve-card"><h1>Entrar</h1>'
 			. ( $error ? '<p class="ve-muted">' . htmlspecialchars( $error, ENT_QUOTES, 'UTF-8' ) . '</p>' : '' )
@@ -265,7 +265,7 @@ final class HttpKernel {
 				$text = (string) file_get_contents( $tmp );
 				$res  = RsvImporter::importText( $text, $this->node->users, true );
 				$msg  = sprintf(
-					'Importação: criados %d, actualizados %d, ignorados %d, erros %d.',
+					'Importação: criados %d, atualizados %d, ignorados %d, erros %d.',
 					$res['created'],
 					$res['updated'],
 					$res['skipped'],
@@ -385,7 +385,7 @@ final class HttpKernel {
 				. ' do courier</button></div></form>'
 				. '<form method="post" enctype="multipart/form-data" action="/painel/autoridades" style="margin-top:0.75rem">'
 				. '<input type="hidden" name="action" value="import_upload" />'
-				. '<label class="ve-field"><span>Ficheiro JSON</span><input type="file" name="package" accept=".json,application/json" required /></label>'
+				. '<label class="ve-field"><span>Arquivo JSON</span><input type="file" name="package" accept=".json,application/json" required /></label>'
 				. '<div class="ve-actions"><button type="submit">Importar upload</button></div></form></div>';
 		}
 
@@ -447,15 +447,15 @@ final class HttpKernel {
 
 	private function importAuthoritiesFromFile( FileJsonUserStore $users, string $file ): string {
 		if ( ! is_readable( $file ) ) {
-			return 'Ficheiro inacessível: ' . basename( $file );
+			return 'Arquivo inacessível: ' . basename( $file );
 		}
 		$pkg = AuthoritiesPackage::fromJson( (string) file_get_contents( $file ) );
 		if ( null === $pkg ) {
-			return 'Pacote inválido ou checksum incorrecto.';
+			return 'Pacote inválido ou checksum incorreto.';
 		}
 		$res = AuthoritiesDirectorySync::importPackage( $users, $pkg );
 		return sprintf(
-			'Importação: criados %d, actualizados %d, ignorados %d, erros %d.',
+			'Importação: criados %d, atualizados %d, ignorados %d, erros %d.',
 			$res['created'],
 			$res['updated'],
 			$res['skipped'],
@@ -647,7 +647,7 @@ final class HttpKernel {
 				return array(
 					'ok'      => false,
 					'active'  => false,
-					'message' => 'Uma das autoridades seleccionadas não é válida.',
+					'message' => 'Uma das autoridades selecionadas não é válida.',
 				);
 			}
 		}
@@ -781,7 +781,7 @@ final class HttpKernel {
 			$list .= '<tr><td colspan="6" class="ve-muted">Nenhuma chave ativa.</td></tr>';
 		}
 		$list .= '</tbody></table>';
-		$list .= '<p class="ve-muted" style="margin-top:0.75rem">Para eliminar, abrir a chave e digitar exactamente '
+		$list .= '<p class="ve-muted" style="margin-top:0.75rem">Para eliminar, abrir a chave e digitar exatamente '
 			. '<code>' . $confirmEsc . '</code> (respeita maiúsculas/minúsculas; locale '
 			. htmlspecialchars( $this->i18n->locale(), ENT_QUOTES, 'UTF-8' ) . ').</p>';
 		return $list;
@@ -805,7 +805,7 @@ final class HttpKernel {
 			return array(
 				'ok'      => false,
 				'key_id'  => $keyId,
-				'message' => 'Eliminação cancelada. Digitar exactamente «' . $word . '» (case-sensitive) para confirmar.',
+				'message' => 'Eliminação cancelada. Digitar exatamente «' . $word . '» (case-sensitive) para confirmar.',
 			);
 		}
 		$row = $this->findKeyRow( $keyId );
@@ -938,7 +938,7 @@ final class HttpKernel {
 			. '</div>'
 			. '<p id="ve-copy-flash" class="ve-muted" hidden>JSON copiado.</p></div>'
 			. '<div class="ve-card" id="eliminar"><h2>Eliminar chave</h2>'
-			. '<p class="ve-muted">Acção destrutiva: a chave deixa de aparecer nas chaves ativas. Digitar exactamente '
+			. '<p class="ve-muted">Ação destrutiva: a chave deixa de aparecer nas chaves ativas. Digitar exatamente '
 			. '<code>' . $confirmEsc . '</code> (case-sensitive; locale '
 			. htmlspecialchars( $this->i18n->locale(), ENT_QUOTES, 'UTF-8' ) . ').</p>'
 			. '<form method="post" action="/painel/chave/' . $keyId . '">'
@@ -1200,7 +1200,7 @@ HTML;
 			. '<form method="post" enctype="multipart/form-data" action="/painel/parcelas">'
 			. '<label class="ve-field"><span>Import de apuração</span><select name="import_id">' . $importOpts . '</select></label>'
 			. '<label class="ve-field"><span>JSON da parcela</span><textarea name="share_json" rows="8" placeholder="{ … share payload … }"></textarea></label>'
-			. '<label class="ve-field"><span>Ou ficheiro parcela-*.json</span><input type="file" name="share_file" accept=".json,application/json" /></label>'
+			. '<label class="ve-field"><span>Ou arquivo parcela-*.json</span><input type="file" name="share_file" accept=".json,application/json" /></label>'
 			. '<div class="ve-actions"><button type="submit">Submeter parcela</button>'
 			. '<a class="secondary" href="/painel/autoridades">Autoridades</a></div></form></div>'
 			. '<div class="ve-card"><h2>Submissões (import #' . (int) $importId . ')</h2>'
@@ -1248,7 +1248,7 @@ HTML;
 			. ( $msg ? '<p class="ve-muted">' . htmlspecialchars( $msg, ENT_QUOTES, 'UTF-8' ) . '</p>' : '' )
 			. '<form method="post" enctype="multipart/form-data"><label class="ve-field"><span>Enviar JSON</span><input type="file" name="material" required /></label>'
 			. '<div class="ve-actions"><button type="submit">Carregar</button></div></form></div>'
-			. '<div class="ve-card"><h2>Ficheiros</h2>' . $list . '</div>';
+			. '<div class="ve-card"><h2>Arquivos</h2>' . $list . '</div>';
 		return $this->page( 'Courier', $body );
 	}
 
@@ -1317,14 +1317,14 @@ HTML;
 					'note'       => 'Certificação HTTP mínima — completar reconstrução via piloto/courier.',
 				)
 			);
-			$msg = "Certificação #{$id} registada (rascunho).";
+			$msg = "Certificação #{$id} registrada (rascunho).";
 		}
 		$body = '<div class="ve-card"><h1>Certificação</h1>'
 			. ( $msg ? '<p class="ve-muted">' . htmlspecialchars( $msg, ENT_QUOTES, 'UTF-8' ) . '</p>' : '' )
 			. '<p class="ve-muted">Só faz sentido após o limiar Shamir em <a href="/painel/parcelas">/painel/parcelas</a> (autoridades a submeter parcelas).</p>'
 			. '<form method="post"><label class="ve-field"><span>Import ID</span><input name="import_id" value="1" /></label>'
 			. '<div class="ve-actions"><button type="submit">Criar certificação</button></div></form>'
-			. '<p class="ve-muted">Para apuração criptográfica completa use o piloto E3 (`ve-node pilot`) com as parcelas no courier; esta UI regista o artefacto no nó.</p></div>';
+			. '<p class="ve-muted">Para apuração criptográfica completa use o piloto E3 (`ve-node pilot`) com as parcelas no courier; esta UI registra o artefato no nó.</p></div>';
 		return $this->page( 'Certificação', $body );
 	}
 
@@ -1353,7 +1353,7 @@ HTML;
 				. '<form method="post" action="/voto/cabina"><label class="ve-field"><span>Escolha</span>'
 				. '<select name="choice"><option value="1">Sim / opção A</option><option value="0">Não / opção B</option></select></label>'
 				. '<div class="ve-actions"><button type="submit">Confirmar voto</button></div></form></div>',
-			JourneySteps::THANK_YOU => '<div class="ve-card"><h1>Voto registado</h1><p class="ve-muted">Obrigado. Recibo em baixo (se aplicável).</p>'
+			JourneySteps::THANK_YOU => '<div class="ve-card"><h1>Voto registrado</h1><p class="ve-muted">Obrigado. Recibo abaixo (se aplicável).</p>'
 				. '<p><code>' . htmlspecialchars( $req->query( 'receipt', '' ), ENT_QUOTES, 'UTF-8' ) . '</code></p>'
 				. '<div class="ve-actions"><a href="/voto">Voltar</a></div></div>',
 			default => '<div class="ve-card"><p>Passo desconhecido.</p></div>',

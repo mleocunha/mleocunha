@@ -18,7 +18,7 @@
 | Caminho crítico | Identificação + gestão contínua (§5–§6) |
 | Custo / recursos | UE e paralelismo (§3.2, §6.3) |
 | Qualidade | Portões (gates) por fase (§4) |
-| Riscos | Registo e resposta (§7) |
+| Riscos | Registro e resposta (§7) |
 | Stakeholders | Operadores, P&D, futuros hosts (§8) |
 | Integração / mudanças | Controlo de baseline do caminho crítico (§6.4) |
 | Aquisições | Fora de escopo (host próprio ou adapter interno) |
@@ -208,11 +208,11 @@ flowchart LR
 
 ### 6.2 Ritmo de monitorização
 
-| Cadência | Acção |
+| Cadência | Ação |
 |----------|--------|
 | Cada incremento / PR relevante ao CP | Verificar se a atividade ainda é FS com o predecessor fechado (gate) |
-| Fim de cada atividade A* | Actualizar “% concluído”, UE gasto vs UE planeado, risco residual |
-| Ao falhar um gate (M1–M6) | Abrir acção correctiva **no mesmo nó** (não saltar para o sucessor) |
+| Fim de cada atividade A* | Atualizar “% concluído”, UE gasto vs UE planeado, risco residual |
+| Ao falhar um gate (M1–M6) | Abrir ação corretiva **no mesmo nó** (não saltar para o sucessor) |
 | Quando B* competir com A* | Decisão explícita: B só se CP tiver capacidade ociosa ou pessoa fora do CP |
 
 ### 6.3 Técnicas de compressão (se o CP precisar encolher)
@@ -250,7 +250,7 @@ exige:
 
 ---
 
-## 7. Riscos (registo resumido)
+## 7. Riscos (registro resumido)
 
 | ID | Risco | Impacto no CP | Resposta |
 |----|-------|---------------|----------|
@@ -269,7 +269,7 @@ exige:
 |-------------|-----------|----------------|
 | Operadores eleitorais | Continuidade nos 3 sítios | Independência **não** muda o modelo 3 sítios isolados |
 | P&D / arquitectura | Ports e testes | Adapter #1 permanece até M6 |
-| Futuro orquestrador (E2) | Multi-cliente | Consome M3+; não é o CP actual |
+| Futuro orquestrador (E2) | Multi-cliente | Consome M3+; não é o CP atual |
 | Segurança | Isolamento + máscara | C* pode parar o CP |
 
 ---
@@ -296,7 +296,7 @@ exige:
 
 ---
 
-## 10. Estado actual (baseline de progresso)
+## 10. Estado atual (baseline de progresso)
 
 | Nó | Estado aproximado |
 |----|-------------------|
@@ -305,25 +305,25 @@ exige:
 | A2 | **Feito (gate M2)** — ports em `src/Contracts/{Keys,Elections,Votes,Tallies,Audit}` + `SignedResultsStore`; InMemory + Adapter #1; `PersistenceGateway`; facades legadas sem `$wpdb`/`get_option` nas operações de domínio (manutenção de imports e signed results via ports); CI cobre `PersistencePortsTest` |
 | A3 | **Feito (gate M3)** — ports UserDirectory (`countByRole`) / CapabilityResolver / SessionPort / SecretKeyProvider; `IdentityGateway`; RSV, autoridades, cadastro de usuários e cast via ports; papéis em `UserRegistryRoles` (Domain); `ShareEncryptionService` sem sais do host; CI cobre `IdentityPortsTest` |
 | A4 | **Feito (gate M4)** — `JobStore` + job services + `JobGateway` + `JobResult`; estado só no adapter (`WordPressJobStore`); AJAX/download clientes finos; CI cobre `JobPortsTest` |
-| A5 | **Feito (gate M5)** — rotas nativas `/voto`, `/voto/cabina`, `/voto/obrigado`; `JourneyUrlGenerator` / `JourneyRouteResolver` / `JourneyPresenter` + `JourneyGateway`; shortcodes e páginas do host são adaptadores finos **opt-in** (sem provisionamento na activação); verificação `docs/verificacao-m5.md`; CI cobre `JourneyPortsTest` |
+| A5 | **Feito (gate M5)** — rotas nativas `/voto`, `/voto/cabina`, `/voto/obrigado`; `JourneyUrlGenerator` / `JourneyRouteResolver` / `JourneyPresenter` + `JourneyGateway`; shortcodes e páginas do host são adaptadores finos **opt-in** (sem provisionamento na ativação); verificação `docs/verificacao-m5.md`; CI cobre `JourneyPortsTest` |
 | A6 | **Feito (gate M6)** — Adapter #2 `Standalone` (`NodeRuntime`, `ModePort`/`EnvModeLock`, `ThreeNodePilot`, `bin/ve-node`); 3 nós isolados + courier manual; crypto real sem host; pacotes recusam `private_x`; verificação `docs/verificacao-m6.md`; CI cobre `ThreeNodePilotTest` + smoke `ve-node pilot` |
 | A6.1 | **Feito** — persistência JSON durável por nó (`StandalonePersistenceFactory` / `persistence.json`); Identity/Jobs InMemory; `docs/verificacao-a61-persistencia.md`; CI cobre `DurablePersistenceTest` |
-| B1–B6 | **Feito (fecho B\*)** — Cadastro `.rsv`, Auditor+stats, Conhecimento/E3, áudio/beep, E1 cliente nos pacotes, PT-BR nos ecrãs-chave; `docs/verificacao-b-star.md` |
+| B1–B6 | **Feito (fecho B\*)** — Cadastro `.rsv`, Auditor+stats, Conhecimento/E3, áudio/beep, E1 cliente nos pacotes, PT-BR nos telas-chave; `docs/verificacao-b-star.md` |
 | C1–C3 | **Feito (fecho C\*)** — ModeLock↔SiteModes; máscara 404 (`publicAccessDecision` + smoke); guards becape/módulos + Autoteste PT; `docs/verificacao-c-star.md` |
-| HTTP standalone | **Feito (mínimo piloto)** — `index.php` + `bin/ve-http` (default `10.42.0.1:8888`); identity JSON durável; login; painel 3 modos; RSV; `/voto`; courier; docs em `activar-standalone.md` / `piloto-3-nos.md` |
+| HTTP standalone | **Feito (mínimo piloto)** — `index.php` + `bin/ve-http` (default `10.42.0.1:8888`); identity JSON durável; login; painel 3 modos; RSV; `/voto`; courier; docs em `ativar-standalone.md` / `piloto-3-nos.md` |
 
-**Caminho crítico A0→A6 concluído** (gates M1–M6). Persistência A6.1 e UI HTTP mínima standalone disponíveis. Activação operacional: `README.md` + `docs/activar-standalone.md` (não usar procedimentos de plugin CMS).
+**Caminho crítico A0→A6 concluído** (gates M1–M6). Persistência A6.1 e UI HTTP mínima standalone disponíveis. Ativação operacional: `README.md` + `docs/ativar-standalone.md` (não usar procedimentos de plugin CMS).
 
 ---
 
 ## 11. Referências internas
 
 - `docs/architecture.md` — camadas Domain / Application / Adapters  
-- `docs/activar-standalone.md` / `docs/piloto-3-nos.md` — activação e piloto standalone  
-- `docs/conhecimento/implantacao-3wp.md` — modelo E3 (3 sítios); activação actual é standalone  
+- `docs/ativar-standalone.md` / `docs/piloto-3-nos.md` — ativação e piloto standalone  
+- `docs/conhecimento/implantacao-3wp.md` — modelo E3 (3 sítios); ativação atual é standalone  
 - `docs/wordpress-dependencies.md` — **legado** Adapter #1 / fachada hospedeiro  
 - `docs/glossary-pt.md` — termos de produto  
 
 ---
 
-*Baseline de rede CPM: versão inicial deste ficheiro. Actualizar a tabela §5.2 e o estado §10 a cada gate M\* concluído.*
+*Baseline de rede CPM: versão inicial deste arquivo. Atualizar a tabela §5.2 e o estado §10 a cada gate M\* concluído.*

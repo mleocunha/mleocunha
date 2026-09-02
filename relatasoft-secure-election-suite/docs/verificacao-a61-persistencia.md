@@ -6,8 +6,8 @@ Incremento pós-M6: cada nó standalone sobrevive a **restart do processo** sem 
 
 | | |
 |--|--|
-| **Go** | Keys / elections / votes / tallies / audit em ficheiro por nó (`persistence.json`); reload reconstitui estado |
-| **No-go** | Partilhar um único ficheiro entre os 3 nós; sync automático |
+| **Go** | Keys / elections / votes / tallies / audit em arquivo por nó (`persistence.json`); reload reconstitui estado |
+| **No-go** | Partilhar um único arquivo entre os 3 nós; sync automático |
 
 ## Evidência
 

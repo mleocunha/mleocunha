@@ -6,7 +6,7 @@ namespace RelataSoft\SecureElectionSuite\Painel\Adapters\Standalone\Jobs;
 use RelataSoft\SecureElectionSuite\Painel\Contracts\Jobs\JobStore;
 
 /**
- * Job store durável com ficheiro JSON + flock (worker e HTTP partilham o mesmo estado).
+ * Job store durável com arquivo JSON + flock (worker e HTTP partilham o mesmo estado).
  */
 final class JsonFileJobStore implements JobStore {
 

@@ -1,11 +1,11 @@
 # Implantação E3 — um cliente, três sítios
 
-> **Standalone HTTP (caminho actual):** [`../piloto-3-nos.md`](../piloto-3-nos.md), [`../activar-standalone.md`](../activar-standalone.md), [`../operacao-standalone.md`](../operacao-standalone.md).  
-> O modelo E3 abaixo permanece válido; a activação já **não** passa por CMS.
+> **Standalone HTTP (caminho atual):** [`../piloto-3-nos.md`](../piloto-3-nos.md), [`../ativar-standalone.md`](../ativar-standalone.md), [`../operacao-standalone.md`](../operacao-standalone.md).  
+> O modelo E3 abaixo permanece válido; a ativação já **não** passa por CMS.
 
 Modelo essencial RelataSoft: **1 cliente = 3 sítios**, preferencialmente em **nuvens distintas**.
 
-**Lab / demonstração:** três processos no mesmo anfitrião são correctos para ensaio.  
+**Lab / demonstração:** três processos no mesmo anfitrião são corretos para ensaio.  
 **Produção:** servidores independentes e segregados; administradores de sistemas distintos
 (preferencialmente que nem se conheçam); contratações e, preferencialmente, gestores de
 contrato independentes; todos respondendo à autoridade eleitoral superior,
@@ -44,4 +44,4 @@ Nunca compartilhar a chave privada completa entre sítios de votação.
 
 ## Piloto sem host legado (A6)
 
-O Adapter #2 (`Standalone`) reproduz esta topologia com três processos/pastas e um **courier** de ficheiros — ver `docs/piloto-adapter2-3-nos.md` e `php bin/ve-node pilot`.
+O Adapter #2 (`Standalone`) reproduz esta topologia com três processos/pastas e um **courier** de arquivos — ver `docs/piloto-adapter2-3-nos.md` e `php bin/ve-node pilot`.
