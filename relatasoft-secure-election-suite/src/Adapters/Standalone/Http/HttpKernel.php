@@ -91,6 +91,10 @@ final class HttpKernel {
 			return Response::redirect( '/login?next=' . rawurlencode( $path ) );
 		}
 
+		if ( preg_match( '#^/painel/courier/([^/]+)$#', $path, $cm ) ) {
+			return $this->courierDownload( (string) $cm[1] );
+		}
+
 		if ( preg_match( '#^/painel/chave/(\d+)(\.json)?$#', $path, $m ) ) {
 			return $this->chavePublica( $req, (int) $m[1], isset( $m[2] ) && '' !== $m[2] );
 		}
@@ -239,7 +243,7 @@ final class HttpKernel {
 			$cards .= $this->card( 'Importar apuração', 'Importar material de voto do courier.', '/painel/importar' );
 			$cards .= $this->card( 'Parcelas Shamir', 'Submeter parcelas até atingir o limiar.', '/painel/parcelas' );
 			$cards .= $this->card( 'Certificar', 'Registar certificação da apuração.', '/painel/certificar' );
-			$cards .= $this->card( 'Courier', 'Pasta de material entre nós.', '/painel/courier' );
+			$cards .= $this->card( 'Courier', 'Caixa de saída/entrada local — transferir manualmente para o outro sítio.', '/painel/courier' );
 		}
 		$user = $this->node->users->findById( $this->session->currentUserId() );
 		$who  = htmlspecialchars( (string) ( $user['login'] ?? '' ), ENT_QUOTES, 'UTF-8' );
@@ -312,7 +316,7 @@ final class HttpKernel {
 		if ( ! $users instanceof FileJsonUserStore ) {
 			throw new \RuntimeException( 'Autoridades require FileJsonUserStore.' );
 		}
-		$courierDir = dirname( $this->node->dataDir ) . '/courier';
+		$courierDir = $this->localCourierDir();
 
 		if ( 'POST' === $req->method ) {
 			$action = $req->input( 'action', 'create' );
@@ -411,6 +415,16 @@ final class HttpKernel {
 			. '<table class="ve-table"><thead><tr><th>ID</th><th>Nome</th><th>Login</th><th>E-mail</th></tr></thead><tbody>'
 			. $rows . '</tbody></table></div>';
 		return $this->page( 'Autoridades', $body );
+	}
+
+
+	/** Courier local deste nó — nunca dirname(VE_DATA)/courier partilhado. */
+	private function localCourierDir(): string {
+		$dir = $this->node->courierDirectory();
+		if ( ! is_dir( $dir ) && ! mkdir( $dir, 0700, true ) && ! is_dir( $dir ) ) {
+			throw new \RuntimeException( 'Não foi possível criar o courier local: ' . $dir );
+		}
+		return $dir;
 	}
 
 	private function exportAuthoritiesToCourier( string $courierDir ): string {
@@ -557,7 +571,7 @@ final class HttpKernel {
 			$status = $this->node->jobs->keygen->tick();
 		}
 		if ( ! empty( $status['stage'] ) && 'complete' === $status['stage'] ) {
-			$this->exportAuthoritiesToCourier( dirname( $this->node->dataDir ) . '/courier' );
+			$this->exportAuthoritiesToCourier( $this->localCourierDir() );
 			$status['keys_html'] = $this->renderActiveKeysTable();
 		}
 		return Response::json( $status );
@@ -570,7 +584,7 @@ final class HttpKernel {
 		}
 		$status = $this->node->jobs->keygen->tick();
 		if ( ! empty( $status['stage'] ) && 'complete' === $status['stage'] ) {
-			$this->exportAuthoritiesToCourier( dirname( $this->node->dataDir ) . '/courier' );
+			$this->exportAuthoritiesToCourier( $this->localCourierDir() );
 			$status['keys_html'] = $this->renderActiveKeysTable();
 		}
 		return Response::json( $status );
@@ -1220,11 +1234,30 @@ HTML;
 			|| in_array( UserRegistryRoles::ROLE_ADMIN, $roles, true );
 	}
 
-	private function courier( Request $req ): Response {
-		$courierDir = dirname( $this->node->dataDir ) . '/courier';
-		if ( ! is_dir( $courierDir ) ) {
-			mkdir( $courierDir, 0700, true );
+
+	private function courierDownload( string $filename ): Response {
+		$name = basename( $filename );
+		$name = preg_replace( '/[^a-zA-Z0-9._\-]/', '', $name ) ?: '';
+		if ( '' === $name ) {
+			return Response::text( 'Nome inválido', 400 );
 		}
+		$path = $this->localCourierDir() . '/' . $name;
+		if ( ! is_readable( $path ) || ! is_file( $path ) ) {
+			return Response::text( 'Não encontrado', 404 );
+		}
+		$body = (string) file_get_contents( $path );
+		return new Response(
+			$body,
+			200,
+			array(
+				'Content-Type'        => 'application/octet-stream',
+				'Content-Disposition' => 'attachment; filename="' . $name . '"',
+			)
+		);
+	}
+
+	private function courier( Request $req ): Response {
+		$courierDir = $this->localCourierDir();
 		$msg = '';
 		if ( 'POST' === $req->method && isset( $req->files['material'] ) ) {
 			$file = $req->files['material'];
@@ -1240,15 +1273,20 @@ HTML;
 		$list  = '<ul>';
 		foreach ( $files as $f ) {
 			$bn = basename( $f );
-			$list .= '<li><code>' . htmlspecialchars( $bn, ENT_QUOTES, 'UTF-8' ) . '</code> (' . filesize( $f ) . ' B)</li>';
+			$list .= '<li><code>' . htmlspecialchars( $bn, ENT_QUOTES, 'UTF-8' ) . '</code> (' . filesize( $f ) . ' B)'
+				. ' — <a href="/painel/courier/' . rawurlencode( $bn ) . '">Descarregar</a></li>';
 		}
 		$list .= '</ul>';
 		$body = '<div class="ve-card"><h1>Courier manual</h1>'
-			. '<p class="ve-muted">Pasta partilhada entre nós (sem sync automático): <code>' . htmlspecialchars( $courierDir, ENT_QUOTES, 'UTF-8' ) . '</code></p>'
+			. '<p class="ve-muted">Courier <strong>local deste nó</strong> (sem sync e sem pasta partilhada entre modos): <code>'
+			. htmlspecialchars( $courierDir, ENT_QUOTES, 'UTF-8' ) . '</code></p>'
+			. '<p class="ve-muted">Segregação E3: cada sítio só vê o seu <code>VE_DATA/courier</code>. '
+			. 'Levar material ao outro nó por canal auditável (USB, scp, descarregar aqui e carregar no destino). '
+			. 'Nunca montar o mesmo diretório nos três processos.</p>'
 			. ( $msg ? '<p class="ve-muted">' . htmlspecialchars( $msg, ENT_QUOTES, 'UTF-8' ) . '</p>' : '' )
-			. '<form method="post" enctype="multipart/form-data"><label class="ve-field"><span>Enviar JSON</span><input type="file" name="material" required /></label>'
+			. '<form method="post" enctype="multipart/form-data"><label class="ve-field"><span>Carregar JSON neste nó</span><input type="file" name="material" required /></label>'
 			. '<div class="ve-actions"><button type="submit">Carregar</button></div></form></div>'
-			. '<div class="ve-card"><h2>Arquivos</h2>' . $list . '</div>';
+			. '<div class="ve-card"><h2>Arquivos neste courier</h2>' . $list . '</div>';
 		return $this->page( 'Courier', $body );
 	}
 
@@ -1270,7 +1308,7 @@ HTML;
 	private function tallyImport( Request $req ): Response {
 		$this->node->requireMode( SiteModes::TALLYING );
 		$msg = '';
-		$courierDir = dirname( $this->node->dataDir ) . '/courier';
+		$courierDir = $this->localCourierDir();
 		if ( 'POST' === $req->method ) {
 			$voteFile = $courierDir . '/vote-material.json';
 			if ( is_readable( $voteFile ) ) {
@@ -1366,8 +1404,8 @@ HTML;
 		$choice = (int) $req->input( 'choice', '1' ) > 0 ? 1 : 0;
 		$keys   = $this->node->persistence->keys->listActive();
 		if ( ! $keys ) {
-			// Try import public key from courier.
-			$pkFile = dirname( $this->node->dataDir ) . '/courier/public-key.json';
+			// Try import public key from this node's local courier only.
+			$pkFile = $this->localCourierDir() . '/public-key.json';
 			if ( is_readable( $pkFile ) ) {
 				$pkg = json_decode( (string) file_get_contents( $pkFile ), true );
 				if ( is_array( $pkg ) ) {

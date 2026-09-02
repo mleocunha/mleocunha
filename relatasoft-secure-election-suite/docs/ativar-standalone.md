@@ -35,14 +35,14 @@ composer install && ./vendor/bin/phpunit -c phpunit.xml
 
 ### C. Directorios de dados
 
-Três nós + courier partilhado (irmãos sob a mesma raiz):
+Três `VE_DATA` irmãos — cada nó tem o seu courier em `VE_DATA/courier` (criado sob demanda). **Não** criar pasta `courier/` partilhada na raiz:
 
 ```bash
-sudo mkdir -p /var/lib/ve/{ka,voting,tallying,courier}
+sudo mkdir -p /var/lib/ve/{ka,voting,tallying}
 sudo chown -R ve-operador:ve-operador /var/lib/ve
 ```
 
-Com `--data=/var/lib/ve/ka`, o courier por padrão é `/var/lib/ve/courier`.
+Com `--data=/var/lib/ve/ka`, o courier local é `/var/lib/ve/ka/courier`. Material entre sítios: descarregar no sítio de origem e colocar no `courier/` do destino (ou upload em `/painel/courier`).
 
 ### D. Credenciais iniciais
 
@@ -60,7 +60,7 @@ Produção: definir senha forte **antes** do primeiro arranque HTTP de cada nó
 
 ```bash
 cd /home/votoeletronico/relatasoft-secure-election-suite   # exemplo
-mkdir -p "$HOME/ve-data"/{ka,voting,tallying,courier}
+mkdir -p "$HOME/ve-data"/{ka,voting,tallying}
 
 php bin/ve-http --mode=key_authority --data="$HOME/ve-data/ka" \
   --host=10.42.0.1 --port=8888 &

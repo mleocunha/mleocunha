@@ -46,7 +46,7 @@ composer install            # desenvolvimento + testes
 Cada nó precisa do **seu** directorio (nunca partilhar entre modos/sítios):
 
 ```bash
-mkdir -p /var/lib/ve/{ka,voting,tallying,courier}
+mkdir -p /var/lib/ve/{ka,voting,tallying}
 ```
 
 ### 3. Arrancar a interface HTTP
@@ -56,7 +56,7 @@ Script recomendado (`bin/ve-http` — default `10.42.0.1:8888`).
 **Testes / demonstração** (um anfitrião, três processos — configuração correcta para lab):
 
 ```bash
-mkdir -p "$HOME/ve-data"/{ka,voting,tallying,courier}
+mkdir -p "$HOME/ve-data"/{ka,voting,tallying}
 
 php bin/ve-http --mode=key_authority --data="$HOME/ve-data/ka" \
   --host=10.42.0.1 --port=8888 &
@@ -100,8 +100,8 @@ de exposição em rede.
 - Eleitor / cabine: `/voto`, `/voto/cabina`, `/voto/obrigado`
 - CSS: `/assets/…`
 
-Courier entre nós: `dirname(VE_DATA)/courier` (ex.: `/var/lib/ve/courier` se os três
-`data` forem irmãos sob `/var/lib/ve/`).
+Courier: cada nó usa só `VE_DATA/courier` (ex.: `/var/lib/ve/ka/courier`). Entre sítios,
+transferir ficheiros manualmente para o courier do destino — nunca pasta partilhada.
 
 ### 5. Proxy nginx (opcional)
 

@@ -18,7 +18,7 @@ Colocar os três modos no mesmo host em produção **enfraquece** o modelo E3: u
 |----------|-------------|
 | Nó / sítio | Um `bin/ve-http` (ou `php -S index.php`) + um `VE_DATA` + um `VE_MODE` |
 | Cliente típico | Três nós: `key_authority`, `voting`, `tallying` |
-| Courier | Canal de material entre nós (lab: `dirname(VE_DATA)/courier`; produção: transferência auditável entre sítios) |
+| Courier | Caixa local `VE_DATA/courier` de cada nó; entre sítios só cópia manual / canal auditável (nunca FS partilhado) |
 | Parcela | Share Shamir — nunca misturar `secrets` entre sítios |
 | URLs | `/login`, `/painel`, `/voto` (estáveis para nginx / clientes) |
 
@@ -27,13 +27,17 @@ Colocar os três modos no mesmo host em produção **enfraquece** o modelo E3: u
 ```text
 $HOME/ve-data/   (ou /var/lib/ve/)
   ka/
+    courier/      # só o processo KA
   voting/
+    courier/      # só o processo voting
   tallying/
-  courier/     # partilhado pelos três processos locais
+    courier/      # só o processo tallying
 ```
 
+Lab no mesmo anfitrião **não** implica pasta partilhada: o operador (ou o piloto CLI) copia ficheiros de um courier para o outro.
+
 ```bash
-mkdir -p "$HOME/ve-data"/{ka,voting,tallying,courier}
+mkdir -p "$HOME/ve-data"/{ka,voting,tallying}
 
 php bin/ve-http --mode=key_authority --data="$HOME/ve-data/ka" \
   --host=10.42.0.1 --port=8888 &
@@ -47,7 +51,7 @@ Confirmar as três escutas: `ss -ltnp | grep -E '8888|8889|8890'`.
 
 ## Layout — produção (três anfitriões)
 
-Cada servidor corre **apenas um** modo, com `VE_DATA` local e sem partilhar filesystem de secrets com os outros sítios. O courier **não** é um NFS comum aos três em produção típica: o material (chave pública, parcelas, exportações) move-se por canal controlado e auditável entre equipas/sítios.
+Cada servidor corre **apenas um** modo, com `VE_DATA` local e sem partilhar filesystem com os outros sítios. O courier é sempre `VE_DATA/courier` do próprio nó; o material (chave pública, parcelas, exportações) move-se por canal controlado e auditável entre equipas/sítios — nunca NFS/SMB comum aos três.
 
 Proxy TLS por sítio. Definir `VE_PUBLIC_BASE` com a URL pública real.
 
@@ -67,9 +71,10 @@ identificador;nome;papel
 
 ## Fluxo de material (courier)
 
-1. KA: `/painel/autoridades` → `/painel/keygen` → `public-key.json`, `parcela-*.json`, `authorities.json`.
-2. Voting: importar `authorities.json` (acompanhamento administrativo) → votar → exportar material de voto.
-3. Tallying: importar `authorities.json` → importar material → autoridades submetem parcelas em `/painel/parcelas` até ao limiar → certificar.
+1. KA: `/painel/autoridades` → `/painel/keygen` → ficheiros em `ka/courier/` (`public-key.json`, `parcela-*.json`, `authorities.json`).
+2. Transferir esses ficheiros para `voting/courier/` e `tallying/courier/` (descarregar/upload ou `cp` no lab).
+3. Voting: importar `authorities.json` → votar → exportar material de voto no courier local → transferir `vote-material.json` para `tallying/courier/`.
+4. Tallying: importar `authorities.json` → importar material → autoridades submetem parcelas em `/painel/parcelas` até ao limiar → certificar.
 
 Sem autoridades no nó de apuração, as parcelas não sobem e o limiar Shamir não é atingido.
 
@@ -77,14 +82,14 @@ Sem autoridades no nó de apuração, as parcelas não sobem e o limiar Shamir n
 
 1. Parar o processo do nó (ou garantir quiescência).
 2. Copiar a árvore `VE_DATA` (incluir identidade, persistência, secrets, audit).
-3. Courier: becape à parte se houver filas pendentes.
+3. Courier local de cada nó já entra no becape do `VE_DATA`; se houver filas pendentes noutro canal, becape à parte.
 4. Restauro: mesma árvore + mesmo `VE_MODE`; nunca misturar secrets de nós distintos.
 
 ## Observabilidade
 
 - `journalctl` / logs do processo.
 - Auditoria sob `VE_DATA` (sem parcelas em claro).
-- Disco em `VE_DATA` e `courier/`.
+- Disco em cada `VE_DATA` (inclui o `courier/` local).
 
 ## Limitações conscientes (piloto HTTP)
 

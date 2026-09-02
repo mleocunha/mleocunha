@@ -30,7 +30,9 @@ final class ThreeNodePilot {
 		public readonly NodeRuntime $keyAuthority,
 		public readonly NodeRuntime $voting,
 		public readonly NodeRuntime $tallying,
-		public readonly MaterialCourier $courier,
+		public readonly MaterialCourier $kaCourier,
+		public readonly MaterialCourier $votingCourier,
+		public readonly MaterialCourier $tallyingCourier,
 		private readonly int $bits = 512,
 		private readonly int $threshold = 2,
 		private readonly int $totalShares = 3,
@@ -40,17 +42,28 @@ final class ThreeNodePilot {
 		$this->tallying->requireMode( SiteModes::TALLYING );
 	}
 
+	/** Compat: courier de saída do KA (não é pasta partilhada). */
+	public function courier(): MaterialCourier {
+		return $this->kaCourier;
+	}
+
 	/**
-	 * Spin three nodes under $root/{ka,voting,tallying} + courier/.
-	 *
-	 * @param bool $durable Persistence JSON per node (default true — Adapter #2 hardening).
+	 * Spin three nodes under $root/{ka,voting,tallying}.
+	 * Cada nó tem o seu VE_DATA/courier — o piloto copia arquivos entre couriers (transporte simulado).
 	 */
 	public static function createWorkspace( string $root, string $clienteId = 'piloto', int $bits = 512, bool $durable = true ): self {
 		$ka = NodeRuntime::create( SiteModes::KEY_AUTHORITY, $root . '/ka', $clienteId, $durable );
 		$vt = NodeRuntime::create( SiteModes::VOTING, $root . '/voting', $clienteId, $durable );
 		$tl = NodeRuntime::create( SiteModes::TALLYING, $root . '/tallying', $clienteId, $durable );
-		$courier = new MaterialCourier( $root . '/courier' );
-		return new self( $ka, $vt, $tl, $courier, $bits );
+		return new self(
+			$ka,
+			$vt,
+			$tl,
+			new MaterialCourier( $ka->courierDirectory() ),
+			new MaterialCourier( $vt->courierDirectory() ),
+			new MaterialCourier( $tl->courierDirectory() ),
+			$bits
+		);
 	}
 
 	/**
@@ -67,7 +80,14 @@ final class ThreeNodePilot {
 	 */
 	public function run( int $yesVotes = 2 ): array {
 		$kaResult = $this->runKeyAuthority();
+		// Transporte simulado KA → voting / tallying (nunca filesystem partilhado).
+		$this->kaCourier->copyFileTo( $this->votingCourier, self::PUBLIC_KEY_FILE );
+		$this->kaCourier->copyFileTo( $this->tallyingCourier, self::PUBLIC_KEY_FILE );
+		for ( $i = 1; $i <= $this->totalShares; ++$i ) {
+			$this->kaCourier->copyFileTo( $this->tallyingCourier, self::PARCEL_PREFIX . $i . '.json' );
+		}
 		$this->runVotingImportAndCast( $kaResult['public_package'], $yesVotes );
+		$this->votingCourier->copyFileTo( $this->tallyingCourier, self::VOTE_MATERIAL_FILE );
 		$cert = $this->runTallying( $kaResult['public_package'], $kaResult['field_prime'], $yesVotes );
 
 		return array(
@@ -137,7 +157,7 @@ final class ThreeNodePilot {
 				)
 			);
 			// Offline parcels — courier only; never written into voting DB.
-			$this->courier->writeJson( self::PARCEL_PREFIX . $point['x'] . '.json', $payload );
+			$this->kaCourier->writeJson( self::PARCEL_PREFIX . $point['x'] . '.json', $payload );
 		}
 
 		$package = PublicKeyPackage::build(
@@ -156,7 +176,7 @@ final class ThreeNodePilot {
 				'cliente_nome'=> $this->keyAuthority->clienteId,
 			)
 		);
-		$this->courier->writeJson( self::PUBLIC_KEY_FILE, $package );
+		$this->kaCourier->writeJson( self::PUBLIC_KEY_FILE, $package );
 
 		$this->keyAuthority->persistence->auditLog->append(
 			array(
@@ -280,7 +300,7 @@ final class ThreeNodePilot {
 				'cliente_nome'        => $this->voting->clienteId,
 			)
 		);
-		$this->courier->writeJson( self::VOTE_MATERIAL_FILE, $material );
+		$this->votingCourier->writeJson( self::VOTE_MATERIAL_FILE, $material );
 
 		return array(
 			'election_id' => $electionId,
@@ -296,7 +316,7 @@ final class ThreeNodePilot {
 	public function runTallying( array $publicPackage, string $fieldPrime, int $expectedTally ): array {
 		$this->tallying->requireMode( SiteModes::TALLYING );
 
-		$votesRaw = $this->courier->readJson( self::VOTE_MATERIAL_FILE );
+		$votesRaw = $this->tallyingCourier->readJson( self::VOTE_MATERIAL_FILE );
 		$votesOk  = VoteMaterialPackage::validate( $votesRaw );
 		if ( empty( $votesOk['ok'] ) ) {
 			throw new \RuntimeException( 'Invalid vote material package: ' . ( $votesOk['error'] ?? '?' ) );
@@ -306,7 +326,7 @@ final class ThreeNodePilot {
 		// Collect threshold parcels from courier (manual offline shares).
 		$sharePoints = array();
 		for ( $i = 1; $i <= $this->threshold; ++$i ) {
-			$parcel = $this->courier->readJson( self::PARCEL_PREFIX . $i . '.json' );
+			$parcel = $this->tallyingCourier->readJson( self::PARCEL_PREFIX . $i . '.json' );
 			$sharePoints[] = array(
 				'x' => (int) $parcel['share_index'],
 				'y' => BigInt::fromDecimalString( (string) $parcel['share_value'] ),
@@ -401,15 +421,20 @@ final class ThreeNodePilot {
 	}
 
 	/**
+	 * Basenames presentes nos couriers locais dos três nós (união — sem pasta partilhada).
+	 *
 	 * @return list<string>
 	 */
 	private function listCourierBasenames(): array {
-		$files = glob( $this->courier->directory() . '/*.json' ) ?: array();
-		$out   = array();
-		foreach ( $files as $f ) {
-			$out[] = basename( $f );
+		$out = array();
+		foreach ( array( $this->kaCourier, $this->votingCourier, $this->tallyingCourier ) as $c ) {
+			$files = glob( $c->directory() . '/*.json' ) ?: array();
+			foreach ( $files as $f ) {
+				$out[ basename( $f ) ] = true;
+			}
 		}
-		sort( $out );
-		return $out;
+		$names = array_keys( $out );
+		sort( $names );
+		return $names;
 	}
 }
