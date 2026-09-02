@@ -1,6 +1,6 @@
 # Verificação C* — Operação (isolamento, máscara, becape) — LEGADO Adapter #1
 
-> Activação standalone actual: [`activar-standalone.md`](activar-standalone.md).  
+> Ativação standalone atual: [`ativar-standalone.md`](ativar-standalone.md).  
 > C2/C3 abaixo referem a máscara `/painel` no hospedeiro antigo.
 
 Pacote §3.3 do roadmap: C1 isolamento E3, C2 máscara `/painel`, C3 becape/módulos/autoteste.

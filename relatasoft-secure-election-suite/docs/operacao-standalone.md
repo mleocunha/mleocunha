@@ -1,11 +1,11 @@
 # Operação standalone (três sítios)
 
 Operação contínua: **um processo PHP por modo E3**, árvore `VE_DATA` própria,
-courier por ficheiros. Sem sincronização automática de identidade ou base.
+courier por arquivos. Sem sincronização automática de identidade ou base.
 
 ## Testes / demonstração vs produção
 
-| Contexto | O que é correcto |
+| Contexto | O que é correto |
 |----------|------------------|
 | **Testes e demonstrações** | Três processos no **mesmo** anfitrião (`key_authority`, `voting`, `tallying`), três `VE_DATA`, portas distintas. Pode usar `&` ou três terminais. Isolamento lógico de dados e modos — suficiente para lab e PoC. |
 | **Produção** | Cada instância num **servidor independente e segregado**, preferencialmente em **nuvens distintas**. **Administradores de sistemas distintos**, preferencialmente que **nem se conheçam**; **contratações independentes**; preferencialmente **gestores de contrato independentes**. Todos respondem à **autoridade eleitoral superior**, preferencialmente **colegiada**. |

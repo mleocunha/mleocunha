@@ -180,7 +180,7 @@ final class BecapeService {
 	 */
 	public static function restoreFromZip( string $zip_path, string $confirm_phrase ): array {
 		if ( 'RESTAURAR' !== trim( $confirm_phrase ) ) {
-			return array( 'ok' => false, 'error' => 'Confirmação inválida. Digite RESTAURAR para prosseguir.' );
+			return array( 'ok' => false, 'error' => 'Confirmação inválida. Digitar RESTAURAR para prosseguir.' );
 		}
 		if ( ! class_exists( ZipArchive::class ) || ! is_readable( $zip_path ) ) {
 			return array( 'ok' => false, 'error' => 'Arquivo de becape inválido ou ZipArchive indisponível.' );

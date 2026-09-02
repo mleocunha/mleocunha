@@ -1,6 +1,6 @@
 # Verificação HTTP standalone
 
-Checklist após activação. Um processo = um modo E3.
+Checklist após ativação. Um processo = um modo E3.
 
 Três processos no mesmo anfitrião (como abaixo) são a topologia **correcta para
 testes e demonstrações**. Produção: um modo por servidor segregado —
@@ -21,12 +21,12 @@ sleep 1
 
 ## Smoke UI
 
-| # | Acção | Esperado |
+| # | Ação | Esperado |
 |---|--------|----------|
 | 1 | `GET http://127.0.0.1:8888/login` | Formulário |
 | 2 | Login admin no KA | Redireciona a `/painel` |
 | 3 | `/painel/autoridades` — cadastrar ≥3 autoridades | Listadas na tabela |
-| 4 | `/painel/keygen` — seleccionar n e gerar | Parcelas atribuídas; ficheiros no courier |
+| 4 | `/painel/keygen` — selecionar n e gerar | Parcelas atribuídas; arquivos no courier |
 | 5 | Login no voting `:8889` | Painel com Cadastro / Voto |
 | 6 | Importar `.rsv` mínimo | Eleitores listados no cadastro |
 | 7 | `/voto` → cabina | Fluxo de voto |
@@ -43,6 +43,6 @@ sleep 1
 
 - Jobs async HTTP InMemory em parte dos fluxos  
 - Cabina: voto mínimo 0/1  
-- Certificação HTTP pode ser registo parcial vs piloto CLI completo  
+- Certificação HTTP pode ser registro parcial vs piloto CLI completo  
 
 **Veredicto alvo:** superfície HTTP nos três modos operacional para piloto.

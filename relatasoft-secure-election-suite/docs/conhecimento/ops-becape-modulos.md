@@ -3,14 +3,14 @@
 ## Becape e restauração
 
 - Painel → **Becape e Restauração** (`rses-system-becape`).
-- Gera ZIP com manifesto `ve-becape-v1`, `database.sql` e árvore de ficheiros.
+- Gera ZIP com manifesto `ve-becape-v1`, `database.sql` e árvore de arquivos.
 - Restaurar exige a frase de confirmação `RESTAURAR`.
-- Ficheiros guardados fora da web (`uploads/ve-becape/` + `.htaccess` Deny).
+- Arquivos guardados fora da web (`uploads/ve-becape/` + `.htaccess` Deny).
 
 ## Módulos ZIP
 
 - Painel → **Módulos do Sistema**.
-- Instalar/actualizar ZIP com `overwrite_package` (sem `plugins.php` clássico — 404 via máscara C2).
+- Instalar/atualizar ZIP com `overwrite_package` (sem `plugins.php` clássico — 404 via máscara C2).
 - **Não** é possível remover o núcleo `relatasoft-secure-election-suite/`.
 
 ## Autoteste criptográfico

@@ -1,7 +1,7 @@
 # Piloto — três nós standalone
 
 Guião de piloto do **Voto Eletrônico** com três sítios isolados
-(`key_authority`, `voting`, `tallying`). Activação e operação só via pacote PHP
+(`key_authority`, `voting`, `tallying`). Ativação e operação só via pacote PHP
 (`bin/ve-http` / `index.php`).
 
 **Piloto / demonstração:** os três processos no **mesmo** anfitrião (três `VE_DATA`,
@@ -13,7 +13,7 @@ sob autoridade eleitoral superior preferencialmente colegiada
 
 ## Objectivo
 
-1. Activar três nós sem CMS.
+1. Ativar três nós sem CMS.
 2. Identidade local por sítio (`identity.json`).
 3. Cadastro via `.rsv` no nó de votação.
 4. Ciclo E3 com parcelas e courier.
@@ -25,11 +25,11 @@ sob autoridade eleitoral superior preferencialmente colegiada
 - PHP 8.2+ com GMP
 - Três `VE_DATA` + `courier/` partilhado no lab (`docs/operacao-standalone.md`)
 - Opcional: nginx TLS
-- Ficheiro `.rsv` de ensaio
+- Arquivo `.rsv` de ensaio
 
-## Dia 0 — activação
+## Dia 0 — ativação
 
-Seguir `docs/activar-standalone.md`. No lab (um anfitrião):
+Seguir `docs/ativar-standalone.md`. No lab (um anfitrião):
 
 ```bash
 mkdir -p "$HOME/ve-data"/{ka,voting,tallying,courier}
@@ -48,7 +48,7 @@ Confirmar as três portas, `/login` em cada uma e, no voting, `/voto`. Registar 
 
 1. Login admin em cada nó (contas não sincronizam automaticamente).
 2. No **KA**: cadastrar autoridades em `/painel/autoridades` (≥ *n*).
-3. KA: `/painel/keygen` — seleccionar *n* autoridades → gerar → courier (`authorities.json` incluído).
+3. KA: `/painel/keygen` — selecionar *n* autoridades → gerar → courier (`authorities.json` incluído).
 4. Em **voting** e **tallying**: importar `authorities.json` do courier (ou cadastrar localmente). No voting, as autoridades acompanham a eleição; no tallying, sobem parcelas.
 
 ## Dia 2 — cadastro e voto
@@ -87,4 +87,4 @@ Confirmar as três portas, `/login` em cada uma e, no voting, `/voto`. Registar 
 ## Legado
 
 Textos sobre *plugin*, *mu-plugin*, *wp-admin* ou *Adapter #1* são históricos de
-migração — não usar como procedimento de activação deste piloto.
+migração — não usar como procedimento de ativação deste piloto.

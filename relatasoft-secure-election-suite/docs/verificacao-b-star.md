@@ -1,7 +1,7 @@
 # Verificação B* — Produto no Adapter #1 (LEGADO)
 
-> Activação standalone actual: [`activar-standalone.md`](activar-standalone.md).  
-> Este ficheiro valida o fecho B* sobre o hospedeiro antigo.
+> Ativação standalone atual: [`ativar-standalone.md`](ativar-standalone.md).  
+> Este arquivo valida o fecho B* sobre o hospedeiro antigo.
 
 Pacote paralelo ao caminho crítico (roadmap §3.2): Cadastro, Auditor, Conhecimento, áudio/beep, E1 cliente, PT-BR.
 
@@ -27,7 +27,7 @@ Pacote paralelo ao caminho crítico (roadmap §3.2): Cadastro, Auditor, Conhecim
 
 ## Residual aceitável
 
-- Nem todos os ecrãs de `VotingViews` estão em PT (hardening contínuo B6)
+- Nem todos os telas de `VotingViews` estão em PT (hardening contínuo B6)
 - Export RSV continua um papel por job
 - Beep só no export (não no import)
 

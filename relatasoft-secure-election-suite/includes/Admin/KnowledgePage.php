@@ -47,7 +47,7 @@ class KnowledgePage {
 	}
 
 	/**
-	 * Stems visíveis para a persona actual.
+	 * Stems visíveis para a persona atual.
 	 *
 	 * Administrador recebe `array_keys(catalog)` — inclui ops C3 automaticamente
 	 * quando novos docs entram no catálogo.

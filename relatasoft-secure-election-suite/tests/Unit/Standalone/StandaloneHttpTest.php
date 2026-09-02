@@ -239,6 +239,7 @@ final class StandaloneHttpTest extends TestCase {
 		$this->assertStringContainsString( 've-keygen-form', $page->body );
 		$this->assertStringContainsString( 'Chaves ativas', $page->body );
 		$this->assertStringNotContainsString( 'Chaves activas', $page->body );
+		$this->assertStringNotContainsString( 'incorrectos', $page->body );
 		$this->assertStringContainsString( 'Tamanho da chave', $page->body );
 		$this->assertStringContainsString( 'value="4096"', $page->body );
 		$this->assertStringContainsString( '512 bits', $page->body );

@@ -320,7 +320,7 @@ final class StandaloneKeygenJobService implements KeygenJobService {
 		$g = PrimeGenerator::findGeneratorForSafePrime( $p, $q );
 		$job['public_g']   = BigInt::toDecimalString( $g );
 		$job['stage']      = self::STAGE_KEYPAIR;
-		$job['message']    = 'Gerador seleccionado. Criar par de chaves…';
+		$job['message']    = 'Gerador selecionado. Criar par de chaves…';
 		$job['progress']   = 65;
 		$job['updated_at'] = time();
 		return $job;
@@ -393,7 +393,7 @@ final class StandaloneKeygenJobService implements KeygenJobService {
 			'y' => (string) $job['public_y'],
 		);
 
-		// Actualizar field_prime na chave.
+		// Atualizar field_prime na chave.
 		$this->persistence->keys->updateThresholdMeta( $keyId, $fieldPrimeStr, $th, $n );
 
 		$courier = new MaterialCourier( $this->courierDir );

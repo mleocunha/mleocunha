@@ -170,7 +170,7 @@ final class RsvImporter {
 				)
 			);
 			if ( ! $upd['ok'] ) {
-				return (string) ( $upd['error'] ?? 'falha ao actualizar' );
+				return (string) ( $upd['error'] ?? 'falha ao atualizar' );
 			}
 			self::writeMeta( $dir, $id, $data );
 			return 'updated';
