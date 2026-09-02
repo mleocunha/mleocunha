@@ -59,6 +59,21 @@ final class StandaloneHttpTest extends TestCase {
 		return $status;
 	}
 
+
+	/** Simula transporte auditável: copia arquivos do courier de origem para o de destino. */
+	private function handoffCourier( string $fromDataDir, string $toDataDir, array $basenames ): void {
+		$from = rtrim( $fromDataDir, '/\\' ) . '/courier';
+		$to   = rtrim( $toDataDir, '/\\' ) . '/courier';
+		if ( ! is_dir( $to ) ) {
+			mkdir( $to, 0700, true );
+		}
+		foreach ( $basenames as $bn ) {
+			$src = $from . '/' . $bn;
+			$this->assertFileExists( $src, $bn );
+			$this->assertTrue( copy( $src, $to . '/' . $bn ), 'handoff ' . $bn );
+		}
+	}
+
 	public function test_rsv_importer_and_durable_identity(): void {
 		$users = FileJsonUserStore::open( $this->root . '/voting/identity.json' );
 		$text  = RsvFormat::headerLine() . "\n"
@@ -93,6 +108,20 @@ final class StandaloneHttpTest extends TestCase {
 		);
 		$this->assertSame( 200, $loginPage->status );
 		$this->assertStringContainsString( 'Entrar', $loginPage->body );
+
+		$bad = $kernel->handle(
+			new Request(
+				'POST',
+				'/login',
+				array(),
+				array( 'login' => 'admin', 'password' => 'errada', 'next' => '/painel' ),
+				array(),
+				array()
+			)
+		);
+		$this->assertSame( 200, $bad->status );
+		$this->assertStringContainsString( 'incorretos', $bad->body );
+		$this->assertStringNotContainsString( 'incorrectos', $bad->body );
 
 		$post = $kernel->handle(
 			new Request(
@@ -149,7 +178,7 @@ final class StandaloneHttpTest extends TestCase {
 
 	public function test_ka_autoridades_then_assign_shares(): void {
 		mkdir( $this->root . '/ka', 0700, true );
-		mkdir( $this->root . '/courier', 0700, true );
+		// courier agora vive em cada VE_DATA/courier
 		$plugin = dirname( __DIR__, 3 );
 		$node   = NodeRuntime::create( SiteModes::KEY_AUTHORITY, $this->root . '/ka', 'teste', true );
 		$kernel = new HttpKernel( $node, $plugin, 'pt-BR' );
@@ -205,13 +234,13 @@ final class StandaloneHttpTest extends TestCase {
 		$this->assertSame( 512, (int) ( $keys[0]['key_size'] ?? 0 ) );
 		$shares = $node->persistence->shares->listByKey( (int) $keys[0]['id'] );
 		$this->assertCount( 3, $shares );
-		$this->assertFileExists( $this->root . '/courier/public-key.json' );
-		$pkgJson = (string) file_get_contents( $this->root . '/courier/public-key.json' );
+		$this->assertFileExists( $this->root . '/ka/courier/public-key.json' );
+		$pkgJson = (string) file_get_contents( $this->root . '/ka/courier/public-key.json' );
 		$pkg     = json_decode( $pkgJson, true );
 		$this->assertIsArray( $pkg );
 		$this->assertSame( 512, (int) ( $pkg['key_size'] ?? 0 ) );
-		$this->assertFileExists( $this->root . '/courier/parcela-1.json' );
-		$this->assertFileExists( $this->root . '/courier/authorities.json' );
+		$this->assertFileExists( $this->root . '/ka/courier/parcela-1.json' );
+		$this->assertFileExists( $this->root . '/ka/courier/authorities.json' );
 
 		$kid = (int) $keys[0]['id'];
 		$view = $kernel->handle(
@@ -316,11 +345,8 @@ final class StandaloneHttpTest extends TestCase {
 	}
 
 	public function test_delete_key_requires_case_sensitive_confirmo(): void {
-		foreach ( array( 'ka', 'courier' ) as $dir ) {
-			$path = $this->root . '/' . $dir;
-			if ( ! is_dir( $path ) ) {
-				mkdir( $path, 0700, true );
-			}
+		if ( ! is_dir( $this->root . '/ka' ) ) {
+			mkdir( $this->root . '/ka', 0700, true );
 		}
 		$plugin = dirname( __DIR__, 3 );
 		$node   = NodeRuntime::create( SiteModes::KEY_AUTHORITY, $this->root . '/ka', 'teste', true );
@@ -419,9 +445,6 @@ final class StandaloneHttpTest extends TestCase {
 		if ( ! is_dir( $this->root . '/ka' ) ) {
 			mkdir( $this->root . '/ka', 0700, true );
 		}
-		if ( ! is_dir( $this->root . '/courier' ) ) {
-			mkdir( $this->root . '/courier', 0700, true );
-		}
 		$plugin = dirname( __DIR__, 3 );
 		$node   = NodeRuntime::create( SiteModes::KEY_AUTHORITY, $this->root . '/ka', 'teste', true );
 		$kernel = new HttpKernel( $node, $plugin, 'pt-BR' );
@@ -497,7 +520,7 @@ final class StandaloneHttpTest extends TestCase {
 	}
 
 	public function test_voting_and_tallying_import_authorities_and_submit_share(): void {
-		foreach ( array( 'ka', 'tallying', 'courier' ) as $dir ) {
+		foreach ( array( 'ka', 'voting', 'tallying' ) as $dir ) {
 			$path = $this->root . '/' . $dir;
 			if ( ! is_dir( $path ) ) {
 				mkdir( $path, 0700, true );
@@ -543,7 +566,17 @@ final class StandaloneHttpTest extends TestCase {
 				'official_ids' => $ids,
 			)
 		);
-		$this->assertFileExists( $this->root . '/courier/authorities.json' );
+		$this->assertFileExists( $this->root . '/ka/courier/authorities.json' );
+		$this->handoffCourier(
+			$this->root . '/ka',
+			$this->root . '/voting',
+			array( 'authorities.json', 'public-key.json' )
+		);
+		$this->handoffCourier(
+			$this->root . '/ka',
+			$this->root . '/tallying',
+			array( 'authorities.json', 'public-key.json', 'parcela-1.json', 'parcela-2.json', 'parcela-3.json' )
+		);
 
 		$voting = NodeRuntime::create( SiteModes::VOTING, $this->root . '/voting', 'teste', true );
 		$vk     = new HttpKernel( $voting, $plugin, 'pt-BR' );
@@ -574,7 +607,7 @@ final class StandaloneHttpTest extends TestCase {
 		$importId = $tally->persistence->tallyImports->create(
 			array( 'source' => 'test', 'status' => 'imported', 'created_at' => gmdate( 'c' ) )
 		);
-		$parcela = json_decode( (string) file_get_contents( $this->root . '/courier/parcela-1.json' ), true );
+		$parcela = json_decode( (string) file_get_contents( $this->root . '/tallying/courier/parcela-1.json' ), true );
 		$this->assertIsArray( $parcela );
 		$sub1 = $tk->handle(
 			new Request(
@@ -591,7 +624,7 @@ final class StandaloneHttpTest extends TestCase {
 		);
 		$this->assertStringContainsString( 'submetida', $sub1->body );
 
-		$parcela2 = json_decode( (string) file_get_contents( $this->root . '/courier/parcela-2.json' ), true );
+		$parcela2 = json_decode( (string) file_get_contents( $this->root . '/tallying/courier/parcela-2.json' ), true );
 		$sub2 = $tk->handle(
 			new Request(
 				'POST',

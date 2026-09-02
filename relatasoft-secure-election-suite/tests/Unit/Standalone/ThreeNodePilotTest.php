@@ -99,21 +99,30 @@ final class ThreeNodePilotTest extends TestCase {
 		$this->assertTrue( empty( $vtKeys[0]['private_x'] ?? null ) );
 
 		$pub = PublicKeyPackage::fromJson(
-			(string) file_get_contents( $pilot->courier->path( ThreeNodePilot::PUBLIC_KEY_FILE ) )
+			(string) file_get_contents( $pilot->kaCourier->path( ThreeNodePilot::PUBLIC_KEY_FILE ) )
 		);
 		$this->assertNotNull( $pub );
 		$this->assertArrayNotHasKey( 'private_x', $pub );
 
 		$votes = VoteMaterialPackage::fromJson(
-			(string) file_get_contents( $pilot->courier->path( ThreeNodePilot::VOTE_MATERIAL_FILE ) )
+			(string) file_get_contents( $pilot->votingCourier->path( ThreeNodePilot::VOTE_MATERIAL_FILE ) )
 		);
 		$this->assertNotNull( $votes );
 		$this->assertCount( 2, $votes['ballots'] );
 		$this->assertArrayNotHasKey( 'private_x', $votes );
 
 		foreach ( $result['courier_files'] as $basename ) {
-			$raw = (string) file_get_contents( $pilot->courier->path( $basename ) );
-			$this->assertStringNotContainsString( 'private_x', $raw, $basename );
+			$found = false;
+			foreach ( array( $pilot->kaCourier, $pilot->votingCourier, $pilot->tallyingCourier ) as $c ) {
+				$path = $c->directory() . '/' . $basename;
+				if ( ! is_readable( $path ) ) {
+					continue;
+				}
+				$found = true;
+				$raw   = (string) file_get_contents( $path );
+				$this->assertStringNotContainsString( 'private_x', $raw, $basename . ' @ ' . $c->directory() );
+			}
+			$this->assertTrue( $found, 'courier file missing on all nodes: ' . $basename );
 		}
 	}
 
@@ -149,7 +158,7 @@ final class ThreeNodePilotTest extends TestCase {
 	}
 
 	public function test_courier_rejects_path_traversal(): void {
-		$courier = new MaterialCourier( $this->root . '/courier' );
+		$courier = new MaterialCourier( $this->root . '/ka/courier' );
 		$this->expectException( \InvalidArgumentException::class );
 		$courier->path( '../etc/passwd' );
 	}

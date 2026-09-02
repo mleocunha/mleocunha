@@ -64,4 +64,19 @@ final class MaterialCourier {
 	public function directory(): string {
 		return $this->directory;
 	}
+
+	/**
+	 * Copiar um arquivo deste courier para outro (simula transporte manual entre sítios).
+	 */
+	public function copyFileTo( self $destination, string $filename ): string {
+		$src = $this->path( $filename );
+		if ( ! is_readable( $src ) ) {
+			throw new \RuntimeException( 'Missing courier file: ' . $filename );
+		}
+		$dest = $destination->path( $filename );
+		if ( ! copy( $src, $dest ) ) {
+			throw new \RuntimeException( 'Cannot copy ' . $filename . ' to destination courier.' );
+		}
+		return $dest;
+	}
 }

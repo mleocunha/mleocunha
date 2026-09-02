@@ -23,7 +23,7 @@ sob autoridade eleitoral superior preferencialmente colegiada
 
 - Pacote com `composer install`
 - PHP 8.2+ com GMP
-- Três `VE_DATA` + `courier/` partilhado no lab (`docs/operacao-standalone.md`)
+- Três `VE_DATA` com courier **local** cada um (`VE_DATA/courier`) — sem pasta partilhada (`docs/operacao-standalone.md`)
 - Opcional: nginx TLS
 - Arquivo `.rsv` de ensaio
 
@@ -32,7 +32,7 @@ sob autoridade eleitoral superior preferencialmente colegiada
 Seguir `docs/ativar-standalone.md`. No lab (um anfitrião):
 
 ```bash
-mkdir -p "$HOME/ve-data"/{ka,voting,tallying,courier}
+mkdir -p "$HOME/ve-data"/{ka,voting,tallying}
 
 php bin/ve-http --mode=key_authority --data="$HOME/ve-data/ka" \
   --host=10.42.0.1 --port=8888 &
@@ -48,15 +48,15 @@ Confirmar as três portas, `/login` em cada uma e, no voting, `/voto`. Registar 
 
 1. Login admin em cada nó (contas não sincronizam automaticamente).
 2. No **KA**: cadastrar autoridades em `/painel/autoridades` (≥ *n*).
-3. KA: `/painel/keygen` — selecionar *n* autoridades → gerar → courier (`authorities.json` incluído).
-4. Em **voting** e **tallying**: importar `authorities.json` do courier (ou cadastrar localmente). No voting, as autoridades acompanham a eleição; no tallying, sobem parcelas.
+3. KA: `/painel/keygen` — selecionar *n* autoridades → gerar → ficheiros em `ka/courier/` (`authorities.json` incluído).
+4. Transferir material do courier do KA para `voting/courier/` e `tallying/courier/`. Em **voting** e **tallying**: importar `authorities.json` (ou cadastrar localmente). No voting, as autoridades acompanham a eleição; no tallying, sobem parcelas.
 
 ## Dia 2 — cadastro e voto
 
 1. Voting: importar `.rsv` em `/painel/cadastro`.
 2. Confirmar material do courier / autoridades importadas.
 3. Exercitar `/voto` / cabine.
-4. Exportar material de voto para o courier.
+4. Exportar material de voto para o courier local e transferir para o tallying.
 
 ## Dia 3 — apuramento
 
@@ -64,7 +64,7 @@ Confirmar as três portas, `/login` em cada uma e, no voting, `/voto`. Registar 
 2. Cada autoridade (login próprio) submete a parcela em `/painel/parcelas` até ao limiar.
 3. Certificar conforme o painel.
 4. Opcional: `php bin/ve-node pilot --root=/tmp/ve-piloto`.
-5. Becape de cada `VE_DATA` + courier.
+5. Becape de cada `VE_DATA` (inclui o `courier/` local).
 
 ## Critérios de aceite
 
@@ -81,7 +81,7 @@ Confirmar as três portas, `/login` em cada uma e, no voting, `/voto`. Registar 
 |---------|-----------|
 | 500 ao abrir | `VE_MODE` e `VE_DATA` definidos? `composer install`? |
 | Login falha | `VE_ADMIN_*` no mesmo processo; `identity.json` já com outra senha? |
-| Courier vazio | Path `dirname(data)/courier`; permissões; data dirs irmãos |
+| Courier vazio | Ficheiro no `VE_DATA/courier` **deste** nó? Transferência do sítio de origem feita? Permissões? |
 | GMP | Extensão `gmp` instalada |
 
 ## Legado

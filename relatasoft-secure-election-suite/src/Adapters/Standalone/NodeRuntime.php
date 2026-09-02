@@ -80,6 +80,14 @@ final class NodeRuntime {
 	}
 
 	/**
+	 * Pasta de courier **local a este nó** (nunca partilhada com outros VE_DATA).
+	 * Material entre sítios move-se por cópia manual / canal auditável para o courier do destino.
+	 */
+	public function courierDirectory(): string {
+		return rtrim( $this->dataDir, '/\\' ) . DIRECTORY_SEPARATOR . 'courier';
+	}
+
+	/**
 	 * Create a fresh isolated node for the given E3 mode.
 	 *
 	 * @param bool   $durable When true (default), Persistence + Identity use JSON under dataDir.
@@ -134,7 +142,7 @@ final class NodeRuntime {
 			new InMemorySecretKeyProvider( 'standalone-piloto-' . $mode . '-' . $clienteId ),
 		);
 
-		$courierDir = dirname( rtrim( $dataDir, '/\\' ) ) . DIRECTORY_SEPARATOR . 'courier';
+		$courierDir = rtrim( $dataDir, '/\\' ) . DIRECTORY_SEPARATOR . 'courier';
 		$keygenService = $durable
 			? new StandaloneKeygenJobService( $jobStore, $persistence, $courierDir, $clienteId )
 			: new InMemoryKeygenJobService( $jobStore );

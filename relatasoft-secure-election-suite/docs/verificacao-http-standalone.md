@@ -11,7 +11,7 @@ testes e demonstrações**. Produção: um modo por servidor segregado —
 ```bash
 cd relatasoft-secure-election-suite
 composer install
-rm -rf /tmp/ve-http-check && mkdir -p /tmp/ve-http-check/{ka,voting,tallying,courier}
+rm -rf /tmp/ve-http-check && mkdir -p /tmp/ve-http-check/{ka,voting,tallying}
 export VE_ADMIN_LOGIN=admin VE_ADMIN_PASS='AdminPoC1!'
 php bin/ve-http --mode=key_authority --data=/tmp/ve-http-check/ka --host=127.0.0.1 --port=8888 &
 php bin/ve-http --mode=voting --data=/tmp/ve-http-check/voting --host=127.0.0.1 --port=8889 &
@@ -26,11 +26,11 @@ sleep 1
 | 1 | `GET http://127.0.0.1:8888/login` | Formulário |
 | 2 | Login admin no KA | Redireciona a `/painel` |
 | 3 | `/painel/autoridades` — cadastrar ≥3 autoridades | Listadas na tabela |
-| 4 | `/painel/keygen` — selecionar n e gerar | Parcelas atribuídas; arquivos no courier |
+| 4 | `/painel/keygen` — selecionar n e gerar | Parcelas atribuídas; arquivos em `ka/courier/` |
 | 5 | Login no voting `:8889` | Painel com Cadastro / Voto |
 | 6 | Importar `.rsv` mínimo | Eleitores listados no cadastro |
 | 7 | `/voto` → cabina | Fluxo de voto |
-| 8 | Tallying `:8890` importar/certificar | Usa material + parcelas do courier |
+| 8 | Tallying `:8890` importar/certificar | Após copiar material + parcelas para `tallying/courier/` |
 | 9 | `/assets/painel/css/shell.css` | 200 |
 
 ## Testes automatizados
