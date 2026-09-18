@@ -73,8 +73,8 @@ identificador;nome;papel
 
 1. KA: `/painel/autoridades` → `/painel/keygen` → ficheiros em `ka/courier/` (`public-key.json`, `parcela-*.json`, `authorities.json`).
 2. Transferir esses ficheiros para `voting/courier/` e `tallying/courier/` (descarregar/upload ou `cp` no lab).
-3. Voting: importar `authorities.json` → votar → exportar material de voto no courier local → transferir `vote-material.json` para `tallying/courier/`.
-4. Tallying: importar `authorities.json` → importar material → autoridades submetem parcelas em `/painel/parcelas` até ao limiar → certificar.
+3. Voting: importar `authorities.json` → **criar eleição** em `/painel/eleicoes` → votar em `/voto` → **exportar** `vote-material.json` no Courier → transferir para `tallying/courier/`.
+4. Tallying: importar `authorities.json` → importar material → autoridades submetem parcelas em `/painel/parcelas` até ao limiar → **certificar** (reconstrução Shamir + total homomórfico).
 
 Sem autoridades no nó de apuração, as parcelas não sobem e o limiar Shamir não é atingido.
 
@@ -93,9 +93,9 @@ Sem autoridades no nó de apuração, as parcelas não sobem e o limiar Shamir n
 
 ## Limitações conscientes (piloto HTTP)
 
-- Jobs async no HTTP podem ser InMemory (reinício perde fila).
-- Cabina HTTP: boletim mínimo (0/1) nesta superfície.
-- Certificação HTTP: alinhar com piloto CLI/`ve-node` quando o fluxo completo for exigido.
+- Cabina HTTP: boletim mínimo sim/não (0/1); sem candidaturas multi-opção nesta superfície.
+- Jobs async no HTTP: keygen é durável; outros fluxos podem ser InMemory conforme o adapter.
+- Certificação HTTP: reconstrução Shamir + total homomórfico alinhados ao piloto CLI (`HomomorphicCertifyService`).
 
 ## CLI auxiliar
 

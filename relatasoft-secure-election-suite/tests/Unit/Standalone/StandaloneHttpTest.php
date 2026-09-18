@@ -642,6 +642,273 @@ final class StandaloneHttpTest extends TestCase {
 		$this->assertSame( 2, $tally->persistence->shareSubmissions->countByImport( $importId ) );
 	}
 
+	public function test_http_e2e_triangle_create_vote_export_certify(): void {
+		mkdir( $this->root . '/ka', 0700, true );
+		mkdir( $this->root . '/tallying', 0700, true );
+		$plugin = dirname( __DIR__, 3 );
+
+		$ka = NodeRuntime::create( SiteModes::KEY_AUTHORITY, $this->root . '/ka', 'teste', true );
+		$kk = new HttpKernel( $ka, $plugin, 'pt-BR' );
+		$loginKa = $kk->handle(
+			new Request( 'POST', '/login', array(), array( 'login' => 'admin', 'password' => 'AdminPoC1!', 'next' => '/painel' ), array(), array() )
+		);
+		preg_match( '/' . CookieSessionPort::COOKIE . '=([^;]+)/', $loginKa->headers['Set-Cookie'] ?? '', $m );
+		$cKa = array( CookieSessionPort::COOKIE => $m[1] ?? '' );
+		foreach ( array( 'aut1', 'aut2', 'aut3' ) as $loginName ) {
+			$kk->handle(
+				new Request(
+					'POST',
+					'/painel/autoridades',
+					array(),
+					array(
+						'action'      => 'create',
+						'login'       => $loginName,
+						'email'       => $loginName . '@ex.test',
+						'displayName' => $loginName,
+						'password'    => 'SenhaAut1!',
+					),
+					$cKa,
+					array()
+				)
+			);
+		}
+		$officials = $ka->users->listByRole( 'editor' );
+		$ids       = array_map( static fn( $o ) => (string) (int) $o['id'], $officials );
+		$this->runKeygenToCompletion(
+			$kk,
+			$ka,
+			$cKa,
+			array(
+				'bits'         => '512',
+				'threshold'    => '2',
+				'shares'       => '3',
+				'official_ids' => $ids,
+			)
+		);
+		$this->handoffCourier(
+			$this->root . '/ka',
+			$this->root . '/voting',
+			array( 'authorities.json', 'public-key.json' )
+		);
+		$this->handoffCourier(
+			$this->root . '/ka',
+			$this->root . '/tallying',
+			array( 'authorities.json', 'public-key.json', 'parcela-1.json', 'parcela-2.json' )
+		);
+
+		$voting = NodeRuntime::create( SiteModes::VOTING, $this->root . '/voting', 'teste', true );
+		$vk     = new HttpKernel( $voting, $plugin, 'pt-BR' );
+		$loginV = $vk->handle(
+			new Request( 'POST', '/login', array(), array( 'login' => 'admin', 'password' => 'AdminPoC1!', 'next' => '/painel' ), array(), array() )
+		);
+		preg_match( '/' . CookieSessionPort::COOKIE . '=([^;]+)/', $loginV->headers['Set-Cookie'] ?? '', $mv );
+		$cV = array( CookieSessionPort::COOKIE => $mv[1] ?? '' );
+		$vk->handle(
+			new Request( 'POST', '/painel/autoridades', array(), array( 'action' => 'import_courier' ), $cV, array() )
+		);
+
+		$created = $vk->handle(
+			new Request(
+				'POST',
+				'/painel/eleicoes',
+				array(),
+				array( 'title' => 'Triângulo HTTP', 'question_title' => 'Aprovar a proposta?' ),
+				$cV,
+				array()
+			)
+		);
+		$this->assertStringContainsString( 'criada', $created->body );
+		$elections = $voting->persistence->elections->listElections();
+		$this->assertNotEmpty( $elections );
+		$electionId = (int) $elections[0]['id'];
+		$roundId    = (int) ( $elections[0]['current_round_id'] ?? 0 );
+		$this->assertGreaterThan( 0, $roundId );
+
+		$castNoElection = $vk->handle(
+			new Request( 'POST', '/voto/cabina', array(), array( 'choice' => '1' ), $cV, array() )
+		);
+		// Already have election — should redirect to thank-you.
+		$this->assertSame( 302, $castNoElection->status );
+		$this->assertStringContainsString( '/voto/obrigado', $castNoElection->headers['Location'] ?? '' );
+
+		$votes = array();
+		$voting->persistence->votes->forEachExportRow(
+			$roundId,
+			static function ( array $row ) use ( &$votes ): void {
+				$votes[] = $row;
+			}
+		);
+		$this->assertCount( 1, $votes );
+		$this->assertSame( $electionId, (int) ( $voting->persistence->elections->findElection( $electionId )['id'] ?? 0 ) );
+		$this->assertNotEmpty( $votes[0]['ciphertext_alpha'] ?? null );
+		$this->assertNotEmpty( $votes[0]['ciphertext_beta'] ?? null );
+		$this->assertArrayNotHasKey( 'ciphertext', $votes[0] );
+
+		// Second yes vote under a different session user id is not available easily —
+		// cast again as same user should be blocked.
+		$dup = $vk->handle(
+			new Request( 'POST', '/voto/cabina', array(), array( 'choice' => '1' ), $cV, array() )
+		);
+		$this->assertSame( 302, $dup->status );
+		$this->assertStringContainsString( '/voto/cabina', $dup->headers['Location'] ?? '' );
+
+		// Cast a second ballot by storing directly (simulates another eleitor) then export.
+		$keys = $voting->persistence->keys->listActive();
+		$k    = $keys[0];
+		$p    = \RelataSoft\SecureElectionSuite\Painel\Domain\Crypto\BigInt::fromDecimalString( (string) $k['public_p'] );
+		$q    = \RelataSoft\SecureElectionSuite\Painel\Domain\Crypto\BigInt::fromDecimalString( (string) $k['public_q'] );
+		$g    = \RelataSoft\SecureElectionSuite\Painel\Domain\Crypto\BigInt::fromDecimalString( (string) $k['public_g'] );
+		$y    = \RelataSoft\SecureElectionSuite\Painel\Domain\Crypto\BigInt::fromDecimalString( (string) $k['public_y'] );
+		$ct   = \RelataSoft\SecureElectionSuite\Painel\Domain\Crypto\HomomorphicTally::encryptCount( 1, $p, $q, $g, $y );
+		$alpha = \RelataSoft\SecureElectionSuite\Painel\Domain\Crypto\BigInt::toDecimalString( $ct->getAlpha() );
+		$beta  = \RelataSoft\SecureElectionSuite\Painel\Domain\Crypto\BigInt::toDecimalString( $ct->getBeta() );
+		$qs    = $voting->persistence->elections->listQuestions( $roundId );
+		$qid   = (int) $qs[0]['id'];
+		$voting->persistence->votes->store(
+			array(
+				'voter_user_id'    => 99,
+				'election_id'      => $electionId,
+				'round_id'         => $roundId,
+				'question_id'      => $qid,
+				'ciphertext_alpha' => $alpha,
+				'ciphertext_beta'  => $beta,
+				'vote_hash'        => hash( 'sha256', $alpha . '|' . $beta . '|99' ),
+				'cast_at'          => gmdate( 'c' ),
+			)
+		);
+
+		$export = $vk->handle(
+			new Request(
+				'POST',
+				'/painel/courier',
+				array(),
+				array( 'action' => 'export_vote_material' ),
+				$cV,
+				array()
+			)
+		);
+		$this->assertStringContainsString( 'Exportado', $export->body );
+		$this->assertFileExists( $this->root . '/voting/courier/vote-material.json' );
+		$pkg = \RelataSoft\SecureElectionSuite\Painel\Domain\Material\VoteMaterialPackage::fromJson(
+			(string) file_get_contents( $this->root . '/voting/courier/vote-material.json' )
+		);
+		$this->assertNotNull( $pkg );
+		$this->assertCount( 2, $pkg['ballots'] );
+
+		$this->handoffCourier(
+			$this->root . '/voting',
+			$this->root . '/tallying',
+			array( 'vote-material.json' )
+		);
+
+		$tally = NodeRuntime::create( SiteModes::TALLYING, $this->root . '/tallying', 'teste', true );
+		$tk    = new HttpKernel( $tally, $plugin, 'pt-BR' );
+		$loginT = $tk->handle(
+			new Request( 'POST', '/login', array(), array( 'login' => 'admin', 'password' => 'AdminPoC1!', 'next' => '/painel' ), array(), array() )
+		);
+		preg_match( '/' . CookieSessionPort::COOKIE . '=([^;]+)/', $loginT->headers['Set-Cookie'] ?? '', $mt );
+		$cT = array( CookieSessionPort::COOKIE => $mt[1] ?? '' );
+		$tk->handle(
+			new Request( 'POST', '/painel/autoridades', array(), array( 'action' => 'import_courier' ), $cT, array() )
+		);
+
+		$imp = $tk->handle(
+			new Request( 'POST', '/painel/importar', array(), array(), $cT, array() )
+		);
+		$this->assertStringContainsString( 'pronta', $imp->body );
+		$summaries = $tally->persistence->tallyImports->listSummaries();
+		$this->assertNotEmpty( $summaries );
+		$importId = (int) $summaries[0]['id'];
+
+		foreach ( array( 'parcela-1.json', 'parcela-2.json' ) as $file ) {
+			$parcela = json_decode( (string) file_get_contents( $this->root . '/tallying/courier/' . $file ), true );
+			$sub = $tk->handle(
+				new Request(
+					'POST',
+					'/painel/parcelas',
+					array(),
+					array(
+						'import_id'  => (string) $importId,
+						'share_json' => (string) json_encode( $parcela ),
+					),
+					$cT,
+					array()
+				)
+			);
+			$this->assertStringContainsString( 'submetida', $sub->body );
+		}
+
+		$cert = $tk->handle(
+			new Request(
+				'POST',
+				'/painel/certificar',
+				array(),
+				array( 'import_id' => (string) $importId ),
+				$cT,
+				array()
+			)
+		);
+		$this->assertStringContainsString( 'total = 2', $cert->body );
+		$report = $tally->persistence->certifications->findLatestReportByImport( $importId );
+		$this->assertNotNull( $report );
+		$this->assertSame( 'certified', (string) ( $report['certification_status'] ?? '' ) );
+		$vr = json_decode( (string) ( $report['verification_report_json'] ?? '' ), true );
+		$this->assertSame( 2, (int) ( $vr['tally'] ?? -1 ) );
+	}
+
+	public function test_certify_rejects_below_threshold(): void {
+		mkdir( $this->root . '/tallying', 0700, true );
+		$plugin = dirname( __DIR__, 3 );
+		$tally  = NodeRuntime::create( SiteModes::TALLYING, $this->root . '/tallying', 'teste', true );
+		$tk     = new HttpKernel( $tally, $plugin, 'pt-BR' );
+		$loginT = $tk->handle(
+			new Request( 'POST', '/login', array(), array( 'login' => 'admin', 'password' => 'AdminPoC1!', 'next' => '/painel' ), array(), array() )
+		);
+		preg_match( '/' . CookieSessionPort::COOKIE . '=([^;]+)/', $loginT->headers['Set-Cookie'] ?? '', $mt );
+		$cT = array( CookieSessionPort::COOKIE => $mt[1] ?? '' );
+
+		$votePkg = \RelataSoft\SecureElectionSuite\Painel\Domain\Material\VoteMaterialPackage::build(
+			array(
+				'election_id' => 1,
+				'round_id'    => 1,
+				'ballots'     => array(
+					array( 'alpha' => '2', 'beta' => '3', 'question_id' => 1, 'receipt' => 'x' ),
+				),
+			)
+		);
+		$importId = $tally->persistence->tallyImports->create(
+			array(
+				'status'  => 'ready',
+				'payload' => $votePkg,
+			)
+		);
+		$tally->persistence->shareSubmissions->create(
+			array(
+				'tally_import_id' => $importId,
+				'share_index'     => 1,
+				'share_payload'   => array(
+					'threshold_t' => 2,
+					'share_index' => 1,
+					'share_value' => '1',
+					'field_prime' => '7',
+					'public_key'  => array( 'p' => '11', 'q' => '5', 'g' => '2', 'y' => '3' ),
+				),
+			)
+		);
+
+		$cert = $tk->handle(
+			new Request(
+				'POST',
+				'/painel/certificar',
+				array(),
+				array( 'import_id' => (string) $importId ),
+				$cT,
+				array()
+			)
+		);
+		$this->assertStringContainsString( 'Parcelas insuficientes', $cert->body );
+	}
+
 	private function rrmdir( string $dir ): void {
 		if ( ! is_dir( $dir ) ) {
 			return;

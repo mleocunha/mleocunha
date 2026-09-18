@@ -29,9 +29,10 @@ sleep 1
 | 4 | `/painel/keygen` — selecionar n e gerar | Parcelas atribuídas; arquivos em `ka/courier/` |
 | 5 | Login no voting `:8889` | Painel com Cadastro / Voto |
 | 6 | Importar `.rsv` mínimo | Eleitores listados no cadastro |
-| 7 | `/voto` → cabina | Fluxo de voto |
-| 8 | Tallying `:8890` importar/certificar | Após copiar material + parcelas para `tallying/courier/` |
-| 9 | `/assets/painel/css/shell.css` | 200 |
+| 7 | `/painel/eleicoes` — criar | Eleição + turno + pergunta |
+| 8 | `/voto` → cabina → export Courier | `vote-material.json` no voting |
+| 9 | Tallying `:8890` importar → parcelas → certificar | Total numérico na certificação |
+| 10 | `/assets/painel/css/shell.css` | 200 |
 
 ## Testes automatizados
 
@@ -41,8 +42,7 @@ sleep 1
 
 ## Residual conhecido
 
-- Jobs async HTTP InMemory em parte dos fluxos  
-- Cabina: voto mínimo 0/1  
-- Certificação HTTP pode ser registro parcial vs piloto CLI completo  
+- Cabina: voto mínimo 0/1 (sem candidaturas multi-opção)  
+- Keygen durável; outros jobs async podem ser InMemory  
 
-**Veredicto alvo:** superfície HTTP nos três modos operacional para piloto.
+**Veredicto alvo:** triângulo HTTP (criar eleição → votar/exportar → certificar) operacional nos três modos.

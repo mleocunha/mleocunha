@@ -51,18 +51,19 @@ Confirmar as três portas, `/login` em cada uma e, no voting, `/voto`. Registar 
 3. KA: `/painel/keygen` — selecionar *n* autoridades → gerar → ficheiros em `ka/courier/` (`authorities.json` incluído).
 4. Transferir material do courier do KA para `voting/courier/` e `tallying/courier/`. Em **voting** e **tallying**: importar `authorities.json` (ou cadastrar localmente). No voting, as autoridades acompanham a eleição; no tallying, sobem parcelas.
 
-## Dia 2 — cadastro e voto
+## Dia 2 — cadastro, eleição e voto
 
 1. Voting: importar `.rsv` em `/painel/cadastro`.
 2. Confirmar material do courier / autoridades importadas.
-3. Exercitar `/voto` / cabine.
-4. Exportar material de voto para o courier local e transferir para o tallying.
+3. Criar eleição em `/painel/eleicoes` (título + pergunta sim/não).
+4. Exercitar `/voto` / cabine.
+5. Em `/painel/courier`: **Exportar vote-material.json** e transferir para o tallying.
 
 ## Dia 3 — apuramento
 
-1. Tallying: importar material.
+1. Tallying: importar material em `/painel/importar`.
 2. Cada autoridade (login próprio) submete a parcela em `/painel/parcelas` até ao limiar.
-3. Certificar conforme o painel.
+3. Certificar em `/painel/certificar` — total apurado na UI.
 4. Opcional: `php bin/ve-node pilot --root=/tmp/ve-piloto`.
 5. Becape de cada `VE_DATA` (inclui o `courier/` local).
 
