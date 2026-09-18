@@ -7,7 +7,6 @@ use RelataSoft\SecureElectionSuite\Painel\Adapters\Standalone\NodeRuntime;
 use RelataSoft\SecureElectionSuite\Painel\Contracts\Mode\SiteModes;
 use RelataSoft\SecureElectionSuite\Painel\Domain\Crypto\BigInt;
 use RelataSoft\SecureElectionSuite\Painel\Domain\Crypto\ElGamal;
-use RelataSoft\SecureElectionSuite\Painel\Domain\Crypto\ElGamalCiphertext;
 use RelataSoft\SecureElectionSuite\Painel\Domain\Crypto\HomomorphicTally;
 use RelataSoft\SecureElectionSuite\Painel\Domain\Crypto\PrimeGenerator;
 use RelataSoft\SecureElectionSuite\Painel\Domain\Crypto\ShamirSecretSharing;
@@ -316,46 +315,26 @@ final class ThreeNodePilot {
 	public function runTallying( array $publicPackage, string $fieldPrime, int $expectedTally ): array {
 		$this->tallying->requireMode( SiteModes::TALLYING );
 
-		$votesRaw = $this->tallyingCourier->readJson( self::VOTE_MATERIAL_FILE );
-		$votesOk  = VoteMaterialPackage::validate( $votesRaw );
-		if ( empty( $votesOk['ok'] ) ) {
-			throw new \RuntimeException( 'Invalid vote material package: ' . ( $votesOk['error'] ?? '?' ) );
-		}
-		$votesPkg = $votesRaw;
+		$votesPkg = $this->tallyingCourier->readJson( self::VOTE_MATERIAL_FILE );
 
-		// Collect threshold parcels from courier (manual offline shares).
-		$sharePoints = array();
+		$sharePayloads = array();
 		for ( $i = 1; $i <= $this->threshold; ++$i ) {
-			$parcel = $this->tallyingCourier->readJson( self::PARCEL_PREFIX . $i . '.json' );
-			$sharePoints[] = array(
-				'x' => (int) $parcel['share_index'],
-				'y' => BigInt::fromDecimalString( (string) $parcel['share_value'] ),
-			);
+			$sharePayloads[] = $this->tallyingCourier->readJson( self::PARCEL_PREFIX . $i . '.json' );
 		}
 
-		$field = BigInt::fromDecimalString( $fieldPrime );
-		$x     = ShamirSecretSharing::reconstructWithThreshold( $sharePoints, $field, $this->threshold );
-
-		$pk = $publicPackage['public_key'];
-		$p  = BigInt::fromDecimalString( (string) $pk['p'] );
-		$q  = BigInt::fromDecimalString( (string) $pk['q'] );
-		$g  = BigInt::fromDecimalString( (string) $pk['g'] );
-
-		// Verify reconstructed x matches public y (without reading KA private store).
-		$yCheck = BigInt::modPow( $g, $x, $p );
-		if ( 0 !== \gmp_cmp( $yCheck, BigInt::fromDecimalString( (string) $pk['y'] ) ) ) {
-			throw new \RuntimeException( 'Reconstructed secret does not match public key.' );
-		}
-
-		$ciphertexts = array();
-		foreach ( $votesPkg['ballots'] as $ballot ) {
-			$ciphertexts[] = new ElGamalCiphertext(
-				BigInt::fromDecimalString( (string) $ballot['alpha'] ),
-				BigInt::fromDecimalString( (string) $ballot['beta'] )
-			);
-		}
-		$sum   = HomomorphicTally::aggregateCounts( $ciphertexts, $p );
-		$tally = HomomorphicTally::decryptAndDecode( $sum, $p, $q, $g, $x, max( 10, $expectedTally + 5 ) );
+		$pk   = $publicPackage['public_key'];
+		$dec  = HomomorphicCertifyService::decryptTally(
+			$votesPkg,
+			$sharePayloads,
+			array(
+				'p' => (string) $pk['p'],
+				'q' => (string) $pk['q'],
+				'g' => (string) $pk['g'],
+				'y' => (string) $pk['y'],
+			),
+			$fieldPrime
+		);
+		$tally = $dec['tally'];
 
 		if ( $tally !== $expectedTally ) {
 			throw new \RuntimeException( sprintf( 'Tally mismatch: got %d expected %d.', $tally, $expectedTally ) );
@@ -366,13 +345,14 @@ final class ThreeNodePilot {
 				'import_manifest_json' => json_encode(
 					array(
 						'source'       => 'piloto-courier',
-						'round_id'     => (int) $votesPkg['round_id'],
-						'election_id'  => (int) $votesPkg['election_id'],
-						'ballot_count' => count( $votesPkg['ballots'] ),
+						'round_id'     => $dec['round_id'],
+						'election_id'  => $dec['election_id'],
+						'ballot_count' => $dec['ballots'],
 					)
 				),
 				'import_hash' => hash( 'sha256', (string) ( $votesPkg['checksum'] ?? '' ) ),
 				'status'      => 'ready',
+				'payload'     => $votesPkg,
 			)
 		);
 
@@ -383,8 +363,8 @@ final class ThreeNodePilot {
 				'verification_report_json' => json_encode(
 					array(
 						'tally'       => $tally,
-						'election_id' => (int) $votesPkg['election_id'],
-						'round_id'    => (int) $votesPkg['round_id'],
+						'election_id' => $dec['election_id'],
+						'round_id'    => $dec['round_id'],
 					)
 				),
 			)
@@ -400,8 +380,8 @@ final class ThreeNodePilot {
 		);
 
 		return array(
-			'election_id'      => (int) $votesPkg['election_id'],
-			'round_id'         => (int) $votesPkg['round_id'],
+			'election_id'      => $dec['election_id'],
+			'round_id'         => $dec['round_id'],
 			'tally'            => $tally,
 			'certification_id' => $certId,
 		);

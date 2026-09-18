@@ -5,20 +5,20 @@ namespace RelataSoft\SecureElectionSuite\Painel\Adapters\Standalone\Http;
 
 use RelataSoft\SecureElectionSuite\Painel\Adapters\Standalone\Identity\FileJsonUserStore;
 use RelataSoft\SecureElectionSuite\Painel\Adapters\Standalone\NodeRuntime;
+use RelataSoft\SecureElectionSuite\Painel\Application\Standalone\HomomorphicCertifyService;
+use RelataSoft\SecureElectionSuite\Painel\Application\Standalone\VoteMaterialExportService;
 use RelataSoft\SecureElectionSuite\Painel\Contracts\Journey\JourneySteps;
 use RelataSoft\SecureElectionSuite\Painel\Contracts\Mode\SiteModes;
 use RelataSoft\SecureElectionSuite\Painel\Domain\Access\UserRegistryRoles;
 use RelataSoft\SecureElectionSuite\Painel\Domain\Authorities\AuthoritiesDirectorySync;
 use RelataSoft\SecureElectionSuite\Painel\Domain\Authorities\AuthoritiesPackage;
 use RelataSoft\SecureElectionSuite\Painel\Domain\Crypto\BigInt;
-use RelataSoft\SecureElectionSuite\Painel\Domain\Crypto\ElGamal;
 use RelataSoft\SecureElectionSuite\Painel\Domain\Crypto\HomomorphicTally;
-use RelataSoft\SecureElectionSuite\Painel\Domain\Crypto\PrimeGenerator;
 use RelataSoft\SecureElectionSuite\Painel\Domain\Crypto\ShamirSecretSharing;
 use RelataSoft\SecureElectionSuite\Painel\Domain\ElectoralRoll\RsvFormat;
 use RelataSoft\SecureElectionSuite\Painel\Domain\ElectoralRoll\RsvImporter;
-use RelataSoft\SecureElectionSuite\Painel\Domain\Material\MaterialCourier;
 use RelataSoft\SecureElectionSuite\Painel\Domain\Material\PublicKeyPackage;
+use RelataSoft\SecureElectionSuite\Painel\Domain\Material\VoteMaterialPackage;
 use RelataSoft\SecureElectionSuite\Painel\Infrastructure\Journey\InMemoryJourneyRouteResolver;
 
 /**
@@ -109,7 +109,7 @@ final class HttpKernel {
 			'/painel/keygen/cancel' === $path => $this->keygenCancel( $req ),
 			'/painel/parcelas' === $path => $this->parcelas( $req ),
 			'/painel/courier' === $path => $this->courier( $req ),
-			'/painel/eleicoes' === $path => $this->eleicoes(),
+			'/painel/eleicoes' === $path => $this->eleicoes( $req ),
 			'/painel/importar' === $path => $this->tallyImport( $req ),
 			'/painel/certificar' === $path => $this->certificar( $req ),
 			default => Response::html( $this->shell->render( '404', '<div class="ve-card"><h1>404</h1><p class="ve-muted">Rota não encontrada.</p></div>' ), 404 ),
@@ -231,7 +231,7 @@ final class HttpKernel {
 		if ( SiteModes::VOTING === $mode ) {
 			$cards .= $this->card( 'Cadastro eleitoral', 'Importar .rsv e listar papéis.', '/painel/cadastro' );
 			$cards .= $this->card( 'Autoridades eleitorais', 'Importar ou acompanhar autoridades (validade jurídica da eleição).', '/painel/autoridades' );
-			$cards .= $this->card( 'Eleições', 'Ver eleições neste nó.', '/painel/eleicoes' );
+			$cards .= $this->card( 'Eleições', 'Criar eleição sim/não e acompanhar turnos.', '/painel/eleicoes' );
 			$cards .= $this->card( 'Jornada /voto', 'Boas-vindas, cabine e obrigado.', '/voto' );
 			$cards .= $this->card( 'Courier', 'Importar chave pública / exportar material de voto.', '/painel/courier' );
 		} elseif ( SiteModes::KEY_AUTHORITY === $mode ) {
@@ -242,7 +242,7 @@ final class HttpKernel {
 			$cards .= $this->card( 'Autoridades eleitorais', 'Importar autoridades para subirem parcelas até ao limiar Shamir.', '/painel/autoridades' );
 			$cards .= $this->card( 'Importar apuração', 'Importar material de voto do courier.', '/painel/importar' );
 			$cards .= $this->card( 'Parcelas Shamir', 'Submeter parcelas até atingir o limiar.', '/painel/parcelas' );
-			$cards .= $this->card( 'Certificar', 'Registar certificação da apuração.', '/painel/certificar' );
+			$cards .= $this->card( 'Certificar', 'Reconstruir Shamir e apurar o total.', '/painel/certificar' );
 			$cards .= $this->card( 'Courier', 'Caixa de saída/entrada local — transferir manualmente para o outro sítio.', '/painel/courier' );
 		}
 		$user = $this->node->users->findById( $this->session->currentUserId() );
@@ -1258,17 +1258,43 @@ HTML;
 
 	private function courier( Request $req ): Response {
 		$courierDir = $this->localCourierDir();
-		$msg = '';
-		if ( 'POST' === $req->method && isset( $req->files['material'] ) ) {
-			$file = $req->files['material'];
-			$tmp  = (string) ( $file['tmp_name'] ?? '' );
-			$name = basename( (string) ( $file['name'] ?? 'upload.json' ) );
-			$name = preg_replace( '/[^a-zA-Z0-9._\-]/', '', $name ) ?: 'upload.json';
-			if ( is_readable( $tmp ) ) {
-				copy( $tmp, $courierDir . '/' . $name );
-				$msg = 'Material guardado: ' . $name;
+		$msg        = '';
+		$mode       = $this->node->mode->getMode();
+
+		if ( 'POST' === $req->method ) {
+			$action = (string) $req->input( 'action', '' );
+			if ( 'export_vote_material' === $action && SiteModes::VOTING === $mode ) {
+				try {
+					$ctx = $this->resolveOpenElectionContext();
+					if ( null === $ctx ) {
+						$msg = 'Criar uma eleição aberta em /painel/eleicoes antes de exportar.';
+					} else {
+						$checksum = $this->publicKeyChecksumFromCourierOrKeys();
+						$pkg      = VoteMaterialExportService::buildFromVotes(
+							$this->node,
+							$ctx['election_id'],
+							$ctx['round_id'],
+							$checksum
+						);
+						$path = VoteMaterialExportService::writeToCourier( $this->node, $pkg );
+						$msg  = 'Exportado ' . basename( $path ) . ' (' . count( $pkg['ballots'] ) . ' boletins). '
+							. 'Transferir manualmente para o courier do nó de totalização.';
+					}
+				} catch ( \Throwable $e ) {
+					$msg = $e->getMessage();
+				}
+			} elseif ( isset( $req->files['material'] ) ) {
+				$file = $req->files['material'];
+				$tmp  = (string) ( $file['tmp_name'] ?? '' );
+				$name = basename( (string) ( $file['name'] ?? 'upload.json' ) );
+				$name = preg_replace( '/[^a-zA-Z0-9._\-]/', '', $name ) ?: 'upload.json';
+				if ( is_readable( $tmp ) ) {
+					copy( $tmp, $courierDir . '/' . $name );
+					$msg = 'Material guardado: ' . $name;
+				}
 			}
 		}
+
 		$files = glob( $courierDir . '/*' ) ?: array();
 		$list  = '<ul>';
 		foreach ( $files as $f ) {
@@ -1277,6 +1303,14 @@ HTML;
 				. ' — <a href="/painel/courier/' . rawurlencode( $bn ) . '">Descarregar</a></li>';
 		}
 		$list .= '</ul>';
+
+		$exportForm = '';
+		if ( SiteModes::VOTING === $mode ) {
+			$exportForm = '<form method="post" style="margin-top:1rem">'
+				. '<input type="hidden" name="action" value="export_vote_material" />'
+				. '<div class="ve-actions"><button type="submit">Exportar vote-material.json (eleição aberta)</button></div></form>';
+		}
+
 		$body = '<div class="ve-card"><h1>Courier manual</h1>'
 			. '<p class="ve-muted">Courier <strong>local deste nó</strong> (sem sync e sem pasta partilhada entre modos): <code>'
 			. htmlspecialchars( $courierDir, ENT_QUOTES, 'UTF-8' ) . '</code></p>'
@@ -1285,58 +1319,140 @@ HTML;
 			. 'Nunca montar o mesmo diretório nos três processos.</p>'
 			. ( $msg ? '<p class="ve-muted">' . htmlspecialchars( $msg, ENT_QUOTES, 'UTF-8' ) . '</p>' : '' )
 			. '<form method="post" enctype="multipart/form-data"><label class="ve-field"><span>Carregar JSON neste nó</span><input type="file" name="material" required /></label>'
-			. '<div class="ve-actions"><button type="submit">Carregar</button></div></form></div>'
+			. '<div class="ve-actions"><button type="submit">Carregar</button></div></form>'
+			. $exportForm
+			. '</div>'
 			. '<div class="ve-card"><h2>Arquivos neste courier</h2>' . $list . '</div>';
 		return $this->page( 'Courier', $body );
 	}
 
-	private function eleicoes(): Response {
+	private function eleicoes( Request $req ): Response {
 		$this->node->requireMode( SiteModes::VOTING );
+		$msg = '';
+
+		if ( 'POST' === $req->method ) {
+			$title    = trim( $req->input( 'title', '' ) );
+			$question = trim( $req->input( 'question_title', 'Aprovar?' ) );
+			if ( '' === $title ) {
+				$msg = 'Indicar o título da eleição.';
+			} elseif ( ! $this->node->persistence->keys->listActive() && ! $this->tryImportPublicKeyFromCourier() ) {
+				$msg = 'Importar public-key.json no courier deste nó antes de criar a eleição.';
+			} else {
+				if ( '' === $question ) {
+					$question = 'Aprovar?';
+				}
+				$electionId = $this->node->persistence->elections->createElection(
+					array(
+						'title'         => $title,
+						'voting_method' => 'approval',
+						'status'        => 'open',
+					)
+				);
+				$roundId = $this->node->persistence->elections->createRound(
+					array(
+						'election_id'  => $electionId,
+						'round_number' => 1,
+						'title'        => 'Turno 1',
+						'status'       => 'open',
+					)
+				);
+				$this->node->persistence->elections->createQuestion(
+					array(
+						'election_id'    => $electionId,
+						'round_id'       => $roundId,
+						'question_title' => $question,
+						'question_type'  => 'yes_no',
+						'min_choices'    => 1,
+						'max_choices'    => 1,
+						'order_index'    => 0,
+					)
+				);
+				$msg = "Eleição #{$electionId} criada (turno #{$roundId}). Abrir /voto para votar; depois exportar no Courier.";
+			}
+		}
+
 		$elections = $this->node->persistence->elections->listElections();
-		$rows = '';
+		$rows      = '';
 		foreach ( $elections as $e ) {
-			$rows .= '<tr><td>' . (int) $e['id'] . '</td><td>' . htmlspecialchars( (string) ( $e['title'] ?? '' ), ENT_QUOTES, 'UTF-8' ) . '</td></tr>';
+			$eid     = (int) ( $e['id'] ?? 0 );
+			$roundId = (int) ( $e['current_round_id'] ?? 0 );
+			$qs      = $roundId > 0 ? $this->node->persistence->elections->listQuestions( $roundId ) : array();
+			$qTitle  = $qs ? (string) ( $qs[0]['question_title'] ?? '' ) : '';
+			$rows   .= '<tr><td>' . $eid . '</td><td>'
+				. htmlspecialchars( (string) ( $e['title'] ?? '' ), ENT_QUOTES, 'UTF-8' ) . '</td><td>'
+				. htmlspecialchars( (string) ( $e['status'] ?? '' ), ENT_QUOTES, 'UTF-8' ) . '</td><td>'
+				. $roundId . '</td><td>'
+				. htmlspecialchars( $qTitle, ENT_QUOTES, 'UTF-8' ) . '</td></tr>';
 		}
 		if ( '' === $rows ) {
-			$rows = '<tr><td colspan="2" class="ve-muted">Nenhuma eleição neste nó. Importar chave pública via courier e criar no fluxo de votação/piloto.</td></tr>';
+			$rows = '<tr><td colspan="5" class="ve-muted">Nenhuma eleição neste nó.</td></tr>';
 		}
-		$body = '<div class="ve-card"><h1>Eleições</h1><table class="ve-table"><thead><tr><th>ID</th><th>Título</th></tr></thead><tbody>'
-			. $rows . '</tbody></table></div>';
+
+		$body = '<div class="ve-card"><h1>Eleições</h1>'
+			. ( $msg ? '<p class="ve-muted">' . htmlspecialchars( $msg, ENT_QUOTES, 'UTF-8' ) . '</p>' : '' )
+			. '<p class="ve-muted">PoC: uma pergunta sim/não por eleição (boletim 0/1). Candidaturas multi-opção ficam para a superfície completa.</p>'
+			. '<form method="post">'
+			. '<label class="ve-field"><span>Título</span><input name="title" required maxlength="200" /></label>'
+			. '<label class="ve-field"><span>Pergunta</span><input name="question_title" value="Aprovar?" maxlength="200" /></label>'
+			. '<div class="ve-actions"><button type="submit">Criar eleição</button></div></form></div>'
+			. '<div class="ve-card"><h2>Registadas</h2><table class="ve-table"><thead><tr>'
+			. '<th>ID</th><th>Título</th><th>Estado</th><th>Turno</th><th>Pergunta</th></tr></thead><tbody>'
+			. $rows . '</tbody></table>'
+			. '<div class="ve-actions"><a href="/voto">Ir ao voto</a> '
+			. '<a class="secondary" href="/painel/courier">Exportar material</a></div></div>';
 		return $this->page( 'Eleições', $body );
 	}
 
 	private function tallyImport( Request $req ): Response {
 		$this->node->requireMode( SiteModes::TALLYING );
-		$msg = '';
+		$msg        = '';
 		$courierDir = $this->localCourierDir();
 		if ( 'POST' === $req->method ) {
-			$voteFile = $courierDir . '/vote-material.json';
+			$voteFile = $courierDir . '/' . VoteMaterialExportService::VOTE_MATERIAL_FILE;
 			if ( is_readable( $voteFile ) ) {
 				$raw = json_decode( (string) file_get_contents( $voteFile ), true );
-				if ( is_array( $raw ) ) {
-					$id = $this->node->persistence->tallyImports->create(
-						array(
-							'source'     => 'courier',
-							'status'     => 'imported',
-							'created_at' => gmdate( 'c' ),
-							'payload'    => $raw,
-						)
-					);
-					$msg = "Importação #{$id} criada a partir de vote-material.json.";
+				if ( ! is_array( $raw ) ) {
+					$msg = 'vote-material.json inválido (JSON).';
 				} else {
-					$msg = 'vote-material.json inválido.';
+					$ok = VoteMaterialPackage::validate( $raw );
+					if ( empty( $ok['ok'] ) ) {
+						$msg = 'vote-material.json rejeitado: ' . ( $ok['error'] ?? '?' );
+					} else {
+						$id = $this->node->persistence->tallyImports->create(
+							array(
+								'import_manifest_json' => json_encode(
+									array(
+										'source'       => 'courier',
+										'round_id'     => (int) ( $raw['round_id'] ?? 0 ),
+										'election_id'  => (int) ( $raw['election_id'] ?? 0 ),
+										'ballot_count' => count( $raw['ballots'] ?? array() ),
+									)
+								),
+								'import_hash'  => (string) ( $raw['checksum'] ?? '' ),
+								'status'       => 'ready',
+								'payload'      => $raw,
+								'election_id'  => (int) ( $raw['election_id'] ?? 0 ),
+								'round_id'     => (int) ( $raw['round_id'] ?? 0 ),
+								'created_at'   => gmdate( 'c' ),
+							)
+						);
+						$msg = "Importação #{$id} pronta (" . count( $raw['ballots'] ) . ' boletins). Seguir a /painel/parcelas.';
+					}
 				}
 			} else {
-				$msg = 'Falta vote-material.json no courier.';
+				$msg = 'Falta vote-material.json no courier local deste nó.';
 			}
 		}
 		$summaries = $this->node->persistence->tallyImports->listSummaries();
-		$list = '<table class="ve-table"><thead><tr><th>ID</th><th>Estado</th></tr></thead><tbody>';
+		$list      = '<table class="ve-table"><thead><tr><th>ID</th><th>Estado</th><th>Eleição</th><th>Turno</th></tr></thead><tbody>';
 		foreach ( $summaries as $s ) {
-			$list .= '<tr><td>' . (int) ( $s['id'] ?? 0 ) . '</td><td>' . htmlspecialchars( (string) ( $s['status'] ?? '' ), ENT_QUOTES, 'UTF-8' ) . '</td></tr>';
+			$list .= '<tr><td>' . (int) ( $s['id'] ?? 0 ) . '</td><td>'
+				. htmlspecialchars( (string) ( $s['status'] ?? '' ), ENT_QUOTES, 'UTF-8' ) . '</td><td>'
+				. (int) ( $s['election_id'] ?? 0 ) . '</td><td>'
+				. (int) ( $s['round_id'] ?? 0 ) . '</td></tr>';
 		}
 		$list .= '</tbody></table>';
-		$body = '<div class="ve-card"><h1>Importação da apuração</h1>'
+		$body  = '<div class="ve-card"><h1>Importação da apuração</h1>'
 			. ( $msg ? '<p class="ve-muted">' . htmlspecialchars( $msg, ENT_QUOTES, 'UTF-8' ) . '</p>' : '' )
 			. '<form method="post"><div class="ve-actions"><button type="submit">Importar vote-material.json do courier</button></div></form></div>'
 			. '<div class="ve-card"><h2>Imports</h2>' . $list . '</div>';
@@ -1345,24 +1461,88 @@ HTML;
 
 	private function certificar( Request $req ): Response {
 		$this->node->requireMode( SiteModes::TALLYING );
-		$msg = '';
+		$msg     = '';
+		$tallyUi = '';
+		$imports = $this->node->persistence->tallyImports->listSummaries();
+		$default = $imports ? (string) (int) ( $imports[0]['id'] ?? 0 ) : '1';
+
 		if ( 'POST' === $req->method ) {
-			$id = $this->node->persistence->certifications->create(
-				array(
-					'import_id'  => (int) $req->input( 'import_id', '0' ),
-					'status'     => 'draft',
-					'created_at' => gmdate( 'c' ),
-					'note'       => 'Certificação HTTP mínima — completar reconstrução via piloto/courier.',
-				)
-			);
-			$msg = "Certificação #{$id} registrada (rascunho).";
+			$importId = (int) $req->input( 'import_id', $default );
+			$import   = $this->node->persistence->tallyImports->find( $importId );
+			if ( ! is_array( $import ) ) {
+				$msg = "Import #{$importId} não encontrado.";
+			} else {
+				try {
+					$votePkg = $this->votePackageFromImport( $import );
+					$subs    = $this->node->persistence->shareSubmissions->listByImport( $importId );
+					$payloads = array();
+					foreach ( $subs as $sub ) {
+						$p = $sub['share_payload'] ?? null;
+						if ( is_array( $p ) ) {
+							$payloads[] = $p;
+						}
+					}
+					if ( empty( $payloads ) ) {
+						throw new \RuntimeException( 'Submeter parcelas em /painel/parcelas até ao limiar antes de certificar.' );
+					}
+					$pk = $payloads[0]['public_key'] ?? null;
+					if ( ! is_array( $pk ) ) {
+						$pkFile = $this->localCourierDir() . '/public-key.json';
+						$rawPk  = is_readable( $pkFile ) ? json_decode( (string) file_get_contents( $pkFile ), true ) : null;
+						$pk     = is_array( $rawPk ) ? ( $rawPk['public_key'] ?? null ) : null;
+					}
+					if ( ! is_array( $pk ) ) {
+						throw new \RuntimeException( 'Chave pública ausente nas parcelas / courier.' );
+					}
+					$dec = HomomorphicCertifyService::decryptTally(
+						$votePkg,
+						$payloads,
+						array(
+							'p' => (string) $pk['p'],
+							'q' => (string) $pk['q'],
+							'g' => (string) $pk['g'],
+							'y' => (string) $pk['y'],
+						)
+					);
+					$certId = $this->node->persistence->certifications->create(
+						array(
+							'tally_import_id'          => $importId,
+							'certification_status'     => 'certified',
+							'verification_report_json' => json_encode(
+								array(
+									'tally'       => $dec['tally'],
+									'election_id' => $dec['election_id'],
+									'round_id'    => $dec['round_id'],
+									'ballots'     => $dec['ballots'],
+								)
+							),
+							'created_at'               => gmdate( 'c' ),
+						)
+					);
+					$this->node->persistence->tallyImports->updateStatus( $importId, 'certified' );
+					$this->node->persistence->auditLog->append(
+						array(
+							'action'        => 'http.certified',
+							'object_type'   => 'standalone',
+							'current_hash'  => hash( 'sha256', 'http.certified.' . $certId . '.' . $dec['tally'] ),
+							'previous_hash' => $this->node->persistence->auditLog->lastHash(),
+						)
+					);
+					$msg     = "Certificação #{$certId}: total = {$dec['tally']} ({$dec['ballots']} boletins).";
+					$tallyUi = '<p><strong>Total apurado:</strong> ' . (int) $dec['tally'] . '</p>';
+				} catch ( \Throwable $e ) {
+					$msg = $e->getMessage();
+				}
+			}
 		}
+
 		$body = '<div class="ve-card"><h1>Certificação</h1>'
 			. ( $msg ? '<p class="ve-muted">' . htmlspecialchars( $msg, ENT_QUOTES, 'UTF-8' ) . '</p>' : '' )
-			. '<p class="ve-muted">Só faz sentido após o limiar Shamir em <a href="/painel/parcelas">/painel/parcelas</a> (autoridades a submeter parcelas).</p>'
-			. '<form method="post"><label class="ve-field"><span>Import ID</span><input name="import_id" value="1" /></label>'
-			. '<div class="ve-actions"><button type="submit">Criar certificação</button></div></form>'
-			. '<p class="ve-muted">Para apuração criptográfica completa use o piloto E3 (`ve-node pilot`) com as parcelas no courier; esta UI registra o artefato no nó.</p></div>';
+			. $tallyUi
+			. '<p class="ve-muted">Reconstrói o segredo Shamir a partir das parcelas submetidas, agrega os boletins e descriptografa o total (mesmo caminho do piloto CLI).</p>'
+			. '<form method="post"><label class="ve-field"><span>Import ID</span><input name="import_id" value="'
+			. htmlspecialchars( $default, ENT_QUOTES, 'UTF-8' ) . '" /></label>'
+			. '<div class="ve-actions"><button type="submit">Certificar e apurar</button></div></form></div>';
 		return $this->page( 'Certificação', $body );
 	}
 
@@ -1386,11 +1566,7 @@ HTML;
 		$inner = match ( $step ) {
 			JourneySteps::WELCOME => '<div class="ve-card"><h1>Boas-vindas</h1><p class="ve-muted">Jornada do eleitor neste nó de votação.</p>'
 				. '<div class="ve-actions"><a href="/voto/cabina">Ir à cabina</a></div></div>',
-			JourneySteps::BOOTH => '<div class="ve-card"><h1>Cabina de votação</h1>'
-				. '<p class="ve-muted">Voto homomórfico mínimo (contagem 0/1) usando a chave pública importada no nó.</p>'
-				. '<form method="post" action="/voto/cabina"><label class="ve-field"><span>Escolha</span>'
-				. '<select name="choice"><option value="1">Sim / opção A</option><option value="0">Não / opção B</option></select></label>'
-				. '<div class="ve-actions"><button type="submit">Confirmar voto</button></div></form></div>',
+			JourneySteps::BOOTH => $this->boothMarkup(),
 			JourneySteps::THANK_YOU => '<div class="ve-card"><h1>Voto registrado</h1><p class="ve-muted">Obrigado. Recibo abaixo (se aplicável).</p>'
 				. '<p><code>' . htmlspecialchars( $req->query( 'receipt', '' ), ENT_QUOTES, 'UTF-8' ) . '</code></p>'
 				. '<div class="ve-actions"><a href="/voto">Voltar</a></div></div>',
@@ -1400,58 +1576,188 @@ HTML;
 		return $this->page( $title, $inner );
 	}
 
+	private function boothMarkup(): string {
+		$ctx = $this->resolveOpenElectionContext();
+		if ( null === $ctx ) {
+			return '<div class="ve-card"><h1>Cabina de votação</h1>'
+				. '<p class="ve-muted">Nenhuma eleição aberta. O operador deve criar uma em '
+				. '<a href="/painel/eleicoes">/painel/eleicoes</a> (após importar a chave pública).</p></div>';
+		}
+		return '<div class="ve-card"><h1>Cabina de votação</h1>'
+			. '<p class="ve-muted">Eleição #' . $ctx['election_id'] . ' — '
+			. htmlspecialchars( $ctx['election_title'], ENT_QUOTES, 'UTF-8' ) . '</p>'
+			. '<p>' . htmlspecialchars( $ctx['question_title'], ENT_QUOTES, 'UTF-8' ) . '</p>'
+			. '<p class="ve-muted">Voto homomórfico (contagem 0/1) com a chave pública deste nó.</p>'
+			. '<form method="post" action="/voto/cabina"><label class="ve-field"><span>Escolha</span>'
+			. '<select name="choice"><option value="1">Sim</option><option value="0">Não</option></select></label>'
+			. '<div class="ve-actions"><button type="submit">Confirmar voto</button></div></form></div>';
+	}
+
 	private function castVote( Request $req ): Response {
 		$choice = (int) $req->input( 'choice', '1' ) > 0 ? 1 : 0;
-		$keys   = $this->node->persistence->keys->listActive();
-		if ( ! $keys ) {
-			// Try import public key from this node's local courier only.
-			$pkFile = $this->localCourierDir() . '/public-key.json';
-			if ( is_readable( $pkFile ) ) {
-				$pkg = json_decode( (string) file_get_contents( $pkFile ), true );
-				if ( is_array( $pkg ) ) {
-					$pub = $pkg['public_key'] ?? $pkg;
-					$this->node->persistence->keys->create(
-						array(
-							'key_label' => 'imported-courier',
-							'key_size'  => (int) ( $pkg['key_size'] ?? 0 ),
-							'public_p'  => (string) ( $pub['p'] ?? '' ),
-							'public_q'  => (string) ( $pub['q'] ?? '' ),
-							'public_g'  => (string) ( $pub['g'] ?? '' ),
-							'public_y'  => (string) ( $pub['y'] ?? '' ),
-						)
-					);
-					$keys = $this->node->persistence->keys->listActive();
-				}
-			}
-		}
+		$this->tryImportPublicKeyFromCourier();
+		$keys = $this->node->persistence->keys->listActive();
 		if ( ! $keys ) {
 			$this->flash = 'Sem chave pública neste nó. Colocar public-key.json no courier.';
 			return Response::redirect( '/voto/cabina' );
 		}
-		$k = $keys[0];
-		$p = \RelataSoft\SecureElectionSuite\Painel\Domain\Crypto\BigInt::fromDecimalString( (string) $k['public_p'] );
-		$q = \RelataSoft\SecureElectionSuite\Painel\Domain\Crypto\BigInt::fromDecimalString( (string) $k['public_q'] );
-		$g = \RelataSoft\SecureElectionSuite\Painel\Domain\Crypto\BigInt::fromDecimalString( (string) $k['public_g'] );
-		$y = \RelataSoft\SecureElectionSuite\Painel\Domain\Crypto\BigInt::fromDecimalString( (string) $k['public_y'] );
-		$ct = HomomorphicTally::encryptCount( $choice, $p, $q, $g, $y );
+		$ctx = $this->resolveOpenElectionContext();
+		if ( null === $ctx ) {
+			$this->flash = 'Criar uma eleição aberta em /painel/eleicoes antes de votar.';
+			return Response::redirect( '/voto/cabina' );
+		}
+
 		$uid = $this->session->currentUserId();
-		$voteId = $this->node->persistence->votes->store(
+		if ( $this->node->persistence->votes->hasVoted( $uid, $ctx['round_id'], $ctx['question_id'] ) ) {
+			$this->flash = 'Já existe voto deste eleitor neste turno/pergunta.';
+			return Response::redirect( '/voto/cabina' );
+		}
+
+		$k  = $keys[0];
+		$p  = BigInt::fromDecimalString( (string) $k['public_p'] );
+		$q  = BigInt::fromDecimalString( (string) $k['public_q'] );
+		$g  = BigInt::fromDecimalString( (string) $k['public_g'] );
+		$y  = BigInt::fromDecimalString( (string) $k['public_y'] );
+		$ct = HomomorphicTally::encryptCount( $choice, $p, $q, $g, $y );
+		$alpha = BigInt::toDecimalString( $ct->getAlpha() );
+		$beta  = BigInt::toDecimalString( $ct->getBeta() );
+		$hash  = hash( 'sha256', $alpha . '|' . $beta . '|' . $uid );
+
+		$this->node->persistence->votes->store(
 			array(
-				'election_id' => 0,
-				'round_id'    => 0,
-				'voter_id'    => $uid,
-				'user_id'     => $uid,
-				'question_id' => 1,
-				'ciphertext'  => array(
-					'c1' => \RelataSoft\SecureElectionSuite\Painel\Domain\Crypto\BigInt::toDecimalString( $ct->getC1() ),
-					'c2' => \RelataSoft\SecureElectionSuite\Painel\Domain\Crypto\BigInt::toDecimalString( $ct->getC2() ),
-				),
-				'choice'      => $choice,
-				'cast_at'     => gmdate( 'c' ),
+				'voter_user_id'    => $uid,
+				'election_id'      => $ctx['election_id'],
+				'round_id'         => $ctx['round_id'],
+				'question_id'      => $ctx['question_id'],
+				'ciphertext_alpha' => $alpha,
+				'ciphertext_beta'  => $beta,
+				'vote_hash'        => $hash,
+				'cast_at'          => gmdate( 'c' ),
 			)
 		);
-		$receipt = hash( 'sha256', $voteId . '|' . $uid . '|' . $choice . '|' . gmdate( 'c' ) );
-		return Response::redirect( '/voto/obrigado?receipt=' . rawurlencode( $receipt ) );
+		return Response::redirect( '/voto/obrigado?receipt=' . rawurlencode( $hash ) );
+	}
+
+	/**
+	 * @return array{election_id:int,round_id:int,question_id:int,election_title:string,question_title:string}|null
+	 */
+	private function resolveOpenElectionContext(): ?array {
+		$elections = $this->node->persistence->elections->listElections();
+		$open      = null;
+		foreach ( array_reverse( $elections ) as $e ) {
+			if ( ( $e['status'] ?? '' ) === 'open' ) {
+				$open = $e;
+				break;
+			}
+		}
+		if ( null === $open && $elections ) {
+			$open = $elections[ count( $elections ) - 1 ];
+		}
+		if ( null === $open ) {
+			return null;
+		}
+		$electionId = (int) ( $open['id'] ?? 0 );
+		$roundId    = (int) ( $open['current_round_id'] ?? 0 );
+		if ( $roundId <= 0 ) {
+			$rounds = $this->node->persistence->elections->listRounds( $electionId );
+			$roundId = $rounds ? (int) ( $rounds[0]['id'] ?? 0 ) : 0;
+		}
+		if ( $roundId <= 0 ) {
+			return null;
+		}
+		$questions = $this->node->persistence->elections->listQuestions( $roundId );
+		if ( ! $questions ) {
+			return null;
+		}
+		$q = $questions[0];
+		return array(
+			'election_id'     => $electionId,
+			'round_id'        => $roundId,
+			'question_id'     => (int) ( $q['id'] ?? 0 ),
+			'election_title'  => (string) ( $open['title'] ?? '' ),
+			'question_title'  => (string) ( $q['question_title'] ?? '' ),
+		);
+	}
+
+	private function tryImportPublicKeyFromCourier(): bool {
+		if ( $this->node->persistence->keys->listActive() ) {
+			return true;
+		}
+		$pkFile = $this->localCourierDir() . '/public-key.json';
+		if ( ! is_readable( $pkFile ) ) {
+			return false;
+		}
+		$pkg = json_decode( (string) file_get_contents( $pkFile ), true );
+		if ( ! is_array( $pkg ) ) {
+			return false;
+		}
+		$ok = PublicKeyPackage::validate( $pkg );
+		if ( empty( $ok['ok'] ) ) {
+			// Aceitar formato mínimo sem checksum estrito (lab legado).
+			$pub = $pkg['public_key'] ?? null;
+			if ( ! is_array( $pub ) ) {
+				return false;
+			}
+		} else {
+			$pub = $pkg['public_key'];
+		}
+		$this->node->persistence->keys->create(
+			array(
+				'key_label'  => (string) ( $pkg['key_label'] ?? 'imported-courier' ),
+				'key_size'   => (int) ( $pkg['key_size'] ?? 0 ),
+				'public_p'   => (string) ( $pub['p'] ?? '' ),
+				'public_q'   => (string) ( $pub['q'] ?? '' ),
+				'public_g'   => (string) ( $pub['g'] ?? '' ),
+				'public_y'   => (string) ( $pub['y'] ?? '' ),
+				'is_deleted' => 0,
+			)
+		);
+		return (bool) $this->node->persistence->keys->listActive();
+	}
+
+	private function publicKeyChecksumFromCourierOrKeys(): string {
+		$pkFile = $this->localCourierDir() . '/public-key.json';
+		if ( is_readable( $pkFile ) ) {
+			$pkg = json_decode( (string) file_get_contents( $pkFile ), true );
+			if ( is_array( $pkg ) && ! empty( $pkg['checksum'] ) ) {
+				return (string) $pkg['checksum'];
+			}
+		}
+		$keys = $this->node->persistence->keys->listActive();
+		if ( ! $keys ) {
+			return '';
+		}
+		$k = $keys[0];
+		return hash(
+			'sha256',
+			(string) ( $k['public_p'] ?? '' ) . '|' . (string) ( $k['public_y'] ?? '' )
+		);
+	}
+
+	/**
+	 * @param array<string,mixed> $import
+	 * @return array<string,mixed>
+	 */
+	private function votePackageFromImport( array $import ): array {
+		if ( isset( $import['payload'] ) && is_array( $import['payload'] ) ) {
+			return $import['payload'];
+		}
+		$manifest = $import['import_manifest_json'] ?? null;
+		if ( is_string( $manifest ) && '' !== $manifest ) {
+			$decoded = json_decode( $manifest, true );
+			if ( is_array( $decoded ) && isset( $decoded['ballots'] ) ) {
+				return $decoded;
+			}
+		}
+		// Fallback: ficheiro no courier local.
+		$path = $this->localCourierDir() . '/' . VoteMaterialExportService::VOTE_MATERIAL_FILE;
+		if ( is_readable( $path ) ) {
+			$raw = json_decode( (string) file_get_contents( $path ), true );
+			if ( is_array( $raw ) ) {
+				return $raw;
+			}
+		}
+		throw new \RuntimeException( 'Pacote de voto ausente no import.' );
 	}
 
 	private function serveAsset( string $path ): Response {

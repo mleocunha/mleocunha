@@ -217,6 +217,7 @@ final class FileJsonEncryptedVoteRepository implements EncryptedVoteRepository {
 			$callback(
 				array(
 					'id'               => (int) $row['id'],
+					'voter_user_id'    => (int) ( $row['voter_user_id'] ?? 0 ),
 					'question_id'      => (int) ( $row['question_id'] ?? 0 ),
 					'option_id'        => isset( $row['option_id'] ) ? (int) $row['option_id'] : null,
 					'ciphertext_alpha' => $row['ciphertext_alpha'] ?? null,
