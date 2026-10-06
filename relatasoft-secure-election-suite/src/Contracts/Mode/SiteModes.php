@@ -51,7 +51,7 @@ final class SiteModes {
 	 */
 	public static function label( string $mode ): string {
 		return match ( $mode ) {
-			self::KEY_AUTHORITY => 'Autoridade de chaves',
+			self::KEY_AUTHORITY => 'AC · Autoridade de chaves',
 			self::VOTING        => 'Plataforma de votação',
 			self::TALLYING      => 'Apuração / certificação',
 			default             => $mode,

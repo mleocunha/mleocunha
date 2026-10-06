@@ -27,7 +27,7 @@ use RelataSoft\SecureElectionSuite\Painel\Infrastructure\Journey\InMemoryJourney
  */
 final class HttpKernel {
 
-	/** Tamanhos ElGamal permitidos (bits de p) — alinhado ao KA WordPress legado. */
+	/** Tamanhos ElGamal permitidos (bits de p) — alinhado à AC WordPress legado. */
 	private const ALLOWED_KEY_SIZES = array( 512, 1024, 2048, 3072, 4096 );
 
 	private CookieSessionPort $session;
@@ -231,8 +231,8 @@ final class HttpKernel {
 		$cards = '';
 		if ( SiteModes::VOTING === $mode ) {
 			$cards .= $this->card( 'Cadastro eleitoral', 'Importar .rsv e listar papéis.', '/painel/cadastro' );
-			$cards .= $this->card( 'Autoridades eleitorais', 'Importar o pacote descarregado no KA (parcela pública SSS).', '/painel/autoridades' );
-			$cards .= $this->card( 'Chave pública', 'Carregar public-key.json do nó de chaves.', '/painel/chave-publica' );
+			$cards .= $this->card( 'Autoridades eleitorais', 'Importar o pacote descarregado na AC (parcela pública SSS).', '/painel/autoridades' );
+			$cards .= $this->card( 'Chave pública', 'Carregar public-key.json da AC.', '/painel/chave-publica' );
 			$cards .= $this->card( 'Eleições', 'Criar eleição sim/não e acompanhar turnos.', '/painel/eleicoes' );
 			$cards .= $this->card( 'Material de voto', 'Descarregar vote-material.json para a totalização.', '/painel/material-voto' );
 			$cards .= $this->card( 'Jornada /voto', 'Boas-vindas, cabine e obrigado.', '/voto' );
@@ -241,7 +241,7 @@ final class HttpKernel {
 			$cards .= $this->card( 'Chaves', 'Gerar chave, atribuir parcelas e descarregar a chave pública.', '/painel/keygen' );
 			$cards .= $this->card( 'Minha parcela', 'Cada autoridade descarrega só a sua parcela secreta.', '/painel/minha-parcela' );
 		} else {
-			$cards .= $this->card( 'Autoridades eleitorais', 'Importar autoridades do pacote do KA.', '/painel/autoridades' );
+			$cards .= $this->card( 'Autoridades eleitorais', 'Importar autoridades do pacote da AC.', '/painel/autoridades' );
 			$cards .= $this->card( 'Chave pública', 'Carregar public-key.json (opcional; também vem nas parcelas).', '/painel/chave-publica' );
 			$cards .= $this->card( 'Importar apuração', 'Carregar vote-material.json do nó de votação.', '/painel/importar' );
 			$cards .= $this->card( 'Parcelas Shamir', 'Submeter parcelas até atingir o limiar.', '/painel/parcelas' );
@@ -369,8 +369,8 @@ final class HttpKernel {
 
 		$lead = match ( $mode ) {
 			SiteModes::KEY_AUTHORITY => 'Cadastrar quem receberá as parcelas Shamir. Admin e cada autoridade (sessão própria) podem descarregar o pacote com as parcelas públicas SSS — sem segredo share_value. A parcela secreta descarrega-se em /painel/minha-parcela.',
-			SiteModes::VOTING => 'Importar o pacote descarregado no nó de chaves (autoridades + parcela pública SSS). A validade jurídica fica comprometida sem o seu acompanhamento.',
-			default => 'Importar o pacote do KA. Depois cada autoridade entra, carrega a sua parcela secreta em /painel/parcelas e sobe até ao limiar.',
+			SiteModes::VOTING => 'Importar o pacote descarregado na AC (autoridades + parcela pública SSS). A validade jurídica fica comprometida sem o seu acompanhamento.',
+			default => 'Importar o pacote da AC. Depois cada autoridade entra, carrega a sua parcela secreta em /painel/parcelas e sobe até ao limiar.',
 		};
 
 		$extra = '';
@@ -384,7 +384,7 @@ final class HttpKernel {
 				: '<p class="ve-muted">Entrar como administrador ou autoridade eleitoral para descarregar o pacote.</p>';
 		} else {
 			$extra = '<div class="ve-card" style="margin-top:1rem"><h2>Importar pacote</h2>'
-				. '<p class="ve-muted">Carregar o JSON descarregado no nó de chaves (upload).</p>'
+				. '<p class="ve-muted">Carregar o JSON descarregado na AC (upload).</p>'
 				. '<form method="post" enctype="multipart/form-data" action="/painel/autoridades">'
 				. '<input type="hidden" name="action" value="import_upload" />'
 				. '<label class="ve-field"><span>Arquivo JSON</span><input type="file" name="package" accept=".json,application/json" required /></label>'
@@ -1338,7 +1338,7 @@ HTML;
 		}
 		$list .= '</ul>';
 		$body = '<div class="ve-card"><h1>Chave pública</h1>'
-			. '<p class="ve-muted">Carregar o JSON descarregado no KA em /painel/chave/{id}.json.</p>'
+			. '<p class="ve-muted">Carregar o JSON descarregado na AC em /painel/chave/{id}.json.</p>'
 			. ( $msg ? '<p class="ve-muted">' . htmlspecialchars( $msg, ENT_QUOTES, 'UTF-8' ) . '</p>' : '' )
 			. '<form method="post" enctype="multipart/form-data">'
 			. '<label class="ve-field"><span>public-key.json</span><input type="file" name="package" accept=".json,application/json" required /></label>'
