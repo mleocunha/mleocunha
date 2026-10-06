@@ -80,8 +80,8 @@ final class NodeRuntime {
 	}
 
 	/**
-	 * Pasta de courier **local a este nó** (nunca partilhada com outros VE_DATA).
-	 * Material entre sítios move-se por cópia manual / canal auditável para o courier do destino.
+	 * Pasta auxiliar só para o piloto CLI (`ThreeNodePilot`) simular transporte entre nós.
+	 * A UI HTTP **não** usa Courier — material descarrega-se/carrega-se na sessão.
 	 */
 	public function courierDirectory(): string {
 		return rtrim( $this->dataDir, '/\\' ) . DIRECTORY_SEPARATOR . 'courier';
@@ -142,9 +142,8 @@ final class NodeRuntime {
 			new InMemorySecretKeyProvider( 'standalone-piloto-' . $mode . '-' . $clienteId ),
 		);
 
-		$courierDir = rtrim( $dataDir, '/\\' ) . DIRECTORY_SEPARATOR . 'courier';
 		$keygenService = $durable
-			? new StandaloneKeygenJobService( $jobStore, $persistence, $courierDir, $clienteId )
+			? new StandaloneKeygenJobService( $jobStore, $persistence, $clienteId )
 			: new InMemoryKeygenJobService( $jobStore );
 
 		$jobs = new JobGateway(

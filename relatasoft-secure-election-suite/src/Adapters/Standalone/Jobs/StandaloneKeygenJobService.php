@@ -7,21 +7,18 @@ use RelataSoft\SecureElectionSuite\Painel\Application\Persistence\PersistenceGat
 use RelataSoft\SecureElectionSuite\Painel\Contracts\Jobs\JobSlots;
 use RelataSoft\SecureElectionSuite\Painel\Contracts\Jobs\JobStore;
 use RelataSoft\SecureElectionSuite\Painel\Contracts\Jobs\KeygenJobService;
-use RelataSoft\SecureElectionSuite\Painel\Contracts\Mode\SiteModes;
 use RelataSoft\SecureElectionSuite\Painel\Domain\Crypto\BigInt;
 use RelataSoft\SecureElectionSuite\Painel\Domain\Crypto\CryptoRandom;
 use RelataSoft\SecureElectionSuite\Painel\Domain\Crypto\DeterministicRandom;
 use RelataSoft\SecureElectionSuite\Painel\Domain\Crypto\ElGamal;
 use RelataSoft\SecureElectionSuite\Painel\Domain\Crypto\PrimeGenerator;
 use RelataSoft\SecureElectionSuite\Painel\Domain\Crypto\ShamirSecretSharing;
-use RelataSoft\SecureElectionSuite\Painel\Domain\Material\MaterialCourier;
-use RelataSoft\SecureElectionSuite\Painel\Domain\Material\PublicKeyPackage;
 
 /**
  * Keygen chunked + persistente sob VE_DATA (sobrevive a logout / fecho do browser).
  *
- * Estágios alinhados ao KeyGenerationRunner WordPress; persistência/ Shamir / courier
- * usam o PersistenceGateway standalone.
+ * Parcelas ficam só na persistência do KA (descarregar na sessão de cada autoridade).
+ * Chave pública descarrega-se em /painel/chave/{id}.json — sem Courier.
  */
 final class StandaloneKeygenJobService implements KeygenJobService {
 
@@ -49,7 +46,6 @@ final class StandaloneKeygenJobService implements KeygenJobService {
 	public function __construct(
 		private readonly JobStore $store,
 		private readonly PersistenceGateway $persistence,
-		private readonly string $courierDir,
 		private readonly string $clienteId,
 		private readonly float $chunkSeconds = self::CHUNK_SECONDS,
 	) {}
@@ -396,7 +392,6 @@ final class StandaloneKeygenJobService implements KeygenJobService {
 		// Atualizar field_prime na chave.
 		$this->persistence->keys->updateThresholdMeta( $keyId, $fieldPrimeStr, $th, $n );
 
-		$courier = new MaterialCourier( $this->courierDir );
 		foreach ( $shares as $i => $point ) {
 			$idx = (int) ( $point['x'] ?? ( $i + 1 ) );
 			$uid = $okIds[ $i ] ?? 0;
@@ -422,43 +417,17 @@ final class StandaloneKeygenJobService implements KeygenJobService {
 					'status'           => 'assigned',
 				)
 			);
-			$courier->writeJson(
-				'parcela-' . $idx . '.json',
-				array_merge(
-					$payload,
-					array(
-						'official_user_id' => $uid,
-					)
-				)
-			);
 		}
 
 		$title = (string) ( $job['display_name'] ?? $job['label'] ?? '' );
-		$pkg   = PublicKeyPackage::build(
-			array(
-				'key_label'   => $title,
-				'key_size'    => (int) $job['bits'],
-				'p'           => (string) $job['public_p'],
-				'q'           => (string) $job['public_q'],
-				'g'           => (string) $job['public_g'],
-				'y'           => (string) $job['public_y'],
-				'field_prime' => $fieldPrimeStr,
-				'threshold_t' => $th,
-				'total_n'     => $n,
-				'source_mode' => SiteModes::KEY_AUTHORITY,
-				'cliente_id'  => $this->clienteId,
-				'cliente_nome'=> $this->clienteId,
-			)
-		);
-		$courier->writeJson( 'public-key.json', $pkg );
 
 		$this->clearSecrets( $job );
 		$job['field_prime'] = $fieldPrimeStr;
 		$job['stage']       = self::STAGE_COMPLETE;
 		$job['progress']    = 100;
 		$job['message']     = sprintf(
-			'Chave «%s» (#%d, %d bits) concluída; %d parcelas atribuídas. Pode sair e voltar — o trabalho já terminou.',
-			$title,
+			'Chave «%s» (#%d, %d bits) concluída; %d parcelas na persistência. Cada autoridade descarrega a sua em /painel/minha-parcela; exportar autoridades (parcela pública SSS) em /painel/autoridades.',
+			$title !== '' ? $title : ( 'chave-' . $keyId ),
 			$keyId,
 			(int) $job['bits'],
 			$n

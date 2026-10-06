@@ -5,11 +5,10 @@ namespace RelataSoft\SecureElectionSuite\Painel\Application\Standalone;
 
 use RelataSoft\SecureElectionSuite\Painel\Adapters\Standalone\NodeRuntime;
 use RelataSoft\SecureElectionSuite\Painel\Contracts\Mode\SiteModes;
-use RelataSoft\SecureElectionSuite\Painel\Domain\Material\MaterialCourier;
 use RelataSoft\SecureElectionSuite\Painel\Domain\Material\VoteMaterialPackage;
 
 /**
- * Exportar boletins cifrados do nó de votação para vote-material.json (courier local).
+ * Exportar boletins cifrados do nó de votação (descarregar na sessão — sem Courier).
  */
 final class VoteMaterialExportService {
 
@@ -65,8 +64,7 @@ final class VoteMaterialExportService {
 	/**
 	 * @param array<string,mixed> $package
 	 */
-	public static function writeToCourier( NodeRuntime $voting, array $package ): string {
-		$courier = new MaterialCourier( $voting->courierDirectory() );
-		return $courier->writeJson( self::VOTE_MATERIAL_FILE, $package );
+	public static function toJson( array $package ): string {
+		return VoteMaterialPackage::toJson( $package );
 	}
 }

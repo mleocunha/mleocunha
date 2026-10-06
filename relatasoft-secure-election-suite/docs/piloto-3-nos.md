@@ -23,7 +23,7 @@ sob autoridade eleitoral superior preferencialmente colegiada
 
 - Pacote com `composer install`
 - PHP 8.2+ com GMP
-- Três `VE_DATA` com courier **local** cada um (`VE_DATA/courier`) — sem pasta partilhada (`docs/operacao-standalone.md`)
+- Três `VE_DATA` isolados; material entre sítios por descarregar/carregar na sessão (`docs/operacao-standalone.md`)
 - Opcional: nginx TLS
 - Arquivo `.rsv` de ensaio
 
@@ -48,8 +48,8 @@ Confirmar as três portas, `/login` em cada uma e, no voting, `/voto`. Registar 
 
 1. Login admin em cada nó (contas não sincronizam automaticamente).
 2. No **KA**: cadastrar autoridades em `/painel/autoridades` (≥ *n*).
-3. KA: `/painel/keygen` — selecionar *n* autoridades → gerar → ficheiros em `ka/courier/` (`authorities.json` incluído).
-4. Transferir material do courier do KA para `voting/courier/` e `tallying/courier/`. Em **voting** e **tallying**: importar `authorities.json` (ou cadastrar localmente). No voting, as autoridades acompanham a eleição; no tallying, sobem parcelas.
+3. KA: `/painel/keygen` — selecionar *n* autoridades → gerar. Descarregar `authorities.json` (parcela pública SSS) na sessão admin ou de cada autoridade; cada uma descarrega a parcela secreta em `/painel/minha-parcela`.
+4. Em **voting** e **tallying**: importar o pacote de autoridades (upload) e a chave pública. No voting, as autoridades acompanham a eleição; no tallying, sobem parcelas.
 
 ## Dia 2 — cadastro, eleição e voto
 
@@ -57,7 +57,7 @@ Confirmar as três portas, `/login` em cada uma e, no voting, `/voto`. Registar 
 2. Confirmar material do courier / autoridades importadas.
 3. Criar eleição em `/painel/eleicoes` (título + pergunta sim/não).
 4. Exercitar `/voto` / cabine.
-5. Em `/painel/courier`: **Exportar vote-material.json** e transferir para o tallying.
+5. Em `/painel/material-voto`: descarregar `vote-material.json` e carregar no tallying.
 
 ## Dia 3 — apuramento
 
@@ -82,7 +82,7 @@ Confirmar as três portas, `/login` em cada uma e, no voting, `/voto`. Registar 
 |---------|-----------|
 | 500 ao abrir | `VE_MODE` e `VE_DATA` definidos? `composer install`? |
 | Login falha | `VE_ADMIN_*` no mesmo processo; `identity.json` já com outra senha? |
-| Courier vazio | Ficheiro no `VE_DATA/courier` **deste** nó? Transferência do sítio de origem feita? Permissões? |
+| Import falha | Pacote descarregado no KA (sem `share_value`)? Upload no destino? Sessão admin/autoridade no export? |
 | GMP | Extensão `gmp` instalada |
 
 ## Legado

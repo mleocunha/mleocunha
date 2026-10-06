@@ -8,7 +8,7 @@ namespace RelataSoft\SecureElectionSuite\Painel\Contracts\Mode;
  *
  * Regra de produto: 1 cliente = 3 sítios isolados, cada um com exatamente
  * um papel. Não existe modo “tudo-em-um”. Não há sincronização automática
- * entre sítios; material criptográfico e resultados viajam só por courier manual.
+ * entre sítios; material criptográfico e resultados viajam por descarregar/carregar na sessão.
  *
  * Fonte de verdade para:
  * - Adapter #1 (`ModeLock` em `includes/Bootstrap`) — aliases e UI

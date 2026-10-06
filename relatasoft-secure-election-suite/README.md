@@ -100,8 +100,8 @@ de exposição em rede.
 - Eleitor / cabine: `/voto`, `/voto/cabina`, `/voto/obrigado`
 - CSS: `/assets/…`
 
-Courier: cada nó usa só `VE_DATA/courier` (ex.: `/var/lib/ve/ka/courier`). Entre sítios,
-transferir ficheiros manualmente para o courier do destino — nunca pasta partilhada.
+Material entre sítios: descarregar na sessão (autoridades, chave pública, parcelas, vote-material)
+e carregar no destino — sem pasta Courier.
 
 ### 5. Proxy nginx (opcional)
 
@@ -123,8 +123,8 @@ Documentação: [`docs/ativar-standalone.md`](docs/ativar-standalone.md),
 ## Ciclo operador (resumo)
 
 1. **KA** — cadastrar autoridades em `/painel/autoridades` → `/painel/keygen` (rótulo + tamanho 512…4096 + selecionar *n*) → geração em **background** (`bin/ve-keygen-worker`, estado em `VE_DATA/jobs.json`; pode sair e voltar) → ver/copiar/exportar/eliminar chave pública → courier.
-2. **Voting** — importar autoridades → cadastro `.rsv` → criar eleição em `/painel/eleicoes` → `/voto` → exportar `vote-material.json` no courier → transferir para o tallying.
-3. **Tallying** — importar autoridades → importar material → cada autoridade submete a sua parcela em `/painel/parcelas` até ao **limiar Shamir** → certificar (total apurado).
+2. **Voting** — importar autoridades (upload) + chave pública → cadastro `.rsv` → criar eleição → `/voto` → descarregar `vote-material.json`.
+3. **Tallying** — importar autoridades + material (upload) → cada autoridade submete a sua parcela em `/painel/parcelas` até ao **limiar Shamir** → certificar (total apurado).
 
 A interface HTTP usa **PT-BR** por padrão (infinitivos nas ações). `VE_LOCALE` pode forçar outro catálogo. A chave privada é limpa da memória após a divisão Shamir e **não** é gravada no nó.
 

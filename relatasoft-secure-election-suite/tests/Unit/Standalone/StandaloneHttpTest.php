@@ -60,18 +60,84 @@ final class StandaloneHttpTest extends TestCase {
 	}
 
 
-	/** Simula transporte auditável: copia arquivos do courier de origem para o de destino. */
-	private function handoffCourier( string $fromDataDir, string $toDataDir, array $basenames ): void {
-		$from = rtrim( $fromDataDir, '/\\' ) . '/courier';
-		$to   = rtrim( $toDataDir, '/\\' ) . '/courier';
-		if ( ! is_dir( $to ) ) {
-			mkdir( $to, 0700, true );
+	/** @return array<string,mixed> */
+	private function tempUpload( string $contents, string $name = 'upload.json' ): array {
+		$dir = $this->root . '/uploads';
+		if ( ! is_dir( $dir ) ) {
+			mkdir( $dir, 0700, true );
 		}
-		foreach ( $basenames as $bn ) {
-			$src = $from . '/' . $bn;
-			$this->assertFileExists( $src, $bn );
-			$this->assertTrue( copy( $src, $to . '/' . $bn ), 'handoff ' . $bn );
+		$path = $dir . '/' . $name;
+		file_put_contents( $path, $contents );
+		return array(
+			'tmp_name' => $path,
+			'name'     => $name,
+			'error'    => UPLOAD_ERR_OK,
+			'size'     => strlen( $contents ),
+			'type'     => 'application/json',
+		);
+	}
+
+	/** @param array<string,string> $cookie */
+	private function downloadAuthoritiesJson( HttpKernel $kernel, array $cookie ): string {
+		$res = $kernel->handle(
+			new Request( 'GET', '/painel/autoridades/exportar', array(), array(), $cookie, array() )
+		);
+		$this->assertSame( 200, $res->status, $res->body );
+		$this->assertStringContainsString( 'attachment', (string) ( $res->headers['Content-Disposition'] ?? '' ) );
+		$pkg = json_decode( $res->body, true );
+		$this->assertIsArray( $pkg );
+		$this->assertArrayNotHasKey( 'share_value', $pkg );
+		foreach ( $pkg['authorities'] ?? array() as $row ) {
+			$this->assertArrayNotHasKey( 'share_value', $row );
+			if ( isset( $row['public_sss'] ) ) {
+				$this->assertArrayNotHasKey( 'share_value', $row['public_sss'] );
+			}
 		}
+		return $res->body;
+	}
+
+	/** @param array<string,string> $cookie */
+	private function importAuthoritiesUpload( HttpKernel $kernel, array $cookie, string $json ): void {
+		$res = $kernel->handle(
+			new Request(
+				'POST',
+				'/painel/autoridades',
+				array(),
+				array( 'action' => 'import_upload' ),
+				$cookie,
+				array(),
+				array( 'package' => $this->tempUpload( $json, 'authorities.json' ) )
+			)
+		);
+		$this->assertStringContainsString( 'Importação:', $res->body );
+	}
+
+	/** @param array<string,string> $cookie */
+	private function importPublicKeyUpload( HttpKernel $kernel, array $cookie, string $json ): void {
+		$res = $kernel->handle(
+			new Request(
+				'POST',
+				'/painel/chave-publica',
+				array(),
+				array(),
+				$cookie,
+				array(),
+				array( 'package' => $this->tempUpload( $json, 'public-key.json' ) )
+			)
+		);
+		$this->assertStringContainsString( 'importada', $res->body );
+	}
+
+	/** @param array<string,string> $cookie */
+	private function downloadOwnParcelJson( HttpKernel $kernel, array $cookie ): array {
+		$res = $kernel->handle(
+			new Request( 'GET', '/painel/minha-parcela', array( 'download' => '1' ), array(), $cookie, array() )
+		);
+		$this->assertSame( 200, $res->status, $res->body );
+		$data = json_decode( $res->body, true );
+		$this->assertIsArray( $data );
+		$this->assertArrayHasKey( 'share_value', $data );
+		return $data;
 	}
 
 	public function test_rsv_importer_and_durable_identity(): void {
@@ -234,15 +300,23 @@ final class StandaloneHttpTest extends TestCase {
 		$this->assertSame( 512, (int) ( $keys[0]['key_size'] ?? 0 ) );
 		$shares = $node->persistence->shares->listByKey( (int) $keys[0]['id'] );
 		$this->assertCount( 3, $shares );
-		$this->assertFileExists( $this->root . '/ka/courier/public-key.json' );
-		$pkgJson = (string) file_get_contents( $this->root . '/ka/courier/public-key.json' );
-		$pkg     = json_decode( $pkgJson, true );
-		$this->assertIsArray( $pkg );
-		$this->assertSame( 512, (int) ( $pkg['key_size'] ?? 0 ) );
-		$this->assertFileExists( $this->root . '/ka/courier/parcela-1.json' );
-		$this->assertFileExists( $this->root . '/ka/courier/authorities.json' );
+		$this->assertDirectoryDoesNotExist( $this->root . '/ka/courier' );
 
 		$kid = (int) $keys[0]['id'];
+		$authExport = $this->downloadAuthoritiesJson( $kernel, $cookie );
+		$authPkg    = json_decode( $authExport, true );
+		$this->assertCount( 3, $authPkg['authorities'] );
+		$this->assertArrayHasKey( 'public_sss', $authPkg['authorities'][0] );
+
+		$loginAut = $kernel->handle(
+			new Request( 'POST', '/login', array(), array( 'login' => 'aut1', 'password' => 'SenhaAut1!', 'next' => '/painel' ), array(), array() )
+		);
+		preg_match( '/' . CookieSessionPort::COOKIE . '=([^;]+)/', $loginAut->headers['Set-Cookie'] ?? '', $ma );
+		$cAut = array( CookieSessionPort::COOKIE => $ma[1] ?? '' );
+		$parcel = $this->downloadOwnParcelJson( $kernel, $cAut );
+		$this->assertSame( 1, (int) ( $parcel['share_index'] ?? 0 ) );
+		$this->downloadAuthoritiesJson( $kernel, $cAut );
+
 		$view = $kernel->handle(
 			new Request( 'GET', '/painel/chave/' . $kid, array(), array(), $cookie, array() )
 		);
@@ -566,17 +640,20 @@ final class StandaloneHttpTest extends TestCase {
 				'official_ids' => $ids,
 			)
 		);
-		$this->assertFileExists( $this->root . '/ka/courier/authorities.json' );
-		$this->handoffCourier(
-			$this->root . '/ka',
-			$this->root . '/voting',
-			array( 'authorities.json', 'public-key.json' )
+		$authJson = $this->downloadAuthoritiesJson( $kk, $cKa );
+		$pkDl = $kk->handle(
+			new Request( 'GET', '/painel/chave/' . (int) $ka->persistence->keys->listActive()[0]['id'] . '.json', array(), array(), $cKa, array() )
 		);
-		$this->handoffCourier(
-			$this->root . '/ka',
-			$this->root . '/tallying',
-			array( 'authorities.json', 'public-key.json', 'parcela-1.json', 'parcela-2.json', 'parcela-3.json' )
-		);
+		$this->assertSame( 200, $pkDl->status );
+
+		$parcels = array();
+		foreach ( array( 'aut1', 'aut2' ) as $loginName ) {
+			$loginA = $kk->handle(
+				new Request( 'POST', '/login', array(), array( 'login' => $loginName, 'password' => 'SenhaAut1!', 'next' => '/painel' ), array(), array() )
+			);
+			preg_match( '/' . CookieSessionPort::COOKIE . '=([^;]+)/', $loginA->headers['Set-Cookie'] ?? '', $ma );
+			$parcels[] = $this->downloadOwnParcelJson( $kk, array( CookieSessionPort::COOKIE => $ma[1] ?? '' ) );
+		}
 
 		$voting = NodeRuntime::create( SiteModes::VOTING, $this->root . '/voting', 'teste', true );
 		$vk     = new HttpKernel( $voting, $plugin, 'pt-BR' );
@@ -585,10 +662,7 @@ final class StandaloneHttpTest extends TestCase {
 		);
 		preg_match( '/' . CookieSessionPort::COOKIE . '=([^;]+)/', $loginV->headers['Set-Cookie'] ?? '', $mv );
 		$cV = array( CookieSessionPort::COOKIE => $mv[1] ?? '' );
-		$impV = $vk->handle(
-			new Request( 'POST', '/painel/autoridades', array(), array( 'action' => 'import_courier' ), $cV, array() )
-		);
-		$this->assertStringContainsString( 'criados 3', $impV->body );
+		$this->importAuthoritiesUpload( $vk, $cV, $authJson );
 		$this->assertSame( 3, $voting->users->countByRole( 'editor' ) );
 		$this->assertNotNull( $voting->users->verifyPassword( 'aut1', 'SenhaAut1!' ) );
 
@@ -599,16 +673,12 @@ final class StandaloneHttpTest extends TestCase {
 		);
 		preg_match( '/' . CookieSessionPort::COOKIE . '=([^;]+)/', $loginT->headers['Set-Cookie'] ?? '', $mt );
 		$cT = array( CookieSessionPort::COOKIE => $mt[1] ?? '' );
-		$tk->handle(
-			new Request( 'POST', '/painel/autoridades', array(), array( 'action' => 'import_courier' ), $cT, array() )
-		);
+		$this->importAuthoritiesUpload( $tk, $cT, $authJson );
 		$this->assertSame( 3, $tally->users->countByRole( 'editor' ) );
 
 		$importId = $tally->persistence->tallyImports->create(
 			array( 'source' => 'test', 'status' => 'imported', 'created_at' => gmdate( 'c' ) )
 		);
-		$parcela = json_decode( (string) file_get_contents( $this->root . '/tallying/courier/parcela-1.json' ), true );
-		$this->assertIsArray( $parcela );
 		$sub1 = $tk->handle(
 			new Request(
 				'POST',
@@ -616,7 +686,7 @@ final class StandaloneHttpTest extends TestCase {
 				array(),
 				array(
 					'import_id'  => (string) $importId,
-					'share_json' => (string) json_encode( $parcela ),
+					'share_json' => (string) json_encode( $parcels[0] ),
 				),
 				$cT,
 				array()
@@ -624,7 +694,6 @@ final class StandaloneHttpTest extends TestCase {
 		);
 		$this->assertStringContainsString( 'submetida', $sub1->body );
 
-		$parcela2 = json_decode( (string) file_get_contents( $this->root . '/tallying/courier/parcela-2.json' ), true );
 		$sub2 = $tk->handle(
 			new Request(
 				'POST',
@@ -632,7 +701,7 @@ final class StandaloneHttpTest extends TestCase {
 				array(),
 				array(
 					'import_id'  => (string) $importId,
-					'share_json' => (string) json_encode( $parcela2 ),
+					'share_json' => (string) json_encode( $parcels[1] ),
 				),
 				$cT,
 				array()
@@ -685,16 +754,19 @@ final class StandaloneHttpTest extends TestCase {
 				'official_ids' => $ids,
 			)
 		);
-		$this->handoffCourier(
-			$this->root . '/ka',
-			$this->root . '/voting',
-			array( 'authorities.json', 'public-key.json' )
+		$authJson = $this->downloadAuthoritiesJson( $kk, $cKa );
+		$kid = (int) $ka->persistence->keys->listActive()[0]['id'];
+		$pkDl = $kk->handle(
+			new Request( 'GET', '/painel/chave/' . $kid . '.json', array(), array(), $cKa, array() )
 		);
-		$this->handoffCourier(
-			$this->root . '/ka',
-			$this->root . '/tallying',
-			array( 'authorities.json', 'public-key.json', 'parcela-1.json', 'parcela-2.json' )
-		);
+		$parcels = array();
+		foreach ( array( 'aut1', 'aut2' ) as $loginName ) {
+			$loginA = $kk->handle(
+				new Request( 'POST', '/login', array(), array( 'login' => $loginName, 'password' => 'SenhaAut1!', 'next' => '/painel' ), array(), array() )
+			);
+			preg_match( '/' . CookieSessionPort::COOKIE . '=([^;]+)/', $loginA->headers['Set-Cookie'] ?? '', $ma );
+			$parcels[] = $this->downloadOwnParcelJson( $kk, array( CookieSessionPort::COOKIE => $ma[1] ?? '' ) );
+		}
 
 		$voting = NodeRuntime::create( SiteModes::VOTING, $this->root . '/voting', 'teste', true );
 		$vk     = new HttpKernel( $voting, $plugin, 'pt-BR' );
@@ -703,9 +775,8 @@ final class StandaloneHttpTest extends TestCase {
 		);
 		preg_match( '/' . CookieSessionPort::COOKIE . '=([^;]+)/', $loginV->headers['Set-Cookie'] ?? '', $mv );
 		$cV = array( CookieSessionPort::COOKIE => $mv[1] ?? '' );
-		$vk->handle(
-			new Request( 'POST', '/painel/autoridades', array(), array( 'action' => 'import_courier' ), $cV, array() )
-		);
+		$this->importAuthoritiesUpload( $vk, $cV, $authJson );
+		$this->importPublicKeyUpload( $vk, $cV, $pkDl->body );
 
 		$created = $vk->handle(
 			new Request(
@@ -778,28 +849,13 @@ final class StandaloneHttpTest extends TestCase {
 		);
 
 		$export = $vk->handle(
-			new Request(
-				'POST',
-				'/painel/courier',
-				array(),
-				array( 'action' => 'export_vote_material' ),
-				$cV,
-				array()
-			)
+			new Request( 'POST', '/painel/material-voto', array(), array(), $cV, array() )
 		);
-		$this->assertStringContainsString( 'Exportado', $export->body );
-		$this->assertFileExists( $this->root . '/voting/courier/vote-material.json' );
-		$pkg = \RelataSoft\SecureElectionSuite\Painel\Domain\Material\VoteMaterialPackage::fromJson(
-			(string) file_get_contents( $this->root . '/voting/courier/vote-material.json' )
-		);
+		$this->assertSame( 200, $export->status );
+		$this->assertStringContainsString( 'attachment', (string) ( $export->headers['Content-Disposition'] ?? '' ) );
+		$pkg = \RelataSoft\SecureElectionSuite\Painel\Domain\Material\VoteMaterialPackage::fromJson( $export->body );
 		$this->assertNotNull( $pkg );
 		$this->assertCount( 2, $pkg['ballots'] );
-
-		$this->handoffCourier(
-			$this->root . '/voting',
-			$this->root . '/tallying',
-			array( 'vote-material.json' )
-		);
 
 		$tally = NodeRuntime::create( SiteModes::TALLYING, $this->root . '/tallying', 'teste', true );
 		$tk    = new HttpKernel( $tally, $plugin, 'pt-BR' );
@@ -808,20 +864,25 @@ final class StandaloneHttpTest extends TestCase {
 		);
 		preg_match( '/' . CookieSessionPort::COOKIE . '=([^;]+)/', $loginT->headers['Set-Cookie'] ?? '', $mt );
 		$cT = array( CookieSessionPort::COOKIE => $mt[1] ?? '' );
-		$tk->handle(
-			new Request( 'POST', '/painel/autoridades', array(), array( 'action' => 'import_courier' ), $cT, array() )
-		);
+		$this->importAuthoritiesUpload( $tk, $cT, $authJson );
 
 		$imp = $tk->handle(
-			new Request( 'POST', '/painel/importar', array(), array(), $cT, array() )
+			new Request(
+				'POST',
+				'/painel/importar',
+				array(),
+				array(),
+				$cT,
+				array(),
+				array( 'package' => $this->tempUpload( $export->body, 'vote-material.json' ) )
+			)
 		);
 		$this->assertStringContainsString( 'pronta', $imp->body );
 		$summaries = $tally->persistence->tallyImports->listSummaries();
 		$this->assertNotEmpty( $summaries );
 		$importId = (int) $summaries[0]['id'];
 
-		foreach ( array( 'parcela-1.json', 'parcela-2.json' ) as $file ) {
-			$parcela = json_decode( (string) file_get_contents( $this->root . '/tallying/courier/' . $file ), true );
+		foreach ( $parcels as $parcela ) {
 			$sub = $tk->handle(
 				new Request(
 					'POST',
