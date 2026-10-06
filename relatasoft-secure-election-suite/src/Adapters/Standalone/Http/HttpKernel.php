@@ -22,7 +22,8 @@ use RelataSoft\SecureElectionSuite\Painel\Domain\Material\VoteMaterialPackage;
 use RelataSoft\SecureElectionSuite\Painel\Infrastructure\Journey\InMemoryJourneyRouteResolver;
 
 /**
- * Kernel HTTP standalone — login, painel (3 modos E3), /voto, RSV, courier.
+ * Kernel HTTP standalone — login, painel (3 modos E3), /voto, RSV.
+ * Material entre sítios: descarregar na sessão / carregar upload (sem Courier).
  */
 final class HttpKernel {
 
@@ -91,10 +92,6 @@ final class HttpKernel {
 			return Response::redirect( '/login?next=' . rawurlencode( $path ) );
 		}
 
-		if ( preg_match( '#^/painel/courier/([^/]+)$#', $path, $cm ) ) {
-			return $this->courierDownload( (string) $cm[1] );
-		}
-
 		if ( preg_match( '#^/painel/chave/(\d+)(\.json)?$#', $path, $m ) ) {
 			return $this->chavePublica( $req, (int) $m[1], isset( $m[2] ) && '' !== $m[2] );
 		}
@@ -103,13 +100,16 @@ final class HttpKernel {
 			'/painel' === $path => $this->painelHome(),
 			'/painel/cadastro' === $path => $this->cadastro( $req ),
 			'/painel/autoridades' === $path => $this->autoridades( $req ),
+			'/painel/autoridades/exportar' === $path => $this->exportAuthoritiesDownload( $req ),
+			'/painel/minha-parcela' === $path => $this->minhaParcela( $req ),
+			'/painel/chave-publica' === $path => $this->chavePublicaImport( $req ),
 			'/painel/keygen' === $path => $this->keygen( $req ),
 			'/painel/keygen/status' === $path => $this->keygenStatus( $req ),
 			'/painel/keygen/tick' === $path => $this->keygenTick( $req ),
 			'/painel/keygen/cancel' === $path => $this->keygenCancel( $req ),
 			'/painel/parcelas' === $path => $this->parcelas( $req ),
-			'/painel/courier' === $path => $this->courier( $req ),
 			'/painel/eleicoes' === $path => $this->eleicoes( $req ),
+			'/painel/material-voto' === $path => $this->materialVotoExport( $req ),
 			'/painel/importar' === $path => $this->tallyImport( $req ),
 			'/painel/certificar' === $path => $this->certificar( $req ),
 			default => Response::html( $this->shell->render( '404', '<div class="ve-card"><h1>404</h1><p class="ve-muted">Rota não encontrada.</p></div>' ), 404 ),
@@ -141,21 +141,22 @@ final class HttpKernel {
 		if ( SiteModes::VOTING === $mode ) {
 			$items[] = array( 'href' => '/painel/cadastro', 'label' => 'Cadastro' );
 			$items[] = array( 'href' => '/painel/autoridades', 'label' => 'Autoridades' );
+			$items[] = array( 'href' => '/painel/chave-publica', 'label' => 'Chave pública' );
 			$items[] = array( 'href' => '/painel/eleicoes', 'label' => 'Eleições' );
+			$items[] = array( 'href' => '/painel/material-voto', 'label' => 'Material de voto' );
 			$items[] = array( 'href' => '/voto', 'label' => 'Voto' );
-			$items[] = array( 'href' => '/painel/courier', 'label' => 'Courier' );
 		}
 		if ( SiteModes::KEY_AUTHORITY === $mode ) {
 			$items[] = array( 'href' => '/painel/autoridades', 'label' => 'Autoridades' );
 			$items[] = array( 'href' => '/painel/keygen', 'label' => 'Chaves' );
-			$items[] = array( 'href' => '/painel/courier', 'label' => 'Courier' );
+			$items[] = array( 'href' => '/painel/minha-parcela', 'label' => 'Minha parcela' );
 		}
 		if ( SiteModes::TALLYING === $mode ) {
 			$items[] = array( 'href' => '/painel/autoridades', 'label' => 'Autoridades' );
+			$items[] = array( 'href' => '/painel/chave-publica', 'label' => 'Chave pública' );
 			$items[] = array( 'href' => '/painel/importar', 'label' => 'Importar' );
 			$items[] = array( 'href' => '/painel/parcelas', 'label' => 'Parcelas' );
 			$items[] = array( 'href' => '/painel/certificar', 'label' => 'Certificar' );
-			$items[] = array( 'href' => '/painel/courier', 'label' => 'Courier' );
 		}
 		$items[] = array( 'href' => '/logout', 'label' => 'Sair' );
 		return $items;
@@ -230,20 +231,21 @@ final class HttpKernel {
 		$cards = '';
 		if ( SiteModes::VOTING === $mode ) {
 			$cards .= $this->card( 'Cadastro eleitoral', 'Importar .rsv e listar papéis.', '/painel/cadastro' );
-			$cards .= $this->card( 'Autoridades eleitorais', 'Importar ou acompanhar autoridades (validade jurídica da eleição).', '/painel/autoridades' );
+			$cards .= $this->card( 'Autoridades eleitorais', 'Importar o pacote descarregado no KA (parcela pública SSS).', '/painel/autoridades' );
+			$cards .= $this->card( 'Chave pública', 'Carregar public-key.json do nó de chaves.', '/painel/chave-publica' );
 			$cards .= $this->card( 'Eleições', 'Criar eleição sim/não e acompanhar turnos.', '/painel/eleicoes' );
+			$cards .= $this->card( 'Material de voto', 'Descarregar vote-material.json para a totalização.', '/painel/material-voto' );
 			$cards .= $this->card( 'Jornada /voto', 'Boas-vindas, cabine e obrigado.', '/voto' );
-			$cards .= $this->card( 'Courier', 'Importar chave pública / exportar material de voto.', '/painel/courier' );
 		} elseif ( SiteModes::KEY_AUTHORITY === $mode ) {
-			$cards .= $this->card( 'Autoridades eleitorais', 'Cadastrar e exportar autoridades antes de atribuir parcelas Shamir.', '/painel/autoridades' );
-			$cards .= $this->card( 'Chaves', 'Gerar chave, atribuir parcelas e visualizar a chave pública.', '/painel/keygen' );
-			$cards .= $this->card( 'Courier', 'Exportar chave pública e parcelas.', '/painel/courier' );
+			$cards .= $this->card( 'Autoridades eleitorais', 'Cadastrar e exportar autoridades com parcela pública SSS.', '/painel/autoridades' );
+			$cards .= $this->card( 'Chaves', 'Gerar chave, atribuir parcelas e descarregar a chave pública.', '/painel/keygen' );
+			$cards .= $this->card( 'Minha parcela', 'Cada autoridade descarrega só a sua parcela secreta.', '/painel/minha-parcela' );
 		} else {
-			$cards .= $this->card( 'Autoridades eleitorais', 'Importar autoridades para subirem parcelas até ao limiar Shamir.', '/painel/autoridades' );
-			$cards .= $this->card( 'Importar apuração', 'Importar material de voto do courier.', '/painel/importar' );
+			$cards .= $this->card( 'Autoridades eleitorais', 'Importar autoridades do pacote do KA.', '/painel/autoridades' );
+			$cards .= $this->card( 'Chave pública', 'Carregar public-key.json (opcional; também vem nas parcelas).', '/painel/chave-publica' );
+			$cards .= $this->card( 'Importar apuração', 'Carregar vote-material.json do nó de votação.', '/painel/importar' );
 			$cards .= $this->card( 'Parcelas Shamir', 'Submeter parcelas até atingir o limiar.', '/painel/parcelas' );
 			$cards .= $this->card( 'Certificar', 'Reconstruir Shamir e apurar o total.', '/painel/certificar' );
-			$cards .= $this->card( 'Courier', 'Caixa de saída/entrada local — transferir manualmente para o outro sítio.', '/painel/courier' );
 		}
 		$user = $this->node->users->findById( $this->session->currentUserId() );
 		$who  = htmlspecialchars( (string) ( $user['login'] ?? '' ), ENT_QUOTES, 'UTF-8' );
@@ -316,22 +318,15 @@ final class HttpKernel {
 		if ( ! $users instanceof FileJsonUserStore ) {
 			throw new \RuntimeException( 'Autoridades require FileJsonUserStore.' );
 		}
-		$courierDir = $this->localCourierDir();
 
 		if ( 'POST' === $req->method ) {
 			$action = $req->input( 'action', 'create' );
-			if ( 'export' === $action && SiteModes::KEY_AUTHORITY === $mode ) {
-				$path = $this->exportAuthoritiesToCourier( $courierDir );
-				$msg  = 'Pacote exportado para courier: ' . basename( $path );
-			} elseif ( 'import_courier' === $action && SiteModes::KEY_AUTHORITY !== $mode ) {
-				$file = $courierDir . '/' . AuthoritiesDirectorySync::COURIER_FILE;
-				$msg  = $this->importAuthoritiesFromFile( $users, $file );
-			} elseif ( 'import_upload' === $action && SiteModes::KEY_AUTHORITY !== $mode ) {
+			if ( 'import_upload' === $action && SiteModes::KEY_AUTHORITY !== $mode ) {
 				$tmp = (string) ( $req->files['package']['tmp_name'] ?? '' );
 				$msg = ( is_readable( $tmp ) && '' !== $tmp )
 					? $this->importAuthoritiesFromFile( $users, $tmp )
 					: 'Falha no upload do pacote de autoridades.';
-			} else {
+			} elseif ( 'create' === $action ) {
 				$login = trim( $req->input( 'login' ) );
 				$email = trim( $req->input( 'email' ) );
 				$name  = trim( $req->input( 'displayName', $login ) );
@@ -355,42 +350,45 @@ final class HttpKernel {
 			}
 		}
 
-		$list = $users->listByRole( UserRegistryRoles::ROLE_OFFICIAL );
-		$rows = '';
+		$shareMeta = SiteModes::KEY_AUTHORITY === $mode ? $this->buildAuthoritiesShareMeta() : array();
+		$list      = $users->listByRole( UserRegistryRoles::ROLE_OFFICIAL );
+		$rows      = '';
 		foreach ( $list as $u ) {
-			$rows .= '<tr><td>' . (int) $u['id'] . '</td><td>'
+			$uid   = (int) $u['id'];
+			$sss   = isset( $shareMeta[ $uid ] ) ? AuthoritiesDirectorySync::publicSssFromMeta( $shareMeta[ $uid ] ) : null;
+			$idx   = $sss ? (string) $sss['share_index'] : '—';
+			$rows .= '<tr><td>' . $uid . '</td><td>'
 				. htmlspecialchars( (string) $u['displayName'], ENT_QUOTES, 'UTF-8' ) . '</td><td><code>'
 				. htmlspecialchars( (string) $u['login'], ENT_QUOTES, 'UTF-8' ) . '</code></td><td>'
-				. htmlspecialchars( (string) $u['email'], ENT_QUOTES, 'UTF-8' ) . '</td></tr>';
+				. htmlspecialchars( (string) $u['email'], ENT_QUOTES, 'UTF-8' ) . '</td><td>'
+				. htmlspecialchars( $idx, ENT_QUOTES, 'UTF-8' ) . '</td></tr>';
 		}
 		if ( '' === $rows ) {
-			$rows = '<tr><td colspan="4" class="ve-muted">Nenhuma autoridade neste nó.</td></tr>';
+			$rows = '<tr><td colspan="5" class="ve-muted">Nenhuma autoridade neste nó.</td></tr>';
 		}
 
 		$lead = match ( $mode ) {
-			SiteModes::KEY_AUTHORITY => 'Cadastrar quem receberá as parcelas Shamir. Exportar o pacote para o courier para provisionar voting e tallying.',
-			SiteModes::VOTING => 'As autoridades acompanham a eleição neste sítio; a validade jurídica fica comprometida sem o seu acompanhamento. Preferir importar o pacote exportado pelo nó de chaves.',
-			default => 'Sem autoridades neste nó, ninguém sobe parcelas Shamir — o limiar de reconstrução não é atingível. Importar o pacote do KA e pedir a cada autoridade que entre e submeta a sua parcela.',
+			SiteModes::KEY_AUTHORITY => 'Cadastrar quem receberá as parcelas Shamir. Admin e cada autoridade (sessão própria) podem descarregar o pacote com as parcelas públicas SSS — sem segredo share_value. A parcela secreta descarrega-se em /painel/minha-parcela.',
+			SiteModes::VOTING => 'Importar o pacote descarregado no nó de chaves (autoridades + parcela pública SSS). A validade jurídica fica comprometida sem o seu acompanhamento.',
+			default => 'Importar o pacote do KA. Depois cada autoridade entra, carrega a sua parcela secreta em /painel/parcelas e sobe até ao limiar.',
 		};
 
 		$extra = '';
 		if ( SiteModes::KEY_AUTHORITY === $mode ) {
-			$extra = '<form method="post" action="/painel/autoridades" style="margin-top:1rem">'
-				. '<input type="hidden" name="action" value="export" />'
-				. '<div class="ve-actions"><button type="submit">Exportar autoridades → courier/'
-				. htmlspecialchars( AuthoritiesDirectorySync::COURIER_FILE, ENT_QUOTES, 'UTF-8' )
-				. '</button></div></form>';
+			$canExport = $this->sessionUserCanExportAuthorities();
+			$extra     = $canExport
+				? '<div class="ve-actions" style="margin-top:1rem">'
+					. '<a class="button" href="/painel/autoridades/exportar">Descarregar autoridades.json (parcela pública SSS)</a> '
+					. '<a class="secondary" href="/painel/minha-parcela">Minha parcela secreta</a></div>'
+					. '<p class="ve-muted">Disponível na sessão do administrador e na sessão de cada autoridade eleitoral.</p>'
+				: '<p class="ve-muted">Entrar como administrador ou autoridade eleitoral para descarregar o pacote.</p>';
 		} else {
 			$extra = '<div class="ve-card" style="margin-top:1rem"><h2>Importar pacote</h2>'
-				. '<form method="post" action="/painel/autoridades">'
-				. '<input type="hidden" name="action" value="import_courier" />'
-				. '<div class="ve-actions"><button type="submit">Importar '
-				. htmlspecialchars( AuthoritiesDirectorySync::COURIER_FILE, ENT_QUOTES, 'UTF-8' )
-				. ' do courier</button></div></form>'
-				. '<form method="post" enctype="multipart/form-data" action="/painel/autoridades" style="margin-top:0.75rem">'
+				. '<p class="ve-muted">Carregar o JSON descarregado no nó de chaves (upload).</p>'
+				. '<form method="post" enctype="multipart/form-data" action="/painel/autoridades">'
 				. '<input type="hidden" name="action" value="import_upload" />'
 				. '<label class="ve-field"><span>Arquivo JSON</span><input type="file" name="package" accept=".json,application/json" required /></label>'
-				. '<div class="ve-actions"><button type="submit">Importar upload</button></div></form></div>';
+				. '<div class="ve-actions"><button type="submit">Importar autoridades</button></div></form></div>';
 		}
 
 		$body = '<div class="ve-card"><h1>Autoridades eleitorais</h1>'
@@ -412,26 +410,83 @@ final class HttpKernel {
 			. $extra
 			. '</div>'
 			. '<div class="ve-card"><h2>Neste nó (' . count( $list ) . ')</h2>'
-			. '<table class="ve-table"><thead><tr><th>ID</th><th>Nome</th><th>Login</th><th>E-mail</th></tr></thead><tbody>'
+			. '<table class="ve-table"><thead><tr><th>ID</th><th>Nome</th><th>Login</th><th>E-mail</th><th>Parcela #</th></tr></thead><tbody>'
 			. $rows . '</tbody></table></div>';
 		return $this->page( 'Autoridades', $body );
 	}
 
-
-	/** Courier local deste nó — nunca dirname(VE_DATA)/courier partilhado. */
-	private function localCourierDir(): string {
-		$dir = $this->node->courierDirectory();
-		if ( ! is_dir( $dir ) && ! mkdir( $dir, 0700, true ) && ! is_dir( $dir ) ) {
-			throw new \RuntimeException( 'Não foi possível criar o courier local: ' . $dir );
+	private function exportAuthoritiesDownload( Request $req ): Response {
+		unset( $req );
+		$this->node->requireMode( SiteModes::KEY_AUTHORITY );
+		if ( ! $this->sessionUserCanExportAuthorities() ) {
+			return Response::text( 'Apenas administrador ou autoridade eleitoral pode exportar.', 403 );
 		}
-		return $dir;
+		$pkg = $this->buildAuthoritiesPackage();
+		return Response::attachment(
+			AuthoritiesPackage::toJson( $pkg ),
+			AuthoritiesDirectorySync::PACKAGE_FILENAME,
+			'application/json; charset=UTF-8'
+		);
 	}
 
-	private function exportAuthoritiesToCourier( string $courierDir ): string {
-		if ( ! is_dir( $courierDir ) ) {
-			mkdir( $courierDir, 0700, true );
+	private function minhaParcela( Request $req ): Response {
+		$this->node->requireMode( SiteModes::KEY_AUTHORITY );
+		$uid = $this->session->currentUserId();
+		if ( ! $this->sessionUserIsOfficial() && ! $this->sessionUserIsAdmin() ) {
+			return $this->page(
+				'Minha parcela',
+				'<div class="ve-card"><h1>Minha parcela</h1><p class="ve-muted">Entrar como autoridade eleitoral (ou admin com parcela atribuída).</p></div>'
+			);
 		}
+		$share = $this->findOwnShareRow( $uid );
+		if ( null === $share ) {
+			return $this->page(
+				'Minha parcela',
+				'<div class="ve-card"><h1>Minha parcela</h1>'
+				. '<p class="ve-muted">Nenhuma parcela Shamir atribuída a esta conta. Gerar chave em /painel/keygen selecionando esta autoridade.</p></div>'
+			);
+		}
+		$payload = $share['share_payload'] ?? null;
+		if ( ! is_array( $payload ) ) {
+			return $this->page( 'Minha parcela', '<div class="ve-card"><p>Parcela sem payload.</p></div>' );
+		}
+		$idx = (int) ( $share['share_index'] ?? 0 );
+		if ( '' !== $req->query( 'download', '' ) ) {
+			$json = json_encode( $payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE );
+			return Response::attachment(
+				( is_string( $json ) ? $json . "\n" : "{}\n" ),
+				'parcela-' . $idx . '.json',
+				'application/json; charset=UTF-8'
+			);
+		}
+		return $this->page(
+			'Minha parcela',
+			'<div class="ve-card"><h1>Minha parcela secreta</h1>'
+			. '<p class="ve-muted">Índice <strong>' . $idx . '</strong> — '
+			. 'só esta sessão pode descarregar este segredo. Levar ao nó de totalização por canal auditável e submeter em /painel/parcelas.</p>'
+			. '<div class="ve-actions"><a href="/painel/minha-parcela?download=1">Descarregar parcela-'
+			. $idx . '.json</a> '
+			. '<a class="secondary" href="/painel/autoridades/exportar">Pacote autoridades (público)</a></div></div>'
+		);
+	}
+
+	/**
+	 * @return array<string,mixed>
+	 */
+	private function buildAuthoritiesPackage(): array {
 		$officials = $this->node->users->listByRole( UserRegistryRoles::ROLE_OFFICIAL );
+		return AuthoritiesDirectorySync::buildPackage(
+			$officials,
+			$this->buildAuthoritiesShareMeta(),
+			SiteModes::KEY_AUTHORITY,
+			(string) ( getenv( 'VE_PUBLIC_BASE' ) ?: '' )
+		);
+	}
+
+	/**
+	 * @return array<int,array<string,mixed>>
+	 */
+	private function buildAuthoritiesShareMeta(): array {
 		$shareMeta = array();
 		foreach ( $this->node->persistence->keys->listActive() as $k ) {
 			$kid = (int) $k['id'];
@@ -440,23 +495,26 @@ final class HttpKernel {
 				if ( $uid <= 0 ) {
 					continue;
 				}
+				$payload = is_array( $s['share_payload'] ?? null ) ? $s['share_payload'] : array();
 				$shareMeta[ $uid ] = array(
-					'share_index' => (int) ( $s['share_index'] ?? 0 ),
-					'key_id'      => $kid,
-					'threshold_t' => (int) ( $k['threshold'] ?? $s['threshold_t'] ?? 0 ),
-					'total_n'     => (int) ( $k['total_shares'] ?? $s['total_n'] ?? 0 ),
+					'share_index'   => (int) ( $s['share_index'] ?? 0 ),
+					'key_id'        => $kid,
+					'threshold_t'   => (int) ( $k['threshold'] ?? $s['threshold_t'] ?? 0 ),
+					'total_n'       => (int) ( $k['total_shares'] ?? $s['total_n'] ?? 0 ),
+					'field_prime'   => (string) ( $s['field_prime'] ?? $payload['field_prime'] ?? $k['field_prime'] ?? '' ),
+					'key_label'     => (string) ( $k['display_name'] ?? $k['key_label'] ?? '' ),
+					'key_size'      => $this->resolveKeySizeBits( $k ),
+					'public_key'    => $payload['public_key'] ?? array(
+						'p' => (string) ( $k['public_p'] ?? '' ),
+						'q' => (string) ( $k['public_q'] ?? '' ),
+						'g' => (string) ( $k['public_g'] ?? '' ),
+						'y' => (string) ( $k['public_y'] ?? '' ),
+					),
+					'share_payload' => $payload,
 				);
 			}
 		}
-		$pkg  = AuthoritiesDirectorySync::buildPackage(
-			$officials,
-			$shareMeta,
-			SiteModes::KEY_AUTHORITY,
-			(string) ( getenv( 'VE_PUBLIC_BASE' ) ?: '' )
-		);
-		$path = $courierDir . '/' . AuthoritiesDirectorySync::COURIER_FILE;
-		file_put_contents( $path, AuthoritiesPackage::toJson( $pkg ) );
-		return $path;
+		return $shareMeta;
 	}
 
 	private function importAuthoritiesFromFile( FileJsonUserStore $users, string $file ): string {
@@ -465,7 +523,7 @@ final class HttpKernel {
 		}
 		$pkg = AuthoritiesPackage::fromJson( (string) file_get_contents( $file ) );
 		if ( null === $pkg ) {
-			return 'Pacote inválido ou checksum incorreto.';
+			return 'Pacote inválido, checksum incorreto ou contém segredo (share_value).';
 		}
 		$res = AuthoritiesDirectorySync::importPackage( $users, $pkg );
 		return sprintf(
@@ -571,7 +629,6 @@ final class HttpKernel {
 			$status = $this->node->jobs->keygen->tick();
 		}
 		if ( ! empty( $status['stage'] ) && 'complete' === $status['stage'] ) {
-			$this->exportAuthoritiesToCourier( $this->localCourierDir() );
 			$status['keys_html'] = $this->renderActiveKeysTable();
 		}
 		return Response::json( $status );
@@ -584,7 +641,6 @@ final class HttpKernel {
 		}
 		$status = $this->node->jobs->keygen->tick();
 		if ( ! empty( $status['stage'] ) && 'complete' === $status['stage'] ) {
-			$this->exportAuthoritiesToCourier( $this->localCourierDir() );
 			$status['keys_html'] = $this->renderActiveKeysTable();
 		}
 		return Response::json( $status );
@@ -1235,95 +1291,92 @@ HTML;
 	}
 
 
-	private function courierDownload( string $filename ): Response {
-		$name = basename( $filename );
-		$name = preg_replace( '/[^a-zA-Z0-9._\-]/', '', $name ) ?: '';
-		if ( '' === $name ) {
-			return Response::text( 'Nome inválido', 400 );
+	private function chavePublicaImport( Request $req ): Response {
+		$mode = $this->node->mode->getMode();
+		if ( SiteModes::VOTING !== $mode && SiteModes::TALLYING !== $mode ) {
+			return Response::text( 'Só nos nós de votação e totalização.', 403 );
 		}
-		$path = $this->localCourierDir() . '/' . $name;
-		if ( ! is_readable( $path ) || ! is_file( $path ) ) {
-			return Response::text( 'Não encontrado', 404 );
-		}
-		$body = (string) file_get_contents( $path );
-		return new Response(
-			$body,
-			200,
-			array(
-				'Content-Type'        => 'application/octet-stream',
-				'Content-Disposition' => 'attachment; filename="' . $name . '"',
-			)
-		);
-	}
-
-	private function courier( Request $req ): Response {
-		$courierDir = $this->localCourierDir();
-		$msg        = '';
-		$mode       = $this->node->mode->getMode();
-
+		$msg = '';
 		if ( 'POST' === $req->method ) {
-			$action = (string) $req->input( 'action', '' );
-			if ( 'export_vote_material' === $action && SiteModes::VOTING === $mode ) {
-				try {
-					$ctx = $this->resolveOpenElectionContext();
-					if ( null === $ctx ) {
-						$msg = 'Criar uma eleição aberta em /painel/eleicoes antes de exportar.';
+			$tmp = (string) ( $req->files['package']['tmp_name'] ?? '' );
+			if ( ! is_readable( $tmp ) ) {
+				$msg = 'Falha no upload.';
+			} else {
+				$pkg = json_decode( (string) file_get_contents( $tmp ), true );
+				if ( ! is_array( $pkg ) ) {
+					$msg = 'JSON inválido.';
+				} else {
+					$ok = PublicKeyPackage::validate( $pkg );
+					$pub = is_array( $pkg['public_key'] ?? null ) ? $pkg['public_key'] : null;
+					if ( empty( $ok['ok'] ) && ! is_array( $pub ) ) {
+						$msg = 'Pacote de chave pública rejeitado: ' . ( $ok['error'] ?? '?' );
+					} elseif ( ! is_array( $pub ) ) {
+						$msg = 'Campo public_key ausente.';
 					} else {
-						$checksum = $this->publicKeyChecksumFromCourierOrKeys();
-						$pkg      = VoteMaterialExportService::buildFromVotes(
-							$this->node,
-							$ctx['election_id'],
-							$ctx['round_id'],
-							$checksum
+						$this->node->persistence->keys->create(
+							array(
+								'key_label'  => (string) ( $pkg['key_label'] ?? 'imported' ),
+								'key_size'   => (int) ( $pkg['key_size'] ?? 0 ),
+								'public_p'   => (string) ( $pub['p'] ?? '' ),
+								'public_q'   => (string) ( $pub['q'] ?? '' ),
+								'public_g'   => (string) ( $pub['g'] ?? '' ),
+								'public_y'   => (string) ( $pub['y'] ?? '' ),
+								'is_deleted' => 0,
+							)
 						);
-						$path = VoteMaterialExportService::writeToCourier( $this->node, $pkg );
-						$msg  = 'Exportado ' . basename( $path ) . ' (' . count( $pkg['ballots'] ) . ' boletins). '
-							. 'Transferir manualmente para o courier do nó de totalização.';
+						$msg = 'Chave pública importada neste nó.';
 					}
-				} catch ( \Throwable $e ) {
-					$msg = $e->getMessage();
-				}
-			} elseif ( isset( $req->files['material'] ) ) {
-				$file = $req->files['material'];
-				$tmp  = (string) ( $file['tmp_name'] ?? '' );
-				$name = basename( (string) ( $file['name'] ?? 'upload.json' ) );
-				$name = preg_replace( '/[^a-zA-Z0-9._\-]/', '', $name ) ?: 'upload.json';
-				if ( is_readable( $tmp ) ) {
-					copy( $tmp, $courierDir . '/' . $name );
-					$msg = 'Material guardado: ' . $name;
 				}
 			}
 		}
-
-		$files = glob( $courierDir . '/*' ) ?: array();
-		$list  = '<ul>';
-		foreach ( $files as $f ) {
-			$bn = basename( $f );
-			$list .= '<li><code>' . htmlspecialchars( $bn, ENT_QUOTES, 'UTF-8' ) . '</code> (' . filesize( $f ) . ' B)'
-				. ' — <a href="/painel/courier/' . rawurlencode( $bn ) . '">Descarregar</a></li>';
+		$keys = $this->node->persistence->keys->listActive();
+		$list = '<ul>';
+		foreach ( $keys as $k ) {
+			$list .= '<li>#' . (int) ( $k['id'] ?? 0 ) . ' — '
+				. htmlspecialchars( (string) ( $k['display_name'] ?? $k['key_label'] ?? '' ), ENT_QUOTES, 'UTF-8' )
+				. ' (' . $this->formatKeySizeLabel( $this->resolveKeySizeBits( $k ) ) . ')</li>';
 		}
 		$list .= '</ul>';
-
-		$exportForm = '';
-		if ( SiteModes::VOTING === $mode ) {
-			$exportForm = '<form method="post" style="margin-top:1rem">'
-				. '<input type="hidden" name="action" value="export_vote_material" />'
-				. '<div class="ve-actions"><button type="submit">Exportar vote-material.json (eleição aberta)</button></div></form>';
-		}
-
-		$body = '<div class="ve-card"><h1>Courier manual</h1>'
-			. '<p class="ve-muted">Courier <strong>local deste nó</strong> (sem sync e sem pasta partilhada entre modos): <code>'
-			. htmlspecialchars( $courierDir, ENT_QUOTES, 'UTF-8' ) . '</code></p>'
-			. '<p class="ve-muted">Segregação E3: cada sítio só vê o seu <code>VE_DATA/courier</code>. '
-			. 'Levar material ao outro nó por canal auditável (USB, scp, descarregar aqui e carregar no destino). '
-			. 'Nunca montar o mesmo diretório nos três processos.</p>'
+		$body = '<div class="ve-card"><h1>Chave pública</h1>'
+			. '<p class="ve-muted">Carregar o JSON descarregado no KA em /painel/chave/{id}.json.</p>'
 			. ( $msg ? '<p class="ve-muted">' . htmlspecialchars( $msg, ENT_QUOTES, 'UTF-8' ) . '</p>' : '' )
-			. '<form method="post" enctype="multipart/form-data"><label class="ve-field"><span>Carregar JSON neste nó</span><input type="file" name="material" required /></label>'
-			. '<div class="ve-actions"><button type="submit">Carregar</button></div></form>'
-			. $exportForm
-			. '</div>'
-			. '<div class="ve-card"><h2>Arquivos neste courier</h2>' . $list . '</div>';
-		return $this->page( 'Courier', $body );
+			. '<form method="post" enctype="multipart/form-data">'
+			. '<label class="ve-field"><span>public-key.json</span><input type="file" name="package" accept=".json,application/json" required /></label>'
+			. '<div class="ve-actions"><button type="submit">Importar chave pública</button></div></form></div>'
+			. '<div class="ve-card"><h2>Chaves neste nó</h2>' . $list . '</div>';
+		return $this->page( 'Chave pública', $body );
+	}
+
+	private function materialVotoExport( Request $req ): Response {
+		$this->node->requireMode( SiteModes::VOTING );
+		$msg = '';
+		if ( 'POST' === $req->method || '' !== $req->query( 'download', '' ) ) {
+			try {
+				$ctx = $this->resolveOpenElectionContext();
+				if ( null === $ctx ) {
+					$msg = 'Criar uma eleição aberta em /painel/eleicoes antes de exportar.';
+				} else {
+					$pkg = VoteMaterialExportService::buildFromVotes(
+						$this->node,
+						$ctx['election_id'],
+						$ctx['round_id'],
+						$this->publicKeyChecksumFromKeys()
+					);
+					return Response::attachment(
+						VoteMaterialExportService::toJson( $pkg ),
+						VoteMaterialExportService::VOTE_MATERIAL_FILE,
+						'application/json; charset=UTF-8'
+					);
+				}
+			} catch ( \Throwable $e ) {
+				$msg = $e->getMessage();
+			}
+		}
+		$body = '<div class="ve-card"><h1>Material de voto</h1>'
+			. '<p class="ve-muted">Descarregar vote-material.json na sessão e carregar no nó de totalização em /painel/importar.</p>'
+			. ( $msg ? '<p class="ve-muted">' . htmlspecialchars( $msg, ENT_QUOTES, 'UTF-8' ) . '</p>' : '' )
+			. '<form method="post"><div class="ve-actions"><button type="submit">Descarregar vote-material.json</button></div></form></div>';
+		return $this->page( 'Material de voto', $body );
 	}
 
 	private function eleicoes( Request $req ): Response {
@@ -1335,8 +1388,8 @@ HTML;
 			$question = trim( $req->input( 'question_title', 'Aprovar?' ) );
 			if ( '' === $title ) {
 				$msg = 'Indicar o título da eleição.';
-			} elseif ( ! $this->node->persistence->keys->listActive() && ! $this->tryImportPublicKeyFromCourier() ) {
-				$msg = 'Importar public-key.json no courier deste nó antes de criar a eleição.';
+			} elseif ( ! $this->node->persistence->keys->listActive() ) {
+				$msg = 'Importar a chave pública em /painel/chave-publica antes de criar a eleição.';
 			} else {
 				if ( '' === $question ) {
 					$question = 'Aprovar?';
@@ -1367,7 +1420,7 @@ HTML;
 						'order_index'    => 0,
 					)
 				);
-				$msg = "Eleição #{$electionId} criada (turno #{$roundId}). Abrir /voto para votar; depois exportar no Courier.";
+				$msg = "Eleição #{$electionId} criada (turno #{$roundId}). Abrir /voto para votar; depois descarregar em /painel/material-voto.";
 			}
 		}
 
@@ -1399,18 +1452,19 @@ HTML;
 			. '<th>ID</th><th>Título</th><th>Estado</th><th>Turno</th><th>Pergunta</th></tr></thead><tbody>'
 			. $rows . '</tbody></table>'
 			. '<div class="ve-actions"><a href="/voto">Ir ao voto</a> '
-			. '<a class="secondary" href="/painel/courier">Exportar material</a></div></div>';
+			. '<a class="secondary" href="/painel/material-voto">Exportar material</a></div></div>';
 		return $this->page( 'Eleições', $body );
 	}
 
 	private function tallyImport( Request $req ): Response {
 		$this->node->requireMode( SiteModes::TALLYING );
-		$msg        = '';
-		$courierDir = $this->localCourierDir();
+		$msg = '';
 		if ( 'POST' === $req->method ) {
-			$voteFile = $courierDir . '/' . VoteMaterialExportService::VOTE_MATERIAL_FILE;
-			if ( is_readable( $voteFile ) ) {
-				$raw = json_decode( (string) file_get_contents( $voteFile ), true );
+			$tmp = (string) ( $req->files['package']['tmp_name'] ?? '' );
+			if ( ! is_readable( $tmp ) ) {
+				$msg = 'Carregar vote-material.json (upload).';
+			} else {
+				$raw = json_decode( (string) file_get_contents( $tmp ), true );
 				if ( ! is_array( $raw ) ) {
 					$msg = 'vote-material.json inválido (JSON).';
 				} else {
@@ -1422,7 +1476,7 @@ HTML;
 							array(
 								'import_manifest_json' => json_encode(
 									array(
-										'source'       => 'courier',
+										'source'       => 'upload',
 										'round_id'     => (int) ( $raw['round_id'] ?? 0 ),
 										'election_id'  => (int) ( $raw['election_id'] ?? 0 ),
 										'ballot_count' => count( $raw['ballots'] ?? array() ),
@@ -1439,8 +1493,6 @@ HTML;
 						$msg = "Importação #{$id} pronta (" . count( $raw['ballots'] ) . ' boletins). Seguir a /painel/parcelas.';
 					}
 				}
-			} else {
-				$msg = 'Falta vote-material.json no courier local deste nó.';
 			}
 		}
 		$summaries = $this->node->persistence->tallyImports->listSummaries();
@@ -1453,8 +1505,11 @@ HTML;
 		}
 		$list .= '</tbody></table>';
 		$body  = '<div class="ve-card"><h1>Importação da apuração</h1>'
+			. '<p class="ve-muted">Carregar o vote-material.json descarregado no nó de votação.</p>'
 			. ( $msg ? '<p class="ve-muted">' . htmlspecialchars( $msg, ENT_QUOTES, 'UTF-8' ) . '</p>' : '' )
-			. '<form method="post"><div class="ve-actions"><button type="submit">Importar vote-material.json do courier</button></div></form></div>'
+			. '<form method="post" enctype="multipart/form-data">'
+			. '<label class="ve-field"><span>vote-material.json</span><input type="file" name="package" accept=".json,application/json" required /></label>'
+			. '<div class="ve-actions"><button type="submit">Importar material</button></div></form></div>'
 			. '<div class="ve-card"><h2>Imports</h2>' . $list . '</div>';
 		return $this->page( 'Importar', $body );
 	}
@@ -1487,12 +1542,19 @@ HTML;
 					}
 					$pk = $payloads[0]['public_key'] ?? null;
 					if ( ! is_array( $pk ) ) {
-						$pkFile = $this->localCourierDir() . '/public-key.json';
-						$rawPk  = is_readable( $pkFile ) ? json_decode( (string) file_get_contents( $pkFile ), true ) : null;
-						$pk     = is_array( $rawPk ) ? ( $rawPk['public_key'] ?? null ) : null;
+						$keys = $this->node->persistence->keys->listActive();
+						if ( $keys ) {
+							$k  = $keys[0];
+							$pk = array(
+								'p' => (string) ( $k['public_p'] ?? '' ),
+								'q' => (string) ( $k['public_q'] ?? '' ),
+								'g' => (string) ( $k['public_g'] ?? '' ),
+								'y' => (string) ( $k['public_y'] ?? '' ),
+							);
+						}
 					}
 					if ( ! is_array( $pk ) ) {
-						throw new \RuntimeException( 'Chave pública ausente nas parcelas / courier.' );
+						throw new \RuntimeException( 'Chave pública ausente nas parcelas / neste nó.' );
 					}
 					$dec = HomomorphicCertifyService::decryptTally(
 						$votePkg,
@@ -1595,10 +1657,9 @@ HTML;
 
 	private function castVote( Request $req ): Response {
 		$choice = (int) $req->input( 'choice', '1' ) > 0 ? 1 : 0;
-		$this->tryImportPublicKeyFromCourier();
 		$keys = $this->node->persistence->keys->listActive();
 		if ( ! $keys ) {
-			$this->flash = 'Sem chave pública neste nó. Colocar public-key.json no courier.';
+			$this->flash = 'Sem chave pública neste nó. Importar em /painel/chave-publica.';
 			return Response::redirect( '/voto/cabina' );
 		}
 		$ctx = $this->resolveOpenElectionContext();
@@ -1679,50 +1740,8 @@ HTML;
 		);
 	}
 
-	private function tryImportPublicKeyFromCourier(): bool {
-		if ( $this->node->persistence->keys->listActive() ) {
-			return true;
-		}
-		$pkFile = $this->localCourierDir() . '/public-key.json';
-		if ( ! is_readable( $pkFile ) ) {
-			return false;
-		}
-		$pkg = json_decode( (string) file_get_contents( $pkFile ), true );
-		if ( ! is_array( $pkg ) ) {
-			return false;
-		}
-		$ok = PublicKeyPackage::validate( $pkg );
-		if ( empty( $ok['ok'] ) ) {
-			// Aceitar formato mínimo sem checksum estrito (lab legado).
-			$pub = $pkg['public_key'] ?? null;
-			if ( ! is_array( $pub ) ) {
-				return false;
-			}
-		} else {
-			$pub = $pkg['public_key'];
-		}
-		$this->node->persistence->keys->create(
-			array(
-				'key_label'  => (string) ( $pkg['key_label'] ?? 'imported-courier' ),
-				'key_size'   => (int) ( $pkg['key_size'] ?? 0 ),
-				'public_p'   => (string) ( $pub['p'] ?? '' ),
-				'public_q'   => (string) ( $pub['q'] ?? '' ),
-				'public_g'   => (string) ( $pub['g'] ?? '' ),
-				'public_y'   => (string) ( $pub['y'] ?? '' ),
-				'is_deleted' => 0,
-			)
-		);
-		return (bool) $this->node->persistence->keys->listActive();
-	}
 
-	private function publicKeyChecksumFromCourierOrKeys(): string {
-		$pkFile = $this->localCourierDir() . '/public-key.json';
-		if ( is_readable( $pkFile ) ) {
-			$pkg = json_decode( (string) file_get_contents( $pkFile ), true );
-			if ( is_array( $pkg ) && ! empty( $pkg['checksum'] ) ) {
-				return (string) $pkg['checksum'];
-			}
-		}
+	private function publicKeyChecksumFromKeys(): string {
 		$keys = $this->node->persistence->keys->listActive();
 		if ( ! $keys ) {
 			return '';
@@ -1733,6 +1752,40 @@ HTML;
 			(string) ( $k['public_p'] ?? '' ) . '|' . (string) ( $k['public_y'] ?? '' )
 		);
 	}
+
+	/** @return array<string,mixed>|null */
+	private function findOwnShareRow( int $userId ): ?array {
+		foreach ( $this->node->persistence->keys->listActive() as $k ) {
+			$row = $this->node->persistence->shares->findForUser( (int) $k['id'], $userId );
+			if ( null !== $row ) {
+				return $row;
+			}
+		}
+		return null;
+	}
+
+	private function sessionUserIsAdmin(): bool {
+		$user = $this->node->users->findById( $this->session->currentUserId() );
+		if ( null === $user ) {
+			return false;
+		}
+		$roles = array_map( 'strval', (array) ( $user['roles'] ?? array() ) );
+		return in_array( UserRegistryRoles::ROLE_ADMIN, $roles, true );
+	}
+
+	private function sessionUserIsOfficial(): bool {
+		$user = $this->node->users->findById( $this->session->currentUserId() );
+		if ( null === $user ) {
+			return false;
+		}
+		$roles = array_map( 'strval', (array) ( $user['roles'] ?? array() ) );
+		return in_array( UserRegistryRoles::ROLE_OFFICIAL, $roles, true );
+	}
+
+	private function sessionUserCanExportAuthorities(): bool {
+		return $this->sessionUserIsAdmin() || $this->sessionUserIsOfficial();
+	}
+
 
 	/**
 	 * @param array<string,mixed> $import
@@ -1749,15 +1802,7 @@ HTML;
 				return $decoded;
 			}
 		}
-		// Fallback: ficheiro no courier local.
-		$path = $this->localCourierDir() . '/' . VoteMaterialExportService::VOTE_MATERIAL_FILE;
-		if ( is_readable( $path ) ) {
-			$raw = json_decode( (string) file_get_contents( $path ), true );
-			if ( is_array( $raw ) ) {
-				return $raw;
-			}
-		}
-		throw new \RuntimeException( 'Pacote de voto ausente no import.' );
+		throw new \RuntimeException( 'Pacote de voto ausente no import (reimportar upload).' );
 	}
 
 	private function serveAsset( string $path ): Response {

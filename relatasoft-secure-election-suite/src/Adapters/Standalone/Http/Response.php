@@ -62,13 +62,18 @@ final class Response {
 			return self::text( 'Not found', 404 );
 		}
 		$body = (string) file_get_contents( $absolutePath );
+		return self::attachment( $body, $downloadName, $mime );
+	}
+
+	public static function attachment( string $body, string $downloadName, string $mime = 'application/octet-stream' ): self {
+		$safe = preg_replace( '/[^a-zA-Z0-9._\-]/', '_', $downloadName ) ?: 'download.bin';
 		return new self(
 			$body,
 			200,
 			array(
 				'Content-Type'        => $mime,
 				'Content-Length'      => (string) strlen( $body ),
-				'Content-Disposition' => 'attachment; filename="' . $downloadName . '"',
+				'Content-Disposition' => 'attachment; filename="' . $safe . '"',
 			)
 		);
 	}

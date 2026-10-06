@@ -26,12 +26,12 @@ sleep 1
 | 1 | `GET http://127.0.0.1:8888/login` | Formulário |
 | 2 | Login admin no KA | Redireciona a `/painel` |
 | 3 | `/painel/autoridades` — cadastrar ≥3 autoridades | Listadas na tabela |
-| 4 | `/painel/keygen` — selecionar n e gerar | Parcelas atribuídas; arquivos em `ka/courier/` |
+| 4 | `/painel/keygen` — selecionar n e gerar | Parcelas na persistência; export sessão |
 | 5 | Login no voting `:8889` | Painel com Cadastro / Voto |
 | 6 | Importar `.rsv` mínimo | Eleitores listados no cadastro |
 | 7 | `/painel/eleicoes` — criar | Eleição + turno + pergunta |
-| 8 | `/voto` → cabina → export Courier | `vote-material.json` no voting |
-| 9 | Tallying `:8890` importar → parcelas → certificar | Total numérico na certificação |
+| 8 | `/voto` → cabina → `/painel/material-voto` | Descarregar `vote-material.json` |
+| 9 | Tallying `:8890` upload material → parcelas → certificar | Total numérico na certificação |
 | 10 | `/assets/painel/css/shell.css` | 200 |
 
 ## Testes automatizados

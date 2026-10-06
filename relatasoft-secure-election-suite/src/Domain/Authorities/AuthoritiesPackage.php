@@ -44,6 +44,12 @@ final class AuthoritiesPackage {
 		if ( empty( $package['authorities'] ) || ! is_array( $package['authorities'] ) ) {
 			return array( 'ok' => false, 'error' => 'empty' );
 		}
+		// Pacote de autoridades nunca transporta o segredo Shamir.
+		if ( array_key_exists( 'share_value', $package )
+			|| array_key_exists( 'private_x', $package )
+		) {
+			return array( 'ok' => false, 'error' => 'secret_leak' );
+		}
 		$expected = (string) ( $package['checksum'] ?? '' );
 		$copy     = $package;
 		unset( $copy['checksum'] );
@@ -54,6 +60,12 @@ final class AuthoritiesPackage {
 		foreach ( $package['authorities'] as $i => $row ) {
 			if ( ! is_array( $row ) ) {
 				return array( 'ok' => false, 'error' => 'row:' . $i );
+			}
+			if ( array_key_exists( 'share_value', $row )
+				|| ( isset( $row['public_sss'] ) && is_array( $row['public_sss'] ) && array_key_exists( 'share_value', $row['public_sss'] ) )
+				|| ( isset( $row['share_payload'] ) && is_array( $row['share_payload'] ) && array_key_exists( 'share_value', $row['share_payload'] ) )
+			) {
+				return array( 'ok' => false, 'error' => 'secret_leak:' . $i );
 			}
 			$login = trim( (string) ( $row['user_login'] ?? '' ) );
 			$email = trim( (string) ( $row['user_email'] ?? '' ) );

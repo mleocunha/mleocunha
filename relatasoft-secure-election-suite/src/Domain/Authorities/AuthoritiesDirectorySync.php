@@ -8,15 +8,20 @@ use RelataSoft\SecureElectionSuite\Painel\Domain\Access\UserRegistryRoles;
 
 /**
  * Exportar / importar autoridades eleitorais entre nós (formato AuthoritiesPackage).
- * Sem I/O de rede — o adapter escreve o JSON no courier ou recebe upload.
+ *
+ * Transporte: descarregar na sessão (admin ou autoridade) e carregar no outro nó.
+ * Nunca inclui share_value — só metadados públicos SSS (parcela pública).
  */
 final class AuthoritiesDirectorySync {
 
-	public const COURIER_FILE = 'authorities.json';
+	public const PACKAGE_FILENAME = 'authorities.json';
+
+	/** @deprecated Use PACKAGE_FILENAME — Courier abandonado. */
+	public const COURIER_FILE = self::PACKAGE_FILENAME;
 
 	/**
 	 * @param list<array<string,mixed>> $officials Users do papel autoridade (já normalizados).
-	 * @param array<int,array{share_index?:int,key_id?:int,threshold_t?:int,total_n?:int}> $shareMeta
+	 * @param array<int,array<string,mixed>> $shareMeta Por official_user_id: índice, limiar, chave pública, etc.
 	 * @return array<string,mixed>
 	 */
 	public static function buildPackage(
@@ -39,11 +44,14 @@ final class AuthoritiesDirectorySync {
 				'source_user_id' => $uid,
 			);
 			if ( isset( $shareMeta[ $uid ] ) ) {
-				$m = $shareMeta[ $uid ];
-				$row['share_index']   = (int) ( $m['share_index'] ?? 0 );
-				$row['source_key_id'] = (int) ( $m['key_id'] ?? 0 );
-				$row['threshold_t']   = (int) ( $m['threshold_t'] ?? 0 );
-				$row['total_n']       = (int) ( $m['total_n'] ?? 0 );
+				$public = self::publicSssFromMeta( $shareMeta[ $uid ] );
+				if ( null !== $public ) {
+					$row['share_index']   = $public['share_index'];
+					$row['source_key_id'] = $public['source_key_id'];
+					$row['threshold_t']   = $public['threshold_t'];
+					$row['total_n']       = $public['total_n'];
+					$row['public_sss']    = $public;
+				}
 			}
 			$rows[] = $row;
 		}
@@ -55,6 +63,58 @@ final class AuthoritiesDirectorySync {
 				'plugin_version' => '',
 				'authorities'    => $rows,
 			)
+		);
+	}
+
+	/**
+	 * Extrair só a parcela pública SSS (sem share_value) a partir de meta/persistência.
+	 *
+	 * @param array<string,mixed> $meta
+	 * @return array{
+	 *   share_index:int,
+	 *   source_key_id:int,
+	 *   threshold_t:int,
+	 *   total_n:int,
+	 *   field_prime:string,
+	 *   key_label:string,
+	 *   key_size:int,
+	 *   public_key:array{p:string,q:string,g:string,y:string}
+	 * }|null
+	 */
+	public static function publicSssFromMeta( array $meta ): ?array {
+		$idx = (int) ( $meta['share_index'] ?? 0 );
+		if ( $idx < 1 ) {
+			return null;
+		}
+		$payload = is_array( $meta['share_payload'] ?? null ) ? $meta['share_payload'] : array();
+		$pk      = $meta['public_key'] ?? ( $payload['public_key'] ?? null );
+		if ( ! is_array( $pk ) ) {
+			$pk = array(
+				'p' => (string) ( $meta['public_p'] ?? '' ),
+				'q' => (string) ( $meta['public_q'] ?? '' ),
+				'g' => (string) ( $meta['public_g'] ?? '' ),
+				'y' => (string) ( $meta['public_y'] ?? '' ),
+			);
+		}
+		foreach ( array( 'p', 'q', 'g', 'y' ) as $k ) {
+			if ( '' === trim( (string) ( $pk[ $k ] ?? '' ) ) ) {
+				return null;
+			}
+		}
+		return array(
+			'share_index'   => $idx,
+			'source_key_id' => (int) ( $meta['key_id'] ?? $meta['source_key_id'] ?? 0 ),
+			'threshold_t'   => (int) ( $meta['threshold_t'] ?? 0 ),
+			'total_n'       => (int) ( $meta['total_n'] ?? 0 ),
+			'field_prime'   => (string) ( $meta['field_prime'] ?? $payload['field_prime'] ?? '' ),
+			'key_label'     => (string) ( $meta['key_label'] ?? '' ),
+			'key_size'      => (int) ( $meta['key_size'] ?? 0 ),
+			'public_key'    => array(
+				'p' => (string) $pk['p'],
+				'q' => (string) $pk['q'],
+				'g' => (string) $pk['g'],
+				'y' => (string) $pk['y'],
+			),
 		);
 	}
 
