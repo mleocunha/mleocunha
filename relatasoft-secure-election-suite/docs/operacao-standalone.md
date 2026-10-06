@@ -68,7 +68,7 @@ identificador;nome;papel
 
 ## Fluxo de material (sem Courier)
 
-1. KA: `/painel/autoridades` → `/painel/keygen`. Admin ou cada autoridade descarrega `authorities.json` (parcela pública SSS, sem `share_value`) em `/painel/autoridades/exportar`. Cada autoridade descarrega a sua parcela secreta em `/painel/minha-parcela`. Chave pública em `/painel/chave/{id}.json`.
+1. AC: `/painel/autoridades` → `/painel/keygen`. Admin ou cada autoridade descarrega `authorities.json` (parcela pública SSS, sem `share_value`) em `/painel/autoridades/exportar`. Cada autoridade descarrega a sua parcela secreta em `/painel/minha-parcela`. Chave pública em `/painel/chave/{id}.json`.
 2. Voting/tallying: importar autoridades (upload) e chave pública em `/painel/chave-publica`.
 3. Voting: criar eleição → votar → descarregar `vote-material.json` em `/painel/material-voto`.
 4. Tallying: importar material (upload) → cada autoridade submete a sua parcela em `/painel/parcelas` → certificar.

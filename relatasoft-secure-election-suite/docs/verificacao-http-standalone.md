@@ -24,7 +24,7 @@ sleep 1
 | # | Ação | Esperado |
 |---|--------|----------|
 | 1 | `GET http://127.0.0.1:8888/login` | Formulário |
-| 2 | Login admin no KA | Redireciona a `/painel` |
+| 2 | Login admin na AC | Redireciona a `/painel` |
 | 3 | `/painel/autoridades` — cadastrar ≥3 autoridades | Listadas na tabela |
 | 4 | `/painel/keygen` — selecionar n e gerar | Parcelas na persistência; export sessão |
 | 5 | Login no voting `:8889` | Painel com Cadastro / Voto |

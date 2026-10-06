@@ -47,8 +47,8 @@ Confirmar as três portas, `/login` em cada uma e, no voting, `/voto`. Registar 
 ## Dia 1 — identidade, autoridades e chave
 
 1. Login admin em cada nó (contas não sincronizam automaticamente).
-2. No **KA**: cadastrar autoridades em `/painel/autoridades` (≥ *n*).
-3. KA: `/painel/keygen` — selecionar *n* autoridades → gerar. Descarregar `authorities.json` (parcela pública SSS) na sessão admin ou de cada autoridade; cada uma descarrega a parcela secreta em `/painel/minha-parcela`.
+2. Na **AC**: cadastrar autoridades em `/painel/autoridades` (≥ *n*).
+3. AC: `/painel/keygen` — selecionar *n* autoridades → gerar. Descarregar `authorities.json` (parcela pública SSS) na sessão admin ou de cada autoridade; cada uma descarrega a parcela secreta em `/painel/minha-parcela`.
 4. Em **voting** e **tallying**: importar o pacote de autoridades (upload) e a chave pública. No voting, as autoridades acompanham a eleição; no tallying, sobem parcelas.
 
 ## Dia 2 — cadastro, eleição e voto
@@ -82,7 +82,7 @@ Confirmar as três portas, `/login` em cada uma e, no voting, `/voto`. Registar 
 |---------|-----------|
 | 500 ao abrir | `VE_MODE` e `VE_DATA` definidos? `composer install`? |
 | Login falha | `VE_ADMIN_*` no mesmo processo; `identity.json` já com outra senha? |
-| Import falha | Pacote descarregado no KA (sem `share_value`)? Upload no destino? Sessão admin/autoridade no export? |
+| Import falha | Pacote descarregado na AC (sem `share_value`)? Upload no destino? Sessão admin/autoridade no export? |
 | GMP | Extensão `gmp` instalada |
 
 ## Legado
