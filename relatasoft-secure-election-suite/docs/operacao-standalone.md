@@ -1,7 +1,7 @@
 # Operação standalone (três sítios)
 
 Operação contínua: **um processo PHP por modo E3**, árvore `VE_DATA` própria,
-courier por arquivos. Sem sincronização automática de identidade ou base.
+material por descarregar/carregar na sessão. Sem sincronização automática de identidade ou base.
 
 ## Testes / demonstração vs produção
 

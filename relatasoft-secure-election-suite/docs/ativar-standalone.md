@@ -35,14 +35,14 @@ composer install && ./vendor/bin/phpunit -c phpunit.xml
 
 ### C. Directorios de dados
 
-Três `VE_DATA` irmãos — cada nó tem o seu courier em `VE_DATA/courier` (criado sob demanda). **Não** criar pasta `courier/` partilhada na raiz:
+Três `VE_DATA` irmãos isolados — **sem** pasta Courier:
 
 ```bash
 sudo mkdir -p /var/lib/ve/{ka,voting,tallying}
 sudo chown -R ve-operador:ve-operador /var/lib/ve
 ```
 
-Com `--data=/var/lib/ve/ka`, o courier local é `/var/lib/ve/ka/courier`. Material entre sítios: descarregar no sítio de origem e colocar no `courier/` do destino (ou upload em `/painel/courier`).
+Material entre sítios: descarregar na sessão (autoridades, chave pública, parcelas, vote-material) e carregar no destino.
 
 ### D. Credenciais iniciais
 
@@ -128,6 +128,6 @@ Colocar TLS no nginx à frente; PHP só em loopback. Ver `docs/operacao-standalo
 
 ## Próximos passos
 
-- `docs/operacao-standalone.md` — courier, becape, três sítios  
+- `docs/operacao-standalone.md` — material entre sítios, becape, três sítios  
 - `docs/piloto-3-nos.md` — guião de piloto  
 - `docs/verificacao-http-standalone.md` — checklist  

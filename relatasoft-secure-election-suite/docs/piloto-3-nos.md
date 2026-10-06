@@ -16,7 +16,7 @@ sob autoridade eleitoral superior preferencialmente colegiada
 1. Ativar três nós sem CMS.
 2. Identidade local por sítio (`identity.json`).
 3. Cadastro via `.rsv` no nó de votação.
-4. Ciclo E3 com parcelas e courier.
+4. Ciclo E3 com parcelas e material por sessão.
 5. Operador em `/painel` e eleitor em `/voto`.
 
 ## Material
@@ -54,7 +54,7 @@ Confirmar as três portas, `/login` em cada uma e, no voting, `/voto`. Registar 
 ## Dia 2 — cadastro, eleição e voto
 
 1. Voting: importar `.rsv` em `/painel/cadastro`.
-2. Confirmar material do courier / autoridades importadas.
+2. Confirmar autoridades e chave pública importadas.
 3. Criar eleição em `/painel/eleicoes` (título + pergunta sim/não).
 4. Exercitar `/voto` / cabine.
 5. Em `/painel/material-voto`: descarregar `vote-material.json` e carregar no tallying.
@@ -65,14 +65,14 @@ Confirmar as três portas, `/login` em cada uma e, no voting, `/voto`. Registar 
 2. Cada autoridade (login próprio) submete a parcela em `/painel/parcelas` até ao limiar.
 3. Certificar em `/painel/certificar` — total apurado na UI.
 4. Opcional: `php bin/ve-node pilot --root=/tmp/ve-piloto`.
-5. Becape de cada `VE_DATA` (inclui o `courier/` local).
+5. Becape de cada `VE_DATA`.
 
 ## Critérios de aceite
 
 - [ ] Três nós sobem com modos distintos e `VE_DATA` distintos
 - [ ] Parar um nó não expõe secrets dos outros
 - [ ] RSV importa no voting
-- [ ] Courier entrega chave/parcelas/material entre sítios
+- [ ] Material entre sítios só por descarregar/carregar na sessão (sem Courier)
 - [ ] Operador e eleitor usam só HTTP deste pacote
 - [ ] PHPUnit relevante verde na build de referência
 
