@@ -384,7 +384,7 @@ final class HttpKernel {
 				: '<p class="ve-muted">Entrar como administrador ou autoridade eleitoral para descarregar o pacote.</p>';
 		} else {
 			$extra = '<div class="ve-card" style="margin-top:1rem"><h2>Importar pacote</h2>'
-				. '<p class="ve-muted">Carregar o JSON descarregado no KA (sem Courier).</p>'
+				. '<p class="ve-muted">Carregar o JSON descarregado no nó de chaves (upload).</p>'
 				. '<form method="post" enctype="multipart/form-data" action="/painel/autoridades">'
 				. '<input type="hidden" name="action" value="import_upload" />'
 				. '<label class="ve-field"><span>Arquivo JSON</span><input type="file" name="package" accept=".json,application/json" required /></label>'
@@ -1338,7 +1338,7 @@ HTML;
 		}
 		$list .= '</ul>';
 		$body = '<div class="ve-card"><h1>Chave pública</h1>'
-			. '<p class="ve-muted">Carregar o JSON descarregado no KA em /painel/chave/{id}.json (sem Courier).</p>'
+			. '<p class="ve-muted">Carregar o JSON descarregado no KA em /painel/chave/{id}.json.</p>'
 			. ( $msg ? '<p class="ve-muted">' . htmlspecialchars( $msg, ENT_QUOTES, 'UTF-8' ) . '</p>' : '' )
 			. '<form method="post" enctype="multipart/form-data">'
 			. '<label class="ve-field"><span>public-key.json</span><input type="file" name="package" accept=".json,application/json" required /></label>'
@@ -1505,7 +1505,7 @@ HTML;
 		}
 		$list .= '</tbody></table>';
 		$body  = '<div class="ve-card"><h1>Importação da apuração</h1>'
-			. '<p class="ve-muted">Carregar o vote-material.json descarregado no nó de votação (sem Courier).</p>'
+			. '<p class="ve-muted">Carregar o vote-material.json descarregado no nó de votação.</p>'
 			. ( $msg ? '<p class="ve-muted">' . htmlspecialchars( $msg, ENT_QUOTES, 'UTF-8' ) . '</p>' : '' )
 			. '<form method="post" enctype="multipart/form-data">'
 			. '<label class="ve-field"><span>vote-material.json</span><input type="file" name="package" accept=".json,application/json" required /></label>'
