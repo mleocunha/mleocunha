@@ -90,8 +90,9 @@ final class AuthoritiesPackageTest extends TestCase {
 			)
 		);
 
-		$res = AuthoritiesDirectorySync::importPackage( $dir, $pkg );
+		$res = AuthoritiesDirectorySync::importPackage( $dir, $pkg, true );
 		$this->assertSame( 1, $res['created'] );
+		$this->assertTrue( $res['public_sss'] );
 		$this->assertSame( array(), $res['errors'] );
 
 		$user = $dir->findByLogin( 'autel01' );
@@ -101,5 +102,49 @@ final class AuthoritiesPackageTest extends TestCase {
 		$this->assertSame( 1, (int) $sss['share_index'] );
 		$this->assertSame( 5, (int) $sss['source_key_id'] );
 		$this->assertArrayNotHasKey( 'share_value', $sss );
+	}
+
+	public function test_voting_import_strips_public_sss(): void {
+		$dir = new InMemoryUserStore();
+		$pkg = AuthoritiesPackage::build(
+			array(
+				'source_mode' => 'key_authority',
+				'authorities' => array(
+					array(
+						'user_login'    => 'autel01',
+						'user_email'    => 'autel01@example.gov.br',
+						'display_name'  => 'Autoridade 01',
+						'role'          => 'editor',
+						'share_index'   => 1,
+						'source_key_id' => 5,
+						'threshold_t'   => 2,
+						'total_n'       => 4,
+						'public_sss'    => array(
+							'share_index'   => 1,
+							'source_key_id' => 5,
+							'threshold_t'   => 2,
+							'total_n'       => 4,
+							'field_prime'   => '17',
+							'key_label'     => 'teste',
+							'key_size'      => 512,
+							'public_key'    => array(
+								'p' => '23',
+								'q' => '11',
+								'g' => '5',
+								'y' => '7',
+							),
+						),
+					),
+				),
+			)
+		);
+
+		$res = AuthoritiesDirectorySync::importPackage( $dir, $pkg, false );
+		$this->assertSame( 1, $res['created'] );
+		$this->assertFalse( $res['public_sss'] );
+
+		$user = $dir->findByLogin( 'autel01' );
+		$this->assertNotNull( $user );
+		$this->assertNull( AuthoritiesDirectorySync::readPublicSss( $dir, (int) $user['id'] ) );
 	}
 }

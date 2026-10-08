@@ -231,7 +231,7 @@ final class HttpKernel {
 		$cards = '';
 		if ( SiteModes::VOTING === $mode ) {
 			$cards .= $this->card( 'Cadastro eleitoral', 'Importar .rsv e listar papéis.', '/painel/cadastro' );
-			$cards .= $this->card( 'Autoridades eleitorais', 'Importar o pacote descarregado na AC (parcela pública SSS).', '/painel/autoridades' );
+			$cards .= $this->card( 'Autoridades eleitorais', 'Importar autoridades da AC (sem parcelas SSS — sigilo do voto).', '/painel/autoridades' );
 			$cards .= $this->card( 'Chave pública', 'Carregar public-key.json da AC.', '/painel/chave-publica' );
 			$cards .= $this->card( 'Eleições', 'Criar eleição sim/não e acompanhar turnos.', '/painel/eleicoes' );
 			$cards .= $this->card( 'Material de voto', 'Descarregar vote-material.json para a totalização.', '/painel/material-voto' );
@@ -241,7 +241,7 @@ final class HttpKernel {
 			$cards .= $this->card( 'Chaves', 'Gerar chave, atribuir parcelas e descarregar a chave pública.', '/painel/keygen' );
 			$cards .= $this->card( 'Minha parcela', 'Cada autoridade descarrega só a sua parcela secreta.', '/painel/minha-parcela' );
 		} else {
-			$cards .= $this->card( 'Autoridades eleitorais', 'Importar autoridades do pacote da AC.', '/painel/autoridades' );
+			$cards .= $this->card( 'Autoridades eleitorais', 'Importar autoridades + parcela pública SSS do pacote da AC.', '/painel/autoridades' );
 			$cards .= $this->card( 'Chave pública', 'Carregar public-key.json (opcional; também vem nas parcelas).', '/painel/chave-publica' );
 			$cards .= $this->card( 'Importar apuração', 'Carregar vote-material.json do nó de votação.', '/painel/importar' );
 			$cards .= $this->card( 'Parcelas Shamir', 'Submeter parcelas até atingir o limiar.', '/painel/parcelas' );
@@ -324,7 +324,7 @@ final class HttpKernel {
 			if ( 'import_upload' === $action && SiteModes::KEY_AUTHORITY !== $mode ) {
 				$tmp = (string) ( $req->files['package']['tmp_name'] ?? '' );
 				$msg = ( is_readable( $tmp ) && '' !== $tmp )
-					? $this->importAuthoritiesFromFile( $users, $tmp )
+					? $this->importAuthoritiesFromFile( $users, $tmp, $mode )
 					: 'Falha no upload do pacote de autoridades.';
 			} elseif ( 'create' === $action ) {
 				$login = trim( $req->input( 'login' ) );
@@ -355,16 +355,19 @@ final class HttpKernel {
 		$rows      = '';
 		foreach ( $list as $u ) {
 			$uid = (int) $u['id'];
-			$sss = null;
-			if ( SiteModes::KEY_AUTHORITY === $mode ) {
+			if ( SiteModes::VOTING === $mode ) {
+				// Sigilo do voto: o nó de votação nunca importa nem mostra índices SSS.
+				$idx = 'importação proibida';
+			} elseif ( SiteModes::KEY_AUTHORITY === $mode ) {
 				$sss = isset( $shareMeta[ $uid ] )
 					? AuthoritiesDirectorySync::publicSssFromMeta( $shareMeta[ $uid ] )
 					: null;
+				$idx = $sss ? (string) $sss['share_index'] : '—';
 			} else {
-				// Voting / tallying: índice vem do pacote importado (meta ve_public_sss).
+				// Apuração: índice vem do pacote importado (meta ve_public_sss).
 				$sss = AuthoritiesDirectorySync::readPublicSss( $users, $uid );
+				$idx = $sss ? (string) $sss['share_index'] : '—';
 			}
-			$idx   = $sss ? (string) $sss['share_index'] : '—';
 			$rows .= '<tr><td>' . $uid . '</td><td>'
 				. htmlspecialchars( (string) $u['displayName'], ENT_QUOTES, 'UTF-8' ) . '</td><td><code>'
 				. htmlspecialchars( (string) $u['login'], ENT_QUOTES, 'UTF-8' ) . '</code></td><td>'
@@ -377,8 +380,8 @@ final class HttpKernel {
 
 		$lead = match ( $mode ) {
 			SiteModes::KEY_AUTHORITY => 'Cadastrar quem receberá as parcelas Shamir. Admin e cada autoridade (sessão própria) podem descarregar o pacote com as parcelas públicas SSS — sem segredo share_value. A parcela secreta descarrega-se em /painel/minha-parcela.',
-			SiteModes::VOTING => 'Importar o pacote descarregado na AC (autoridades + parcela pública SSS). A validade jurídica fica comprometida sem o seu acompanhamento.',
-			default => 'Importar o pacote da AC. Depois cada autoridade entra, carrega a sua parcela secreta em /painel/parcelas e sobe até ao limiar.',
+			SiteModes::VOTING => 'Importar só as autoridades da AC (identidade). Parcelas SSS não entram neste nó — sigilo do voto.',
+			default => 'Importar o pacote da AC com parcela pública SSS. Depois cada autoridade entra, carrega a sua parcela secreta em /painel/parcelas e sobe até ao limiar.',
 		};
 
 		$extra = '';
@@ -390,9 +393,16 @@ final class HttpKernel {
 					. '<a class="secondary" href="/painel/minha-parcela">Minha parcela secreta</a></div>'
 					. '<p class="ve-muted">Disponível na sessão do administrador e na sessão de cada autoridade eleitoral.</p>'
 				: '<p class="ve-muted">Entrar como administrador ou autoridade eleitoral para descarregar o pacote.</p>';
+		} elseif ( SiteModes::VOTING === $mode ) {
+			$extra = '<div class="ve-card" style="margin-top:1rem"><h2>Importar pacote</h2>'
+				. '<p class="ve-muted">Carregar o JSON da AC. Neste nó só entram contas de autoridades — parcelas SSS são ignoradas (sigilo do voto).</p>'
+				. '<form method="post" enctype="multipart/form-data" action="/painel/autoridades">'
+				. '<input type="hidden" name="action" value="import_upload" />'
+				. '<label class="ve-field"><span>Arquivo JSON</span><input type="file" name="package" accept=".json,application/json" required /></label>'
+				. '<div class="ve-actions"><button type="submit">Importar autoridades</button></div></form></div>';
 		} else {
 			$extra = '<div class="ve-card" style="margin-top:1rem"><h2>Importar pacote</h2>'
-				. '<p class="ve-muted">Carregar o JSON descarregado na AC (upload).</p>'
+				. '<p class="ve-muted">Carregar o JSON da AC com parcela pública SSS (índices). A parcela secreta sobe depois em /painel/parcelas.</p>'
 				. '<form method="post" enctype="multipart/form-data" action="/painel/autoridades">'
 				. '<input type="hidden" name="action" value="import_upload" />'
 				. '<label class="ve-field"><span>Arquivo JSON</span><input type="file" name="package" accept=".json,application/json" required /></label>'
@@ -525,7 +535,7 @@ final class HttpKernel {
 		return $shareMeta;
 	}
 
-	private function importAuthoritiesFromFile( FileJsonUserStore $users, string $file ): string {
+	private function importAuthoritiesFromFile( FileJsonUserStore $users, string $file, string $mode ): string {
 		if ( ! is_readable( $file ) ) {
 			return 'Arquivo inacessível: ' . basename( $file );
 		}
@@ -533,13 +543,19 @@ final class HttpKernel {
 		if ( null === $pkg ) {
 			return 'Pacote inválido, checksum incorreto ou contém segredo (share_value).';
 		}
-		$res = AuthoritiesDirectorySync::importPackage( $users, $pkg );
+		// Só o nó de apuração importa índices SSS; no voting ficam de fora (sigilo do voto).
+		$persistPublicSss = SiteModes::TALLYING === $mode;
+		$res              = AuthoritiesDirectorySync::importPackage( $users, $pkg, $persistPublicSss );
+		$note             = $persistPublicSss
+			? ' Parcelas públicas SSS importadas.'
+			: ' Parcelas SSS omitidas neste nó (sigilo do voto).';
 		return sprintf(
-			'Importação: criados %d, atualizados %d, ignorados %d, erros %d.',
+			'Importação: criados %d, atualizados %d, ignorados %d, erros %d.%s',
 			$res['created'],
 			$res['updated'],
 			$res['skipped'],
-			count( $res['errors'] )
+			count( $res['errors'] ),
+			$note
 		) . ( $res['errors'] ? ' ' . $res['errors'][0] : '' );
 	}
 

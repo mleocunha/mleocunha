@@ -662,13 +662,30 @@ final class StandaloneHttpTest extends TestCase {
 		);
 		preg_match( '/' . CookieSessionPort::COOKIE . '=([^;]+)/', $loginV->headers['Set-Cookie'] ?? '', $mv );
 		$cV = array( CookieSessionPort::COOKIE => $mv[1] ?? '' );
-		$this->importAuthoritiesUpload( $vk, $cV, $authJson );
+		$importV = $vk->handle(
+			new Request(
+				'POST',
+				'/painel/autoridades',
+				array(),
+				array( 'action' => 'import_upload' ),
+				$cV,
+				array(),
+				array( 'package' => $this->tempUpload( $authJson, 'authorities.json' ) )
+			)
+		);
+		$this->assertStringContainsString( 'Importação:', $importV->body );
+		$this->assertStringContainsString( 'Parcelas SSS omitidas neste nó', $importV->body );
 		$this->assertSame( 3, $voting->users->countByRole( 'editor' ) );
 		$this->assertNotNull( $voting->users->verifyPassword( 'aut1', 'SenhaAut1!' ) );
 		$listV = $vk->handle( new Request( 'GET', '/painel/autoridades', array(), array(), $cV, array() ) );
-		// Parcela # na GUI do voting vem do public_sss importado (não "—").
-		$this->assertMatchesRegularExpression( '/aut1<\/code><\/td><td>[^<]+<\/td><td>1<\/td>/', $listV->body );
-		$this->assertMatchesRegularExpression( '/aut2<\/code><\/td><td>[^<]+<\/td><td>2<\/td>/', $listV->body );
+		// Voting: parcelas SSS proibidas (sigilo do voto).
+		$this->assertStringContainsString( 'importação proibida', $listV->body );
+		$this->assertNull(
+			\RelataSoft\SecureElectionSuite\Painel\Domain\Authorities\AuthoritiesDirectorySync::readPublicSss(
+				$voting->users,
+				(int) $voting->users->findByLogin( 'aut1' )['id']
+			)
+		);
 
 		$tally = NodeRuntime::create( SiteModes::TALLYING, $this->root . '/tallying', 'teste', true );
 		$tk    = new HttpKernel( $tally, $plugin, 'pt-BR' );
@@ -677,7 +694,18 @@ final class StandaloneHttpTest extends TestCase {
 		);
 		preg_match( '/' . CookieSessionPort::COOKIE . '=([^;]+)/', $loginT->headers['Set-Cookie'] ?? '', $mt );
 		$cT = array( CookieSessionPort::COOKIE => $mt[1] ?? '' );
-		$this->importAuthoritiesUpload( $tk, $cT, $authJson );
+		$importT = $tk->handle(
+			new Request(
+				'POST',
+				'/painel/autoridades',
+				array(),
+				array( 'action' => 'import_upload' ),
+				$cT,
+				array(),
+				array( 'package' => $this->tempUpload( $authJson, 'authorities.json' ) )
+			)
+		);
+		$this->assertStringContainsString( 'Parcelas públicas SSS importadas', $importT->body );
 		$this->assertSame( 3, $tally->users->countByRole( 'editor' ) );
 		$listT = $tk->handle( new Request( 'GET', '/painel/autoridades', array(), array(), $cT, array() ) );
 		$this->assertMatchesRegularExpression( '/aut1<\/code><\/td><td>[^<]+<\/td><td>1<\/td>/', $listT->body );
