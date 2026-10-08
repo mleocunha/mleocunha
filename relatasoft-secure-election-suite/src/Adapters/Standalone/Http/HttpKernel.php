@@ -354,8 +354,16 @@ final class HttpKernel {
 		$list      = $users->listByRole( UserRegistryRoles::ROLE_OFFICIAL );
 		$rows      = '';
 		foreach ( $list as $u ) {
-			$uid   = (int) $u['id'];
-			$sss   = isset( $shareMeta[ $uid ] ) ? AuthoritiesDirectorySync::publicSssFromMeta( $shareMeta[ $uid ] ) : null;
+			$uid = (int) $u['id'];
+			$sss = null;
+			if ( SiteModes::KEY_AUTHORITY === $mode ) {
+				$sss = isset( $shareMeta[ $uid ] )
+					? AuthoritiesDirectorySync::publicSssFromMeta( $shareMeta[ $uid ] )
+					: null;
+			} else {
+				// Voting / tallying: índice vem do pacote importado (meta ve_public_sss).
+				$sss = AuthoritiesDirectorySync::readPublicSss( $users, $uid );
+			}
 			$idx   = $sss ? (string) $sss['share_index'] : '—';
 			$rows .= '<tr><td>' . $uid . '</td><td>'
 				. htmlspecialchars( (string) $u['displayName'], ENT_QUOTES, 'UTF-8' ) . '</td><td><code>'

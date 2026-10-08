@@ -665,6 +665,10 @@ final class StandaloneHttpTest extends TestCase {
 		$this->importAuthoritiesUpload( $vk, $cV, $authJson );
 		$this->assertSame( 3, $voting->users->countByRole( 'editor' ) );
 		$this->assertNotNull( $voting->users->verifyPassword( 'aut1', 'SenhaAut1!' ) );
+		$listV = $vk->handle( new Request( 'GET', '/painel/autoridades', array(), array(), $cV, array() ) );
+		// Parcela # na GUI do voting vem do public_sss importado (não "—").
+		$this->assertMatchesRegularExpression( '/aut1<\/code><\/td><td>[^<]+<\/td><td>1<\/td>/', $listV->body );
+		$this->assertMatchesRegularExpression( '/aut2<\/code><\/td><td>[^<]+<\/td><td>2<\/td>/', $listV->body );
 
 		$tally = NodeRuntime::create( SiteModes::TALLYING, $this->root . '/tallying', 'teste', true );
 		$tk    = new HttpKernel( $tally, $plugin, 'pt-BR' );
@@ -675,6 +679,8 @@ final class StandaloneHttpTest extends TestCase {
 		$cT = array( CookieSessionPort::COOKIE => $mt[1] ?? '' );
 		$this->importAuthoritiesUpload( $tk, $cT, $authJson );
 		$this->assertSame( 3, $tally->users->countByRole( 'editor' ) );
+		$listT = $tk->handle( new Request( 'GET', '/painel/autoridades', array(), array(), $cT, array() ) );
+		$this->assertMatchesRegularExpression( '/aut1<\/code><\/td><td>[^<]+<\/td><td>1<\/td>/', $listT->body );
 
 		$importId = $tally->persistence->tallyImports->create(
 			array( 'source' => 'test', 'status' => 'imported', 'created_at' => gmdate( 'c' ) )

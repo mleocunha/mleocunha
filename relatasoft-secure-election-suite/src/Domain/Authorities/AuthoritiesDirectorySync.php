@@ -16,6 +16,9 @@ final class AuthoritiesDirectorySync {
 
 	public const PACKAGE_FILENAME = 'authorities.json';
 
+	/** Meta do utilizador: JSON da parcela pública SSS (sem share_value). */
+	public const META_PUBLIC_SSS = 've_public_sss';
+
 	/** @deprecated Use PACKAGE_FILENAME — Courier abandonado. */
 	public const COURIER_FILE = self::PACKAGE_FILENAME;
 
@@ -158,8 +161,34 @@ final class AuthoritiesDirectorySync {
 	}
 
 	/**
+	 * Ler parcela pública SSS gravada no import (voting / tallying).
+	 *
+	 * @return array{
+	 *   share_index:int,
+	 *   source_key_id:int,
+	 *   threshold_t:int,
+	 *   total_n:int,
+	 *   field_prime:string,
+	 *   key_label:string,
+	 *   key_size:int,
+	 *   public_key:array{p:string,q:string,g:string,y:string}
+	 * }|null
+	 */
+	public static function readPublicSss( UserDirectory $dir, int $userId ): ?array {
+		$raw = $dir->getMeta( $userId, self::META_PUBLIC_SSS );
+		if ( '' === $raw ) {
+			return null;
+		}
+		$decoded = json_decode( $raw, true );
+		if ( ! is_array( $decoded ) ) {
+			return null;
+		}
+		return self::publicSssFromMeta( $decoded );
+	}
+
+	/**
 	 * @param array<string,mixed> $row
-	 * @return array{status?:string,error?:string}
+	 * @return array{status?:string,id?:int,error?:string}
 	 */
 	private static function upsert( UserDirectory $dir, array $row ): array {
 		$login = trim( (string) ( $row['user_login'] ?? '' ) );
@@ -196,7 +225,8 @@ final class AuthoritiesDirectorySync {
 			if ( '' !== $pass ) {
 				$dir->setPasswordHash( $uid, $pass );
 			}
-			return array( 'status' => 'updated' );
+			self::persistPublicSss( $dir, $uid, $row );
+			return array( 'status' => 'updated', 'id' => $uid );
 		}
 
 		$created = $dir->create(
@@ -213,9 +243,42 @@ final class AuthoritiesDirectorySync {
 		if ( empty( $created['ok'] ) ) {
 			return array( 'error' => (string) ( $created['error'] ?? 'create failed' ) );
 		}
+		$uid = (int) $created['id'];
 		if ( '' !== $pass ) {
-			$dir->setPasswordHash( (int) $created['id'], $pass );
+			$dir->setPasswordHash( $uid, $pass );
 		}
-		return array( 'status' => 'created' );
+		self::persistPublicSss( $dir, $uid, $row );
+		return array( 'status' => 'created', 'id' => $uid );
+	}
+
+	/**
+	 * Gravar só a parcela pública SSS (índice + parâmetros) — nunca share_value.
+	 *
+	 * @param array<string,mixed> $row
+	 */
+	private static function persistPublicSss( UserDirectory $dir, int $userId, array $row ): void {
+		$meta = array();
+		if ( isset( $row['public_sss'] ) && is_array( $row['public_sss'] ) ) {
+			$meta = $row['public_sss'];
+		}
+		foreach ( array( 'share_index', 'source_key_id', 'threshold_t', 'total_n', 'field_prime', 'key_label', 'key_size', 'public_key' ) as $k ) {
+			if ( ! array_key_exists( $k, $meta ) && array_key_exists( $k, $row ) ) {
+				$meta[ $k ] = $row[ $k ];
+			}
+		}
+		if ( ! isset( $meta['key_id'] ) && isset( $meta['source_key_id'] ) ) {
+			$meta['key_id'] = $meta['source_key_id'];
+		} elseif ( ! isset( $meta['key_id'] ) && isset( $row['source_key_id'] ) ) {
+			$meta['key_id'] = $row['source_key_id'];
+		}
+		$public = self::publicSssFromMeta( $meta );
+		if ( null === $public ) {
+			return;
+		}
+		$dir->setMeta(
+			$userId,
+			self::META_PUBLIC_SSS,
+			(string) json_encode( $public, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE )
+		);
 	}
 }
