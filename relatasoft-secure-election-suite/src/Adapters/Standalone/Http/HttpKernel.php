@@ -95,12 +95,16 @@ final class HttpKernel {
 		if ( preg_match( '#^/painel/chave/(\d+)(\.json)?$#', $path, $m ) ) {
 			return $this->chavePublica( $req, (int) $m[1], isset( $m[2] ) && '' !== $m[2] );
 		}
+		if ( preg_match( '#^/painel/autoridades/(\d+)/parcela-publica(\.json)?$#', $path, $m ) ) {
+			return $this->parcelaPublicaAutoridade( $req, (int) $m[1], isset( $m[2] ) && '' !== $m[2] );
+		}
 
 		return match ( true ) {
 			'/painel' === $path => $this->painelHome(),
 			'/painel/cadastro' === $path => $this->cadastro( $req ),
 			'/painel/autoridades' === $path => $this->autoridades( $req ),
 			'/painel/autoridades/exportar' === $path => $this->exportAuthoritiesDownload( $req ),
+			'/painel/autoridades/parcelas-publicas.json' === $path => $this->exportAllParcelasPublicas( $req ),
 			'/painel/minha-parcela' === $path => $this->minhaParcela( $req ),
 			'/painel/chave-publica' === $path => $this->chavePublicaImport( $req ),
 			'/painel/keygen' === $path => $this->keygen( $req ),
@@ -357,22 +361,27 @@ final class HttpKernel {
 			$uid = (int) $u['id'];
 			if ( SiteModes::VOTING === $mode ) {
 				// Sigilo do voto: o nó de votação nunca importa nem mostra índices SSS.
-				$idx = 'importação proibida';
+				$idxCell = htmlspecialchars( 'importação proibida', ENT_QUOTES, 'UTF-8' );
 			} elseif ( SiteModes::KEY_AUTHORITY === $mode ) {
-				$sss = isset( $shareMeta[ $uid ] )
+				$sss     = isset( $shareMeta[ $uid ] )
 					? AuthoritiesDirectorySync::publicSssFromMeta( $shareMeta[ $uid ] )
 					: null;
-				$idx = $sss ? (string) $sss['share_index'] : '—';
+				$idxCell = $sss
+					? htmlspecialchars( (string) $sss['share_index'], ENT_QUOTES, 'UTF-8' )
+					: '—';
 			} else {
-				// Apuração: índice vem do pacote importado (meta ve_public_sss).
+				// Apuração: parcela pública SSS importada — ver e exportar (auditabilidade).
 				$sss = AuthoritiesDirectorySync::readPublicSss( $users, $uid );
-				$idx = $sss ? (string) $sss['share_index'] : '—';
+				$idxCell = $sss
+					? '<a href="/painel/autoridades/' . $uid . '/parcela-publica">#'
+						. (int) $sss['share_index'] . ' · ver / exportar</a>'
+					: '—';
 			}
 			$rows .= '<tr><td>' . $uid . '</td><td>'
 				. htmlspecialchars( (string) $u['displayName'], ENT_QUOTES, 'UTF-8' ) . '</td><td><code>'
 				. htmlspecialchars( (string) $u['login'], ENT_QUOTES, 'UTF-8' ) . '</code></td><td>'
 				. htmlspecialchars( (string) $u['email'], ENT_QUOTES, 'UTF-8' ) . '</td><td>'
-				. htmlspecialchars( $idx, ENT_QUOTES, 'UTF-8' ) . '</td></tr>';
+				. $idxCell . '</td></tr>';
 		}
 		if ( '' === $rows ) {
 			$rows = '<tr><td colspan="5" class="ve-muted">Nenhuma autoridade neste nó.</td></tr>';
@@ -381,7 +390,7 @@ final class HttpKernel {
 		$lead = match ( $mode ) {
 			SiteModes::KEY_AUTHORITY => 'Cadastrar quem receberá as parcelas Shamir. Admin e cada autoridade (sessão própria) podem descarregar o pacote com as parcelas públicas SSS — sem segredo share_value. A parcela secreta descarrega-se em /painel/minha-parcela.',
 			SiteModes::VOTING => 'Importar só as autoridades da AC (identidade). Parcelas SSS não entram neste nó — sigilo do voto.',
-			default => 'Importar o pacote da AC com parcela pública SSS. Depois cada autoridade entra, carrega a sua parcela secreta em /painel/parcelas e sobe até ao limiar.',
+			default => 'Importar o pacote da AC com parcela pública SSS (índice + parâmetros, auditável). Cada autoridade sobe depois a parcela secreta em /painel/parcelas.',
 		};
 
 		$extra = '';
@@ -402,11 +411,19 @@ final class HttpKernel {
 				. '<div class="ve-actions"><button type="submit">Importar autoridades</button></div></form></div>';
 		} else {
 			$extra = '<div class="ve-card" style="margin-top:1rem"><h2>Importar pacote</h2>'
-				. '<p class="ve-muted">Carregar o JSON da AC com parcela pública SSS (índices). A parcela secreta sobe depois em /painel/parcelas.</p>'
+				. '<p class="ve-muted">Carregar o JSON da AC. Importa contas e a parcela pública SSS (índice + parâmetros públicos — sem <code>share_value</code>). A parcela secreta sobe em /painel/parcelas.</p>'
 				. '<form method="post" enctype="multipart/form-data" action="/painel/autoridades">'
 				. '<input type="hidden" name="action" value="import_upload" />'
 				. '<label class="ve-field"><span>Arquivo JSON</span><input type="file" name="package" accept=".json,application/json" required /></label>'
 				. '<div class="ve-actions"><button type="submit">Importar autoridades</button></div></form></div>';
+		}
+
+		$auditBar = '';
+		if ( SiteModes::TALLYING === $mode && count( $list ) > 0 ) {
+			$auditBar = '<div class="ve-actions" style="margin-bottom:0.75rem">'
+				. '<a href="/painel/autoridades/parcelas-publicas.json">Descarregar todas as parcelas públicas SSS (auditoria)</a>'
+				. '<a class="secondary" href="/painel/parcelas">Submeter parcelas secretas</a></div>'
+				. '<p class="ve-muted">Clique em «ver / exportar» na coluna Parcela # para inspecionar cada parcela pública importada.</p>';
 		}
 
 		$body = '<div class="ve-card"><h1>Autoridades eleitorais</h1>'
@@ -428,9 +445,127 @@ final class HttpKernel {
 			. $extra
 			. '</div>'
 			. '<div class="ve-card"><h2>Neste nó (' . count( $list ) . ')</h2>'
-			. '<table class="ve-table"><thead><tr><th>ID</th><th>Nome</th><th>Login</th><th>E-mail</th><th>Parcela #</th></tr></thead><tbody>'
+			. $auditBar
+			. '<table class="ve-table"><thead><tr><th>ID</th><th>Nome</th><th>Login</th><th>E-mail</th><th>Parcela pública SSS</th></tr></thead><tbody>'
 			. $rows . '</tbody></table></div>';
 		return $this->page( 'Autoridades', $body );
+	}
+
+	/**
+	 * Ver / exportar parcela pública SSS de uma autoridade (só apuração — auditabilidade).
+	 * Nunca contém share_value.
+	 */
+	private function parcelaPublicaAutoridade( Request $req, int $userId, bool $asJson ): Response {
+		unset( $req );
+		$this->node->requireMode( SiteModes::TALLYING );
+		$users = $this->node->users;
+		if ( ! $users instanceof FileJsonUserStore ) {
+			throw new \RuntimeException( 'Autoridades require FileJsonUserStore.' );
+		}
+		$user = $users->findById( $userId );
+		if ( null === $user || ! in_array( UserRegistryRoles::ROLE_OFFICIAL, (array) ( $user['roles'] ?? array() ), true ) ) {
+			return Response::text( 'Autoridade não encontrada neste nó.', 404 );
+		}
+		$sss = AuthoritiesDirectorySync::readPublicSss( $users, $userId );
+		if ( null === $sss ) {
+			return $this->page(
+				'Parcela pública',
+				'<div class="ve-card"><h1>Parcela pública SSS</h1>'
+				. '<p class="ve-muted">Nenhuma parcela pública importada para '
+				. htmlspecialchars( (string) $user['login'], ENT_QUOTES, 'UTF-8' )
+				. '. Carregar o JSON da AC em /painel/autoridades.</p>'
+				. '<div class="ve-actions"><a href="/painel/autoridades">Voltar</a></div></div>'
+			);
+		}
+		$payload = array(
+			'format'         => 've-public-sss-v1',
+			'exported_at'    => gmdate( 'c' ),
+			'source_mode'    => SiteModes::TALLYING,
+			'authority'      => array(
+				'id'           => $userId,
+				'login'        => (string) $user['login'],
+				'display_name' => (string) $user['displayName'],
+				'email'        => (string) $user['email'],
+			),
+			'public_sss'     => $sss,
+		);
+		// Garantia explícita: nunca transportar segredo.
+		unset( $payload['public_sss']['share_value'] );
+		$json = (string) json_encode( $payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE );
+		if ( $asJson ) {
+			$safeLogin = preg_replace( '/[^a-zA-Z0-9._\-]+/', '_', (string) $user['login'] ) ?: 'autoridade';
+			return Response::attachment(
+				$json . "\n",
+				'parcela-publica-' . $safeLogin . '-idx' . (int) $sss['share_index'] . '.json',
+				'application/json; charset=UTF-8'
+			);
+		}
+		$idx = (int) $sss['share_index'];
+		$body = '<div class="ve-card"><h1>Parcela pública SSS #' . $idx . '</h1>'
+			. '<p class="ve-muted">Autoridade: <strong>'
+			. htmlspecialchars( (string) $user['displayName'], ENT_QUOTES, 'UTF-8' )
+			. '</strong> (<code>'
+			. htmlspecialchars( (string) $user['login'], ENT_QUOTES, 'UTF-8' )
+			. '</code>). Material público para auditoria — sem <code>share_value</code>. '
+			. 'A parcela secreta só entra quando a autoridade a submete em /painel/parcelas.</p>'
+			. '<ul class="ve-muted">'
+			. '<li>Índice: <strong>' . $idx . '</strong></li>'
+			. '<li>Limiar t / n: ' . (int) ( $sss['threshold_t'] ?? 0 ) . ' / ' . (int) ( $sss['total_n'] ?? 0 ) . '</li>'
+			. '<li>Chave: '
+			. htmlspecialchars( (string) ( $sss['key_label'] ?? '' ), ENT_QUOTES, 'UTF-8' )
+			. ' (' . (int) ( $sss['key_size'] ?? 0 ) . ' bits)</li>'
+			. '<li>source_key_id: ' . (int) ( $sss['source_key_id'] ?? 0 ) . '</li>'
+			. '</ul>'
+			. '<div class="ve-actions">'
+			. '<a href="/painel/autoridades/' . $userId . '/parcela-publica.json">Descarregar JSON</a> '
+			. '<a class="secondary" href="/painel/autoridades">Voltar às autoridades</a> '
+			. '<a class="secondary" href="/painel/parcelas">Submeter parcela secreta</a></div>'
+			. '<h2 style="margin-top:1.25rem">JSON</h2>'
+			. '<pre style="overflow:auto;max-height:28rem;font-size:0.8rem;background:#f3f6f8;padding:0.85rem;border-radius:8px">'
+			. htmlspecialchars( $json, ENT_QUOTES, 'UTF-8' )
+			. '</pre></div>';
+		return $this->page( 'Parcela pública #' . $idx, $body );
+	}
+
+	/** Pacote único com todas as parcelas públicas SSS importadas (auditoria jurídica). */
+	private function exportAllParcelasPublicas( Request $req ): Response {
+		unset( $req );
+		$this->node->requireMode( SiteModes::TALLYING );
+		$users = $this->node->users;
+		if ( ! $users instanceof FileJsonUserStore ) {
+			throw new \RuntimeException( 'Autoridades require FileJsonUserStore.' );
+		}
+		$rows = array();
+		foreach ( $users->listByRole( UserRegistryRoles::ROLE_OFFICIAL ) as $u ) {
+			$uid = (int) $u['id'];
+			$sss = AuthoritiesDirectorySync::readPublicSss( $users, $uid );
+			if ( null === $sss ) {
+				continue;
+			}
+			unset( $sss['share_value'] );
+			$rows[] = array(
+				'authority'  => array(
+					'id'           => $uid,
+					'login'        => (string) $u['login'],
+					'display_name' => (string) $u['displayName'],
+					'email'        => (string) $u['email'],
+				),
+				'public_sss' => $sss,
+			);
+		}
+		$pkg = array(
+			'format'      => 've-public-sss-bundle-v1',
+			'exported_at' => gmdate( 'c' ),
+			'source_mode' => SiteModes::TALLYING,
+			'count'       => count( $rows ),
+			'parcels'     => $rows,
+		);
+		$json = (string) json_encode( $pkg, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE );
+		return Response::attachment(
+			$json . "\n",
+			'parcelas-publicas-sss.json',
+			'application/json; charset=UTF-8'
+		);
 	}
 
 	private function exportAuthoritiesDownload( Request $req ): Response {

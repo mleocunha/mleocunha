@@ -70,7 +70,7 @@ identificador;nome;papel
 
 1. AC: `/painel/autoridades` → `/painel/keygen`. Admin ou cada autoridade descarrega `authorities.json` (parcela pública SSS, sem `share_value`) em `/painel/autoridades/exportar`. Cada autoridade descarrega a sua parcela secreta em `/painel/minha-parcela`. Chave pública em `/painel/chave/{id}.json`.
 2. Voting: importar autoridades (só identidade — parcelas SSS omitidas, sigilo do voto) e chave pública em `/painel/chave-publica`.
-3. Tallying: importar o mesmo pacote **com** parcela pública SSS (índices) e chave pública.
+3. Tallying: importar o mesmo pacote **com** parcela pública SSS (índices) e chave pública. Em `/painel/autoridades` cada índice abre ver/exportar; pacote completo em `/painel/autoridades/parcelas-publicas.json` (auditoria; sem `share_value`).
 4. Voting: criar eleição → votar → descarregar `vote-material.json` em `/painel/material-voto`.
 5. Tallying: importar material (upload) → cada autoridade submete a sua parcela secreta em `/painel/parcelas` → certificar.
 

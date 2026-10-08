@@ -708,7 +708,32 @@ final class StandaloneHttpTest extends TestCase {
 		$this->assertStringContainsString( 'Parcelas públicas SSS importadas', $importT->body );
 		$this->assertSame( 3, $tally->users->countByRole( 'editor' ) );
 		$listT = $tk->handle( new Request( 'GET', '/painel/autoridades', array(), array(), $cT, array() ) );
-		$this->assertMatchesRegularExpression( '/aut1<\/code><\/td><td>[^<]+<\/td><td>1<\/td>/', $listT->body );
+		$this->assertStringContainsString( 'ver / exportar', $listT->body );
+		$this->assertStringContainsString( '/painel/autoridades/parcelas-publicas.json', $listT->body );
+		$aut1Id = (int) $tally->users->findByLogin( 'aut1' )['id'];
+		$viewT  = $tk->handle(
+			new Request( 'GET', '/painel/autoridades/' . $aut1Id . '/parcela-publica', array(), array(), $cT, array() )
+		);
+		$this->assertStringContainsString( 'Parcela pública SSS #1', $viewT->body );
+		$this->assertStringContainsString( 'share_value', $viewT->body ); // menção de ausência
+		$this->assertStringContainsString( 'share_index', $viewT->body );
+		$this->assertStringContainsString( 'Índice: <strong>1</strong>', $viewT->body );
+		$dlT = $tk->handle(
+			new Request( 'GET', '/painel/autoridades/' . $aut1Id . '/parcela-publica.json', array(), array(), $cT, array() )
+		);
+		$this->assertSame( 200, $dlT->status );
+		$this->assertStringContainsString( 'attachment', (string) ( $dlT->headers['Content-Disposition'] ?? '' ) );
+		$dlPkg = json_decode( $dlT->body, true );
+		$this->assertIsArray( $dlPkg );
+		$this->assertSame( 've-public-sss-v1', $dlPkg['format'] ?? '' );
+		$this->assertSame( 1, (int) ( $dlPkg['public_sss']['share_index'] ?? 0 ) );
+		$this->assertArrayNotHasKey( 'share_value', $dlPkg['public_sss'] ?? array() );
+		$bundle = $tk->handle(
+			new Request( 'GET', '/painel/autoridades/parcelas-publicas.json', array(), array(), $cT, array() )
+		);
+		$bundlePkg = json_decode( $bundle->body, true );
+		$this->assertIsArray( $bundlePkg );
+		$this->assertSame( 3, (int) ( $bundlePkg['count'] ?? 0 ) );
 
 		$importId = $tally->persistence->tallyImports->create(
 			array( 'source' => 'test', 'status' => 'imported', 'created_at' => gmdate( 'c' ) )
