@@ -247,7 +247,7 @@ final class HttpKernel {
 		} else {
 			$cards .= $this->card( 'Autoridades eleitorais', 'Importar autoridades + parcela pública SSS do pacote da AC.', '/painel/autoridades' );
 			$cards .= $this->card( 'Chave pública', 'Carregar public-key.json (opcional; também vem nas parcelas).', '/painel/chave-publica' );
-			$cards .= $this->card( 'Importar apuração', 'Carregar vote-material.json do nó de votação.', '/painel/importar' );
+			$cards .= $this->card( 'Importar pacote da votação', 'Carregar vote-material.json do nó de votação (ainda não há apuração).', '/painel/importar' );
 			$cards .= $this->card( 'Parcelas Shamir', 'Submeter parcelas até atingir o limiar.', '/painel/parcelas' );
 			$cards .= $this->card( 'Certificar', 'Reconstruir Shamir e apurar o total.', '/painel/certificar' );
 		}
@@ -1663,13 +1663,13 @@ HTML;
 				. (int) ( $s['round_id'] ?? 0 ) . '</td></tr>';
 		}
 		$list .= '</tbody></table>';
-		$body  = '<div class="ve-card"><h1>Importação da apuração</h1>'
-			. '<p class="ve-muted">Carregar o vote-material.json descarregado no nó de votação.</p>'
+		$body  = '<div class="ve-card"><h1>Importação do pacote da votação</h1>'
+			. '<p class="ve-muted">Carregar o vote-material.json descarregado no nó de votação. Nesta etapa ainda não há apuração — só o material para certificar depois.</p>'
 			. ( $msg ? '<p class="ve-muted">' . htmlspecialchars( $msg, ENT_QUOTES, 'UTF-8' ) . '</p>' : '' )
 			. '<form method="post" enctype="multipart/form-data">'
 			. '<label class="ve-field"><span>vote-material.json</span><input type="file" name="package" accept=".json,application/json" required /></label>'
-			. '<div class="ve-actions"><button type="submit">Importar material</button></div></form></div>'
-			. '<div class="ve-card"><h2>Imports</h2>' . $list . '</div>';
+			. '<div class="ve-actions"><button type="submit">Importar pacote da votação</button></div></form></div>'
+			. '<div class="ve-card"><h2>Pacotes importados</h2>' . $list . '</div>';
 		return $this->page( 'Importar', $body );
 	}
 
