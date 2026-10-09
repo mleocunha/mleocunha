@@ -49,7 +49,7 @@ Confirmar as três portas, `/login` em cada uma e, no voting, `/voto`. Registar 
 1. Login admin em cada nó (contas não sincronizam automaticamente).
 2. Na **AC**: cadastrar autoridades em `/painel/autoridades` (≥ *n*).
 3. AC: `/painel/keygen` — selecionar *n* autoridades → gerar. Descarregar `authorities.json` (parcela pública SSS) na sessão admin ou de cada autoridade; cada uma descarrega a parcela secreta em `/painel/minha-parcela`.
-4. Em **voting** e **tallying**: importar o pacote de autoridades (upload) e a chave pública. No voting, as autoridades acompanham a eleição; no tallying, sobem parcelas.
+4. Em **voting**: importar o pacote de autoridades (só identidade; parcelas SSS proibidas — sigilo do voto) e a chave pública. Em **tallying**: importar o mesmo pacote **com** parcela pública SSS; depois as autoridades sobem a parcela secreta.
 
 ## Dia 2 — cadastro, eleição e voto
 

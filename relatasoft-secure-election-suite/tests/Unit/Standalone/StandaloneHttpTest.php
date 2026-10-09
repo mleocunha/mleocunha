@@ -662,9 +662,30 @@ final class StandaloneHttpTest extends TestCase {
 		);
 		preg_match( '/' . CookieSessionPort::COOKIE . '=([^;]+)/', $loginV->headers['Set-Cookie'] ?? '', $mv );
 		$cV = array( CookieSessionPort::COOKIE => $mv[1] ?? '' );
-		$this->importAuthoritiesUpload( $vk, $cV, $authJson );
+		$importV = $vk->handle(
+			new Request(
+				'POST',
+				'/painel/autoridades',
+				array(),
+				array( 'action' => 'import_upload' ),
+				$cV,
+				array(),
+				array( 'package' => $this->tempUpload( $authJson, 'authorities.json' ) )
+			)
+		);
+		$this->assertStringContainsString( 'Importação:', $importV->body );
+		$this->assertStringContainsString( 'Parcelas SSS omitidas neste nó', $importV->body );
 		$this->assertSame( 3, $voting->users->countByRole( 'editor' ) );
 		$this->assertNotNull( $voting->users->verifyPassword( 'aut1', 'SenhaAut1!' ) );
+		$listV = $vk->handle( new Request( 'GET', '/painel/autoridades', array(), array(), $cV, array() ) );
+		// Voting: parcelas SSS proibidas (sigilo do voto).
+		$this->assertStringContainsString( 'importação proibida', $listV->body );
+		$this->assertNull(
+			\RelataSoft\SecureElectionSuite\Painel\Domain\Authorities\AuthoritiesDirectorySync::readPublicSss(
+				$voting->users,
+				(int) $voting->users->findByLogin( 'aut1' )['id']
+			)
+		);
 
 		$tally = NodeRuntime::create( SiteModes::TALLYING, $this->root . '/tallying', 'teste', true );
 		$tk    = new HttpKernel( $tally, $plugin, 'pt-BR' );
@@ -673,8 +694,46 @@ final class StandaloneHttpTest extends TestCase {
 		);
 		preg_match( '/' . CookieSessionPort::COOKIE . '=([^;]+)/', $loginT->headers['Set-Cookie'] ?? '', $mt );
 		$cT = array( CookieSessionPort::COOKIE => $mt[1] ?? '' );
-		$this->importAuthoritiesUpload( $tk, $cT, $authJson );
+		$importT = $tk->handle(
+			new Request(
+				'POST',
+				'/painel/autoridades',
+				array(),
+				array( 'action' => 'import_upload' ),
+				$cT,
+				array(),
+				array( 'package' => $this->tempUpload( $authJson, 'authorities.json' ) )
+			)
+		);
+		$this->assertStringContainsString( 'Parcelas públicas SSS importadas', $importT->body );
 		$this->assertSame( 3, $tally->users->countByRole( 'editor' ) );
+		$listT = $tk->handle( new Request( 'GET', '/painel/autoridades', array(), array(), $cT, array() ) );
+		$this->assertStringContainsString( 'ver / exportar', $listT->body );
+		$this->assertStringContainsString( '/painel/autoridades/parcelas-publicas.json', $listT->body );
+		$aut1Id = (int) $tally->users->findByLogin( 'aut1' )['id'];
+		$viewT  = $tk->handle(
+			new Request( 'GET', '/painel/autoridades/' . $aut1Id . '/parcela-publica', array(), array(), $cT, array() )
+		);
+		$this->assertStringContainsString( 'Parcela pública SSS #1', $viewT->body );
+		$this->assertStringContainsString( 'share_value', $viewT->body ); // menção de ausência
+		$this->assertStringContainsString( 'share_index', $viewT->body );
+		$this->assertStringContainsString( 'Índice: <strong>1</strong>', $viewT->body );
+		$dlT = $tk->handle(
+			new Request( 'GET', '/painel/autoridades/' . $aut1Id . '/parcela-publica.json', array(), array(), $cT, array() )
+		);
+		$this->assertSame( 200, $dlT->status );
+		$this->assertStringContainsString( 'attachment', (string) ( $dlT->headers['Content-Disposition'] ?? '' ) );
+		$dlPkg = json_decode( $dlT->body, true );
+		$this->assertIsArray( $dlPkg );
+		$this->assertSame( 've-public-sss-v1', $dlPkg['format'] ?? '' );
+		$this->assertSame( 1, (int) ( $dlPkg['public_sss']['share_index'] ?? 0 ) );
+		$this->assertArrayNotHasKey( 'share_value', $dlPkg['public_sss'] ?? array() );
+		$bundle = $tk->handle(
+			new Request( 'GET', '/painel/autoridades/parcelas-publicas.json', array(), array(), $cT, array() )
+		);
+		$bundlePkg = json_decode( $bundle->body, true );
+		$this->assertIsArray( $bundlePkg );
+		$this->assertSame( 3, (int) ( $bundlePkg['count'] ?? 0 ) );
 
 		$importId = $tally->persistence->tallyImports->create(
 			array( 'source' => 'test', 'status' => 'imported', 'created_at' => gmdate( 'c' ) )

@@ -10,11 +10,18 @@ use RelataSoft\SecureElectionSuite\Painel\Domain\Access\UserRegistryRoles;
  * Exportar / importar autoridades eleitorais entre nós (formato AuthoritiesPackage).
  *
  * Transporte: descarregar na sessão (admin ou autoridade) e carregar no outro nó.
- * Nunca inclui share_value — só metadados públicos SSS (parcela pública).
+ * Nunca inclui share_value.
+ *
+ * Segregação E3 / sigilo do voto:
+ * - No nó de votação: importar só identidade das autoridades (sem índices SSS).
+ * - No nó de apuração: importar também a parcela pública SSS (índice + parâmetros).
  */
 final class AuthoritiesDirectorySync {
 
 	public const PACKAGE_FILENAME = 'authorities.json';
+
+	/** Meta do utilizador: JSON da parcela pública SSS (sem share_value). Só no tallying. */
+	public const META_PUBLIC_SSS = 've_public_sss';
 
 	/** @deprecated Use PACKAGE_FILENAME — Courier abandonado. */
 	public const COURIER_FILE = self::PACKAGE_FILENAME;
@@ -120,14 +127,16 @@ final class AuthoritiesDirectorySync {
 
 	/**
 	 * @param array<string,mixed> $package
-	 * @return array{created:int,updated:int,skipped:int,errors:list<string>}
+	 * @param bool                $persistPublicSss true só no nó de apuração / certificação
+	 * @return array{created:int,updated:int,skipped:int,errors:list<string>,public_sss:bool}
 	 */
-	public static function importPackage( UserDirectory $dir, array $package ): array {
+	public static function importPackage( UserDirectory $dir, array $package, bool $persistPublicSss = false ): array {
 		$result = array(
-			'created' => 0,
-			'updated' => 0,
-			'skipped' => 0,
-			'errors'  => array(),
+			'created'    => 0,
+			'updated'    => 0,
+			'skipped'    => 0,
+			'errors'     => array(),
+			'public_sss' => $persistPublicSss,
 		);
 		$v = AuthoritiesPackage::validate( $package );
 		if ( empty( $v['ok'] ) ) {
@@ -139,7 +148,10 @@ final class AuthoritiesDirectorySync {
 				++$result['skipped'];
 				continue;
 			}
-			$outcome = self::upsert( $dir, $row );
+			if ( ! $persistPublicSss ) {
+				$row = self::stripSssFields( $row );
+			}
+			$outcome = self::upsert( $dir, $row, $persistPublicSss );
 			if ( isset( $outcome['error'] ) ) {
 				$result['errors'][] = 'Autoridade #' . ( (int) $i + 1 ) . ': ' . $outcome['error'];
 				++$result['skipped'];
@@ -158,10 +170,58 @@ final class AuthoritiesDirectorySync {
 	}
 
 	/**
+	 * Remover metadados SSS do pacote (uso no nó de votação — sigilo do voto).
+	 *
 	 * @param array<string,mixed> $row
-	 * @return array{status?:string,error?:string}
+	 * @return array<string,mixed>
 	 */
-	private static function upsert( UserDirectory $dir, array $row ): array {
+	public static function stripSssFields( array $row ): array {
+		unset(
+			$row['public_sss'],
+			$row['share_index'],
+			$row['source_key_id'],
+			$row['threshold_t'],
+			$row['total_n'],
+			$row['field_prime'],
+			$row['key_label'],
+			$row['key_size'],
+			$row['share_payload'],
+			$row['public_key']
+		);
+		return $row;
+	}
+
+	/**
+	 * Ler parcela pública SSS gravada no import (só apuração).
+	 *
+	 * @return array{
+	 *   share_index:int,
+	 *   source_key_id:int,
+	 *   threshold_t:int,
+	 *   total_n:int,
+	 *   field_prime:string,
+	 *   key_label:string,
+	 *   key_size:int,
+	 *   public_key:array{p:string,q:string,g:string,y:string}
+	 * }|null
+	 */
+	public static function readPublicSss( UserDirectory $dir, int $userId ): ?array {
+		$raw = $dir->getMeta( $userId, self::META_PUBLIC_SSS );
+		if ( '' === $raw ) {
+			return null;
+		}
+		$decoded = json_decode( $raw, true );
+		if ( ! is_array( $decoded ) ) {
+			return null;
+		}
+		return self::publicSssFromMeta( $decoded );
+	}
+
+	/**
+	 * @param array<string,mixed> $row
+	 * @return array{status?:string,id?:int,error?:string}
+	 */
+	private static function upsert( UserDirectory $dir, array $row, bool $persistPublicSss ): array {
 		$login = trim( (string) ( $row['user_login'] ?? '' ) );
 		$email = trim( (string) ( $row['user_email'] ?? '' ) );
 		if ( '' === $login || '' === $email ) {
@@ -196,7 +256,8 @@ final class AuthoritiesDirectorySync {
 			if ( '' !== $pass ) {
 				$dir->setPasswordHash( $uid, $pass );
 			}
-			return array( 'status' => 'updated' );
+			self::applyPublicSssPolicy( $dir, $uid, $row, $persistPublicSss );
+			return array( 'status' => 'updated', 'id' => $uid );
 		}
 
 		$created = $dir->create(
@@ -213,9 +274,54 @@ final class AuthoritiesDirectorySync {
 		if ( empty( $created['ok'] ) ) {
 			return array( 'error' => (string) ( $created['error'] ?? 'create failed' ) );
 		}
+		$uid = (int) $created['id'];
 		if ( '' !== $pass ) {
-			$dir->setPasswordHash( (int) $created['id'], $pass );
+			$dir->setPasswordHash( $uid, $pass );
 		}
-		return array( 'status' => 'created' );
+		self::applyPublicSssPolicy( $dir, $uid, $row, $persistPublicSss );
+		return array( 'status' => 'created', 'id' => $uid );
+	}
+
+	/**
+	 * @param array<string,mixed> $row
+	 */
+	private static function applyPublicSssPolicy( UserDirectory $dir, int $userId, array $row, bool $persistPublicSss ): void {
+		if ( $persistPublicSss ) {
+			self::persistPublicSss( $dir, $userId, $row );
+			return;
+		}
+		// Nó de votação: nunca guardar índices SSS (mesmo se já existiam de um import errado).
+		$dir->setMeta( $userId, self::META_PUBLIC_SSS, '' );
+	}
+
+	/**
+	 * Gravar só a parcela pública SSS (índice + parâmetros) — nunca share_value.
+	 *
+	 * @param array<string,mixed> $row
+	 */
+	private static function persistPublicSss( UserDirectory $dir, int $userId, array $row ): void {
+		$meta = array();
+		if ( isset( $row['public_sss'] ) && is_array( $row['public_sss'] ) ) {
+			$meta = $row['public_sss'];
+		}
+		foreach ( array( 'share_index', 'source_key_id', 'threshold_t', 'total_n', 'field_prime', 'key_label', 'key_size', 'public_key' ) as $k ) {
+			if ( ! array_key_exists( $k, $meta ) && array_key_exists( $k, $row ) ) {
+				$meta[ $k ] = $row[ $k ];
+			}
+		}
+		if ( ! isset( $meta['key_id'] ) && isset( $meta['source_key_id'] ) ) {
+			$meta['key_id'] = $meta['source_key_id'];
+		} elseif ( ! isset( $meta['key_id'] ) && isset( $row['source_key_id'] ) ) {
+			$meta['key_id'] = $row['source_key_id'];
+		}
+		$public = self::publicSssFromMeta( $meta );
+		if ( null === $public ) {
+			return;
+		}
+		$dir->setMeta(
+			$userId,
+			self::META_PUBLIC_SSS,
+			(string) json_encode( $public, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE )
+		);
 	}
 }
