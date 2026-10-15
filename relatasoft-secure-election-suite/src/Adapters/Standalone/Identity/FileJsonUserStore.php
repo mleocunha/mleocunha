@@ -170,6 +170,27 @@ final class FileJsonUserStore implements UserProvider, UserDirectory {
 		$this->update( $id, array( 'role' => $role ) );
 	}
 
+	public function addRole( int $id, string $role ): void {
+		$role = trim( $role );
+		if ( '' === $role ) {
+			return;
+		}
+		$this->store->mutateAuto(
+			self::TABLE,
+			static function ( array $t ) use ( $id, $role ): array {
+				if ( ! isset( $t['rows'][ $id ] ) ) {
+					return $t;
+				}
+				$roles = array_values( array_map( 'strval', (array) ( $t['rows'][ $id ]['roles'] ?? array() ) ) );
+				if ( ! in_array( $role, $roles, true ) ) {
+					$roles[] = $role;
+					$t['rows'][ $id ]['roles'] = $roles;
+				}
+				return $t;
+			}
+		);
+	}
+
 	public function getMeta( int $id, string $key ): string {
 		$bag = $this->store->blob( self::META );
 		$m   = $bag[ (string) $id ] ?? $bag[ $id ] ?? array();

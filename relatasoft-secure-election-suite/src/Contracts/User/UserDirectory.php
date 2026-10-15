@@ -58,6 +58,9 @@ interface UserDirectory {
 
 	public function setRole(int $id, string $role): void;
 
+	/** Acrescentar um papel sem remover os existentes (ex.: admin que também é eleitor). */
+	public function addRole(int $id, string $role): void;
+
 	public function getMeta(int $id, string $key): string;
 
 	public function setMeta(int $id, string $key, string $value): void;

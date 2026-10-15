@@ -219,6 +219,36 @@ final class StandaloneHttpTest extends TestCase {
 		$this->assertStringContainsString( 'Cadastro', $painel->body );
 	}
 
+	public function test_admin_cannot_vote_unless_also_voter(): void {
+		$plugin = dirname( __DIR__, 3 );
+		$node   = NodeRuntime::create( SiteModes::VOTING, $this->root . '/voting-roles', 'teste', true );
+		$kernel = new HttpKernel( $node, $plugin, 'pt-BR' );
+		$login  = $kernel->handle(
+			new Request( 'POST', '/login', array(), array( 'login' => 'admin', 'password' => 'AdminPoC1!', 'next' => '/painel' ), array(), array() )
+		);
+		preg_match( '/' . CookieSessionPort::COOKIE . '=([^;]+)/', $login->headers['Set-Cookie'] ?? '', $m );
+		$cookie = array( CookieSessionPort::COOKIE => $m[1] ?? '' );
+
+		$booth = $kernel->handle( new Request( 'GET', '/voto/cabina', array(), array(), $cookie, array() ) );
+		$this->assertStringContainsString( 'Só eleitores podem votar', $booth->body );
+		$this->assertStringContainsString( 'não é presumido eleitor', $booth->body );
+
+		$cast = $kernel->handle(
+			new Request( 'POST', '/voto/cabina', array(), array( 'choice' => '1' ), $cookie, array() )
+		);
+		$this->assertSame( 302, $cast->status );
+		$this->assertStringContainsString( '/voto/cabina', $cast->headers['Location'] ?? '' );
+
+		$admin = $node->users->findByLogin( 'admin' );
+		$this->assertNotNull( $admin );
+		$node->users->addRole( (int) $admin['id'], 'subscriber' );
+		// Consome flash do cast bloqueado antes de reavaliar a cabina.
+		$kernel->handle( new Request( 'GET', '/voto/cabina', array(), array(), $cookie, array() ) );
+		$booth2 = $kernel->handle( new Request( 'GET', '/voto/cabina', array(), array(), $cookie, array() ) );
+		$this->assertStringNotContainsString( 'não é presumido eleitor', $booth2->body );
+		$this->assertStringContainsString( 'Nenhuma eleição aberta', $booth2->body );
+	}
+
 	public function test_http_key_authority_mode_home(): void {
 		mkdir( $this->root . '/ka', 0700, true );
 		$plugin = dirname( __DIR__, 3 );
@@ -662,9 +692,30 @@ final class StandaloneHttpTest extends TestCase {
 		);
 		preg_match( '/' . CookieSessionPort::COOKIE . '=([^;]+)/', $loginV->headers['Set-Cookie'] ?? '', $mv );
 		$cV = array( CookieSessionPort::COOKIE => $mv[1] ?? '' );
-		$this->importAuthoritiesUpload( $vk, $cV, $authJson );
+		$importV = $vk->handle(
+			new Request(
+				'POST',
+				'/painel/autoridades',
+				array(),
+				array( 'action' => 'import_upload' ),
+				$cV,
+				array(),
+				array( 'package' => $this->tempUpload( $authJson, 'authorities.json' ) )
+			)
+		);
+		$this->assertStringContainsString( 'Importação:', $importV->body );
+		$this->assertStringContainsString( 'Parcelas SSS omitidas neste nó', $importV->body );
 		$this->assertSame( 3, $voting->users->countByRole( 'editor' ) );
 		$this->assertNotNull( $voting->users->verifyPassword( 'aut1', 'SenhaAut1!' ) );
+		$listV = $vk->handle( new Request( 'GET', '/painel/autoridades', array(), array(), $cV, array() ) );
+		// Voting: parcelas SSS proibidas (sigilo do voto).
+		$this->assertStringContainsString( 'importação proibida', $listV->body );
+		$this->assertNull(
+			\RelataSoft\SecureElectionSuite\Painel\Domain\Authorities\AuthoritiesDirectorySync::readPublicSss(
+				$voting->users,
+				(int) $voting->users->findByLogin( 'aut1' )['id']
+			)
+		);
 
 		$tally = NodeRuntime::create( SiteModes::TALLYING, $this->root . '/tallying', 'teste', true );
 		$tk    = new HttpKernel( $tally, $plugin, 'pt-BR' );
@@ -673,8 +724,53 @@ final class StandaloneHttpTest extends TestCase {
 		);
 		preg_match( '/' . CookieSessionPort::COOKIE . '=([^;]+)/', $loginT->headers['Set-Cookie'] ?? '', $mt );
 		$cT = array( CookieSessionPort::COOKIE => $mt[1] ?? '' );
-		$this->importAuthoritiesUpload( $tk, $cT, $authJson );
+		$importT = $tk->handle(
+			new Request(
+				'POST',
+				'/painel/autoridades',
+				array(),
+				array( 'action' => 'import_upload' ),
+				$cT,
+				array(),
+				array( 'package' => $this->tempUpload( $authJson, 'authorities.json' ) )
+			)
+		);
+		$this->assertStringContainsString( 'Parcelas públicas SSS importadas', $importT->body );
+		$this->assertStringContainsString( 'Chave pública derivada das parcelas SSS', $importT->body );
 		$this->assertSame( 3, $tally->users->countByRole( 'editor' ) );
+		$this->assertNotEmpty( $tally->persistence->keys->listActive() );
+		$blockedPk = $tk->handle( new Request( 'GET', '/painel/chave-publica', array(), array(), $cT, array() ) );
+		$this->assertSame( 403, $blockedPk->status );
+		$this->assertStringContainsString( 'parcelas Shamir', $blockedPk->body );
+		$homeT = $tk->handle( new Request( 'GET', '/painel', array(), array(), $cT, array() ) );
+		$this->assertStringNotContainsString( '/painel/chave-publica', $homeT->body );
+		$listT = $tk->handle( new Request( 'GET', '/painel/autoridades', array(), array(), $cT, array() ) );
+		$this->assertStringContainsString( 'ver / exportar', $listT->body );
+		$this->assertStringContainsString( '/painel/autoridades/parcelas-publicas.json', $listT->body );
+		$aut1Id = (int) $tally->users->findByLogin( 'aut1' )['id'];
+		$viewT  = $tk->handle(
+			new Request( 'GET', '/painel/autoridades/' . $aut1Id . '/parcela-publica', array(), array(), $cT, array() )
+		);
+		$this->assertStringContainsString( 'Parcela pública SSS #1', $viewT->body );
+		$this->assertStringContainsString( 'share_value', $viewT->body ); // menção de ausência
+		$this->assertStringContainsString( 'share_index', $viewT->body );
+		$this->assertStringContainsString( 'Índice: <strong>1</strong>', $viewT->body );
+		$dlT = $tk->handle(
+			new Request( 'GET', '/painel/autoridades/' . $aut1Id . '/parcela-publica.json', array(), array(), $cT, array() )
+		);
+		$this->assertSame( 200, $dlT->status );
+		$this->assertStringContainsString( 'attachment', (string) ( $dlT->headers['Content-Disposition'] ?? '' ) );
+		$dlPkg = json_decode( $dlT->body, true );
+		$this->assertIsArray( $dlPkg );
+		$this->assertSame( 've-public-sss-v1', $dlPkg['format'] ?? '' );
+		$this->assertSame( 1, (int) ( $dlPkg['public_sss']['share_index'] ?? 0 ) );
+		$this->assertArrayNotHasKey( 'share_value', $dlPkg['public_sss'] ?? array() );
+		$bundle = $tk->handle(
+			new Request( 'GET', '/painel/autoridades/parcelas-publicas.json', array(), array(), $cT, array() )
+		);
+		$bundlePkg = json_decode( $bundle->body, true );
+		$this->assertIsArray( $bundlePkg );
+		$this->assertSame( 3, (int) ( $bundlePkg['count'] ?? 0 ) );
 
 		$importId = $tally->persistence->tallyImports->create(
 			array( 'source' => 'test', 'status' => 'imported', 'created_at' => gmdate( 'c' ) )
@@ -795,12 +891,35 @@ final class StandaloneHttpTest extends TestCase {
 		$roundId    = (int) ( $elections[0]['current_round_id'] ?? 0 );
 		$this->assertGreaterThan( 0, $roundId );
 
-		$castNoElection = $vk->handle(
+		// Admin alone cannot vote — only the elector role may cast.
+		$adminBlocked = $vk->handle(
 			new Request( 'POST', '/voto/cabina', array(), array( 'choice' => '1' ), $cV, array() )
 		);
-		// Already have election — should redirect to thank-you.
-		$this->assertSame( 302, $castNoElection->status );
-		$this->assertStringContainsString( '/voto/obrigado', $castNoElection->headers['Location'] ?? '' );
+		$this->assertSame( 302, $adminBlocked->status );
+		$this->assertStringContainsString( '/voto/cabina', $adminBlocked->headers['Location'] ?? '' );
+		$boothAdmin = $vk->handle( new Request( 'GET', '/voto/cabina', array(), array(), $cV, array() ) );
+		$this->assertStringContainsString( 'Só eleitores podem votar', $boothAdmin->body );
+
+		$voterCreate = $voting->users->create(
+			array(
+				'login'       => 'eleitor01',
+				'email'       => 'eleitor01@ex.test',
+				'password'    => 'SenhaEle1!',
+				'displayName' => 'Eleitor 01',
+				'role'        => 'subscriber',
+			)
+		);
+		$this->assertTrue( ! empty( $voterCreate['ok'] ) );
+		$loginEle = $vk->handle(
+			new Request( 'POST', '/login', array(), array( 'login' => 'eleitor01', 'password' => 'SenhaEle1!', 'next' => '/voto/cabina' ), array(), array() )
+		);
+		preg_match( '/' . CookieSessionPort::COOKIE . '=([^;]+)/', $loginEle->headers['Set-Cookie'] ?? '', $me );
+		$cEle = array( CookieSessionPort::COOKIE => $me[1] ?? '' );
+		$cast = $vk->handle(
+			new Request( 'POST', '/voto/cabina', array(), array( 'choice' => '1' ), $cEle, array() )
+		);
+		$this->assertSame( 302, $cast->status );
+		$this->assertStringContainsString( '/voto/obrigado', $cast->headers['Location'] ?? '' );
 
 		$votes = array();
 		$voting->persistence->votes->forEachExportRow(
@@ -815,15 +934,14 @@ final class StandaloneHttpTest extends TestCase {
 		$this->assertNotEmpty( $votes[0]['ciphertext_beta'] ?? null );
 		$this->assertArrayNotHasKey( 'ciphertext', $votes[0] );
 
-		// Second yes vote under a different session user id is not available easily —
-		// cast again as same user should be blocked.
+		// Same elector cannot vote twice.
 		$dup = $vk->handle(
-			new Request( 'POST', '/voto/cabina', array(), array( 'choice' => '1' ), $cV, array() )
+			new Request( 'POST', '/voto/cabina', array(), array( 'choice' => '1' ), $cEle, array() )
 		);
 		$this->assertSame( 302, $dup->status );
 		$this->assertStringContainsString( '/voto/cabina', $dup->headers['Location'] ?? '' );
 
-		// Cast a second ballot by storing directly (simulates another eleitor) then export.
+		// Cast another ballot by storing directly (simulates another eleitor) then export.
 		$keys = $voting->persistence->keys->listActive();
 		$k    = $keys[0];
 		$p    = \RelataSoft\SecureElectionSuite\Painel\Domain\Crypto\BigInt::fromDecimalString( (string) $k['public_p'] );

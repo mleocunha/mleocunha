@@ -95,12 +95,16 @@ final class HttpKernel {
 		if ( preg_match( '#^/painel/chave/(\d+)(\.json)?$#', $path, $m ) ) {
 			return $this->chavePublica( $req, (int) $m[1], isset( $m[2] ) && '' !== $m[2] );
 		}
+		if ( preg_match( '#^/painel/autoridades/(\d+)/parcela-publica(\.json)?$#', $path, $m ) ) {
+			return $this->parcelaPublicaAutoridade( $req, (int) $m[1], isset( $m[2] ) && '' !== $m[2] );
+		}
 
 		return match ( true ) {
 			'/painel' === $path => $this->painelHome(),
 			'/painel/cadastro' === $path => $this->cadastro( $req ),
 			'/painel/autoridades' === $path => $this->autoridades( $req ),
 			'/painel/autoridades/exportar' === $path => $this->exportAuthoritiesDownload( $req ),
+			'/painel/autoridades/parcelas-publicas.json' === $path => $this->exportAllParcelasPublicas( $req ),
 			'/painel/minha-parcela' === $path => $this->minhaParcela( $req ),
 			'/painel/chave-publica' === $path => $this->chavePublicaImport( $req ),
 			'/painel/keygen' === $path => $this->keygen( $req ),
@@ -153,7 +157,6 @@ final class HttpKernel {
 		}
 		if ( SiteModes::TALLYING === $mode ) {
 			$items[] = array( 'href' => '/painel/autoridades', 'label' => 'Autoridades' );
-			$items[] = array( 'href' => '/painel/chave-publica', 'label' => 'Chave pública' );
 			$items[] = array( 'href' => '/painel/importar', 'label' => 'Importar' );
 			$items[] = array( 'href' => '/painel/parcelas', 'label' => 'Parcelas' );
 			$items[] = array( 'href' => '/painel/certificar', 'label' => 'Certificar' );
@@ -231,7 +234,7 @@ final class HttpKernel {
 		$cards = '';
 		if ( SiteModes::VOTING === $mode ) {
 			$cards .= $this->card( 'Cadastro eleitoral', 'Importar .rsv e listar papéis.', '/painel/cadastro' );
-			$cards .= $this->card( 'Autoridades eleitorais', 'Importar o pacote descarregado na AC (parcela pública SSS).', '/painel/autoridades' );
+			$cards .= $this->card( 'Autoridades eleitorais', 'Importar autoridades da AC (sem parcelas SSS — sigilo do voto).', '/painel/autoridades' );
 			$cards .= $this->card( 'Chave pública', 'Carregar public-key.json da AC.', '/painel/chave-publica' );
 			$cards .= $this->card( 'Eleições', 'Criar eleição sim/não e acompanhar turnos.', '/painel/eleicoes' );
 			$cards .= $this->card( 'Material de voto', 'Descarregar vote-material.json para a totalização.', '/painel/material-voto' );
@@ -241,10 +244,9 @@ final class HttpKernel {
 			$cards .= $this->card( 'Chaves', 'Gerar chave, atribuir parcelas e descarregar a chave pública.', '/painel/keygen' );
 			$cards .= $this->card( 'Minha parcela', 'Cada autoridade descarrega só a sua parcela secreta.', '/painel/minha-parcela' );
 		} else {
-			$cards .= $this->card( 'Autoridades eleitorais', 'Importar autoridades do pacote da AC.', '/painel/autoridades' );
-			$cards .= $this->card( 'Chave pública', 'Carregar public-key.json (opcional; também vem nas parcelas).', '/painel/chave-publica' );
-			$cards .= $this->card( 'Importar apuração', 'Carregar vote-material.json do nó de votação.', '/painel/importar' );
-			$cards .= $this->card( 'Parcelas Shamir', 'Submeter parcelas até atingir o limiar.', '/painel/parcelas' );
+			$cards .= $this->card( 'Autoridades eleitorais', 'Importar autoridades + parcela pública SSS (inclui chave pública).', '/painel/autoridades' );
+			$cards .= $this->card( 'Importar pacote da votação', 'Carregar vote-material.json do nó de votação (ainda não há apuração).', '/painel/importar' );
+			$cards .= $this->card( 'Parcelas Shamir', 'Submeter parcelas secretas até ao limiar — a chave pública vem daí.', '/painel/parcelas' );
 			$cards .= $this->card( 'Certificar', 'Reconstruir Shamir e apurar o total.', '/painel/certificar' );
 		}
 		$user = $this->node->users->findById( $this->session->currentUserId() );
@@ -324,7 +326,7 @@ final class HttpKernel {
 			if ( 'import_upload' === $action && SiteModes::KEY_AUTHORITY !== $mode ) {
 				$tmp = (string) ( $req->files['package']['tmp_name'] ?? '' );
 				$msg = ( is_readable( $tmp ) && '' !== $tmp )
-					? $this->importAuthoritiesFromFile( $users, $tmp )
+					? $this->importAuthoritiesFromFile( $users, $tmp, $mode )
 					: 'Falha no upload do pacote de autoridades.';
 			} elseif ( 'create' === $action ) {
 				$login = trim( $req->input( 'login' ) );
@@ -354,14 +356,30 @@ final class HttpKernel {
 		$list      = $users->listByRole( UserRegistryRoles::ROLE_OFFICIAL );
 		$rows      = '';
 		foreach ( $list as $u ) {
-			$uid   = (int) $u['id'];
-			$sss   = isset( $shareMeta[ $uid ] ) ? AuthoritiesDirectorySync::publicSssFromMeta( $shareMeta[ $uid ] ) : null;
-			$idx   = $sss ? (string) $sss['share_index'] : '—';
+			$uid = (int) $u['id'];
+			if ( SiteModes::VOTING === $mode ) {
+				// Sigilo do voto: o nó de votação nunca importa nem mostra índices SSS.
+				$idxCell = htmlspecialchars( 'importação proibida', ENT_QUOTES, 'UTF-8' );
+			} elseif ( SiteModes::KEY_AUTHORITY === $mode ) {
+				$sss     = isset( $shareMeta[ $uid ] )
+					? AuthoritiesDirectorySync::publicSssFromMeta( $shareMeta[ $uid ] )
+					: null;
+				$idxCell = $sss
+					? htmlspecialchars( (string) $sss['share_index'], ENT_QUOTES, 'UTF-8' )
+					: '—';
+			} else {
+				// Apuração: parcela pública SSS importada — ver e exportar (auditabilidade).
+				$sss = AuthoritiesDirectorySync::readPublicSss( $users, $uid );
+				$idxCell = $sss
+					? '<a href="/painel/autoridades/' . $uid . '/parcela-publica">#'
+						. (int) $sss['share_index'] . ' · ver / exportar</a>'
+					: '—';
+			}
 			$rows .= '<tr><td>' . $uid . '</td><td>'
 				. htmlspecialchars( (string) $u['displayName'], ENT_QUOTES, 'UTF-8' ) . '</td><td><code>'
 				. htmlspecialchars( (string) $u['login'], ENT_QUOTES, 'UTF-8' ) . '</code></td><td>'
 				. htmlspecialchars( (string) $u['email'], ENT_QUOTES, 'UTF-8' ) . '</td><td>'
-				. htmlspecialchars( $idx, ENT_QUOTES, 'UTF-8' ) . '</td></tr>';
+				. $idxCell . '</td></tr>';
 		}
 		if ( '' === $rows ) {
 			$rows = '<tr><td colspan="5" class="ve-muted">Nenhuma autoridade neste nó.</td></tr>';
@@ -369,8 +387,8 @@ final class HttpKernel {
 
 		$lead = match ( $mode ) {
 			SiteModes::KEY_AUTHORITY => 'Cadastrar quem receberá as parcelas Shamir. Admin e cada autoridade (sessão própria) podem descarregar o pacote com as parcelas públicas SSS — sem segredo share_value. A parcela secreta descarrega-se em /painel/minha-parcela.',
-			SiteModes::VOTING => 'Importar o pacote descarregado na AC (autoridades + parcela pública SSS). A validade jurídica fica comprometida sem o seu acompanhamento.',
-			default => 'Importar o pacote da AC. Depois cada autoridade entra, carrega a sua parcela secreta em /painel/parcelas e sobe até ao limiar.',
+			SiteModes::VOTING => 'Importar só as autoridades da AC (identidade). Parcelas SSS não entram neste nó — sigilo do voto.',
+			default => 'Importar o pacote da AC com parcela pública SSS (índice + parâmetros, auditável). Cada autoridade sobe depois a parcela secreta em /painel/parcelas.',
 		};
 
 		$extra = '';
@@ -382,13 +400,28 @@ final class HttpKernel {
 					. '<a class="secondary" href="/painel/minha-parcela">Minha parcela secreta</a></div>'
 					. '<p class="ve-muted">Disponível na sessão do administrador e na sessão de cada autoridade eleitoral.</p>'
 				: '<p class="ve-muted">Entrar como administrador ou autoridade eleitoral para descarregar o pacote.</p>';
-		} else {
+		} elseif ( SiteModes::VOTING === $mode ) {
 			$extra = '<div class="ve-card" style="margin-top:1rem"><h2>Importar pacote</h2>'
-				. '<p class="ve-muted">Carregar o JSON descarregado na AC (upload).</p>'
+				. '<p class="ve-muted">Carregar o JSON da AC. Neste nó só entram contas de autoridades — parcelas SSS são ignoradas (sigilo do voto).</p>'
 				. '<form method="post" enctype="multipart/form-data" action="/painel/autoridades">'
 				. '<input type="hidden" name="action" value="import_upload" />'
 				. '<label class="ve-field"><span>Arquivo JSON</span><input type="file" name="package" accept=".json,application/json" required /></label>'
 				. '<div class="ve-actions"><button type="submit">Importar autoridades</button></div></form></div>';
+		} else {
+			$extra = '<div class="ve-card" style="margin-top:1rem"><h2>Importar pacote</h2>'
+				. '<p class="ve-muted">Carregar o JSON da AC. Importa contas e a parcela pública SSS (índice + parâmetros públicos — sem <code>share_value</code>). A parcela secreta sobe em /painel/parcelas.</p>'
+				. '<form method="post" enctype="multipart/form-data" action="/painel/autoridades">'
+				. '<input type="hidden" name="action" value="import_upload" />'
+				. '<label class="ve-field"><span>Arquivo JSON</span><input type="file" name="package" accept=".json,application/json" required /></label>'
+				. '<div class="ve-actions"><button type="submit">Importar autoridades</button></div></form></div>';
+		}
+
+		$auditBar = '';
+		if ( SiteModes::TALLYING === $mode && count( $list ) > 0 ) {
+			$auditBar = '<div class="ve-actions" style="margin-bottom:0.75rem">'
+				. '<a href="/painel/autoridades/parcelas-publicas.json">Descarregar todas as parcelas públicas SSS (auditoria)</a>'
+				. '<a class="secondary" href="/painel/parcelas">Submeter parcelas secretas</a></div>'
+				. '<p class="ve-muted">Clique em «ver / exportar» na coluna Parcela # para inspecionar cada parcela pública importada.</p>';
 		}
 
 		$body = '<div class="ve-card"><h1>Autoridades eleitorais</h1>'
@@ -410,9 +443,127 @@ final class HttpKernel {
 			. $extra
 			. '</div>'
 			. '<div class="ve-card"><h2>Neste nó (' . count( $list ) . ')</h2>'
-			. '<table class="ve-table"><thead><tr><th>ID</th><th>Nome</th><th>Login</th><th>E-mail</th><th>Parcela #</th></tr></thead><tbody>'
+			. $auditBar
+			. '<table class="ve-table"><thead><tr><th>ID</th><th>Nome</th><th>Login</th><th>E-mail</th><th>Parcela pública SSS</th></tr></thead><tbody>'
 			. $rows . '</tbody></table></div>';
 		return $this->page( 'Autoridades', $body );
+	}
+
+	/**
+	 * Ver / exportar parcela pública SSS de uma autoridade (só apuração — auditabilidade).
+	 * Nunca contém share_value.
+	 */
+	private function parcelaPublicaAutoridade( Request $req, int $userId, bool $asJson ): Response {
+		unset( $req );
+		$this->node->requireMode( SiteModes::TALLYING );
+		$users = $this->node->users;
+		if ( ! $users instanceof FileJsonUserStore ) {
+			throw new \RuntimeException( 'Autoridades require FileJsonUserStore.' );
+		}
+		$user = $users->findById( $userId );
+		if ( null === $user || ! in_array( UserRegistryRoles::ROLE_OFFICIAL, (array) ( $user['roles'] ?? array() ), true ) ) {
+			return Response::text( 'Autoridade não encontrada neste nó.', 404 );
+		}
+		$sss = AuthoritiesDirectorySync::readPublicSss( $users, $userId );
+		if ( null === $sss ) {
+			return $this->page(
+				'Parcela pública',
+				'<div class="ve-card"><h1>Parcela pública SSS</h1>'
+				. '<p class="ve-muted">Nenhuma parcela pública importada para '
+				. htmlspecialchars( (string) $user['login'], ENT_QUOTES, 'UTF-8' )
+				. '. Carregar o JSON da AC em /painel/autoridades.</p>'
+				. '<div class="ve-actions"><a href="/painel/autoridades">Voltar</a></div></div>'
+			);
+		}
+		$payload = array(
+			'format'         => 've-public-sss-v1',
+			'exported_at'    => gmdate( 'c' ),
+			'source_mode'    => SiteModes::TALLYING,
+			'authority'      => array(
+				'id'           => $userId,
+				'login'        => (string) $user['login'],
+				'display_name' => (string) $user['displayName'],
+				'email'        => (string) $user['email'],
+			),
+			'public_sss'     => $sss,
+		);
+		// Garantia explícita: nunca transportar segredo.
+		unset( $payload['public_sss']['share_value'] );
+		$json = (string) json_encode( $payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE );
+		if ( $asJson ) {
+			$safeLogin = preg_replace( '/[^a-zA-Z0-9._\-]+/', '_', (string) $user['login'] ) ?: 'autoridade';
+			return Response::attachment(
+				$json . "\n",
+				'parcela-publica-' . $safeLogin . '-idx' . (int) $sss['share_index'] . '.json',
+				'application/json; charset=UTF-8'
+			);
+		}
+		$idx = (int) $sss['share_index'];
+		$body = '<div class="ve-card"><h1>Parcela pública SSS #' . $idx . '</h1>'
+			. '<p class="ve-muted">Autoridade: <strong>'
+			. htmlspecialchars( (string) $user['displayName'], ENT_QUOTES, 'UTF-8' )
+			. '</strong> (<code>'
+			. htmlspecialchars( (string) $user['login'], ENT_QUOTES, 'UTF-8' )
+			. '</code>). Material público para auditoria — sem <code>share_value</code>. '
+			. 'A parcela secreta só entra quando a autoridade a submete em /painel/parcelas.</p>'
+			. '<ul class="ve-muted">'
+			. '<li>Índice: <strong>' . $idx . '</strong></li>'
+			. '<li>Limiar t / n: ' . (int) ( $sss['threshold_t'] ?? 0 ) . ' / ' . (int) ( $sss['total_n'] ?? 0 ) . '</li>'
+			. '<li>Chave: '
+			. htmlspecialchars( (string) ( $sss['key_label'] ?? '' ), ENT_QUOTES, 'UTF-8' )
+			. ' (' . (int) ( $sss['key_size'] ?? 0 ) . ' bits)</li>'
+			. '<li>source_key_id: ' . (int) ( $sss['source_key_id'] ?? 0 ) . '</li>'
+			. '</ul>'
+			. '<div class="ve-actions">'
+			. '<a href="/painel/autoridades/' . $userId . '/parcela-publica.json">Descarregar JSON</a> '
+			. '<a class="secondary" href="/painel/autoridades">Voltar às autoridades</a> '
+			. '<a class="secondary" href="/painel/parcelas">Submeter parcela secreta</a></div>'
+			. '<h2 style="margin-top:1.25rem">JSON</h2>'
+			. '<pre style="overflow:auto;max-height:28rem;font-size:0.8rem;background:#f3f6f8;padding:0.85rem;border-radius:8px">'
+			. htmlspecialchars( $json, ENT_QUOTES, 'UTF-8' )
+			. '</pre></div>';
+		return $this->page( 'Parcela pública #' . $idx, $body );
+	}
+
+	/** Pacote único com todas as parcelas públicas SSS importadas (auditoria jurídica). */
+	private function exportAllParcelasPublicas( Request $req ): Response {
+		unset( $req );
+		$this->node->requireMode( SiteModes::TALLYING );
+		$users = $this->node->users;
+		if ( ! $users instanceof FileJsonUserStore ) {
+			throw new \RuntimeException( 'Autoridades require FileJsonUserStore.' );
+		}
+		$rows = array();
+		foreach ( $users->listByRole( UserRegistryRoles::ROLE_OFFICIAL ) as $u ) {
+			$uid = (int) $u['id'];
+			$sss = AuthoritiesDirectorySync::readPublicSss( $users, $uid );
+			if ( null === $sss ) {
+				continue;
+			}
+			unset( $sss['share_value'] );
+			$rows[] = array(
+				'authority'  => array(
+					'id'           => $uid,
+					'login'        => (string) $u['login'],
+					'display_name' => (string) $u['displayName'],
+					'email'        => (string) $u['email'],
+				),
+				'public_sss' => $sss,
+			);
+		}
+		$pkg = array(
+			'format'      => 've-public-sss-bundle-v1',
+			'exported_at' => gmdate( 'c' ),
+			'source_mode' => SiteModes::TALLYING,
+			'count'       => count( $rows ),
+			'parcels'     => $rows,
+		);
+		$json = (string) json_encode( $pkg, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE );
+		return Response::attachment(
+			$json . "\n",
+			'parcelas-publicas-sss.json',
+			'application/json; charset=UTF-8'
+		);
 	}
 
 	private function exportAuthoritiesDownload( Request $req ): Response {
@@ -517,7 +668,7 @@ final class HttpKernel {
 		return $shareMeta;
 	}
 
-	private function importAuthoritiesFromFile( FileJsonUserStore $users, string $file ): string {
+	private function importAuthoritiesFromFile( FileJsonUserStore $users, string $file, string $mode ): string {
 		if ( ! is_readable( $file ) ) {
 			return 'Arquivo inacessível: ' . basename( $file );
 		}
@@ -525,14 +676,134 @@ final class HttpKernel {
 		if ( null === $pkg ) {
 			return 'Pacote inválido, checksum incorreto ou contém segredo (share_value).';
 		}
-		$res = AuthoritiesDirectorySync::importPackage( $users, $pkg );
+		// Só o nó de apuração importa índices SSS; no voting ficam de fora (sigilo do voto).
+		$persistPublicSss = SiteModes::TALLYING === $mode;
+		$res              = AuthoritiesDirectorySync::importPackage( $users, $pkg, $persistPublicSss );
+		$keyNote          = '';
+		if ( $persistPublicSss ) {
+			// Chave pública neste nó vem das parcelas SSS — nunca de /painel/chave-publica.
+			$seeded = $this->seedPublicKeyFromImportedSss( $users );
+			$keyNote = $seeded
+				? ' Chave pública derivada das parcelas SSS.'
+				: ' (sem chave pública nas parcelas públicas — verificar pacote da AC).';
+		}
+		$note = $persistPublicSss
+			? ' Parcelas públicas SSS importadas.' . $keyNote
+			: ' Parcelas SSS omitidas neste nó (sigilo do voto).';
 		return sprintf(
-			'Importação: criados %d, atualizados %d, ignorados %d, erros %d.',
+			'Importação: criados %d, atualizados %d, ignorados %d, erros %d.%s',
 			$res['created'],
 			$res['updated'],
 			$res['skipped'],
-			count( $res['errors'] )
+			count( $res['errors'] ),
+			$note
 		) . ( $res['errors'] ? ' ' . $res['errors'][0] : '' );
+	}
+
+	/**
+	 * Materializar chave pública a partir de public_sss já gravado nas autoridades (apuração).
+	 */
+	private function seedPublicKeyFromImportedSss( FileJsonUserStore $users ): bool {
+		foreach ( $users->listByRole( UserRegistryRoles::ROLE_OFFICIAL ) as $u ) {
+			$sss = AuthoritiesDirectorySync::readPublicSss( $users, (int) $u['id'] );
+			if ( null === $sss || ! is_array( $sss['public_key'] ?? null ) ) {
+				continue;
+			}
+			if ( $this->ensurePublicKeyFromComponents(
+				$sss['public_key'],
+				(string) ( $sss['key_label'] ?? 'from-public-sss' ),
+				(int) ( $sss['key_size'] ?? 0 )
+			) ) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Garantir uma chave pública activa a partir de componentes p/q/g/y (sem import dedicado).
+	 *
+	 * @param array<string,mixed> $pk
+	 */
+	private function ensurePublicKeyFromComponents( array $pk, string $label = '', int $keySize = 0 ): bool {
+		$p = trim( (string) ( $pk['p'] ?? '' ) );
+		$q = trim( (string) ( $pk['q'] ?? '' ) );
+		$g = trim( (string) ( $pk['g'] ?? '' ) );
+		$y = trim( (string) ( $pk['y'] ?? '' ) );
+		if ( '' === $p || '' === $q || '' === $g || '' === $y ) {
+			return false;
+		}
+		foreach ( $this->node->persistence->keys->listActive() as $k ) {
+			if ( (string) ( $k['public_y'] ?? '' ) === $y && (string) ( $k['public_p'] ?? '' ) === $p ) {
+				return true;
+			}
+		}
+		$this->node->persistence->keys->create(
+			array(
+				'key_label'  => '' !== $label ? $label : 'from-sss',
+				'key_size'   => $keySize,
+				'public_p'   => $p,
+				'public_q'   => $q,
+				'public_g'   => $g,
+				'public_y'   => $y,
+				'is_deleted' => 0,
+			)
+		);
+		return true;
+	}
+
+	/**
+	 * Resolver chave pública no nó de apuração: parcelas secretas → public_sss → chaves derivadas.
+	 *
+	 * @param list<array<string,mixed>> $payloads
+	 * @return array{p:string,q:string,g:string,y:string}|null
+	 */
+	private function resolveTallyingPublicKey( array $payloads ): ?array {
+		foreach ( $payloads as $payload ) {
+			$pk = $payload['public_key'] ?? null;
+			if ( is_array( $pk )
+				&& '' !== trim( (string) ( $pk['p'] ?? '' ) )
+				&& '' !== trim( (string) ( $pk['q'] ?? '' ) )
+				&& '' !== trim( (string) ( $pk['g'] ?? '' ) )
+				&& '' !== trim( (string) ( $pk['y'] ?? '' ) )
+			) {
+				return array(
+					'p' => (string) $pk['p'],
+					'q' => (string) $pk['q'],
+					'g' => (string) $pk['g'],
+					'y' => (string) $pk['y'],
+				);
+			}
+		}
+		$users = $this->node->users;
+		if ( $users instanceof FileJsonUserStore ) {
+			foreach ( $users->listByRole( UserRegistryRoles::ROLE_OFFICIAL ) as $u ) {
+				$sss = AuthoritiesDirectorySync::readPublicSss( $users, (int) $u['id'] );
+				$pk  = is_array( $sss ) ? ( $sss['public_key'] ?? null ) : null;
+				if ( is_array( $pk )
+					&& '' !== trim( (string) ( $pk['p'] ?? '' ) )
+					&& '' !== trim( (string) ( $pk['y'] ?? '' ) )
+				) {
+					return array(
+						'p' => (string) $pk['p'],
+						'q' => (string) ( $pk['q'] ?? '' ),
+						'g' => (string) ( $pk['g'] ?? '' ),
+						'y' => (string) $pk['y'],
+					);
+				}
+			}
+		}
+		$keys = $this->node->persistence->keys->listActive();
+		if ( $keys ) {
+			$k = $keys[0];
+			return array(
+				'p' => (string) ( $k['public_p'] ?? '' ),
+				'q' => (string) ( $k['public_q'] ?? '' ),
+				'g' => (string) ( $k['public_g'] ?? '' ),
+				'y' => (string) ( $k['public_y'] ?? '' ),
+			);
+		}
+		return null;
 	}
 
 	private function keygen( Request $req ): Response {
@@ -1221,6 +1492,13 @@ HTML;
 							if ( $threshold > 0 && $have >= $threshold ) {
 								$msg .= ' Limiar Shamir atingido para este import.';
 							}
+							if ( is_array( $payload['public_key'] ?? null ) ) {
+								$this->ensurePublicKeyFromComponents(
+									$payload['public_key'],
+									(string) ( $payload['key_label'] ?? 'from-share' ),
+									(int) ( $payload['key_size'] ?? 0 )
+								);
+							}
 						}
 					} catch ( \Throwable $e ) {
 						$msg = 'Parcela rejeitada: ' . $e->getMessage();
@@ -1292,9 +1570,12 @@ HTML;
 
 
 	private function chavePublicaImport( Request $req ): Response {
-		$mode = $this->node->mode->getMode();
-		if ( SiteModes::VOTING !== $mode && SiteModes::TALLYING !== $mode ) {
-			return Response::text( 'Só nos nós de votação e totalização.', 403 );
+		// No totalizar a chave pública vem só das parcelas SSS — sem import dedicado.
+		if ( SiteModes::VOTING !== $this->node->mode->getMode() ) {
+			return Response::text(
+				'Importação de chave pública só no nó de votação. No totalizar a chave resulta das parcelas Shamir.',
+				403
+			);
 		}
 		$msg = '';
 		if ( 'POST' === $req->method ) {
@@ -1504,13 +1785,13 @@ HTML;
 				. (int) ( $s['round_id'] ?? 0 ) . '</td></tr>';
 		}
 		$list .= '</tbody></table>';
-		$body  = '<div class="ve-card"><h1>Importação da apuração</h1>'
-			. '<p class="ve-muted">Carregar o vote-material.json descarregado no nó de votação.</p>'
+		$body  = '<div class="ve-card"><h1>Importação do pacote da votação</h1>'
+			. '<p class="ve-muted">Carregar o vote-material.json descarregado no nó de votação. Nesta etapa ainda não há apuração — só o material para certificar depois.</p>'
 			. ( $msg ? '<p class="ve-muted">' . htmlspecialchars( $msg, ENT_QUOTES, 'UTF-8' ) . '</p>' : '' )
 			. '<form method="post" enctype="multipart/form-data">'
 			. '<label class="ve-field"><span>vote-material.json</span><input type="file" name="package" accept=".json,application/json" required /></label>'
-			. '<div class="ve-actions"><button type="submit">Importar material</button></div></form></div>'
-			. '<div class="ve-card"><h2>Imports</h2>' . $list . '</div>';
+			. '<div class="ve-actions"><button type="submit">Importar pacote da votação</button></div></form></div>'
+			. '<div class="ve-card"><h2>Pacotes importados</h2>' . $list . '</div>';
 		return $this->page( 'Importar', $body );
 	}
 
@@ -1540,21 +1821,11 @@ HTML;
 					if ( empty( $payloads ) ) {
 						throw new \RuntimeException( 'Submeter parcelas em /painel/parcelas até ao limiar antes de certificar.' );
 					}
-					$pk = $payloads[0]['public_key'] ?? null;
-					if ( ! is_array( $pk ) ) {
-						$keys = $this->node->persistence->keys->listActive();
-						if ( $keys ) {
-							$k  = $keys[0];
-							$pk = array(
-								'p' => (string) ( $k['public_p'] ?? '' ),
-								'q' => (string) ( $k['public_q'] ?? '' ),
-								'g' => (string) ( $k['public_g'] ?? '' ),
-								'y' => (string) ( $k['public_y'] ?? '' ),
-							);
-						}
-					}
-					if ( ! is_array( $pk ) ) {
-						throw new \RuntimeException( 'Chave pública ausente nas parcelas / neste nó.' );
+					$pk = $this->resolveTallyingPublicKey( $payloads );
+					if ( null === $pk ) {
+						throw new \RuntimeException(
+							'Chave pública ausente nas parcelas Shamir. Importar autoridades (parcela pública SSS) ou submeter parcelas secretas com public_key.'
+						);
 					}
 					$dec = HomomorphicCertifyService::decryptTally(
 						$votePkg,
@@ -1626,7 +1897,7 @@ HTML;
 		};
 
 		$inner = match ( $step ) {
-			JourneySteps::WELCOME => '<div class="ve-card"><h1>Boas-vindas</h1><p class="ve-muted">Jornada do eleitor neste nó de votação.</p>'
+			JourneySteps::WELCOME => '<div class="ve-card"><h1>Boas-vindas</h1><p class="ve-muted">Jornada do eleitor neste nó de votação. Só contas com perfil de eleitor podem votar.</p>'
 				. '<div class="ve-actions"><a href="/voto/cabina">Ir à cabina</a></div></div>',
 			JourneySteps::BOOTH => $this->boothMarkup(),
 			JourneySteps::THANK_YOU => '<div class="ve-card"><h1>Voto registrado</h1><p class="ve-muted">Obrigado. Recibo abaixo (se aplicável).</p>'
@@ -1639,6 +1910,12 @@ HTML;
 	}
 
 	private function boothMarkup(): string {
+		if ( ! $this->sessionUserCanVote() ) {
+			return '<div class="ve-card"><h1>Cabina de votação</h1>'
+				. '<p class="ve-muted">Só eleitores podem votar. O administrador não é presumido eleitor — '
+				. 'é preciso ter também o perfil de eleitor nesta conta.</p>'
+				. '<div class="ve-actions"><a href="/painel">Voltar ao painel</a></div></div>';
+		}
 		$ctx = $this->resolveOpenElectionContext();
 		if ( null === $ctx ) {
 			return '<div class="ve-card"><h1>Cabina de votação</h1>'
@@ -1656,6 +1933,10 @@ HTML;
 	}
 
 	private function castVote( Request $req ): Response {
+		if ( ! $this->sessionUserCanVote() ) {
+			$this->flash = 'Só eleitores podem votar. Administrador precisa também do perfil de eleitor.';
+			return Response::redirect( '/voto/cabina' );
+		}
 		$choice = (int) $req->input( 'choice', '1' ) > 0 ? 1 : 0;
 		$keys = $this->node->persistence->keys->listActive();
 		if ( ! $keys ) {
@@ -1780,6 +2061,16 @@ HTML;
 		}
 		$roles = array_map( 'strval', (array) ( $user['roles'] ?? array() ) );
 		return in_array( UserRegistryRoles::ROLE_OFFICIAL, $roles, true );
+	}
+
+	/** Só o perfil eleitor (subscriber) pode votar — admin não é presumido eleitor. */
+	private function sessionUserCanVote(): bool {
+		$user = $this->node->users->findById( $this->session->currentUserId() );
+		if ( null === $user ) {
+			return false;
+		}
+		$roles = array_map( 'strval', (array) ( $user['roles'] ?? array() ) );
+		return in_array( UserRegistryRoles::ROLE_VOTER, $roles, true );
 	}
 
 	private function sessionUserCanExportAuthorities(): bool {
