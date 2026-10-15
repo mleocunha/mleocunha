@@ -157,7 +157,6 @@ final class HttpKernel {
 		}
 		if ( SiteModes::TALLYING === $mode ) {
 			$items[] = array( 'href' => '/painel/autoridades', 'label' => 'Autoridades' );
-			$items[] = array( 'href' => '/painel/chave-publica', 'label' => 'Chave pública' );
 			$items[] = array( 'href' => '/painel/importar', 'label' => 'Importar' );
 			$items[] = array( 'href' => '/painel/parcelas', 'label' => 'Parcelas' );
 			$items[] = array( 'href' => '/painel/certificar', 'label' => 'Certificar' );
@@ -245,10 +244,9 @@ final class HttpKernel {
 			$cards .= $this->card( 'Chaves', 'Gerar chave, atribuir parcelas e descarregar a chave pública.', '/painel/keygen' );
 			$cards .= $this->card( 'Minha parcela', 'Cada autoridade descarrega só a sua parcela secreta.', '/painel/minha-parcela' );
 		} else {
-			$cards .= $this->card( 'Autoridades eleitorais', 'Importar autoridades + parcela pública SSS do pacote da AC.', '/painel/autoridades' );
-			$cards .= $this->card( 'Chave pública', 'Carregar public-key.json (opcional; também vem nas parcelas).', '/painel/chave-publica' );
+			$cards .= $this->card( 'Autoridades eleitorais', 'Importar autoridades + parcela pública SSS (inclui chave pública).', '/painel/autoridades' );
 			$cards .= $this->card( 'Importar pacote da votação', 'Carregar vote-material.json do nó de votação (ainda não há apuração).', '/painel/importar' );
-			$cards .= $this->card( 'Parcelas Shamir', 'Submeter parcelas até atingir o limiar.', '/painel/parcelas' );
+			$cards .= $this->card( 'Parcelas Shamir', 'Submeter parcelas secretas até ao limiar — a chave pública vem daí.', '/painel/parcelas' );
 			$cards .= $this->card( 'Certificar', 'Reconstruir Shamir e apurar o total.', '/painel/certificar' );
 		}
 		$user = $this->node->users->findById( $this->session->currentUserId() );
@@ -681,8 +679,16 @@ final class HttpKernel {
 		// Só o nó de apuração importa índices SSS; no voting ficam de fora (sigilo do voto).
 		$persistPublicSss = SiteModes::TALLYING === $mode;
 		$res              = AuthoritiesDirectorySync::importPackage( $users, $pkg, $persistPublicSss );
-		$note             = $persistPublicSss
-			? ' Parcelas públicas SSS importadas.'
+		$keyNote          = '';
+		if ( $persistPublicSss ) {
+			// Chave pública neste nó vem das parcelas SSS — nunca de /painel/chave-publica.
+			$seeded = $this->seedPublicKeyFromImportedSss( $users );
+			$keyNote = $seeded
+				? ' Chave pública derivada das parcelas SSS.'
+				: ' (sem chave pública nas parcelas públicas — verificar pacote da AC).';
+		}
+		$note = $persistPublicSss
+			? ' Parcelas públicas SSS importadas.' . $keyNote
 			: ' Parcelas SSS omitidas neste nó (sigilo do voto).';
 		return sprintf(
 			'Importação: criados %d, atualizados %d, ignorados %d, erros %d.%s',
@@ -692,6 +698,112 @@ final class HttpKernel {
 			count( $res['errors'] ),
 			$note
 		) . ( $res['errors'] ? ' ' . $res['errors'][0] : '' );
+	}
+
+	/**
+	 * Materializar chave pública a partir de public_sss já gravado nas autoridades (apuração).
+	 */
+	private function seedPublicKeyFromImportedSss( FileJsonUserStore $users ): bool {
+		foreach ( $users->listByRole( UserRegistryRoles::ROLE_OFFICIAL ) as $u ) {
+			$sss = AuthoritiesDirectorySync::readPublicSss( $users, (int) $u['id'] );
+			if ( null === $sss || ! is_array( $sss['public_key'] ?? null ) ) {
+				continue;
+			}
+			if ( $this->ensurePublicKeyFromComponents(
+				$sss['public_key'],
+				(string) ( $sss['key_label'] ?? 'from-public-sss' ),
+				(int) ( $sss['key_size'] ?? 0 )
+			) ) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Garantir uma chave pública activa a partir de componentes p/q/g/y (sem import dedicado).
+	 *
+	 * @param array<string,mixed> $pk
+	 */
+	private function ensurePublicKeyFromComponents( array $pk, string $label = '', int $keySize = 0 ): bool {
+		$p = trim( (string) ( $pk['p'] ?? '' ) );
+		$q = trim( (string) ( $pk['q'] ?? '' ) );
+		$g = trim( (string) ( $pk['g'] ?? '' ) );
+		$y = trim( (string) ( $pk['y'] ?? '' ) );
+		if ( '' === $p || '' === $q || '' === $g || '' === $y ) {
+			return false;
+		}
+		foreach ( $this->node->persistence->keys->listActive() as $k ) {
+			if ( (string) ( $k['public_y'] ?? '' ) === $y && (string) ( $k['public_p'] ?? '' ) === $p ) {
+				return true;
+			}
+		}
+		$this->node->persistence->keys->create(
+			array(
+				'key_label'  => '' !== $label ? $label : 'from-sss',
+				'key_size'   => $keySize,
+				'public_p'   => $p,
+				'public_q'   => $q,
+				'public_g'   => $g,
+				'public_y'   => $y,
+				'is_deleted' => 0,
+			)
+		);
+		return true;
+	}
+
+	/**
+	 * Resolver chave pública no nó de apuração: parcelas secretas → public_sss → chaves derivadas.
+	 *
+	 * @param list<array<string,mixed>> $payloads
+	 * @return array{p:string,q:string,g:string,y:string}|null
+	 */
+	private function resolveTallyingPublicKey( array $payloads ): ?array {
+		foreach ( $payloads as $payload ) {
+			$pk = $payload['public_key'] ?? null;
+			if ( is_array( $pk )
+				&& '' !== trim( (string) ( $pk['p'] ?? '' ) )
+				&& '' !== trim( (string) ( $pk['q'] ?? '' ) )
+				&& '' !== trim( (string) ( $pk['g'] ?? '' ) )
+				&& '' !== trim( (string) ( $pk['y'] ?? '' ) )
+			) {
+				return array(
+					'p' => (string) $pk['p'],
+					'q' => (string) $pk['q'],
+					'g' => (string) $pk['g'],
+					'y' => (string) $pk['y'],
+				);
+			}
+		}
+		$users = $this->node->users;
+		if ( $users instanceof FileJsonUserStore ) {
+			foreach ( $users->listByRole( UserRegistryRoles::ROLE_OFFICIAL ) as $u ) {
+				$sss = AuthoritiesDirectorySync::readPublicSss( $users, (int) $u['id'] );
+				$pk  = is_array( $sss ) ? ( $sss['public_key'] ?? null ) : null;
+				if ( is_array( $pk )
+					&& '' !== trim( (string) ( $pk['p'] ?? '' ) )
+					&& '' !== trim( (string) ( $pk['y'] ?? '' ) )
+				) {
+					return array(
+						'p' => (string) $pk['p'],
+						'q' => (string) ( $pk['q'] ?? '' ),
+						'g' => (string) ( $pk['g'] ?? '' ),
+						'y' => (string) $pk['y'],
+					);
+				}
+			}
+		}
+		$keys = $this->node->persistence->keys->listActive();
+		if ( $keys ) {
+			$k = $keys[0];
+			return array(
+				'p' => (string) ( $k['public_p'] ?? '' ),
+				'q' => (string) ( $k['public_q'] ?? '' ),
+				'g' => (string) ( $k['public_g'] ?? '' ),
+				'y' => (string) ( $k['public_y'] ?? '' ),
+			);
+		}
+		return null;
 	}
 
 	private function keygen( Request $req ): Response {
@@ -1380,6 +1492,13 @@ HTML;
 							if ( $threshold > 0 && $have >= $threshold ) {
 								$msg .= ' Limiar Shamir atingido para este import.';
 							}
+							if ( is_array( $payload['public_key'] ?? null ) ) {
+								$this->ensurePublicKeyFromComponents(
+									$payload['public_key'],
+									(string) ( $payload['key_label'] ?? 'from-share' ),
+									(int) ( $payload['key_size'] ?? 0 )
+								);
+							}
 						}
 					} catch ( \Throwable $e ) {
 						$msg = 'Parcela rejeitada: ' . $e->getMessage();
@@ -1451,9 +1570,12 @@ HTML;
 
 
 	private function chavePublicaImport( Request $req ): Response {
-		$mode = $this->node->mode->getMode();
-		if ( SiteModes::VOTING !== $mode && SiteModes::TALLYING !== $mode ) {
-			return Response::text( 'Só nos nós de votação e totalização.', 403 );
+		// No totalizar a chave pública vem só das parcelas SSS — sem import dedicado.
+		if ( SiteModes::VOTING !== $this->node->mode->getMode() ) {
+			return Response::text(
+				'Importação de chave pública só no nó de votação. No totalizar a chave resulta das parcelas Shamir.',
+				403
+			);
 		}
 		$msg = '';
 		if ( 'POST' === $req->method ) {
@@ -1699,21 +1821,11 @@ HTML;
 					if ( empty( $payloads ) ) {
 						throw new \RuntimeException( 'Submeter parcelas em /painel/parcelas até ao limiar antes de certificar.' );
 					}
-					$pk = $payloads[0]['public_key'] ?? null;
-					if ( ! is_array( $pk ) ) {
-						$keys = $this->node->persistence->keys->listActive();
-						if ( $keys ) {
-							$k  = $keys[0];
-							$pk = array(
-								'p' => (string) ( $k['public_p'] ?? '' ),
-								'q' => (string) ( $k['public_q'] ?? '' ),
-								'g' => (string) ( $k['public_g'] ?? '' ),
-								'y' => (string) ( $k['public_y'] ?? '' ),
-							);
-						}
-					}
-					if ( ! is_array( $pk ) ) {
-						throw new \RuntimeException( 'Chave pública ausente nas parcelas / neste nó.' );
+					$pk = $this->resolveTallyingPublicKey( $payloads );
+					if ( null === $pk ) {
+						throw new \RuntimeException(
+							'Chave pública ausente nas parcelas Shamir. Importar autoridades (parcela pública SSS) ou submeter parcelas secretas com public_key.'
+						);
 					}
 					$dec = HomomorphicCertifyService::decryptTally(
 						$votePkg,

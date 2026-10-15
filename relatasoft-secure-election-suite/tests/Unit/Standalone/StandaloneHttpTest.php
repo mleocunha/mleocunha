@@ -706,7 +706,14 @@ final class StandaloneHttpTest extends TestCase {
 			)
 		);
 		$this->assertStringContainsString( 'Parcelas públicas SSS importadas', $importT->body );
+		$this->assertStringContainsString( 'Chave pública derivada das parcelas SSS', $importT->body );
 		$this->assertSame( 3, $tally->users->countByRole( 'editor' ) );
+		$this->assertNotEmpty( $tally->persistence->keys->listActive() );
+		$blockedPk = $tk->handle( new Request( 'GET', '/painel/chave-publica', array(), array(), $cT, array() ) );
+		$this->assertSame( 403, $blockedPk->status );
+		$this->assertStringContainsString( 'parcelas Shamir', $blockedPk->body );
+		$homeT = $tk->handle( new Request( 'GET', '/painel', array(), array(), $cT, array() ) );
+		$this->assertStringNotContainsString( '/painel/chave-publica', $homeT->body );
 		$listT = $tk->handle( new Request( 'GET', '/painel/autoridades', array(), array(), $cT, array() ) );
 		$this->assertStringContainsString( 'ver / exportar', $listT->body );
 		$this->assertStringContainsString( '/painel/autoridades/parcelas-publicas.json', $listT->body );
