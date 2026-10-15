@@ -147,6 +147,18 @@ final class InMemoryUserStore implements UserProvider, UserDirectory {
 		}
 	}
 
+	public function addRole(int $id, string $role): void {
+		$role = trim($role);
+		if ('' === $role || !isset($this->users[$id])) {
+			return;
+		}
+		$roles = array_values(array_map('strval', (array) ($this->users[$id]['roles'] ?? array())));
+		if (!in_array($role, $roles, true)) {
+			$roles[] = $role;
+			$this->users[$id]['roles'] = $roles;
+		}
+	}
+
 	public function getMeta(int $id, string $key): string {
 		return (string) ($this->meta[$id][$key] ?? '');
 	}

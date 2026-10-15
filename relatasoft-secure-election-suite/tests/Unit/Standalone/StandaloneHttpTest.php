@@ -219,6 +219,36 @@ final class StandaloneHttpTest extends TestCase {
 		$this->assertStringContainsString( 'Cadastro', $painel->body );
 	}
 
+	public function test_admin_cannot_vote_unless_also_voter(): void {
+		$plugin = dirname( __DIR__, 3 );
+		$node   = NodeRuntime::create( SiteModes::VOTING, $this->root . '/voting-roles', 'teste', true );
+		$kernel = new HttpKernel( $node, $plugin, 'pt-BR' );
+		$login  = $kernel->handle(
+			new Request( 'POST', '/login', array(), array( 'login' => 'admin', 'password' => 'AdminPoC1!', 'next' => '/painel' ), array(), array() )
+		);
+		preg_match( '/' . CookieSessionPort::COOKIE . '=([^;]+)/', $login->headers['Set-Cookie'] ?? '', $m );
+		$cookie = array( CookieSessionPort::COOKIE => $m[1] ?? '' );
+
+		$booth = $kernel->handle( new Request( 'GET', '/voto/cabina', array(), array(), $cookie, array() ) );
+		$this->assertStringContainsString( 'Só eleitores podem votar', $booth->body );
+		$this->assertStringContainsString( 'não é presumido eleitor', $booth->body );
+
+		$cast = $kernel->handle(
+			new Request( 'POST', '/voto/cabina', array(), array( 'choice' => '1' ), $cookie, array() )
+		);
+		$this->assertSame( 302, $cast->status );
+		$this->assertStringContainsString( '/voto/cabina', $cast->headers['Location'] ?? '' );
+
+		$admin = $node->users->findByLogin( 'admin' );
+		$this->assertNotNull( $admin );
+		$node->users->addRole( (int) $admin['id'], 'subscriber' );
+		// Consome flash do cast bloqueado antes de reavaliar a cabina.
+		$kernel->handle( new Request( 'GET', '/voto/cabina', array(), array(), $cookie, array() ) );
+		$booth2 = $kernel->handle( new Request( 'GET', '/voto/cabina', array(), array(), $cookie, array() ) );
+		$this->assertStringNotContainsString( 'não é presumido eleitor', $booth2->body );
+		$this->assertStringContainsString( 'Nenhuma eleição aberta', $booth2->body );
+	}
+
 	public function test_http_key_authority_mode_home(): void {
 		mkdir( $this->root . '/ka', 0700, true );
 		$plugin = dirname( __DIR__, 3 );
@@ -861,12 +891,35 @@ final class StandaloneHttpTest extends TestCase {
 		$roundId    = (int) ( $elections[0]['current_round_id'] ?? 0 );
 		$this->assertGreaterThan( 0, $roundId );
 
-		$castNoElection = $vk->handle(
+		// Admin alone cannot vote — only the elector role may cast.
+		$adminBlocked = $vk->handle(
 			new Request( 'POST', '/voto/cabina', array(), array( 'choice' => '1' ), $cV, array() )
 		);
-		// Already have election — should redirect to thank-you.
-		$this->assertSame( 302, $castNoElection->status );
-		$this->assertStringContainsString( '/voto/obrigado', $castNoElection->headers['Location'] ?? '' );
+		$this->assertSame( 302, $adminBlocked->status );
+		$this->assertStringContainsString( '/voto/cabina', $adminBlocked->headers['Location'] ?? '' );
+		$boothAdmin = $vk->handle( new Request( 'GET', '/voto/cabina', array(), array(), $cV, array() ) );
+		$this->assertStringContainsString( 'Só eleitores podem votar', $boothAdmin->body );
+
+		$voterCreate = $voting->users->create(
+			array(
+				'login'       => 'eleitor01',
+				'email'       => 'eleitor01@ex.test',
+				'password'    => 'SenhaEle1!',
+				'displayName' => 'Eleitor 01',
+				'role'        => 'subscriber',
+			)
+		);
+		$this->assertTrue( ! empty( $voterCreate['ok'] ) );
+		$loginEle = $vk->handle(
+			new Request( 'POST', '/login', array(), array( 'login' => 'eleitor01', 'password' => 'SenhaEle1!', 'next' => '/voto/cabina' ), array(), array() )
+		);
+		preg_match( '/' . CookieSessionPort::COOKIE . '=([^;]+)/', $loginEle->headers['Set-Cookie'] ?? '', $me );
+		$cEle = array( CookieSessionPort::COOKIE => $me[1] ?? '' );
+		$cast = $vk->handle(
+			new Request( 'POST', '/voto/cabina', array(), array( 'choice' => '1' ), $cEle, array() )
+		);
+		$this->assertSame( 302, $cast->status );
+		$this->assertStringContainsString( '/voto/obrigado', $cast->headers['Location'] ?? '' );
 
 		$votes = array();
 		$voting->persistence->votes->forEachExportRow(
@@ -881,15 +934,14 @@ final class StandaloneHttpTest extends TestCase {
 		$this->assertNotEmpty( $votes[0]['ciphertext_beta'] ?? null );
 		$this->assertArrayNotHasKey( 'ciphertext', $votes[0] );
 
-		// Second yes vote under a different session user id is not available easily —
-		// cast again as same user should be blocked.
+		// Same elector cannot vote twice.
 		$dup = $vk->handle(
-			new Request( 'POST', '/voto/cabina', array(), array( 'choice' => '1' ), $cV, array() )
+			new Request( 'POST', '/voto/cabina', array(), array( 'choice' => '1' ), $cEle, array() )
 		);
 		$this->assertSame( 302, $dup->status );
 		$this->assertStringContainsString( '/voto/cabina', $dup->headers['Location'] ?? '' );
 
-		// Cast a second ballot by storing directly (simulates another eleitor) then export.
+		// Cast another ballot by storing directly (simulates another eleitor) then export.
 		$keys = $voting->persistence->keys->listActive();
 		$k    = $keys[0];
 		$p    = \RelataSoft\SecureElectionSuite\Painel\Domain\Crypto\BigInt::fromDecimalString( (string) $k['public_p'] );

@@ -1897,7 +1897,7 @@ HTML;
 		};
 
 		$inner = match ( $step ) {
-			JourneySteps::WELCOME => '<div class="ve-card"><h1>Boas-vindas</h1><p class="ve-muted">Jornada do eleitor neste nó de votação.</p>'
+			JourneySteps::WELCOME => '<div class="ve-card"><h1>Boas-vindas</h1><p class="ve-muted">Jornada do eleitor neste nó de votação. Só contas com perfil de eleitor podem votar.</p>'
 				. '<div class="ve-actions"><a href="/voto/cabina">Ir à cabina</a></div></div>',
 			JourneySteps::BOOTH => $this->boothMarkup(),
 			JourneySteps::THANK_YOU => '<div class="ve-card"><h1>Voto registrado</h1><p class="ve-muted">Obrigado. Recibo abaixo (se aplicável).</p>'
@@ -1910,6 +1910,12 @@ HTML;
 	}
 
 	private function boothMarkup(): string {
+		if ( ! $this->sessionUserCanVote() ) {
+			return '<div class="ve-card"><h1>Cabina de votação</h1>'
+				. '<p class="ve-muted">Só eleitores podem votar. O administrador não é presumido eleitor — '
+				. 'é preciso ter também o perfil de eleitor nesta conta.</p>'
+				. '<div class="ve-actions"><a href="/painel">Voltar ao painel</a></div></div>';
+		}
 		$ctx = $this->resolveOpenElectionContext();
 		if ( null === $ctx ) {
 			return '<div class="ve-card"><h1>Cabina de votação</h1>'
@@ -1927,6 +1933,10 @@ HTML;
 	}
 
 	private function castVote( Request $req ): Response {
+		if ( ! $this->sessionUserCanVote() ) {
+			$this->flash = 'Só eleitores podem votar. Administrador precisa também do perfil de eleitor.';
+			return Response::redirect( '/voto/cabina' );
+		}
 		$choice = (int) $req->input( 'choice', '1' ) > 0 ? 1 : 0;
 		$keys = $this->node->persistence->keys->listActive();
 		if ( ! $keys ) {
@@ -2051,6 +2061,16 @@ HTML;
 		}
 		$roles = array_map( 'strval', (array) ( $user['roles'] ?? array() ) );
 		return in_array( UserRegistryRoles::ROLE_OFFICIAL, $roles, true );
+	}
+
+	/** Só o perfil eleitor (subscriber) pode votar — admin não é presumido eleitor. */
+	private function sessionUserCanVote(): bool {
+		$user = $this->node->users->findById( $this->session->currentUserId() );
+		if ( null === $user ) {
+			return false;
+		}
+		$roles = array_map( 'strval', (array) ( $user['roles'] ?? array() ) );
+		return in_array( UserRegistryRoles::ROLE_VOTER, $roles, true );
 	}
 
 	private function sessionUserCanExportAuthorities(): bool {

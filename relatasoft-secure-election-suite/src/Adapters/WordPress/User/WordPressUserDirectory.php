@@ -143,6 +143,13 @@ final class WordPressUserDirectory implements UserDirectory {
 		}
 	}
 
+	public function addRole(int $id, string $role): void {
+		$user = new \WP_User( $id );
+		if ( $user->exists() && '' !== trim( $role ) ) {
+			$user->add_role( $role );
+		}
+	}
+
 	public function getMeta(int $id, string $key): string {
 		return (string) get_user_meta( $id, $key, true );
 	}
