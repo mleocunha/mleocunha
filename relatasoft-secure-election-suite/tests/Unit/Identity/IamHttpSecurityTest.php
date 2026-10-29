@@ -130,6 +130,37 @@ final class IamHttpSecurityTest extends TestCase {
 		$this->assertStringContainsString( 'roteiro técnico', $page->body );
 	}
 
+	public function test_eleitor_cannot_access_operator_routes(): void {
+		putenv( 'VE_HTTP_TEST_MODE=1' );
+		$plugin = dirname( __DIR__, 3 );
+		$node   = NodeRuntime::create( SiteModes::VOTING, $this->root . '/v4', 'teste', true );
+		$kernel = new HttpKernel( $node, $plugin, 'pt-BR' );
+		$created = $node->users->create(
+			array(
+				'login'       => 'eleitor_x',
+				'email'       => 'eleitor_x@ex.test',
+				'password'    => 'Senha#Voto2026x',
+				'displayName' => 'Eleitor X',
+				'role'        => 'subscriber',
+			)
+		);
+		$this->assertTrue( ! empty( $created['ok'] ) );
+		$login = $kernel->handle(
+			new Request( 'POST', '/login', array(), array( 'login' => 'eleitor_x', 'password' => 'Senha#Voto2026x', 'next' => '/painel' ), array(), array() )
+		);
+		preg_match( '/' . CookieSessionPort::COOKIE . '=([^;]+)/', $login->headers['Set-Cookie'] ?? '', $m );
+		$cookie = array( CookieSessionPort::COOKIE => $m[1] ?? '' );
+		$this->assertNotSame( '', $m[1] ?? '' );
+
+		$cadastro = $kernel->handle( new Request( 'GET', '/painel/cadastro', array(), array(), $cookie, array() ) );
+		$this->assertStringContainsString( 'Acesso restrito', $cadastro->body );
+		$eleicoes = $kernel->handle( new Request( 'GET', '/painel/eleicoes', array(), array(), $cookie, array() ) );
+		$this->assertStringContainsString( 'Acesso restrito', $eleicoes->body );
+		$chave = $kernel->handle( new Request( 'GET', '/painel/chave-publica', array(), array(), $cookie, array() ) );
+		$this->assertStringContainsString( 'Acesso restrito', $chave->body );
+		putenv( 'VE_HTTP_TEST_MODE' );
+	}
+
 	private function rrmdir( string $dir ): void {
 		if ( ! is_dir( $dir ) ) {
 			return;

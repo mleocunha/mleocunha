@@ -316,8 +316,8 @@ final class HttpKernel {
 
 	private function cadastro( Request $req ): Response {
 		$this->node->requireMode( SiteModes::VOTING );
-		if ( ! $this->sessionUserIsAdmin() ) {
-			return $this->page( 'Cadastro', '<div class="ve-card"><h1>Cadastro Eleitoral</h1><p class="ve-muted">Apenas administradores podem gerir o cadastro.</p></div>' );
+		if ( $denied = $this->denyUnlessOperator( 'Cadastro' ) ) {
+			return $denied;
 		}
 		$msg  = '';
 		$bind = $this->csrfBinding( $req );
@@ -443,7 +443,9 @@ final class HttpKernel {
 
 		$bind = $this->csrfBinding( $req );
 		if ( 'POST' === $req->method ) {
-			if ( ! $this->csrfOk( $req, $bind ) ) {
+			if ( ! $this->sessionUserIsOperator() ) {
+				$msg = 'Apenas administrador ou gestor podem criar/importar autoridades.';
+			} elseif ( ! $this->csrfOk( $req, $bind ) ) {
 				$msg = 'Pedido inválido (CSRF).';
 			} else {
 				$action = $req->input( 'action', 'create' );
@@ -944,6 +946,9 @@ final class HttpKernel {
 
 	private function keygen( Request $req ): Response {
 		$this->node->requireMode( SiteModes::KEY_AUTHORITY );
+		if ( $denied = $this->denyUnlessOperator( 'Chaves' ) ) {
+			return $denied;
+		}
 		$msg       = trim( $req->query( 'msg', '' ) );
 		$officials = $this->node->users->listByRole( UserRegistryRoles::ROLE_OFFICIAL );
 		$officialN = count( $officials );
@@ -1030,6 +1035,9 @@ final class HttpKernel {
 
 	private function keygenStatus( Request $req ): Response {
 		$this->node->requireMode( SiteModes::KEY_AUTHORITY );
+		if ( ! $this->sessionUserIsOperator() ) {
+			return Response::json( array( 'ok' => false, 'error' => 'forbidden' ), 403 );
+		}
 		$status = $this->node->jobs->keygen->status();
 		if ( ! empty( $status['active'] ) ) {
 			// Avanço oportunista se o worker morreu (admin com sessão); o worker principal não precisa disto.
@@ -1043,6 +1051,9 @@ final class HttpKernel {
 
 	private function keygenTick( Request $req ): Response {
 		$this->node->requireMode( SiteModes::KEY_AUTHORITY );
+		if ( ! $this->sessionUserIsOperator() ) {
+			return Response::json( array( 'ok' => false, 'error' => 'forbidden' ), 403 );
+		}
 		if ( 'POST' !== $req->method ) {
 			return Response::json( array( 'ok' => false, 'message' => 'POST necessário.' ), 405 );
 		}
@@ -1055,6 +1066,9 @@ final class HttpKernel {
 
 	private function keygenCancel( Request $req ): Response {
 		$this->node->requireMode( SiteModes::KEY_AUTHORITY );
+		if ( ! $this->sessionUserIsOperator() ) {
+			return Response::json( array( 'ok' => false, 'error' => 'forbidden' ), 403 );
+		}
 		if ( 'POST' !== $req->method ) {
 			return Response::json( array( 'ok' => false, 'message' => 'POST necessário.' ), 405 );
 		}
@@ -1713,6 +1727,9 @@ HTML;
 				403
 			);
 		}
+		if ( $denied = $this->denyUnlessOperator( 'Chave pública' ) ) {
+			return $denied;
+		}
 		$msg = '';
 		if ( 'POST' === $req->method ) {
 			$tmp = (string) ( $req->files['package']['tmp_name'] ?? '' );
@@ -1766,6 +1783,9 @@ HTML;
 
 	private function materialVotoExport( Request $req ): Response {
 		$this->node->requireMode( SiteModes::VOTING );
+		if ( $denied = $this->denyUnlessOperator( 'Material de voto' ) ) {
+			return $denied;
+		}
 		$msg = '';
 		if ( 'POST' === $req->method || '' !== $req->query( 'download', '' ) ) {
 			try {
@@ -1798,6 +1818,9 @@ HTML;
 
 	private function eleicoes( Request $req ): Response {
 		$this->node->requireMode( SiteModes::VOTING );
+		if ( $denied = $this->denyUnlessOperator( 'Eleições' ) ) {
+			return $denied;
+		}
 		$msg = '';
 
 		if ( 'POST' === $req->method ) {
@@ -1875,6 +1898,9 @@ HTML;
 
 	private function tallyImport( Request $req ): Response {
 		$this->node->requireMode( SiteModes::TALLYING );
+		if ( $denied = $this->denyUnlessOperator( 'Importar' ) ) {
+			return $denied;
+		}
 		$msg = '';
 		if ( 'POST' === $req->method ) {
 			$tmp = (string) ( $req->files['package']['tmp_name'] ?? '' );
@@ -1933,6 +1959,9 @@ HTML;
 
 	private function certificar( Request $req ): Response {
 		$this->node->requireMode( SiteModes::TALLYING );
+		if ( $denied = $this->denyUnlessOperator( 'Certificar' ) ) {
+			return $denied;
+		}
 		$msg     = '';
 		$tallyUi = '';
 		$imports = $this->node->persistence->tallyImports->listSummaries();
@@ -2190,6 +2219,32 @@ HTML;
 		return in_array( UserRegistryRoles::ROLE_ADMIN, $roles, true );
 	}
 
+	private function sessionUserIsGestor(): bool {
+		$user = $this->node->users->findById( $this->session->currentUserId() );
+		if ( null === $user ) {
+			return false;
+		}
+		$roles = array_map( 'strval', (array) ( $user['roles'] ?? array() ) );
+		return in_array( UserRegistryRoles::ROLE_GESTOR, $roles, true );
+	}
+
+	/** Operador do nó: administrador eleitoral ou gestor (alinhado a AccessPolicy). */
+	private function sessionUserIsOperator(): bool {
+		return $this->sessionUserIsAdmin() || $this->sessionUserIsGestor();
+	}
+
+	private function denyUnlessOperator( string $title ): ?Response {
+		if ( $this->sessionUserIsOperator() ) {
+			return null;
+		}
+		return $this->page(
+			$title,
+			'<div class="ve-card"><h1>' . htmlspecialchars( $title, ENT_QUOTES, 'UTF-8' ) . '</h1>'
+			. '<p class="ve-muted">Acesso restrito a administrador ou gestor deste nó.</p>'
+			. '<div class="ve-actions"><a href="/painel">Voltar ao painel</a></div></div>'
+		);
+	}
+
 	private function sessionUserIsOfficial(): bool {
 		$user = $this->node->users->findById( $this->session->currentUserId() );
 		if ( null === $user ) {
@@ -2210,7 +2265,7 @@ HTML;
 	}
 
 	private function sessionUserCanExportAuthorities(): bool {
-		return $this->sessionUserIsAdmin() || $this->sessionUserIsOfficial();
+		return $this->sessionUserIsOperator() || $this->sessionUserIsOfficial();
 	}
 
 	private function csrfBinding( Request $req ): string {

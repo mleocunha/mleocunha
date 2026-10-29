@@ -17,7 +17,7 @@ Estados: **C** concluído e verificado · **P** pendente · **N/A** · **B** blo
 | Recuperação senha standalone | P | WP shortcode existe; standalone: alteração autenticada |
 | Verificação e-mail | P | Campo previsto; fluxo token não ativado |
 | Sessões seguras | C | Idle/absolute TTL; revoke; Secure condicional |
-| AuthZ backend | C | Admin cadastro; role allowlist; voto=ROLE_VOTER |
+| AuthZ backend | C | Operator gates em rotas `/painel/*` sensíveis; role allowlist; voto=ROLE_VOTER |
 | Anti privilege escalation | C | Teste mass-assignment |
 | Anti IDOR básico | C | Sessão própria; status gate |
 | Anti mass assignment | C | Verificado |

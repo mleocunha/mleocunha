@@ -49,7 +49,9 @@ must not be used for binding public elections without:
 | Operator panel `/painel` | Authenticated session after `/login` |
 | Admin bootstrap | First admin from `VE_ADMIN_LOGIN` / `VE_ADMIN_PASS` (default PoC must be changed) |
 | Voting journey `/voto` | Voting-mode node; **ROLE_VOTER only** (admin is not presumed elector) |
-| Cadastro `/painel/cadastro` | Administrator; CSRF; role allowlist (no self-elevate to admin) |
+| Cadastro `/painel/cadastro` | Operator (admin/gestor); CSRF; role allowlist (no self-elevate to admin) |
+| Keygen / eleições / certificar / import / material | Operator (admin/gestor) — electors authenticated are denied |
+| Parcelas (submeter) | Autoridade eleitoral or admin |
 | Segurança `/painel/seguranca` | Authenticated owner; password change revokes other sessions |
 
 ### Identity controls (2026-10)
