@@ -47,10 +47,23 @@ must not be used for binding public elections without:
 | Action | Requirement |
 |--------|-------------|
 | Operator panel `/painel` | Authenticated session after `/login` |
-| Admin bootstrap | First admin from `VE_ADMIN_LOGIN` / `VE_ADMIN_PASS` |
-| Voting journey `/voto` | Voting-mode node; enrolment per cadastro / session rules |
+| Admin bootstrap | First admin from `VE_ADMIN_LOGIN` / `VE_ADMIN_PASS` (default PoC must be changed) |
+| Voting journey `/voto` | Voting-mode node; **ROLE_VOTER only** (admin is not presumed elector) |
+| Cadastro `/painel/cadastro` | Operator (admin/gestor); CSRF; role allowlist (no self-elevate to admin) |
+| Keygen / eleições / certificar / import / material | Operator (admin/gestor) — electors authenticated are denied |
+| Parcelas (submeter) | Autoridade eleitoral or admin |
+| Segurança `/painel/seguranca` | Authenticated owner; password change revokes other sessions |
+
+### Identity controls (2026-10)
+
+- Passwords: `password_hash` with **Argon2id** when available; no reversible storage; no `plain:` fallback for new hashes
+- Account lifecycle: `active` / `suspended` / `locked` / … — non-active accounts cannot authenticate; sessions revoked
+- Login: CSRF token, progressive rate limit, security audit events
+- Sessions: absolute + idle TTL, HttpOnly, SameSite=Lax, Secure when `VE_PUBLIC_BASE` is HTTPS
+- gov.br / ICP-Brasil: scaffolding only — **not production-enabled** without official credentials and trust anchors (see `docs/iam/govbr-icp-brasil.md`)
 
 Do not expose the PHP listener on the public Internet without TLS and network controls.
+Do not set `VE_HTTP_TEST_MODE` outside automated tests.
 
 ## Audit Log
 

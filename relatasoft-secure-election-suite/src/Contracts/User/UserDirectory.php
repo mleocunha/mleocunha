@@ -10,12 +10,16 @@ namespace RelataSoft\SecureElectionSuite\Painel\Contracts\User;
  *
  * @phpstan-type UserRow array{
  *   id:int,
+ *   uuid:string,
  *   login:string,
  *   email:string,
  *   displayName:string,
  *   firstName:string,
  *   lastName:string,
  *   roles:list<string>,
+ *   status:string,
+ *   createdAt:string,
+ *   updatedAt:string,
  *   passwordHash:string
  * }
  */
@@ -40,13 +44,13 @@ interface UserDirectory {
 	public function countByRole(string $role): int;
 
 	/**
-	 * @param array<string,mixed> $data login,email,password,displayName?,firstName?,lastName?,role?
+	 * @param array<string,mixed> $data login,email,password,displayName?,firstName?,lastName?,role?,status?
 	 * @return array{ok:true,id:int}|array{ok:false,error:string}
 	 */
 	public function create(array $data): array;
 
 	/**
-	 * @param array<string,mixed> $data email?,displayName?,firstName?,lastName?,role?
+	 * @param array<string,mixed> $data email?,displayName?,firstName?,lastName?,role?,status?
 	 * @return array{ok:true}|array{ok:false,error:string}
 	 */
 	public function update(int $id, array $data): array;
