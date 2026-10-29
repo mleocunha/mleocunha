@@ -23,12 +23,54 @@ final class StandaloneHttpTest extends TestCase {
 		mkdir( $this->root . '/voting', 0700, true );
 		putenv( 'VE_KEYGEN_NO_WORKER=1' );
 		$_ENV['VE_KEYGEN_NO_WORKER'] = '1';
+		putenv( 'VE_HTTP_TEST_MODE=1' );
+		$_ENV['VE_HTTP_TEST_MODE'] = '1';
 	}
 
 	protected function tearDown(): void {
 		putenv( 'VE_KEYGEN_NO_WORKER' );
 		unset( $_ENV['VE_KEYGEN_NO_WORKER'] );
+		putenv( 'VE_HTTP_TEST_MODE' );
+		unset( $_ENV['VE_HTTP_TEST_MODE'] );
 		$this->rrmdir( $this->root );
+	}
+
+	private function extractCsrf( string $html ): string {
+		if ( preg_match( '/name="csrf" value="([^"]+)"/', $html, $m ) ) {
+			return $m[1];
+		}
+		return '';
+	}
+
+	/**
+	 * @return array<string,string> cookie jar
+	 */
+	private function loginCookie(
+		HttpKernel $kernel,
+		string $login = 'admin',
+		string $password = 'PoC-Operador#99',
+		string $next = '/painel'
+	): array {
+		$get  = $kernel->handle( new Request( 'GET', '/login', array(), array(), array(), array() ) );
+		$csrf = $this->extractCsrf( $get->body );
+		$post = $kernel->handle(
+			new Request(
+				'POST',
+				'/login',
+				array(),
+				array(
+					'login'    => $login,
+					'password' => $password,
+					'next'     => $next,
+					'csrf'     => $csrf,
+				),
+				array(),
+				array()
+			)
+		);
+		preg_match( '/' . CookieSessionPort::COOKIE . '=([^;]+)/', $post->headers['Set-Cookie'] ?? '', $m );
+		$this->assertNotSame( '', $m[1] ?? '', 'login deve emitir cookie; corpo=' . substr( $get->body, 0, 200 ) );
+		return array( CookieSessionPort::COOKIE => $m[1] ?? '' );
 	}
 
 	/**
@@ -143,17 +185,17 @@ final class StandaloneHttpTest extends TestCase {
 	public function test_rsv_importer_and_durable_identity(): void {
 		$users = FileJsonUserStore::open( $this->root . '/voting/identity.json' );
 		$text  = RsvFormat::headerLine() . "\n"
-			. "eleitor01:1:1:z:s:Ana:+5511:ana@ex.com:Rua A, 1:eleitor:Senha1\n"
-			. "auditor1:2:2:z:s:Bob::bob@ex.com::auditor:Senha2\n";
+			. "eleitor01:1:1:z:s:Ana:+5511:ana@ex.com:Rua A, 1:eleitor:Senha#Voto2026a\n"
+			. "auditor1:2:2:z:s:Bob::bob@ex.com::auditor:Senha#Audit2026\n";
 		$res = RsvImporter::importText( $text, $users, true );
-		$this->assertSame( 2, $res['created'] );
+		$this->assertSame( 2, $res['created'], json_encode( $res['errors'] ) );
 		$this->assertSame( 0, count( $res['errors'] ) );
 		$this->assertSame( 1, $users->countByRole( 'subscriber' ) );
-		$this->assertNotNull( $users->verifyPassword( 'eleitor01', 'Senha1' ) );
+		$this->assertNotNull( $users->verifyPassword( 'eleitor01', 'Senha#Voto2026a' ) );
 
 		$again = FileJsonUserStore::open( $this->root . '/voting/identity.json' );
 		$this->assertSame( 1, $again->countByRole( 'subscriber' ) );
-		$this->assertNotNull( $again->verifyPassword( 'eleitor01', 'Senha1' ) );
+		$this->assertNotNull( $again->verifyPassword( 'eleitor01', 'Senha#Voto2026a' ) );
 	}
 
 	public function test_catalog_i18n_accept_language(): void {
@@ -194,7 +236,7 @@ final class StandaloneHttpTest extends TestCase {
 				'POST',
 				'/login',
 				array(),
-				array( 'login' => 'admin', 'password' => 'AdminPoC1!', 'next' => '/painel' ),
+				array( 'login' => 'admin', 'password' => 'PoC-Operador#99', 'next' => '/painel' ),
 				array(),
 				array()
 			)
@@ -224,7 +266,7 @@ final class StandaloneHttpTest extends TestCase {
 		$node   = NodeRuntime::create( SiteModes::VOTING, $this->root . '/voting-roles', 'teste', true );
 		$kernel = new HttpKernel( $node, $plugin, 'pt-BR' );
 		$login  = $kernel->handle(
-			new Request( 'POST', '/login', array(), array( 'login' => 'admin', 'password' => 'AdminPoC1!', 'next' => '/painel' ), array(), array() )
+			new Request( 'POST', '/login', array(), array( 'login' => 'admin', 'password' => 'PoC-Operador#99', 'next' => '/painel' ), array(), array() )
 		);
 		preg_match( '/' . CookieSessionPort::COOKIE . '=([^;]+)/', $login->headers['Set-Cookie'] ?? '', $m );
 		$cookie = array( CookieSessionPort::COOKIE => $m[1] ?? '' );
@@ -255,7 +297,7 @@ final class StandaloneHttpTest extends TestCase {
 		$node   = NodeRuntime::create( SiteModes::KEY_AUTHORITY, $this->root . '/ka', 'teste', true );
 		$kernel = new HttpKernel( $node, $plugin, 'en-US' );
 		$post   = $kernel->handle(
-			new Request( 'POST', '/login', array(), array( 'login' => 'admin', 'password' => 'AdminPoC1!', 'next' => '/painel' ), array(), array() )
+			new Request( 'POST', '/login', array(), array( 'login' => 'admin', 'password' => 'PoC-Operador#99', 'next' => '/painel' ), array(), array() )
 		);
 		preg_match( '/' . CookieSessionPort::COOKIE . '=([^;]+)/', $post->headers['Set-Cookie'] ?? '', $m );
 		$cookie = $m[1] ?? '';
@@ -279,7 +321,7 @@ final class StandaloneHttpTest extends TestCase {
 		$node   = NodeRuntime::create( SiteModes::KEY_AUTHORITY, $this->root . '/ka', 'teste', true );
 		$kernel = new HttpKernel( $node, $plugin, 'pt-BR' );
 		$login  = $kernel->handle(
-			new Request( 'POST', '/login', array(), array( 'login' => 'admin', 'password' => 'AdminPoC1!', 'next' => '/painel' ), array(), array() )
+			new Request( 'POST', '/login', array(), array( 'login' => 'admin', 'password' => 'PoC-Operador#99', 'next' => '/painel' ), array(), array() )
 		);
 		preg_match( '/' . CookieSessionPort::COOKIE . '=([^;]+)/', $login->headers['Set-Cookie'] ?? '', $m );
 		$cookie = array( CookieSessionPort::COOKIE => $m[1] ?? '' );
@@ -386,7 +428,7 @@ final class StandaloneHttpTest extends TestCase {
 		$node   = NodeRuntime::create( SiteModes::KEY_AUTHORITY, $this->root . '/ka', 'teste', true );
 		$kernel = new HttpKernel( $node, $plugin, 'pt-BR' );
 		$login  = $kernel->handle(
-			new Request( 'POST', '/login', array(), array( 'login' => 'admin', 'password' => 'AdminPoC1!', 'next' => '/painel' ), array(), array() )
+			new Request( 'POST', '/login', array(), array( 'login' => 'admin', 'password' => 'PoC-Operador#99', 'next' => '/painel' ), array(), array() )
 		);
 		preg_match( '/' . CookieSessionPort::COOKIE . '=([^;]+)/', $login->headers['Set-Cookie'] ?? '', $m );
 		$cookie = array( CookieSessionPort::COOKIE => $m[1] ?? '' );
@@ -456,7 +498,7 @@ final class StandaloneHttpTest extends TestCase {
 		$node   = NodeRuntime::create( SiteModes::KEY_AUTHORITY, $this->root . '/ka', 'teste', true );
 		$kernel = new HttpKernel( $node, $plugin, 'pt-BR' );
 		$login  = $kernel->handle(
-			new Request( 'POST', '/login', array(), array( 'login' => 'admin', 'password' => 'AdminPoC1!', 'next' => '/painel' ), array(), array() )
+			new Request( 'POST', '/login', array(), array( 'login' => 'admin', 'password' => 'PoC-Operador#99', 'next' => '/painel' ), array(), array() )
 		);
 		preg_match( '/' . CookieSessionPort::COOKIE . '=([^;]+)/', $login->headers['Set-Cookie'] ?? '', $m );
 		$cookie = array( CookieSessionPort::COOKIE => $m[1] ?? '' );
@@ -553,7 +595,7 @@ final class StandaloneHttpTest extends TestCase {
 		$node   = NodeRuntime::create( SiteModes::KEY_AUTHORITY, $this->root . '/ka', 'teste', true );
 		$kernel = new HttpKernel( $node, $plugin, 'pt-BR' );
 		$login  = $kernel->handle(
-			new Request( 'POST', '/login', array(), array( 'login' => 'admin', 'password' => 'AdminPoC1!', 'next' => '/painel' ), array(), array() )
+			new Request( 'POST', '/login', array(), array( 'login' => 'admin', 'password' => 'PoC-Operador#99', 'next' => '/painel' ), array(), array() )
 		);
 		preg_match( '/' . CookieSessionPort::COOKIE . '=([^;]+)/', $login->headers['Set-Cookie'] ?? '', $m );
 		$cookie = array( CookieSessionPort::COOKIE => $m[1] ?? '' );
@@ -602,7 +644,7 @@ final class StandaloneHttpTest extends TestCase {
 		$this->assertTrue( $node->jobs->keygen->hasActive() || 'complete' === ( $node->jobs->keygen->status()['stage'] ?? '' ) );
 
 		$login2 = $kernel->handle(
-			new Request( 'POST', '/login', array(), array( 'login' => 'admin', 'password' => 'AdminPoC1!', 'next' => '/painel' ), array(), array() )
+			new Request( 'POST', '/login', array(), array( 'login' => 'admin', 'password' => 'PoC-Operador#99', 'next' => '/painel' ), array(), array() )
 		);
 		preg_match( '/' . CookieSessionPort::COOKIE . '=([^;]+)/', $login2->headers['Set-Cookie'] ?? '', $m2 );
 		$cookie2 = array( CookieSessionPort::COOKIE => $m2[1] ?? '' );
@@ -635,7 +677,7 @@ final class StandaloneHttpTest extends TestCase {
 		$ka = NodeRuntime::create( SiteModes::KEY_AUTHORITY, $this->root . '/ka', 'teste', true );
 		$kk = new HttpKernel( $ka, $plugin, 'pt-BR' );
 		$loginKa = $kk->handle(
-			new Request( 'POST', '/login', array(), array( 'login' => 'admin', 'password' => 'AdminPoC1!', 'next' => '/painel' ), array(), array() )
+			new Request( 'POST', '/login', array(), array( 'login' => 'admin', 'password' => 'PoC-Operador#99', 'next' => '/painel' ), array(), array() )
 		);
 		preg_match( '/' . CookieSessionPort::COOKIE . '=([^;]+)/', $loginKa->headers['Set-Cookie'] ?? '', $m );
 		$cKa = array( CookieSessionPort::COOKIE => $m[1] ?? '' );
@@ -688,7 +730,7 @@ final class StandaloneHttpTest extends TestCase {
 		$voting = NodeRuntime::create( SiteModes::VOTING, $this->root . '/voting', 'teste', true );
 		$vk     = new HttpKernel( $voting, $plugin, 'pt-BR' );
 		$loginV = $vk->handle(
-			new Request( 'POST', '/login', array(), array( 'login' => 'admin', 'password' => 'AdminPoC1!', 'next' => '/painel' ), array(), array() )
+			new Request( 'POST', '/login', array(), array( 'login' => 'admin', 'password' => 'PoC-Operador#99', 'next' => '/painel' ), array(), array() )
 		);
 		preg_match( '/' . CookieSessionPort::COOKIE . '=([^;]+)/', $loginV->headers['Set-Cookie'] ?? '', $mv );
 		$cV = array( CookieSessionPort::COOKIE => $mv[1] ?? '' );
@@ -720,7 +762,7 @@ final class StandaloneHttpTest extends TestCase {
 		$tally = NodeRuntime::create( SiteModes::TALLYING, $this->root . '/tallying', 'teste', true );
 		$tk    = new HttpKernel( $tally, $plugin, 'pt-BR' );
 		$loginT = $tk->handle(
-			new Request( 'POST', '/login', array(), array( 'login' => 'admin', 'password' => 'AdminPoC1!', 'next' => '/painel' ), array(), array() )
+			new Request( 'POST', '/login', array(), array( 'login' => 'admin', 'password' => 'PoC-Operador#99', 'next' => '/painel' ), array(), array() )
 		);
 		preg_match( '/' . CookieSessionPort::COOKIE . '=([^;]+)/', $loginT->headers['Set-Cookie'] ?? '', $mt );
 		$cT = array( CookieSessionPort::COOKIE => $mt[1] ?? '' );
@@ -815,7 +857,7 @@ final class StandaloneHttpTest extends TestCase {
 		$ka = NodeRuntime::create( SiteModes::KEY_AUTHORITY, $this->root . '/ka', 'teste', true );
 		$kk = new HttpKernel( $ka, $plugin, 'pt-BR' );
 		$loginKa = $kk->handle(
-			new Request( 'POST', '/login', array(), array( 'login' => 'admin', 'password' => 'AdminPoC1!', 'next' => '/painel' ), array(), array() )
+			new Request( 'POST', '/login', array(), array( 'login' => 'admin', 'password' => 'PoC-Operador#99', 'next' => '/painel' ), array(), array() )
 		);
 		preg_match( '/' . CookieSessionPort::COOKIE . '=([^;]+)/', $loginKa->headers['Set-Cookie'] ?? '', $m );
 		$cKa = array( CookieSessionPort::COOKIE => $m[1] ?? '' );
@@ -867,7 +909,7 @@ final class StandaloneHttpTest extends TestCase {
 		$voting = NodeRuntime::create( SiteModes::VOTING, $this->root . '/voting', 'teste', true );
 		$vk     = new HttpKernel( $voting, $plugin, 'pt-BR' );
 		$loginV = $vk->handle(
-			new Request( 'POST', '/login', array(), array( 'login' => 'admin', 'password' => 'AdminPoC1!', 'next' => '/painel' ), array(), array() )
+			new Request( 'POST', '/login', array(), array( 'login' => 'admin', 'password' => 'PoC-Operador#99', 'next' => '/painel' ), array(), array() )
 		);
 		preg_match( '/' . CookieSessionPort::COOKIE . '=([^;]+)/', $loginV->headers['Set-Cookie'] ?? '', $mv );
 		$cV = array( CookieSessionPort::COOKIE => $mv[1] ?? '' );
@@ -978,7 +1020,7 @@ final class StandaloneHttpTest extends TestCase {
 		$tally = NodeRuntime::create( SiteModes::TALLYING, $this->root . '/tallying', 'teste', true );
 		$tk    = new HttpKernel( $tally, $plugin, 'pt-BR' );
 		$loginT = $tk->handle(
-			new Request( 'POST', '/login', array(), array( 'login' => 'admin', 'password' => 'AdminPoC1!', 'next' => '/painel' ), array(), array() )
+			new Request( 'POST', '/login', array(), array( 'login' => 'admin', 'password' => 'PoC-Operador#99', 'next' => '/painel' ), array(), array() )
 		);
 		preg_match( '/' . CookieSessionPort::COOKIE . '=([^;]+)/', $loginT->headers['Set-Cookie'] ?? '', $mt );
 		$cT = array( CookieSessionPort::COOKIE => $mt[1] ?? '' );
@@ -1041,7 +1083,7 @@ final class StandaloneHttpTest extends TestCase {
 		$tally  = NodeRuntime::create( SiteModes::TALLYING, $this->root . '/tallying', 'teste', true );
 		$tk     = new HttpKernel( $tally, $plugin, 'pt-BR' );
 		$loginT = $tk->handle(
-			new Request( 'POST', '/login', array(), array( 'login' => 'admin', 'password' => 'AdminPoC1!', 'next' => '/painel' ), array(), array() )
+			new Request( 'POST', '/login', array(), array( 'login' => 'admin', 'password' => 'PoC-Operador#99', 'next' => '/painel' ), array(), array() )
 		);
 		preg_match( '/' . CookieSessionPort::COOKIE . '=([^;]+)/', $loginT->headers['Set-Cookie'] ?? '', $mt );
 		$cT = array( CookieSessionPort::COOKIE => $mt[1] ?? '' );
