@@ -5,6 +5,8 @@ namespace RelataSoft\SecureElectionSuite\Painel\Infrastructure\Identity\User;
 
 use RelataSoft\SecureElectionSuite\Painel\Contracts\User\UserDirectory;
 use RelataSoft\SecureElectionSuite\Painel\Contracts\User\UserProvider;
+use RelataSoft\SecureElectionSuite\Painel\Domain\Identity\AccountStatus;
+use RelataSoft\SecureElectionSuite\Painel\Domain\Identity\PasswordPolicy;
 
 /**
  * Shared in-memory user store implementing current-user + directory (tests).
@@ -101,15 +103,22 @@ final class InMemoryUserStore implements UserProvider, UserDirectory {
 		}
 		$id = $this->autoId++;
 		$role = (string) ($data['role'] ?? 'subscriber');
+		$pass = (string) ($data['password'] ?? '');
+		$hash = '' !== $pass ? PasswordPolicy::hash($pass) : '';
+		$now  = gmdate('c');
 		$this->users[$id] = array(
 			'id'           => $id,
+			'uuid'         => bin2hex(random_bytes(8)),
 			'login'        => $login,
 			'email'        => $email,
 			'displayName'  => (string) ($data['displayName'] ?? $login),
 			'firstName'    => (string) ($data['firstName'] ?? ''),
 			'lastName'     => (string) ($data['lastName'] ?? ''),
 			'roles'        => array($role),
-			'passwordHash' => (string) ($data['password'] ?? ''),
+			'status'       => AccountStatus::normalize(isset($data['status']) ? (string) $data['status'] : null),
+			'createdAt'    => $now,
+			'updatedAt'    => $now,
+			'passwordHash' => $hash,
 		);
 		return array('ok' => true, 'id' => $id);
 	}
@@ -126,24 +135,36 @@ final class InMemoryUserStore implements UserProvider, UserDirectory {
 		if (isset($data['role'])) {
 			$this->users[$id]['roles'] = array((string) $data['role']);
 		}
+		if (isset($data['status'])) {
+			$from = AccountStatus::normalize(isset($this->users[$id]['status']) ? (string) $this->users[$id]['status'] : null);
+			$to   = AccountStatus::normalize((string) $data['status']);
+			if ($from !== $to && !AccountStatus::canTransition($from, $to)) {
+				return array('ok' => false, 'error' => 'transição de estado inválida');
+			}
+			$this->users[$id]['status'] = $to;
+		}
+		$this->users[$id]['updatedAt'] = gmdate('c');
 		return array('ok' => true);
 	}
 
 	public function setPassword(int $id, string $plaintext): void {
 		if (isset($this->users[$id])) {
-			$this->users[$id]['passwordHash'] = 'plain:' . $plaintext;
+			$this->users[$id]['passwordHash'] = PasswordPolicy::hash($plaintext);
+			$this->users[$id]['updatedAt']    = gmdate('c');
 		}
 	}
 
 	public function setPasswordHash(int $id, string $hashOrPlaintext): void {
 		if (isset($this->users[$id])) {
 			$this->users[$id]['passwordHash'] = $hashOrPlaintext;
+			$this->users[$id]['updatedAt']    = gmdate('c');
 		}
 	}
 
 	public function setRole(int $id, string $role): void {
 		if (isset($this->users[$id])) {
 			$this->users[$id]['roles'] = array($role);
+			$this->users[$id]['updatedAt'] = gmdate('c');
 		}
 	}
 
@@ -156,6 +177,7 @@ final class InMemoryUserStore implements UserProvider, UserDirectory {
 		if (!in_array($role, $roles, true)) {
 			$roles[] = $role;
 			$this->users[$id]['roles'] = $roles;
+			$this->users[$id]['updatedAt'] = gmdate('c');
 		}
 	}
 
@@ -172,14 +194,19 @@ final class InMemoryUserStore implements UserProvider, UserDirectory {
 
 	/** @param array<string,mixed> $row */
 	private function normalize(array $row): array {
+		$now = gmdate('c');
 		return array(
 			'id'           => (int) $row['id'],
+			'uuid'         => (string) ($row['uuid'] ?? ''),
 			'login'        => (string) ($row['login'] ?? ''),
 			'email'        => (string) ($row['email'] ?? ''),
 			'displayName'  => (string) ($row['displayName'] ?? ''),
 			'firstName'    => (string) ($row['firstName'] ?? ''),
 			'lastName'     => (string) ($row['lastName'] ?? ''),
 			'roles'        => array_values(array_map('strval', (array) ($row['roles'] ?? array()))),
+			'status'       => AccountStatus::normalize(isset($row['status']) ? (string) $row['status'] : null),
+			'createdAt'    => (string) ($row['createdAt'] ?? $now),
+			'updatedAt'    => (string) ($row['updatedAt'] ?? $now),
 			'passwordHash' => (string) ($row['passwordHash'] ?? ''),
 		);
 	}

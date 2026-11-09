@@ -87,7 +87,7 @@ php -S 10.42.0.1:8889 index.php
 | `--host` / `--port` | Escuta do `ve-http` | `10.42.0.1` / `8888` |
 | `VE_PUBLIC_BASE` | URL pública (proxy TLS) | definida pelo `ve-http` |
 | `VE_ADMIN_LOGIN` | Login do 1.º administrador | `admin` |
-| `VE_ADMIN_PASS` | Senha do 1.º administrador | `AdminPoC1!` |
+| `VE_ADMIN_PASS` | Senha do 1.º administrador | `PoC-Operador#99` |
 
 Na **primeira** execução HTTP, se ainda não existir administrador em `identity.json`,
 o sistema cria um com `VE_ADMIN_LOGIN` / `VE_ADMIN_PASS`. **Alterar o padrão** antes

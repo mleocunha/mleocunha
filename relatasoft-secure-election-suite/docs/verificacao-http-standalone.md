@@ -12,7 +12,7 @@ testes e demonstrações**. Produção: um modo por servidor segregado —
 cd relatasoft-secure-election-suite
 composer install
 rm -rf /tmp/ve-http-check && mkdir -p /tmp/ve-http-check/{ka,voting,tallying}
-export VE_ADMIN_LOGIN=admin VE_ADMIN_PASS='AdminPoC1!'
+export VE_ADMIN_LOGIN=admin VE_ADMIN_PASS='PoC-Operador#99'
 php bin/ve-http --mode=key_authority --data=/tmp/ve-http-check/ka --host=127.0.0.1 --port=8888 &
 php bin/ve-http --mode=voting --data=/tmp/ve-http-check/voting --host=127.0.0.1 --port=8889 &
 php bin/ve-http --mode=tallying --data=/tmp/ve-http-check/tallying --host=127.0.0.1 --port=8890 &
