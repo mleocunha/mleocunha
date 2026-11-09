@@ -49,7 +49,7 @@ Material entre sítios: descarregar na sessão (autoridades, chave pública, par
 | Variável | Omissão |
 |----------|---------|
 | `VE_ADMIN_LOGIN` | `admin` |
-| `VE_ADMIN_PASS` | `AdminPoC1!` |
+| `VE_ADMIN_PASS` | `PoC-Operador#99` |
 
 Produção: definir senha forte **antes** do primeiro arranque HTTP de cada nó
 (cada nó tem o seu `identity.json`).
@@ -124,7 +124,7 @@ Colocar TLS no nginx à frente; PHP só em loopback. Ver `docs/operacao-standalo
 - Não ativar como plugin de CMS.
 - Não reutilizar o mesmo `VE_DATA` em dois processos.
 - Não expor a porta do PHP sem TLS / controlo de acesso.
-- Não deixar `AdminPoC1!` acessível em rede.
+- Não deixar `PoC-Operador#99` acessível em rede.
 
 ## Próximos passos
 

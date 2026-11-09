@@ -143,6 +143,13 @@ final class WordPressUserDirectory implements UserDirectory {
 		}
 	}
 
+	public function addRole(int $id, string $role): void {
+		$user = new \WP_User( $id );
+		if ( $user->exists() && '' !== trim( $role ) ) {
+			$user->add_role( $role );
+		}
+	}
+
 	public function getMeta(int $id, string $key): string {
 		return (string) get_user_meta( $id, $key, true );
 	}
@@ -156,14 +163,20 @@ final class WordPressUserDirectory implements UserDirectory {
 		if ( ! $user || ! $user->exists() ) {
 			return null;
 		}
+		$status = (string) get_user_meta( $user->ID, 've_account_status', true );
+		$uuid   = (string) get_user_meta( $user->ID, 've_uuid', true );
 		return array(
 			'id'           => (int) $user->ID,
+			'uuid'         => '' !== $uuid ? $uuid : '',
 			'login'        => (string) $user->user_login,
 			'email'        => (string) $user->user_email,
 			'displayName'  => (string) $user->display_name,
 			'firstName'    => (string) get_user_meta( $user->ID, 'first_name', true ),
 			'lastName'     => (string) get_user_meta( $user->ID, 'last_name', true ),
 			'roles'        => array_values( array_map( 'strval', (array) $user->roles ) ),
+			'status'       => '' !== $status ? $status : 'active',
+			'createdAt'    => (string) ( $user->user_registered ?? '' ),
+			'updatedAt'    => (string) ( $user->user_registered ?? '' ),
 			'passwordHash' => (string) $user->user_pass,
 		);
 	}

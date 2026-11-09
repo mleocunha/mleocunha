@@ -67,7 +67,7 @@ $cmd    = array(
 );
 
 fwrite( STDOUT, "ve-http [{$mode}] → {$base}  data={$data}\n" );
-fwrite( STDOUT, "Admin bootstrap: VE_ADMIN_LOGIN/VE_ADMIN_PASS (default admin / AdminPoC1!)\n" );
+fwrite( STDOUT, "Admin bootstrap: VE_ADMIN_LOGIN/VE_ADMIN_PASS (default admin / PoC-Operador#99)\n" );
 
 $descriptors = array( 0 => STDIN, 1 => STDOUT, 2 => STDERR );
 $proc = proc_open( $cmd, $descriptors, $pipes, $root, array(
